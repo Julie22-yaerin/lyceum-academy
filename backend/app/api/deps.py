@@ -14,6 +14,22 @@ def db_session() -> Session:
     return Depends(get_db)
 
 
+async def require_auth(
+    authorization: str | None = Header(default=None),
+) -> dict:
+    """
+    Lightweight auth guard for AI endpoints.
+    Verifies Firebase ID token only — no DB lookup.
+    Returns the decoded token payload {user_id, email, ...}.
+    """
+    if not authorization:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    return await verify_firebase_id_token(token)
+
+
 async def get_current_user(
     db: Session = Depends(get_db),
     authorization: str | None = Header(default=None),
