@@ -1,0 +1,23 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+sqlalchemy>=2.0.0
+psycopg[binary]>=3.2.0
+pydantic-settings>=2.5.0
+pyjwt>=2.9.0
+cryptography==48.0.1
+httpx>=0.27.0
+# Admin — RAG + fine-tuning
+torch>=2.0.0          # required by sentence-transformers (CPU/MPS, macOS-compatible)
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+pymupdf>=1.24.0          # replaces PyPDF2 — faster, better layout, can render pages to image
+python-multipart>=0.0.9
+Pillow>=10.0.0
+pytesseract>=0.3.10
+# YouTube transcript extraction (3-tier: captions → auto-subs → audio+Whisper)
+youtube-transcript-api>=0.6.0
+yt-dlp>=2024.1.0
+# OpenAI fine-tuning pipeline
+openai>=1.0.0
+# Rate limiting
+slowapi>=0.1.9

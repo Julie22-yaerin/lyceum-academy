@@ -1,0 +1,104 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+@theme {
+  --color-primary: #1A1A1A;
+  --color-primary-container: #333333;
+  --color-on-primary: #FDFCF8;
+  --color-on-primary-container: #FDFCF8;
+  
+  --color-surface: #FDFCF8;
+  --color-surface-dim: #F5F4EF;
+  --color-surface-bright: #FFFFFF;
+  --color-surface-container-lowest: #FFFFFF;
+  --color-surface-container-low: #FBF9F2;
+  --color-surface-container: #F8F6EF;
+  --color-surface-container-high: #F3F1E9;
+  --color-surface-container-highest: #EAE7E0;
+  
+  --color-on-surface: #1A1A1A;
+  --color-on-surface-variant: #555555;
+  
+  --color-outline: #1A1A1A;
+  --color-outline-variant: #D8D4CC;
+  
+  --color-secondary: #C5A059;
+  --color-secondary-container: #F1E5C9;
+  --color-on-secondary: #1A1A1A;
+  --color-on-secondary-container: #82632A;
+
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+
+  --font-sans: "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Georgia", serif;
+  --font-display: "Georgia", serif;
+  --font-body: "Helvetica Neue", Arial, sans-serif;
+
+  --radius-none: 0px;
+  --radius-sm: 0px;
+  --radius: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+}
+
+body {
+  background-color: var(--color-surface);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+.editorial-nav-link {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--color-on-surface);
+  opacity: 0.6;
+  transition: opacity 0.2s, border-color 0.2s;
+  padding-bottom: 2px;
+}
+
+.editorial-nav-link:hover, .editorial-nav-link.active {
+  opacity: 1;
+  border-bottom: 1px solid var(--color-on-surface);
+}
+
+.editorial-sidebar-text {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: rotate(90deg) translateX(-50%);
+  transform-origin: right;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  opacity: 0.3;
+}
+
+.editorial-accent-line {
+  width: 100px;
+  height: 1px;
+  background: var(--color-on-surface);
+}
+
+.image-placeholder-gradient {
+  background: linear-gradient(45deg, transparent 48%, var(--color-outline-variant) 49%, var(--color-outline-variant) 51%, transparent 52%), linear-gradient(-45deg, transparent 48%, var(--color-outline-variant) 49%, var(--color-outline-variant) 51%, transparent 52%);
+  background-size: 20px 20px;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.manuscript-underline {
+  background-image: linear-gradient(transparent 95%, var(--color-outline-variant) 95%);
+  background-size: 100% 2.5rem;
+  line-height: 2.5rem;
+}
+

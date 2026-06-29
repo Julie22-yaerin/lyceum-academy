@@ -1,0 +1,37 @@
+@import "tailwindcss";
+
+:root {
+  --font-geist-sans: var(--font-geist-sans);
+  --font-geist-mono: var(--font-geist-mono);
+
+  /* Pclick emerald-dark palette */
+  --color-bg:        #050816;
+  --color-surface:   #0a1020;
+  --color-border:    rgba(255,255,255,0.08);
+  --color-accent:    #10b981;   /* emerald-500  */
+  --color-accent-lo: rgba(16,185,129,0.12);
+  --color-accent-hi: #6ee7b7;   /* emerald-300  */
+}
+
+html, body {
+  height: 100%;
+}
+
+/* Smooth scrollbar */
+::-webkit-scrollbar        { width: 6px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: rgba(16,185,129,0.25); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.45); }
+
+/* Emerald glow utility */
+.glow-emerald {
+  box-shadow: 0 0 24px rgba(16,185,129,0.3), 0 0 48px rgba(16,185,129,0.1);
+}
+
+/* Pulse ring for active nodes */
+@keyframes ring-pulse {
+  0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(16,185,129,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(16,185,129,0);    }
+}
+.ring-pulse { animation: ring-pulse 2s ease-out infinite; }

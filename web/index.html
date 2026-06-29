@@ -1,0 +1,2464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lyceum</title>
+  <!-- Fonts: Inter (UI) + JetBrains Mono (code) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- KaTeX: renders $...$ and $$...$$ LaTeX math -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+    onload="window._katexReady=true"></script>
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    :root{
+      --bg:#050816;--surface:#0f172a;--s2:#1e293b;
+      --border:rgba(255,255,255,.1);
+      --t:#ffffff;--t2:#94a3b8;--t3:#64748b;
+      --em:#34d399;--em2:#10b981;
+      --blue:#60a5fa;--indigo:#818cf8;--amber:#fbbf24;--green:#86efac;
+    }
+    body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+      background:var(--bg);color:var(--t);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+    /* KaTeX display math — center + scroll on overflow */
+    .katex-display{overflow-x:auto;overflow-y:hidden;padding:4px 0}
+    .katex{font-size:1em}
+    .screen{display:none;flex:1;overflow:hidden;flex-direction:column}
+    .screen.on{display:flex}
+    button{font-family:inherit}
+
+    /* ── AUTH ── */
+    #auth{align-items:center;justify-content:center}
+    .card{background:var(--surface);border:1px solid rgba(255,255,255,.12);border-radius:24px;
+      padding:44px 40px;width:400px;display:flex;flex-direction:column;gap:16px}
+    .logo-txt{font-size:26px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--em);margin-bottom:4px}
+    .card h1{font-size:24px;font-weight:700}
+    .card p{font-size:13px;color:var(--t3);margin-top:-4px}
+    .btn{display:flex;align-items:center;justify-content:center;gap:8px;
+      padding:11px 18px;border-radius:14px;font-size:14px;font-weight:600;
+      cursor:pointer;border:none;transition:all .15s}
+    .btn-p{background:var(--em);color:#000}.btn-p:hover{background:#6ee7b7}
+    .btn-o{background:transparent;color:var(--t);border:1px solid var(--border)}.btn-o:hover{background:rgba(255,255,255,.06)}
+    .btn:disabled{opacity:.4;cursor:not-allowed}
+    .divider{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--t3)}
+    .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+    input,textarea{background:var(--s2);border:1px solid var(--border);border-radius:12px;
+      color:var(--t);font-size:14px;padding:10px 14px;width:100%;outline:none;transition:border-color .15s;font-family:inherit}
+    input:focus,textarea:focus{border-color:var(--em2)}
+    .err{color:#f87171;font-size:12px;display:none}
+
+    /* ── APP ── */
+    #app{flex-direction:column}
+    header{display:flex;align-items:center;padding:0 20px;height:56px;flex-shrink:0;
+      border-bottom:1px solid var(--border);background:rgba(5,8,22,.95);backdrop-filter:blur(16px)}
+    .h-logo{font-size:17px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--em);margin-right:24px}
+    nav{display:flex;gap:4px;flex:1;justify-content:center}
+    .nb{padding:6px 14px;border-radius:10px;font-size:13px;font-weight:500;
+      color:var(--t3);background:transparent;border:none;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+    .nb:hover{color:var(--t);background:rgba(255,255,255,.06)}
+    .nb.on{color:#000;background:var(--em)}
+    .h-right{display:flex;align-items:center;gap:10px}
+    .upill{display:flex;align-items:center;gap:7px;padding:3px 10px 3px 3px;
+      border-radius:20px;background:rgba(255,255,255,.06);border:1px solid var(--border)}
+    .av{width:26px;height:26px;border-radius:50%;background:rgba(52,211,153,.2);
+      color:var(--em);font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center}
+    .uname{font-size:12px;color:var(--t2)}
+    .signout{background:transparent;border:none;color:var(--t3);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:8px}
+    .signout:hover{color:var(--t)}
+
+    /* Views */
+    .view{display:none;flex:1;overflow:hidden;flex-direction:column}
+    .view.on{display:flex}
+
+    /* ── CHAT ── */
+    .msgs{flex:1;overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
+    .msgs::-webkit-scrollbar{width:4px}
+    .msgs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+    .msg{display:flex;gap:10px;max-width:700px}
+    .msg.u{align-self:flex-end;flex-direction:row-reverse}
+    .bubble{padding:10px 15px;border-radius:16px;font-size:14px;line-height:1.6;word-break:break-word}
+    .msg.ai .bubble{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 16px 4px}
+    .msg.u  .bubble{background:rgba(52,211,153,.13);border:1px solid rgba(52,211,153,.2);border-radius:16px 16px 4px 16px}
+    .ico{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;margin-top:3px}
+    .msg.ai .ico{background:#0a2e1e}
+    .msg.u  .ico{background:rgba(96,165,250,.15)}
+    .cin-bar{padding:14px 20px;border-top:1px solid var(--border);display:flex;gap:10px;align-items:flex-end;background:rgba(5,8,22,.8);backdrop-filter:blur(8px)}
+    textarea.cin{resize:none;min-height:44px;max-height:140px;border-radius:20px;padding:10px 14px;line-height:1.5;background:var(--s2)}
+    .sbtn{width:40px;height:40px;border-radius:50%;background:var(--em);border:none;cursor:pointer;
+      color:#000;font-size:18px;font-weight:700;flex-shrink:0;transition:all .15s;display:flex;align-items:center;justify-content:center}
+    .sbtn:hover{background:#6ee7b7}.sbtn:disabled{opacity:.4;cursor:not-allowed}
+
+    /* ── GRAPH ── */
+    .g-topbar{display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+    .g-topbar input{flex:1;min-width:180px;border-radius:14px;padding:9px 14px}
+    .g-wrap{flex:1;position:relative;overflow:hidden}
+    #gsvg{width:100%;height:100%;display:none}
+    .g-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--t3)}
+    .g-empty .big{font-size:48px;opacity:.3}
+    .g-loading{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;
+      justify-content:center;gap:12px;background:rgba(5,8,22,.85);backdrop-filter:blur(4px)}
+    .g-loading.on{display:flex}
+    .spin{width:40px;height:40px;border-radius:50%;border:3px solid rgba(52,211,153,.2);
+      border-top-color:var(--em);animation:sp .8s linear infinite}
+    @keyframes sp{to{transform:rotate(360deg)}}
+    @keyframes toastIn{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+    /* Node detail panel */
+    .npanel{position:absolute;right:0;top:0;bottom:0;width:340px;
+      transform:translateX(105%);transition:transform .25s ease;
+      background:rgba(12,18,36,.97);border-left:1px solid var(--border);
+      backdrop-filter:blur(16px);padding:20px;display:flex;flex-direction:column;gap:12px;
+      z-index:10;overflow-y:auto}
+    .npanel.on{transform:translateX(0)}
+    .np-hd{display:flex;justify-content:space-between;align-items:flex-start}
+    .np-close{background:none;border:none;color:var(--t3);cursor:pointer;font-size:17px;padding:2px 4px}
+    .np-close:hover{color:var(--t)}
+    .np-type{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;margin-bottom:3px}
+    .np-title{font-size:17px;font-weight:700}
+    /* AI summary card inside panel */
+    .np-formula{border-radius:12px;padding:14px;text-align:center;margin:2px 0;
+      font-size:18px;font-weight:700;letter-spacing:.02em;line-height:1.4;word-break:break-word}
+    .np-section-lbl{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+      color:var(--t3);margin-bottom:5px}
+    .np-eq-list{display:flex;flex-direction:column;gap:6px}
+    .np-eq{background:rgba(255,255,255,.05);border:1px solid var(--border);border-radius:8px;
+      padding:7px 12px;font-family:monospace;font-size:13px;color:var(--t2)}
+    .np-insight{background:rgba(99,102,241,.12);border:1px solid rgba(99,102,241,.25);
+      border-radius:10px;padding:10px 13px;font-size:13px;line-height:1.5;color:var(--t2)}
+    .np-desc{font-size:13px;color:var(--t2);line-height:1.65}
+    .np-conn-lbl{font-size:10px;color:var(--t3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+    .np-conn span{display:inline-block;margin:2px 3px 2px 0;
+      background:rgba(255,255,255,.06);border:1px solid var(--border);
+      border-radius:6px;padding:2px 8px;font-size:11px;color:var(--t2)}
+
+    /* ── PROBLEM SET (Docs tab) ── */
+    .pset-wrap{flex:1;overflow-y:auto;padding:28px 32px;display:flex;flex-direction:column;gap:18px}
+    .pset-wrap>*{max-width:820px;width:100%;margin-left:auto;margin-right:auto}
+    .pset-input{border-radius:16px;padding:14px;min-height:150px;resize:vertical;font-size:13px;line-height:1.65}
+    .pset-input::-webkit-scrollbar{width:4px}
+    .pset-input::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:2px}
+    /* Question cards */
+    .q-card{background:var(--surface);border:1px solid var(--border);border-radius:18px;padding:20px 22px;
+      display:flex;flex-direction:column;gap:14px;transition:border-color .15s}
+    .q-card:hover{border-color:rgba(52,211,153,.3)}
+    .q-card-hd{display:flex;align-items:flex-start;gap:10px;cursor:pointer}
+    .q-card-hd:hover .q-title{color:var(--em)}
+    .q-expand{margin-left:auto;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);
+      color:var(--em);border-radius:8px;padding:3px 9px;font-size:11px;cursor:pointer;
+      flex-shrink:0;transition:all .15s}
+    .q-expand:hover{background:var(--em);color:#000}
+
+    /* ── PROBLEM FOCUS OVERLAY ── */
+    .prob-focus{position:fixed;inset:0;z-index:600;background:var(--bg);
+      display:flex;flex-direction:column;
+      transform:translateY(100%) scale(.98);opacity:0;
+      transition:transform .28s cubic-bezier(.4,0,.2,1), opacity .28s ease;
+      pointer-events:none}
+    .prob-focus.on{transform:translateY(0) scale(1);opacity:1;pointer-events:all}
+    .pf-header{display:flex;align-items:center;gap:10px;padding:11px 16px;
+      border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)}
+    .pf-back{background:none;border:1px solid var(--border);color:var(--em);cursor:pointer;
+      font-size:12px;font-weight:600;padding:5px 12px;border-radius:8px;transition:all .15s}
+    .pf-back:hover{background:var(--em);color:#000;border-color:var(--em)}
+    .pf-body{flex:1;overflow-y:auto;padding:20px 24px 32px;display:flex;flex-direction:column;
+      gap:14px;max-width:860px;width:100%;margin:0 auto;box-sizing:border-box}
+    /* Mode tabs */
+    .pf-tabs{display:flex;gap:0;border:1px solid var(--border);border-radius:10px;
+      overflow:hidden;width:fit-content;flex-shrink:0}
+    .pf-tab{padding:7px 20px;font-size:12px;font-weight:600;border:none;cursor:pointer;
+      background:transparent;color:var(--t3);transition:all .12s}
+    .pf-tab.on{background:var(--em);color:#000}
+    /* Math keyboard 12×8 */
+    .math-kb{display:grid;grid-template-columns:repeat(12,1fr);gap:3px;
+      padding:8px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+    .mkb-btn{height:30px;border:1px solid var(--border);border-radius:6px;
+      background:var(--bg);color:var(--t);font-size:14px;cursor:pointer;
+      display:flex;align-items:center;justify-content:center;transition:all .1s;
+      padding:0;line-height:1}
+    .mkb-btn:hover{background:var(--em);color:#000;border-color:var(--em);transform:scale(1.15)}
+    /* Whiteboard */
+    .wb-bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:6px 0}
+    .wb-tool{padding:5px 12px;border-radius:8px;border:1px solid var(--border);
+      background:var(--surface);color:var(--t2);cursor:pointer;font-size:11px;font-weight:600;transition:all .12s}
+    .wb-tool.on{background:var(--em);color:#000;border-color:var(--em)}
+    .wb-swatch{width:20px;height:20px;border-radius:50%;cursor:pointer;
+      border:2px solid transparent;flex-shrink:0;transition:border-color .1s}
+    .wb-swatch.on{border-color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.3)}
+    #wb-canvas{background:#fff;border-radius:12px;border:1px solid var(--border);
+      touch-action:none;cursor:crosshair;display:block;width:100%}
+    .q-num{font-size:10px;font-weight:700;letter-spacing:.08em;background:rgba(52,211,153,.12);
+      color:var(--em);padding:3px 9px;border-radius:8px;flex-shrink:0;margin-top:2px;white-space:nowrap}
+    .q-title{font-size:15px;font-weight:600;flex:1;line-height:1.4}
+    .q-diff{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+      padding:3px 8px;border-radius:6px;flex-shrink:0;margin-top:2px}
+    .q-diff.easy{background:rgba(52,211,153,.12);color:#34d399}
+    .q-diff.medium{background:rgba(251,191,36,.12);color:#fbbf24}
+    .q-diff.hard{background:rgba(248,113,113,.12);color:#f87171}
+    .q-diff.extreme{background:rgba(239,68,68,.15);color:#ef4444}
+    /* Question body */
+    .q-prompt-lbl{font-size:10px;font-weight:600;letter-spacing:.08em;color:var(--t3);margin-bottom:4px}
+    .q-prompt{font-size:14px;color:var(--t);line-height:1.8;padding:14px 16px;
+      background:var(--s2);border-radius:12px;border-left:3px solid rgba(52,211,153,.35);
+      user-select:text;cursor:text}
+    /* Image crop — shown instead of text when available */
+    .q-crop{width:100%;border-radius:10px;border:1px solid var(--border);display:block;
+      background:#fff}  /* white bg so dark text shows on dark UI */
+    /* Tool Map editable canvas */
+    .tm-editor{position:relative;display:flex;align-items:stretch;gap:0;min-height:240px;
+      background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:20px;
+      overflow:visible}
+    .tm-col{display:flex;flex-direction:column;gap:10px;min-width:160px;max-width:220px}
+    .tm-col-center{flex:1;max-width:260px;margin:0 32px}
+    .tm-col-hd{font-size:10px;font-weight:700;letter-spacing:.1em;text-align:center;margin-bottom:4px}
+    .tm-col-cards{display:flex;flex-direction:column;gap:10px;flex:1}
+    .tm-card{position:relative;padding:10px 12px;border-radius:12px;font-size:12px;font-weight:600;
+      line-height:1.4;min-height:44px;outline:none;cursor:text;word-break:break-word;transition:border-color .15s}
+    .tm-card.tm-placeholder{opacity:.45;font-weight:400}
+    .tm-card:focus{opacity:1}
+    .tm-card-input {background:#0a2e22;border:1.5px solid #34d399;color:#a7f3d0}
+    .tm-card-input:focus{border-color:#34d399;box-shadow:0 0 0 2px rgba(52,211,153,.15)}
+    .tm-card-tool  {background:#0f1f3a;border:2px dashed #60a5fa;color:#bfdbfe;text-align:center;
+      background-image:repeating-linear-gradient(45deg,rgba(96,165,250,.04) 0,rgba(96,165,250,.04) 1px,transparent 0,transparent 50%);
+      background-size:12px 12px}
+    .tm-card-tool:focus{border-color:#60a5fa;box-shadow:0 0 0 2px rgba(96,165,250,.15)}
+    .tm-card-output{background:#2a0a0a;border:1.5px solid #f87171;color:#fca5a5}
+    .tm-card-output:focus{border-color:#f87171;box-shadow:0 0 0 2px rgba(248,113,113,.15)}
+    .tm-del{position:absolute;top:4px;right:6px;font-size:12px;cursor:pointer;opacity:0;
+      transition:opacity .15s;color:rgba(255,255,255,.4);line-height:1}
+    .tm-card:hover .tm-del{opacity:1}
+    .tm-add{background:transparent;border:1px dashed rgba(255,255,255,.15);color:var(--t3);
+      border-radius:10px;padding:5px 10px;font-size:11px;cursor:pointer;transition:all .15s;
+      align-self:flex-start}
+    .tm-add:hover{border-color:rgba(255,255,255,.3);color:var(--t2)}
+    .tm-bottom{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    /* Figures panel */
+    .fig-panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+      padding:14px 16px;margin-bottom:8px}
+    .fig-panel-hd{display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+    .fig-panel-hd span{font-size:12px;font-weight:600;color:var(--t2);letter-spacing:.05em}
+    .fig-panel-hd .fig-count{font-size:11px;background:rgba(129,140,248,.15);color:var(--indigo);
+      padding:2px 8px;border-radius:6px;border:1px solid rgba(129,140,248,.2)}
+    .fig-panel-hd .fig-toggle{margin-left:auto;font-size:11px;color:var(--t3)}
+    .fig-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
+      gap:10px;margin-top:12px}
+    .fig-thumb{position:relative;border-radius:10px;overflow:hidden;border:1px solid var(--border);
+      background:#fff;cursor:zoom-in}
+    .fig-thumb img{width:100%;display:block;max-height:160px;object-fit:contain;background:#fff}
+    .fig-caption{position:absolute;bottom:0;left:0;right:0;
+      background:rgba(0,0,0,.72);color:#fff;font-size:10px;line-height:1.4;
+      padding:4px 7px;backdrop-filter:blur(4px)}
+    .fig-modal{position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.82);
+      display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+    .fig-modal img{max-width:90vw;max-height:90vh;border-radius:12px;object-fit:contain}
+    .fig-modal-cap{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      background:rgba(0,0,0,.8);color:#fff;padding:6px 16px;border-radius:8px;font-size:13px;
+      max-width:80vw;text-align:center}
+    .q-concepts{display:flex;flex-wrap:wrap;gap:6px}
+    .q-concept{font-size:10px;background:rgba(129,140,248,.1);color:var(--indigo);
+      border:1px solid rgba(129,140,248,.2);padding:2px 8px;border-radius:6px}
+    .q-ans-wrap{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--border);padding-top:14px}
+    .q-ans-lbl{font-size:10px;color:var(--t3);font-weight:600;letter-spacing:.06em}
+    textarea.q-ans{min-height:72px;resize:vertical;border-radius:12px;padding:10px 13px;font-size:13px;line-height:1.6}
+    .q-btns{display:flex;gap:8px;flex-wrap:wrap}
+    .qbtn{padding:7px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+    .qbtn-check{background:rgba(52,211,153,.1);color:var(--em);border:1px solid rgba(52,211,153,.2)}
+    .qbtn-check:hover{background:rgba(52,211,153,.2)}
+    .q-result-ok{background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);
+      border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.65}
+    .q-result-err{background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);
+      border-radius:12px;padding:12px 14px;font-size:13px;line-height:1.65}
+    /* Highlighter */
+    .hl-bar{position:fixed;display:none;gap:5px;z-index:2000;align-items:center;
+      background:rgba(12,18,36,.97);border:1px solid rgba(255,255,255,.12);
+      border-radius:12px;padding:7px 10px;box-shadow:0 4px 24px rgba(0,0,0,.6);pointer-events:all}
+    .hl-swatch{width:22px;height:22px;border-radius:6px;border:2px solid transparent;
+      cursor:pointer;transition:transform .1s,border-color .1s;flex-shrink:0}
+    .hl-swatch:hover{transform:scale(1.25);border-color:rgba(255,255,255,.4)}
+    .hl-erase{width:22px;height:22px;border-radius:6px;background:rgba(255,255,255,.08);
+      color:#94a3b8;font-size:13px;border:1px solid rgba(255,255,255,.12);cursor:pointer;
+      display:flex;align-items:center;justify-content:center;transition:background .1s}
+    .hl-erase:hover{background:rgba(248,113,113,.2);color:#fca5a5}
+    span.hl{border-radius:3px;padding:0 2px}
+
+    /* ── MIND MAP DRAWER ─────────────────────────────── */
+    .mm-handle{
+      position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+      background:var(--s2);border:1px solid var(--border);border-bottom:none;
+      border-radius:12px 12px 0 0;padding:5px 22px 4px;cursor:pointer;
+      z-index:300;transition:bottom .32s cubic-bezier(.4,0,.2,1),background .15s,border-color .15s;
+      display:flex;align-items:center;gap:8px;user-select:none;white-space:nowrap}
+    .mm-handle:hover{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.25)}
+    .mm-handle.open{bottom:45vh;border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.06)}
+    .mm-arr{font-size:9px;color:var(--t3);transition:transform .32s;line-height:1}
+    .mm-handle.open .mm-arr{transform:rotate(180deg)}
+    .mm-hlabel{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--t3);text-transform:uppercase}
+    .mm-handle.open .mm-hlabel{color:var(--em)}
+
+    .mm-drawer{
+      position:fixed;bottom:0;left:0;right:0;height:45vh;
+      background:var(--bg);border-top:1px solid var(--border);
+      transform:translateY(100%);transition:transform .32s cubic-bezier(.4,0,.2,1);
+      z-index:299;display:flex;flex-direction:column}
+    .mm-drawer.open{transform:translateY(0)}
+
+    .mm-toolbar{
+      display:flex;align-items:center;gap:6px;padding:7px 14px;
+      border-bottom:1px solid var(--border);flex-shrink:0;
+      background:var(--surface);overflow-x:auto}
+    .mm-toolbar::-webkit-scrollbar{display:none}
+    .mm-ttitle{font-size:10px;font-weight:700;letter-spacing:.12em;color:var(--em);
+      text-transform:uppercase;margin-right:6px;flex-shrink:0}
+    .mm-tbtn{padding:5px 11px;border-radius:8px;font-size:11px;font-weight:600;
+      cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--t2);
+      transition:all .15s;display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0}
+    .mm-tbtn:hover{background:rgba(255,255,255,.07);color:var(--t)}
+    .mm-tbtn.on{background:rgba(52,211,153,.12);color:var(--em);border-color:rgba(52,211,153,.3)}
+    .mm-tbtn.del:hover{background:rgba(248,113,113,.1);color:#f87171;border-color:rgba(248,113,113,.25)}
+    .mm-colors{display:flex;gap:5px;align-items:center;margin-left:4px;flex-shrink:0}
+    .mm-cswatch{width:16px;height:16px;border-radius:50%;cursor:pointer;border:2px solid transparent;
+      transition:transform .1s,border-color .12s;flex-shrink:0}
+    .mm-cswatch:hover{transform:scale(1.3)}
+    .mm-cswatch.on{border-color:#fff}
+    .mm-hint{font-size:10px;color:var(--t3);margin-left:auto;flex-shrink:0}
+
+    .mm-wrap{flex:1;position:relative;overflow:hidden;cursor:crosshair}
+    #mm-svg{width:100%;height:100%;display:block;touch-action:none}
+  </style>
+</head>
+<body>
+
+<!-- ═══════════ AUTH SCREEN ═══════════ -->
+<div id="auth" class="screen on">
+  <div class="card">
+    <div>
+      <div class="logo-txt">Lyceum</div>
+      <h1>Welcome back</h1>
+      <p>Sign in to your learning space</p>
+    </div>
+    <button class="btn" onclick="signInGoogle()" style="background:#fff;color:#111;border:1px solid #e5e7eb;font-weight:600">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="divider">or</div>
+    <input type="email" id="ei" placeholder="Email address" />
+    <input type="password" id="pi" placeholder="Password" />
+    <button class="btn btn-p" onclick="signInEmail()">Sign in</button>
+    <div style="text-align:center;font-size:12px;color:var(--t3)">Don't have an account?
+      <button onclick="signInEmail()" style="background:none;border:none;color:var(--em);cursor:pointer;font-size:12px;padding:0;font-weight:600">Sign up</button>
+    </div>
+    <div style="text-align:center;margin-top:4px">
+      <button onclick="devAccess()" style="background:none;border:none;font-size:11px;color:var(--t3);cursor:pointer;padding:4px 8px">Dev access (no auth)</button>
+    </div>
+    <div class="err" id="aerr"></div>
+  </div>
+</div>
+
+<!-- ═══════════ APP SCREEN ═══════════ -->
+<div id="app" class="screen">
+  <header>
+    <div class="h-logo">Lyceum</div>
+    <nav>
+      <button class="nb on" id="nb-chat"  onclick="sv('chat')">💬 Chat</button>
+      <button class="nb"    id="nb-graph" onclick="sv('graph')">🌐 Graph</button>
+      <button class="nb"    id="nb-docs"  onclick="sv('docs');loadSavedPset()">📝 Problems</button>
+    </nav>
+    <div class="h-right">
+      <div class="upill"><div class="av" id="uav">?</div><span class="uname" id="uname">Guest</span></div>
+      <button class="signout" onclick="doSignOut()">Sign out</button>
+    </div>
+  </header>
+
+  <!-- ─ CHAT ─ -->
+  <div class="view on" id="v-chat">
+    <!-- chat topbar -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 20px 0;flex-shrink:0">
+      <span style="font-size:11px;color:var(--t3)">Lyceum AI · Socratic tutor · English</span>
+      <button onclick="clearChat()" style="background:none;border:none;color:var(--t3);cursor:pointer;font-size:11px;padding:4px 8px;border-radius:8px" onmouseover="this.style.color='var(--t)'" onmouseout="this.style.color='var(--t3)'">✕ Clear chat</button>
+    </div>
+    <div class="msgs" id="msgs">
+      <div class="msg ai">
+        <div class="ico">🦉</div>
+        <div class="bubble">Hey! I'm <strong>Lyceum AI</strong> — your Socratic learning companion.<br><br>Ask me anything about math, science, or programming. Switch to <strong>🌐 Graph</strong> for a knowledge map, or open the <strong>🧠 Mind Map</strong> drawer to build and validate your tool flows with Gemini.</div>
+      </div>
+    </div>
+    <div class="cin-bar">
+      <textarea class="cin" id="cin" placeholder="Ask anything…" rows="1"
+        onkeydown="ck(event)" oninput="ar(this)"></textarea>
+      <button class="sbtn" id="sbtn" onclick="sendChat()">↑</button>
+    </div>
+  </div>
+
+  <!-- ─ GRAPH ─ -->
+  <div class="view" id="v-graph">
+    <div class="g-topbar">
+      <input type="text" id="gtopic" placeholder="Enter a topic… e.g. Integral Calculus, Machine Learning, Quantum Physics"
+        onkeydown="if(event.key==='Enter')genGraph()" />
+      <button class="btn btn-p" id="gbtn" onclick="genGraph()" style="white-space:nowrap;padding:9px 18px;font-size:13px">Generate Map</button>
+    </div>
+    <div class="g-wrap" id="gwrap">
+      <div class="g-empty" id="gempty">
+        <div class="big">🌐</div>
+        <div style="font-weight:600;color:var(--t2)">Enter a topic to build a knowledge graph</div>
+        <div style="font-size:12px;margin-top:2px">AI will map all concepts, sub-topics, and connections</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px">
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Integral Calculus')">Integral Calculus</button>
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Machine Learning')">Machine Learning</button>
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Quantum Mechanics')">Quantum Mechanics</button>
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Linear Algebra')">Linear Algebra</button>
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Number Theory')">Number Theory</button>
+          <button class="btn btn-o" style="font-size:12px;padding:5px 13px" onclick="qg('Thermodynamics')">Thermodynamics</button>
+        </div>
+      </div>
+      <svg id="gsvg"></svg>
+      <div class="g-loading" id="gload">
+        <div class="spin"></div>
+        <div style="font-size:14px;color:var(--t2)">Building knowledge graph…</div>
+        <div style="font-size:12px;color:var(--t3)">Building knowledge graph (~10–20s)</div>
+      </div>
+      <!-- Node panel -->
+      <div class="npanel" id="npanel">
+        <div class="np-hd">
+          <div><div class="np-type" id="npt"></div><div class="np-title" id="nptitle"></div></div>
+          <button class="np-close" onclick="closeP()">✕</button>
+        </div>
+        <div class="np-desc" id="npdesc" style="font-size:12px;color:var(--t3);line-height:1.5"></div>
+        <!-- AI summary (loads async after click) -->
+        <div id="np-ai">
+          <div style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:12px">
+            <div class="spin" style="width:14px;height:14px;border-width:2px"></div>
+            Groq is loading summary…
+          </div>
+        </div>
+        <div style="border-top:1px solid var(--border);padding-top:10px">
+          <div class="np-conn-lbl">Connected to</div><div class="np-conn" id="npconn"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Gemini feedback toast (global) -->
+  <div id="tm-toast" style="display:none;position:fixed;bottom:28px;right:28px;z-index:9999;
+       max-width:400px;min-width:280px;border-radius:18px;overflow:hidden;
+       box-shadow:0 8px 40px rgba(0,0,0,.6);animation:toastIn .35s cubic-bezier(.22,1,.36,1)">
+    <div id="tm-toast-head" style="padding:14px 16px;display:flex;align-items:center;gap:10px">
+      <span id="tm-toast-icon" style="font-size:22px"></span>
+      <div style="flex:1;min-width:0">
+        <div id="tm-toast-verdict" style="font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase"></div>
+        <div id="tm-toast-summary" style="font-size:13px;color:var(--t2);margin-top:2px;line-height:1.4"></div>
+      </div>
+      <button onclick="closeTmToast()" style="background:transparent;border:none;cursor:pointer;
+              color:var(--t3);font-size:16px;padding:4px 6px;line-height:1;flex-shrink:0">✕</button>
+    </div>
+    <div id="tm-toast-body" style="padding:0 16px 14px;font-size:12px;color:var(--t2);display:none"></div>
+    <div style="padding:0 16px 12px;display:flex;gap:8px">
+      <button id="tm-toast-detail-btn" onclick="toggleToastDetail()"
+        style="font-size:11px;padding:3px 10px;border-radius:7px;border:1px solid var(--border);
+               background:transparent;color:var(--t3);cursor:pointer">▶ Details</button>
+      <div id="tm-toast-prog" style="flex:1;height:3px;align-self:center;border-radius:99px;
+           background:rgba(255,255,255,.1);overflow:hidden">
+        <div id="tm-toast-bar" style="height:100%;width:100%;border-radius:99px;
+             transition:width 8s linear"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─ PROBLEMS (was Docs) ─ -->
+  <div class="view" id="v-docs">
+    <div class="pset-wrap">
+      <div>
+        <div style="font-size:20px;font-weight:700;margin-bottom:4px">📝 Problem Set Analyzer</div>
+        <div style="font-size:13px;color:var(--t3)">Paste text <em>or</em> upload a PDF / PNG — AI extracts and splits every question into individual cards</div>
+      </div>
+
+      <!-- Upload zone -->
+      <div id="pset-dropzone"
+        style="border:2px dashed var(--border);border-radius:16px;padding:22px 28px;
+               display:flex;align-items:center;gap:16px;cursor:pointer;transition:border-color .15s"
+        onclick="document.getElementById('pset-file').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--em)'"
+        ondragleave="this.style.borderColor=''"
+        ondrop="event.preventDefault();this.style.borderColor='';handlePsetDrop(event)">
+        <div style="font-size:30px;flex-shrink:0">📎</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:3px">Drop PDF or PNG here, or click to browse</div>
+          <div style="font-size:11px;color:var(--t3)">PDF (text-based) · PNG · JPG — AI will OCR images automatically</div>
+        </div>
+        <input type="file" id="pset-file" style="display:none" accept=".pdf,.png,.jpg,.jpeg,.webp"
+          onchange="uploadPset(this.files[0])" />
+      </div>
+
+      <!-- OR divider -->
+      <div style="display:flex;align-items:center;gap:10px;font-size:11px;color:var(--t3)">
+        <div style="flex:1;height:1px;background:var(--border)"></div>or paste text<div style="flex:1;height:1px;background:var(--border)"></div>
+      </div>
+
+      <!-- Text input -->
+      <div>
+        <textarea id="pset-input" class="pset-input" placeholder="Paste your problem set here…
+
+Example:
+1. Differentiate f(x) = x³ − 2x² + 5
+   a) Find f′(x)
+   b) Find all critical points
+   c) Determine concavity at x = 1
+
+2. Solve the system:
+   3x + 2y = 12
+   x − y = 1"></textarea>
+        <div style="display:flex;gap:10px;margin-top:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-p" id="pset-btn" onclick="analyzePset()" style="padding:9px 22px;font-size:13px">🔍 Analyze text</button>
+          <button class="btn btn-o" onclick="clearPset()" style="padding:9px 16px;font-size:13px">✕ Clear</button>
+          <span id="pset-status" style="font-size:12px;color:var(--t3)"></span>
+          <span id="token-pill" onclick="showUsageDetail()" title="Click for breakdown"
+            style="margin-left:auto;font-size:11px;cursor:pointer;padding:3px 10px;border-radius:8px;
+                   border:1px solid var(--border);color:var(--t3);background:var(--surface);display:none">
+            🔢 — tokens
+          </span>
+        </div>
+      </div>
+
+      <div id="pset-results" style="display:flex;flex-direction:column;gap:14px;max-width:820px;width:100%;margin:0 auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Floating highlighter toolbar — appears on text selection inside .q-prompt -->
+<div id="hl-bar" class="hl-bar">
+  <span style="font-size:9px;color:rgba(255,255,255,.35);letter-spacing:.06em;margin-right:2px;flex-shrink:0">MARK</span>
+  <button class="hl-swatch" style="background:#fef08a" onclick="applyHL('#fef08a')" title="Yellow"></button>
+  <button class="hl-swatch" style="background:#86efac" onclick="applyHL('#86efac')" title="Green"></button>
+  <button class="hl-swatch" style="background:#93c5fd" onclick="applyHL('#93c5fd')" title="Blue"></button>
+  <button class="hl-swatch" style="background:#f9a8d4" onclick="applyHL('#f9a8d4')" title="Pink"></button>
+  <button class="hl-swatch" style="background:#fdba74" onclick="applyHL('#fdba74')" title="Orange"></button>
+  <div style="width:1px;height:16px;background:rgba(255,255,255,.1);margin:0 2px;flex-shrink:0"></div>
+  <button class="hl-erase" onclick="eraseHL()" title="Remove highlight">✕</button>
+</div>
+
+<!-- ═══════════ MIND MAP DRAWER ═══════════ -->
+<div class="mm-handle" id="mm-handle" onclick="mmToggle()">
+  <span class="mm-arr">▲</span>
+  <span class="mm-hlabel">🧠 Mind Map</span>
+</div>
+
+<div class="mm-drawer" id="mm-drawer">
+  <!-- ── Mode tabs ── -->
+  <div style="display:flex;border-bottom:1px solid var(--border);flex-shrink:0;background:var(--surface)">
+    <button id="mm-tab-tool" onclick="mmSetMode('tool')"
+      style="padding:7px 20px;font-size:11px;font-weight:700;border:none;border-bottom:2px solid var(--em);
+             cursor:pointer;background:transparent;color:var(--em);letter-spacing:.04em">🔧 Tool Map</button>
+    <button id="mm-tab-free" onclick="mmSetMode('free')"
+      style="padding:7px 20px;font-size:11px;font-weight:700;border:none;border-bottom:2px solid transparent;
+             cursor:pointer;background:transparent;color:var(--t3);letter-spacing:.04em">🧠 Free Map</button>
+  </div>
+
+  <!-- ── Tool Map panel ── -->
+  <div id="mm-panel-tool" style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:14px;padding:18px 20px;box-sizing:border-box">
+  </div>
+
+  <!-- ── Free Map panel ── -->
+  <div id="mm-panel-free" style="flex:1;display:none;flex-direction:column">
+    <div class="mm-toolbar">
+      <span class="mm-ttitle">Free Map</span>
+      <button class="mm-tbtn" onclick="mmAddNode()" title="Add new node (or double-click canvas)">＋ Node</button>
+      <button class="mm-tbtn" id="mm-tbtn-conn" onclick="mmToggleConnect()" title="Click two nodes to draw an edge">🔗 Connect</button>
+      <button class="mm-tbtn" onclick="mmAddChild()" title="Add child of selected node">↳ Child</button>
+      <div style="width:1px;height:16px;background:var(--border);flex-shrink:0"></div>
+      <div class="mm-colors" id="mm-swatches">
+        <span style="font-size:9px;color:var(--t3);letter-spacing:.06em">COLOR</span>
+        <div class="mm-cswatch" style="background:#34d399" onclick="mmRecolor('#34d399')" data-c="#34d399"></div>
+        <div class="mm-cswatch" style="background:#60a5fa" onclick="mmRecolor('#60a5fa')" data-c="#60a5fa"></div>
+        <div class="mm-cswatch" style="background:#818cf8" onclick="mmRecolor('#818cf8')" data-c="#818cf8"></div>
+        <div class="mm-cswatch" style="background:#fbbf24" onclick="mmRecolor('#fbbf24')" data-c="#fbbf24"></div>
+        <div class="mm-cswatch" style="background:#f87171" onclick="mmRecolor('#f87171')" data-c="#f87171"></div>
+        <div class="mm-cswatch" style="background:#86efac" onclick="mmRecolor('#86efac')" data-c="#86efac"></div>
+        <div class="mm-cswatch" style="background:#fb923c" onclick="mmRecolor('#fb923c')" data-c="#fb923c"></div>
+      </div>
+      <div style="width:1px;height:16px;background:var(--border);flex-shrink:0"></div>
+      <button class="mm-tbtn del" onclick="mmDeleteSel()" title="Delete selected (Del)">🗑 Delete</button>
+      <button class="mm-tbtn del" onclick="mmClear()" title="Clear all">✕ Clear</button>
+      <span class="mm-hint">Double-click canvas = new node · Double-click node = rename · Del = remove</span>
+    </div>
+    <div class="mm-wrap" id="mm-wrap">
+      <svg id="mm-svg"></svg>
+    </div>
+  </div>
+</div>
+
+<!-- D3 + Firebase + Supabase -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// ═══════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════
+const API = 'http://localhost:8000';
+
+// Supabase
+const SUPABASE_URL  = 'https://olowfkgwkjtnhuwqljny.supabase.co';
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9sb3dma2d3a2p0bmh1d3Fsam55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNzY1NzEsImV4cCI6MjA5Nzc1MjU3MX0.Iq2TrhHdyySxRarKQEer3zKQpL4nkhRZVVwU2hcgb8g';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let sbUserId = null; // Firebase UID used as Supabase row owner
+
+// ── Protocol guard ─────────────────────────────────────────────────────────────
+// Firebase Auth requires http/https. If opened via file://, show a clear warning.
+if (location.protocol === 'file:') {
+  document.body.innerHTML = `
+    <div style="height:100vh;display:flex;align-items:center;justify-content:center;background:#050816;color:#e2e8f0;font-family:-apple-system,sans-serif">
+      <div style="max-width:420px;text-align:center;padding:40px">
+        <div style="font-size:48px;margin-bottom:16px">🚫</div>
+        <h2 style="margin-bottom:10px;color:#f87171">Open via HTTP, not file://</h2>
+        <p style="color:#94a3b8;line-height:1.7;margin-bottom:20px">
+          Firebase Auth requires the page to be served over HTTP.<br>
+          Run <strong style="color:#34d399">start_web.command</strong> to launch the dev server,
+          then visit <strong style="color:#34d399">http://localhost:3000</strong> in your browser.
+        </p>
+        <code style="background:rgba(255,255,255,.08);padding:8px 14px;border-radius:8px;font-size:13px">
+          open http://localhost:3000
+        </code>
+      </div>
+    </div>`;
+}
+
+firebase.initializeApp({
+  apiKey: "AIzaSyAU7tndPshfmNNClBNZA3WbBBGzbmzRWI4",
+  authDomain: "pclick-9f190.firebaseapp.com",
+  projectId: "pclick-9f190",
+  storageBucket: "pclick-9f190.firebasestorage.app",
+  messagingSenderId: "43342438061",
+  appId: "1:43342438061:web:2b9e5019339e6cf0e87024",
+  measurementId: "G-H8BF2M6ERM"
+});
+const auth = firebase.auth();
+let token = null;
+let mapData = null;
+
+// ── Firebase persistence: SESSION → NONE fallback ──────────────────────────────
+// localStorage may be blocked (Safari private mode, browser settings, etc.)
+// SESSION uses sessionStorage; NONE keeps auth only in memory.
+(async () => {
+  try {
+    await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+  } catch(_) {
+    try { await auth.setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(_) {}
+  }
+})();
+
+// ── Handle redirect result (for Google sign-in fallback) ──────────────────────
+auth.getRedirectResult().catch(() => {}); // suppress stale-redirect errors on load
+
+// ═══════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════
+auth.onAuthStateChanged(async u => {
+  if (u) {
+    token = await u.getIdToken();
+    sbUserId = u.uid;
+    showApp(u.displayName || u.email || 'User');
+    loadChatHistory();
+  }
+});
+
+async function signInGoogle() {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try {
+    await auth.signInWithPopup(provider);
+  } catch(e) {
+    // Popup blocked or unsupported → fall back to redirect
+    if (e.code === 'auth/operation-not-supported-in-this-environment' ||
+        e.code === 'auth/popup-blocked' ||
+        e.code === 'auth/popup-closed-by-user') {
+      try { await auth.signInWithRedirect(provider); }
+      catch(e2) { aerr(e2.message); }
+    } else {
+      aerr(e.message);
+    }
+  }
+}
+async function signInEmail() {
+  const e = $('ei').value.trim(), p = $('pi').value;
+  if (!e || !p) return;
+  try { await auth.signInWithEmailAndPassword(e, p); }
+  catch(err) {
+    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+      try { await auth.createUserWithEmailAndPassword(e, p); }
+      catch(e2) { aerr(e2.message); }
+    } else { aerr(err.message); }
+  }
+}
+function devAccess() { token = 'pclick-admin-dev'; sbUserId = 'dev'; showApp('Dev'); }
+async function doSignOut() {
+  await auth.signOut(); token = null; sbUserId = null; hist = [];
+  $('auth').classList.add('on'); $('app').classList.remove('on');
+}
+function aerr(m) { const el=$('aerr'); el.textContent=m; el.style.display='block'; }
+function showApp(name) {
+  $('auth').classList.remove('on'); $('app').classList.add('on');
+  const ini = name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+  $('uav').textContent = ini;
+  $('uname').textContent = name.split(' ')[0];
+}
+
+// ═══════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════
+function sv(name) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  $('v-'+name).classList.add('on');
+  $('nb-'+name).classList.add('on');
+}
+
+// ═══════════════════════════════════════
+// CHAT
+// ═══════════════════════════════════════
+
+// System prompt — defines AI personality, language, format
+const SYSTEM_PROMPT = `You are Lyceum AI, a smart Socratic learning assistant.
+
+LANGUAGE: Always respond in English, regardless of what language the user writes in.
+
+ROLE:
+- Explain math, science, and programming concepts clearly
+- Use the Socratic method: ask guiding questions instead of giving answers directly
+- Break complex problems into small, manageable steps
+- Use real-world examples when helpful
+
+FORMAT:
+- Use **bold** for key terms
+- Use $...$ for inline math: $E = mc^2$, $\\frac{d}{dx}$, $\\alpha + \\beta$
+- Use $$...$$ for display/block math (equations on their own line)
+- Use \`code\` and code blocks for programming code only
+- Use lists when enumerating multiple points
+- Keep answers concise — no unnecessary padding`;
+
+let hist = [];   // conversation history (không bao gồm system)
+let mid  = 0;
+
+function ar(el) { el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,140)+'px'; }
+function ck(e)  { if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();} }
+function clearChat() {
+  hist = [];
+  $('msgs').innerHTML = `<div class="msg ai"><div class="ico">🦉</div><div class="bubble">Chat cleared. What would you like to explore?</div></div>`;
+}
+
+async function sendChat() {
+  const txt = $('cin').value.trim();
+  if (!txt) return;
+  $('cin').value=''; $('cin').style.height='auto';
+  $('sbtn').disabled = true;
+
+  addMsg('u', txt);
+  hist.push({role:'user', content:txt});
+  sbSaveMsg('user', txt);
+
+  const tid = addMsg('ai', null, 'typing');
+
+  try {
+    const messages = [
+      {role:'system', content: SYSTEM_PROMPT},
+      ...hist
+    ];
+    const r = await fetch(`${API}/ai/chat`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({messages, max_tokens: 2048})
+    });
+    const d = await r.json();
+    const reply  = d.text  || d.detail || 'Không có phản hồi.';
+    const model  = d.model || null;
+    rmMsg(tid);
+    addMsg('ai', reply, 'text', model);
+    hist.push({role:'assistant', content:reply});
+    sbSaveMsg('assistant', reply);
+  } catch(e) {
+    rmMsg(tid);
+    addMsg('ai', '⚠ Backend is not running — open `start_backend.command` first.', 'text');
+  }
+  $('sbtn').disabled = false;
+  scrollMsgs();
+}
+
+// ── Markdown renderer ─────────────────────────────────────────────────────────
+function renderMd(text) {
+  return text
+    // escape HTML first
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    // fenced code blocks
+    .replace(/```(\w*)\n?([\s\S]*?)```/g, (_,lang,code)=>
+      `<pre style="background:#0a1120;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 14px;overflow-x:auto;margin:6px 0;font-size:12px;line-height:1.5;font-family:'JetBrains Mono',monospace"><code>${code.trim()}</code></pre>`)
+    // headers
+    .replace(/^### (.+)$/gm, '<div style="font-weight:700;font-size:13px;margin:8px 0 2px;color:var(--em)">$1</div>')
+    .replace(/^## (.+)$/gm,  '<div style="font-weight:700;font-size:14px;margin:10px 0 4px;color:var(--em)">$1</div>')
+    .replace(/^# (.+)$/gm,   '<div style="font-weight:700;font-size:16px;margin:10px 0 4px;color:var(--em)">$1</div>')
+    // bold + italic
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,     '<em>$1</em>')
+    // inline code
+    .replace(/`([^`]+)`/g, '<code style="background:rgba(255,255,255,.12);padding:1px 6px;border-radius:5px;font-size:12px;font-family:\'JetBrains Mono\',monospace">$1</code>')
+    // unordered lists
+    .replace(/^[-*] (.+)$/gm, '<li style="margin:2px 0 2px 16px;list-style:disc">$1</li>')
+    // numbered lists
+    .replace(/^\d+\. (.+)$/gm,'<li style="margin:2px 0 2px 16px;list-style:decimal">$1</li>')
+    // line breaks
+    .replace(/\n/g, '<br>');
+}
+
+// ── KaTeX math renderer — call after inserting HTML into the DOM ──────────────
+function renderMath(el) {
+  if (typeof renderMathInElement === 'function') {
+    renderMathInElement(el, {
+      delimiters: [
+        {left:'$$',right:'$$',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\(',right:'\\)',display:false},
+        {left:'\\[',right:'\\]',display:true},
+      ],
+      throwOnError: false,
+      output: 'html',
+    });
+  } else {
+    // KaTeX not yet loaded — retry once it fires
+    window.addEventListener('load', () => renderMath(el), {once:true});
+  }
+}
+
+function addMsg(role, text, type='text', model=null) {
+  const id = 'm'+(++mid);
+  const div = document.createElement('div');
+  div.className = `msg ${role}`; div.id = id;
+
+  let content = '';
+  if (type === 'typing') {
+    content = '<em style="color:var(--t3);font-size:13px">thinking…</em>';
+  } else {
+    content = renderMd(text || '');
+  }
+
+  const modelBadge = (model && role==='ai')
+    ? `<span style="display:block;font-size:9px;color:var(--t3);margin-top:5px;text-align:right">via ${model.split('/').pop()}</span>`
+    : '';
+
+  const icon = role==='ai' ? '🦉' : '👤';
+  div.innerHTML = `<div class="ico">${icon}</div><div class="bubble">${content}${modelBadge}</div>`;
+  $('msgs').appendChild(div);
+  if (type !== 'typing') renderMath(div);
+  scrollMsgs();
+  return id;
+}
+
+// ── Supabase: save chat message ───────────────────────────────────────────────
+async function sbSaveMsg(role, content) {
+  if (!sbUserId) return;
+  try {
+    await sb.from('pclick_messages').insert({ user_id: sbUserId, role, content });
+  } catch(_) {} // silent — table may not exist yet
+}
+
+async function loadChatHistory() {
+  if (!sbUserId || sbUserId === 'dev') return;
+  try {
+    const { data, error } = await sb.from('pclick_messages')
+      .select('role,content').eq('user_id', sbUserId)
+      .order('created_at', { ascending: true }).limit(40);
+    if (error || !data?.length) return;
+    // Clear default welcome, load history
+    $('msgs').innerHTML = '';
+    hist = [];
+    for (const m of data) {
+      addMsg(m.role === 'user' ? 'u' : 'ai', m.content, 'text');
+      hist.push({ role: m.role, content: m.content });
+    }
+  } catch(_) {}
+}
+
+function rmMsg(id){document.getElementById(id)?.remove();}
+function scrollMsgs(){const el=$('msgs');el.scrollTop=el.scrollHeight;}
+
+// Graph quick-launch
+function qg(t) { $('gtopic').value = t; genGraph(); }
+
+// ═══════════════════════════════════════
+// TOOL MAP — editable canvas + Gemini validation
+// ═══════════════════════════════════════
+
+function tmBuildDefault(wrap) {
+  if (!wrap) wrap = $('mm-panel-tool');
+  wrap.innerHTML = `
+<div class="tm-editor" id="tm-editor">
+  <!-- SVG overlay for curves (drawn dynamically) -->
+  <svg id="tm-curves" style="position:absolute;inset:0;pointer-events:none;overflow:visible"></svg>
+
+  <!-- LEFT: Inputs -->
+  <div class="tm-col" id="tm-col-inputs">
+    <div class="tm-col-hd" style="color:#34d399">↓ INPUTS</div>
+    <div class="tm-col-cards" id="tm-inputs">
+      <div class="tm-card tm-card-input" contenteditable="true" data-ph="e.g. f(g(x)) composite function">INPUT</div>
+      <div class="tm-card tm-card-input" contenteditable="true" data-ph="e.g. outer function f(u)">INPUT</div>
+    </div>
+    <button class="tm-add" onclick="tmAddCard('inputs','input')">+ Input</button>
+  </div>
+
+  <!-- CENTER: Tools / Steps -->
+  <div class="tm-col tm-col-center" id="tm-col-tools">
+    <div class="tm-col-hd" style="color:#60a5fa">⚙ TOOLS / STEPS</div>
+    <div class="tm-col-cards" id="tm-tools">
+      <div class="tm-card tm-card-tool" contenteditable="true" data-ph="e.g. Chain Rule">THE TOOL</div>
+    </div>
+    <button class="tm-add" onclick="tmAddCard('tools','tool')">+ Tool / Step</button>
+  </div>
+
+  <!-- RIGHT: Outputs -->
+  <div class="tm-col" id="tm-col-outputs">
+    <div class="tm-col-hd" style="color:#f87171">OUTPUTS ↓</div>
+    <div class="tm-col-cards" id="tm-outputs">
+      <div class="tm-card tm-card-output" contenteditable="true" data-ph="e.g. derivative f'(g(x))·g'(x)">OUTPUT</div>
+      <div class="tm-card tm-card-output" contenteditable="true" data-ph="e.g. rate of change">OUTPUT</div>
+    </div>
+    <button class="tm-add" onclick="tmAddCard('outputs','output')">+ Output</button>
+  </div>
+</div>
+
+<!-- Context + actions bar -->
+<div class="tm-bottom">
+  <input id="tm-context" placeholder="Problem context (optional): paste the question here for better analysis…"
+    style="flex:1;border-radius:12px;padding:9px 14px;font-size:13px;background:var(--s2);
+           border:1px solid var(--border);color:var(--t);outline:none" />
+  <button class="btn btn-p" onclick="tmAnalyze()" style="padding:9px 20px;font-size:13px;white-space:nowrap">
+    🔍 Analyze with Gemini
+  </button>
+  <button class="btn btn-o" onclick="tmReset()" style="padding:9px 14px;font-size:13px">↺ Reset</button>
+</div>
+
+`;
+  // Draw initial curves + add placeholder behaviour
+  requestAnimationFrame(tmDrawCurves);
+  // Redraw on resize
+  new ResizeObserver(tmDrawCurves).observe($('tm-editor'));
+  // Placeholder behaviour for contenteditable
+  wrap.querySelectorAll('[data-ph]').forEach(el => {
+    el.addEventListener('focus', () => { if (el.textContent.trim() === el.dataset.ph || el.classList.contains('tm-placeholder')) { el.textContent=''; el.classList.remove('tm-placeholder'); } });
+    el.addEventListener('blur',  () => { if (!el.textContent.trim()) { el.textContent=el.dataset.ph; el.classList.add('tm-placeholder'); } });
+    el.textContent = el.dataset.ph; el.classList.add('tm-placeholder');
+  });
+  // Redraw curves when cards added/removed
+  new MutationObserver(tmDrawCurves).observe($('tm-editor'), {childList:true, subtree:true});
+}
+
+function tmAddCard(colId, type) {
+  const col = $('tm-' + colId);
+  const cls = 'tm-card-' + type;
+  const ph  = type === 'input'  ? 'e.g. another given value' :
+              type === 'tool'   ? 'e.g. next step or rule'   : 'e.g. another result';
+  const card = document.createElement('div');
+  card.className = `tm-card ${cls}`;
+  card.contentEditable = 'true';
+  card.dataset.ph = ph;
+  // delete button
+  const del = document.createElement('span');
+  del.textContent = '×';
+  del.className = 'tm-del';
+  del.onclick = (e) => { e.stopPropagation(); card.remove(); tmDrawCurves(); };
+  card.appendChild(del);
+  card.addEventListener('focus', () => { if (card.classList.contains('tm-placeholder')) { card.textContent=''; card.appendChild(del); card.classList.remove('tm-placeholder'); } });
+  card.addEventListener('blur',  () => { if (!card.textContent.trim()) { card.textContent=ph; card.appendChild(del); card.classList.add('tm-placeholder'); } });
+  card.textContent = ph; card.appendChild(del); card.classList.add('tm-placeholder');
+  col.appendChild(card);
+  card.focus();
+  tmDrawCurves();
+}
+
+function tmReset() {
+  closeTmToast();
+  tmBuildDefault($('mm-panel-tool'));
+}
+
+function tmGetCards(colId) {
+  return [...($('tm-' + colId)?.querySelectorAll('.tm-card') || [])]
+    .map(el => el.textContent.replace('×','').trim())
+    .filter(t => t && !document.querySelector(`[data-ph="${t}"]`)?.classList.contains('tm-placeholder'));
+}
+
+function tmGetCardsText(colId) {
+  return [...($('tm-' + colId)?.querySelectorAll('.tm-card') || [])]
+    .map(el => {
+      const clone = el.cloneNode(true);
+      clone.querySelectorAll('.tm-del').forEach(d=>d.remove());
+      const text = clone.textContent.trim();
+      return el.classList.contains('tm-placeholder') ? '' : text;
+    }).filter(Boolean);
+}
+
+// Draw bezier curves INPUT→TOOL and TOOL→OUTPUT
+function tmDrawCurves() {
+  const editor = $('tm-editor');
+  const svg    = $('tm-curves');
+  if (!editor || !svg) return;
+
+  const eRect  = editor.getBoundingClientRect();
+  const toolEl = $('tm-col-tools');
+  if (!toolEl) return;
+  const toolR = toolEl.getBoundingClientRect();
+  const toolMidX = toolR.left + toolR.width/2 - eRect.left;
+  const toolMidY = toolR.top  + toolR.height/2 - eRect.top;
+
+  let paths = '';
+
+  // INPUT cards → left edge of tools col
+  $('tm-col-inputs')?.querySelectorAll('.tm-card').forEach(card => {
+    const r = card.getBoundingClientRect();
+    const x1 = r.right - eRect.left, y1 = r.top + r.height/2 - eRect.top;
+    const x2 = toolR.left - eRect.left, y2 = toolMidY;
+    const cx = (x1 + x2) / 2;
+    paths += `<path d="M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}"
+      fill="none" stroke="#34d399" stroke-width="1.8" stroke-dasharray="6,3" opacity="0.55"/>`;
+  });
+
+  // Right edge of tools col → OUTPUT cards
+  $('tm-col-outputs')?.querySelectorAll('.tm-card').forEach(card => {
+    const r = card.getBoundingClientRect();
+    const x1 = toolR.right - eRect.left, y1 = toolMidY;
+    const x2 = r.left - eRect.left, y2 = r.top + r.height/2 - eRect.top;
+    const cx = (x1 + x2) / 2;
+    paths += `<path d="M${x1},${y1} C${cx},${y1} ${cx},${y2} ${x2},${y2}"
+      fill="none" stroke="#f87171" stroke-width="1.8" stroke-dasharray="6,3" opacity="0.55"/>`;
+  });
+
+  svg.innerHTML = paths;
+}
+
+async function tmAnalyze() {
+  const inputs  = tmGetCardsText('inputs');
+  const tools   = tmGetCardsText('tools');
+  const outputs = tmGetCardsText('outputs');
+  const context = $('tm-context')?.value.trim() || '';
+
+  if (!tools.length) { alert('Add at least one tool/step before analyzing.'); return; }
+
+  // Show loading toast
+  showTmToast({loading: true});
+
+  try {
+    const r = await fetch(`${API}/ai/tool-map/validate`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({inputs, tools, outputs, context})
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    tmRenderFeedback(d);
+    refreshUsage();
+  } catch(e) {
+    showTmToast({error: e.message});
+  }
+}
+
+let _toastTimer = null;
+
+function showTmToast({loading, error} = {}) {
+  const toast = $('tm-toast');
+  // Reset state
+  clearTimeout(_toastTimer);
+  $('tm-toast-body').style.display = 'none';
+  $('tm-toast-detail-btn').textContent = '▶ Details';
+  $('tm-toast-bar').style.transition = 'none';
+  $('tm-toast-bar').style.width = '100%';
+
+  if (loading) {
+    $('tm-toast-head').style.background = 'var(--surface)';
+    toast.style.background = 'var(--surface)';
+    $('tm-toast-icon').textContent = '⏳';
+    $('tm-toast-verdict').style.color = 'var(--t3)';
+    $('tm-toast-verdict').textContent = 'ANALYZING';
+    $('tm-toast-summary').textContent = 'Gemini is reviewing your approach…';
+    $('tm-toast-detail-btn').style.display = 'none';
+  } else if (error) {
+    toast.style.background = '#1c0a0a';
+    $('tm-toast-icon').textContent = '⚠️';
+    $('tm-toast-verdict').style.color = '#f87171';
+    $('tm-toast-verdict').textContent = 'ERROR';
+    $('tm-toast-summary').textContent = error;
+    $('tm-toast-detail-btn').style.display = 'none';
+  }
+
+  toast.style.display = 'block';
+  // Restart animation
+  toast.style.animation = 'none';
+  requestAnimationFrame(() => { toast.style.animation = 'toastIn .35s cubic-bezier(.22,1,.36,1)'; });
+}
+
+function tmRenderFeedback(d) {
+  const verdict = d.verdict || 'unknown';
+  const color = verdict === 'correct' ? '#34d399' : verdict === 'partial' ? '#fbbf24' : '#f87171';
+  const icon  = verdict === 'correct' ? '✅' : verdict === 'partial' ? '⚠️' : '❌';
+  const toast = $('tm-toast');
+
+  toast.style.background = verdict === 'correct' ? '#061a10' : verdict === 'partial' ? '#1a1200' : '#1a0606';
+  $('tm-toast-icon').textContent = icon;
+  $('tm-toast-verdict').style.color = color;
+  $('tm-toast-verdict').textContent = verdict.toUpperCase();
+  $('tm-toast-summary').textContent = d.feedback || d.verdict_detail || '';
+
+  // Build detail body
+  let body = '';
+  if (d.correct?.length) {
+    body += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#34d399;letter-spacing:.08em;margin-bottom:5px">✓ WHAT'S RIGHT</div>
+      ${d.correct.map(c=>`<div style="margin-bottom:3px">• ${esc(c)}</div>`).join('')}</div>`;
+  }
+  if (d.issues?.length) {
+    body += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#f87171;letter-spacing:.08em;margin-bottom:5px">✗ ISSUES</div>
+      ${d.issues.map(i=>`<div style="margin-bottom:4px">
+        <span style="font-size:10px;background:rgba(248,113,113,.15);color:#f87171;
+                     padding:1px 6px;border-radius:4px">${esc(i.location||'')}</span>
+        <span style="margin-left:5px">${esc(i.item||i.problem||'')}</span>
+        ${i.detail?`<div style="color:var(--t3);margin-top:1px">${esc(i.detail)}</div>`:''}
+      </div>`).join('')}</div>`;
+  }
+  if (d.missing?.length) {
+    body += `<div style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:700;color:#fbbf24;letter-spacing:.08em;margin-bottom:5px">⚠ MISSING</div>
+      ${d.missing.map(m=>`<div style="margin-bottom:3px">• ${esc(m)}</div>`).join('')}</div>`;
+  }
+  if (d.suggestions?.length) {
+    body += `<div>
+      <div style="font-size:10px;font-weight:700;color:#60a5fa;letter-spacing:.08em;margin-bottom:5px">💡 SUGGESTIONS</div>
+      ${d.suggestions.map(s=>`<div style="margin-bottom:3px">• ${esc(s)}</div>`).join('')}</div>`;
+  }
+  $('tm-toast-body').innerHTML = body;
+  $('tm-toast-detail-btn').style.display = body ? 'inline-block' : 'none';
+
+  // Auto-dismiss progress bar
+  requestAnimationFrame(() => {
+    $('tm-toast-bar').style.background = color;
+    $('tm-toast-bar').style.transition = 'width 8s linear';
+    $('tm-toast-bar').style.width = '0%';
+  });
+  _toastTimer = setTimeout(closeTmToast, 8000);
+}
+
+function toggleToastDetail() {
+  const body = $('tm-toast-body');
+  const btn  = $('tm-toast-detail-btn');
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  btn.textContent = open ? '▶ Details' : '▼ Details';
+  if (!open) clearTimeout(_toastTimer); // keep open while reading
+}
+
+function closeTmToast() {
+  clearTimeout(_toastTimer);
+  $('tm-toast').style.display = 'none';
+}
+
+// ═══════════════════════════════════════
+// KNOWLEDGE GRAPH
+// ═══════════════════════════════════════
+const NC = {
+  root:        {fill:'#0a2e22',stroke:'#34d399',text:'#a7f3d0'},
+  concept:     {fill:'#0f1f3a',stroke:'#60a5fa',text:'#bfdbfe'},
+  subtopic:    {fill:'#1a1a2e',stroke:'#818cf8',text:'#c7d2fe'},
+  application: {fill:'#1f2a14',stroke:'#86efac',text:'#bbf7d0'},
+  prerequisite:{fill:'#2a1f0a',stroke:'#fbbf24',text:'#fde68a'},
+};
+
+async function genGraph() {
+  const topic = $('gtopic').value.trim();
+  if(!topic) return;
+
+  $('gempty').style.display='none';
+  $('gsvg').style.display='none';
+  $('gload').classList.add('on');
+  $('gbtn').disabled=true;
+  closeP();
+
+  try {
+    const r = await fetch(`${API}/ai/topic-map`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({topic})
+    });
+    if(!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.json()).detail||''}`);
+    const d = await r.json();
+    if(d.error) throw new Error('AI returned invalid JSON — please retry');
+    mapData = d;
+    renderGraph(d);
+  } catch(e) {
+    $('gload').classList.remove('on');
+    $('gempty').style.display='flex';
+    $('gempty').innerHTML=`<div class="big">⚠️</div><div style="color:var(--t2);font-weight:600">${e.message}</div><div style="font-size:12px;margin-top:4px">Check that backend is running on port 8000</div>`;
+  }
+  $('gbtn').disabled=false;
+}
+
+function renderGraph(data) {
+  const wrap = $('gwrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const nodes = data.nodes.map(n=>({...n}));
+  const links = data.edges.map(e=>({source:e.source,target:e.target,label:e.label}));
+
+  const svg = d3.select('#gsvg').attr('width',W).attr('height',H);
+  svg.selectAll('*').remove();
+
+  // Arrow marker
+  svg.append('defs').append('marker')
+    .attr('id','arr').attr('viewBox','0 -4 8 8')
+    .attr('refX',30).attr('refY',0)
+    .attr('markerWidth',5).attr('markerHeight',5).attr('orient','auto')
+    .append('path').attr('d','M0,-4L8,0L0,4').attr('fill','rgba(255,255,255,.25)');
+
+  const g = svg.append('g');
+
+  // Zoom + pan
+  svg.call(d3.zoom().scaleExtent([0.25,3.5]).on('zoom',e=>g.attr('transform',e.transform)));
+
+  // Force simulation
+  const sim = d3.forceSimulation(nodes)
+    .force('link',  d3.forceLink(links).id(d=>d.id).distance(180).strength(0.5))
+    .force('charge',d3.forceManyBody().strength(-550))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collide',d3.forceCollide(90));
+
+  // Edges
+  const link = g.append('g').selectAll('line').data(links).join('line')
+    .attr('stroke','rgba(255,255,255,.1)').attr('stroke-width',1.5)
+    .attr('marker-end','url(#arr)');
+
+  // Edge labels
+  const elbl = g.append('g').selectAll('text').data(links).join('text')
+    .text(d=>d.label)
+    .attr('fill','rgba(255,255,255,.25)').attr('font-size',9)
+    .attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('pointer-events','none');
+
+  // Node groups
+  const NW=154, NH=50;
+  const node = g.append('g').selectAll('g').data(nodes).join('g')
+    .attr('cursor','pointer')
+    .on('click',(e,d)=>{e.stopPropagation();showP(d,data);})
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(0.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag', (e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',  (e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;})
+    );
+
+  // Rect
+  node.append('rect')
+    .attr('x',-NW/2).attr('y',-NH/2).attr('width',NW).attr('height',NH)
+    .attr('rx',13).attr('ry',13)
+    .attr('fill',d=>(NC[d.type]||NC.concept).fill)
+    .attr('stroke',d=>(NC[d.type]||NC.concept).stroke)
+    .attr('stroke-width',d=>d.type==='root'?2.5:1.5);
+
+  // Label
+  node.append('text')
+    .text(d=>d.label.length>19?d.label.slice(0,18)+'…':d.label)
+    .attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('y',d=>d.type==='root'?0:-6)
+    .attr('fill',d=>(NC[d.type]||NC.concept).text)
+    .attr('font-size',d=>d.type==='root'?13:11)
+    .attr('font-weight',d=>d.type==='root'?700:500)
+    .attr('pointer-events','none');
+
+  // Type badge
+  node.filter(d=>d.type!=='root').append('text')
+    .text(d=>d.type).attr('text-anchor','middle').attr('dominant-baseline','middle')
+    .attr('y',10).attr('font-size',8)
+    .attr('fill',d=>(NC[d.type]||NC.concept).stroke+'77')
+    .attr('text-transform','uppercase').attr('pointer-events','none');
+
+  // Hover glow
+  node.on('mouseenter',function(_,d){
+    d3.select(this).select('rect').attr('stroke-width',3)
+      .style('filter',`drop-shadow(0 0 8px ${(NC[d.type]||NC.concept).stroke}55)`);
+  }).on('mouseleave',function(_,d){
+    d3.select(this).select('rect').attr('stroke-width',d.type==='root'?2.5:1.5).style('filter',null);
+  });
+
+  // Click canvas → close panel
+  svg.on('click',closeP);
+
+  // Tick
+  sim.on('tick',()=>{
+    link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+        .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+    elbl.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
+    node.attr('transform',d=>`translate(${d.x},${d.y})`);
+  });
+
+  $('gload').classList.remove('on');
+  $('gsvg').style.display='block';
+}
+
+function showP(node, data) {
+  const c = NC[node.type]||NC.concept;
+  $('npt').textContent=node.type.toUpperCase(); $('npt').style.color=c.stroke;
+  $('nptitle').textContent=node.label;
+  $('npdesc').textContent=node.description;
+  // Connections
+  const edges = data.edges.filter(e=>e.source===node.id||e.target===node.id);
+  const connLabels = edges.map(e=>{
+    const oid=e.source===node.id?e.target:e.source;
+    const other=data.nodes.find(n=>n.id===oid);
+    return other?other.label:'';
+  }).filter(Boolean);
+  $('npconn').innerHTML = connLabels.length
+    ? connLabels.map(l=>`<span>${esc(l)}</span>`).join('')
+    : '<span style="color:var(--t3)">None</span>';
+  // Reset AI section to loading
+  $('np-ai').innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;color:var(--t3);font-size:12px">
+      <div class="spin" style="width:14px;height:14px;border-width:2px"></div>
+      Gemini is loading summary…
+    </div>`;
+  $('npanel').classList.add('on');
+  // Async load
+  loadNodeSummary(node, connLabels, c.stroke);
+}
+
+async function loadNodeSummary(node, connLabels, accentColor) {
+  try {
+    const r = await fetch(`${API}/ai/node-summary`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        label: node.label,
+        node_type: node.type,
+        description: node.description,
+        connections: connLabels,
+      })
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    renderNodeSummary(d, accentColor);
+    refreshUsage();
+  } catch(e) {
+    $('np-ai').innerHTML = `<div style="color:#f87171;font-size:12px">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+function renderNodeSummary(d, accentColor) {
+  let html = '';
+
+  // Wikipedia image
+  if (d.image_url) {
+    html += `<div style="margin:2px 0 4px;position:relative">
+      <img src="${d.image_url}" alt=""
+        style="width:100%;border-radius:10px;object-fit:cover;max-height:170px;
+               border:1px solid var(--border);display:block;background:rgba(255,255,255,.04)"
+        onerror="this.parentElement.style.display='none'">
+      <div style="position:absolute;bottom:6px;right:8px;font-size:9px;
+                  background:rgba(0,0,0,.55);color:rgba(255,255,255,.6);
+                  padding:2px 6px;border-radius:4px;pointer-events:none">Wikipedia</div>
+    </div>`;
+  }
+
+  // Big formula display
+  if (d.formula_display) {
+    html += `<div class="np-formula"
+      style="background:${accentColor}14;border:1px solid ${accentColor}33;color:${accentColor}">
+      ${esc(d.formula_display)}
+    </div>`;
+  }
+
+  // Definition
+  if (d.definition) {
+    html += `<div>
+      <div class="np-section-lbl">Definition</div>
+      <div style="font-size:13px;color:var(--t2);line-height:1.6">${esc(d.definition)}</div>
+    </div>`;
+  }
+
+  // Key equations
+  if (d.equations?.length) {
+    html += `<div>
+      <div class="np-section-lbl">Key Equations</div>
+      <div class="np-eq-list">
+        ${d.equations.map(eq=>`<div class="np-eq">${esc(eq)}</div>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  // Example
+  if (d.example) {
+    html += `<div>
+      <div class="np-section-lbl">Example</div>
+      <div style="font-size:13px;color:var(--t2);line-height:1.5;
+                  background:rgba(255,255,255,.03);border-radius:8px;padding:9px 11px">
+        ${esc(d.example)}
+      </div>
+    </div>`;
+  }
+
+  // Key insight
+  if (d.key_insight) {
+    html += `<div class="np-insight">
+      <span style="font-size:10px;font-weight:700;color:#818cf8;letter-spacing:.08em">💡 KEY INSIGHT&nbsp;&nbsp;</span>
+      ${esc(d.key_insight)}
+    </div>`;
+  }
+
+  $('np-ai').innerHTML = html || '<div style="color:var(--t3);font-size:12px">No summary available.</div>';
+}
+
+function closeP(){ $('npanel').classList.remove('on'); }
+
+// ═══════════════════════════════════════
+// PROBLEM SET ANALYZER
+// ═══════════════════════════════════════
+let psetProblems = [];
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function analyzePset() {
+  const txt = $('pset-input').value.trim();
+  if (!txt) return;
+  const btn = $('pset-btn'), status = $('pset-status'), results = $('pset-results');
+  btn.disabled = true;
+  status.textContent = 'AI is analyzing…';
+  results.innerHTML = `<div style="text-align:center;padding:40px;color:var(--t3)">
+    <div class="spin" style="margin:0 auto 14px"></div>
+    <div>Breaking down your problem set…</div></div>`;
+  try {
+    const r = await fetch(`${API}/ai/decompose`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({pset_text: txt})
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.json()).detail||''}`);
+    const d = await r.json();
+    if (d.error) {
+      if (d.raw_text || d.raw) {
+        $('pset-input').value = d.raw_text || d.raw;
+        results.innerHTML = `<div style="color:#fbbf24;padding:14px 18px;background:rgba(251,191,36,.07);border-radius:14px;border:1px solid rgba(251,191,36,.2)">
+          ⚠ AI extracted the text but couldn't structure it into JSON — it's now in the textarea. Click <strong>🔍 Analyze text</strong> to retry.</div>`;
+        status.textContent = 'Paste extracted — retry Analyze';
+      } else {
+        throw new Error('Structuring failed. Try rephrasing or breaking into smaller sections.');
+      }
+      return;
+    }
+    psetProblems = d.problems || [];
+    const n = psetProblems.length;
+    status.textContent = `${n} question${n!==1?'s':''} found`;
+    renderPset(d);
+    refreshUsage();
+  } catch(e) {
+    results.innerHTML = `<div style="color:#f87171;padding:14px 18px;background:rgba(248,113,113,.07);border-radius:14px;border:1px solid rgba(248,113,113,.2)">⚠ ${esc(e.message)}</div>`;
+    status.textContent = '';
+  }
+  btn.disabled = false;
+}
+
+function clearPset() {
+  $('pset-input').value = '';
+  $('pset-results').innerHTML = '';
+  $('pset-status').textContent = '';
+  $('pset-file').value = '';
+  // Reset drop zone
+  const dz = $('pset-dropzone');
+  dz.style.borderColor = '';
+  dz.querySelector('div div:first-child').textContent = 'Drop PDF or PNG here, or click to browse';
+  dz.querySelector('div div:last-child').textContent = 'PDF (text-based) · PNG · JPG — AI will OCR images automatically';
+  psetProblems = [];
+}
+
+function handlePsetDrop(event) {
+  const file = event.dataTransfer.files[0];
+  if (file) uploadPset(file);
+}
+
+async function uploadPset(file) {
+  if (!file) return;
+  const status  = $('pset-status');
+  const results = $('pset-results');
+  const dz      = $('pset-dropzone');
+
+  // Update drop zone label to show filename
+  dz.querySelector('div div:first-child').textContent = `📄 ${file.name}`;
+  dz.querySelector('div div:last-child').textContent  = `${(file.size/1024).toFixed(0)} KB · uploading…`;
+  dz.style.borderColor = 'var(--em)';
+
+  status.textContent = `Uploading ${file.name}…`;
+  results.innerHTML  = `<div style="text-align:center;padding:40px;color:var(--t3)">
+    <div class="spin" style="margin:0 auto 14px"></div>
+    <div>Extracting questions from ${esc(file.name)}…</div>
+    <div style="font-size:11px;margin-top:6px">${file.type.startsWith('image') ? 'Using AI vision OCR…' : 'Parsing PDF…'}</div>
+  </div>`;
+
+  try {
+    const form = new FormData();
+    form.append('file', file);
+    const r = await fetch(`${API}/ai/upload-pset`, { method: 'POST', body: form });
+    if (!r.ok) {
+      const err = await r.json().catch(()=>({detail:'Upload failed'}));
+      throw new Error(err.detail || `HTTP ${r.status}`);
+    }
+    const d = await r.json();
+    if (d.error) {
+      // Vision OCR returned text but JSON structuring failed → put text in textarea
+      if (d.raw_text || d.raw) {
+        $('pset-input').value = d.raw_text || d.raw;
+        dz.querySelector('div div:last-child').textContent = 'Text extracted — click Analyze text to structure it';
+        dz.style.borderColor = 'var(--amber)';
+        results.innerHTML = `<div style="color:#fbbf24;padding:14px 18px;background:rgba(251,191,36,.07);border-radius:14px;border:1px solid rgba(251,191,36,.2)">
+          ⚠ Vision extracted the text (now in the textarea below) but couldn't produce structured JSON. Click <strong>🔍 Analyze text</strong> to retry.</div>`;
+        status.textContent = 'Text extracted — retry Analyze';
+      } else {
+        throw new Error(d.summary || 'Could not extract or structure content from this file.');
+      }
+      return;
+    }
+    psetProblems = d.problems || [];
+    const n = psetProblems.length;
+    status.textContent = `${n} question${n!==1?'s':''} found`;
+    dz.querySelector('div div:last-child').textContent = `${(file.size/1024).toFixed(0)} KB · ${n} questions extracted`;
+    renderPset(d);
+    refreshUsage();
+  } catch(e) {
+    results.innerHTML = `<div style="color:#f87171;padding:14px 18px;background:rgba(248,113,113,.07);border-radius:14px;border:1px solid rgba(248,113,113,.2)">⚠ ${esc(e.message)}</div>`;
+    status.textContent = '';
+    dz.style.borderColor = 'rgba(248,113,113,.4)';
+    dz.querySelector('div div:last-child').textContent = 'Upload failed — see error below';
+  }
+}
+
+// ── Figure modal ─────────────────────────────────────────────────
+function showFigModal(src, caption) {
+  const m = document.createElement('div');
+  m.className = 'fig-modal';
+  m.innerHTML = `<img src="${src}"><div class="fig-modal-cap">${esc(caption)}</div>`;
+  m.onclick = () => m.remove();
+  document.body.appendChild(m);
+}
+
+function toggleFigPanel() {
+  const grid = document.getElementById('fig-grid');
+  const tog  = document.getElementById('fig-toggle-lbl');
+  if (!grid) return;
+  const hidden = grid.style.display === 'none';
+  grid.style.display = hidden ? 'grid' : 'none';
+  tog.textContent = hidden ? '▲ hide' : '▼ show';
+}
+
+function renderPset(data) {
+  const results = $('pset-results');
+  if (!psetProblems.length) {
+    results.innerHTML = '<div style="color:var(--t3);padding:16px">No questions found. Make sure the text contains numbered questions.</div>';
+    return;
+  }
+  let html = '';
+
+  // ── Figures panel (prepended before summary + cards) ────────────
+  const figs = data.figures || [];
+  if (figs.length) {
+    html += `<div class="fig-panel">
+      <div class="fig-panel-hd" onclick="toggleFigPanel()">
+        <span>🖼 FIGURES & DIAGRAMS</span>
+        <span class="fig-count">${figs.length} found</span>
+        <span class="fig-toggle" id="fig-toggle-lbl">▲ hide</span>
+      </div>
+      <div class="fig-grid" id="fig-grid">`;
+    figs.forEach((f, fi) => {
+      const src = `data:${f.mime||'image/jpeg'};base64,${f.data}`;
+      const cap = esc(f.label || `Figure ${fi+1} — page ${f.page||'?'}`);
+      const typeTag = f.figure_type
+        ? `<span style="font-size:9px;background:rgba(129,140,248,.15);color:var(--indigo);padding:1px 6px;border-radius:4px;border:1px solid rgba(129,140,248,.2)">${esc(f.figure_type)}</span> `
+        : '';
+      html += `<div class="fig-thumb" onclick="showFigModal('${src}','${cap}')">
+        <img src="${src}" loading="lazy" alt="Figure ${fi+1}">
+        <div class="fig-caption">${typeTag}${cap}</div>
+      </div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  const fileTag = data.source_file
+    ? `<span style="font-size:10px;background:rgba(52,211,153,.1);color:var(--em);border:1px solid rgba(52,211,153,.2);padding:2px 8px;border-radius:6px;margin-left:8px">📄 ${esc(data.source_file)}</span>`
+    : '';
+  if (data.summary) {
+    html += `<div style="font-size:13px;color:var(--t2);background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px 16px;line-height:1.6">${fileTag}${data.summary ? '<br>' : ''}${esc(data.summary)}</div>`;
+  } else if (fileTag) {
+    html += `<div style="padding:6px 0">${fileTag}</div>`;
+  }
+  psetProblems.forEach((p, i) => {
+    const diff  = (p.difficulty||'medium').toLowerCase();
+    const cpts  = (p.concepts||[]).map(c=>`<span class="q-concept">${esc(c)}</span>`).join('');
+    html += `
+    <div class="q-card" id="qcard-${i}">
+      <div class="q-card-hd" onclick="openCard(${i})">
+        <div class="q-num">#${esc(p.id||String(i+1))}</div>
+        <div class="q-title">${esc(p.title||'Question')}</div>
+        <div class="q-diff ${diff}">${esc(diff)}</div>
+        <button class="q-expand" onclick="event.stopPropagation();openCard(${i})">↗ Open</button>
+      </div>
+      ${cpts?`<div class="q-concepts">${cpts}</div>`:''}
+      ${p.image_crop
+        ? `<img class="q-crop" src="data:image/jpeg;base64,${p.image_crop}" alt="Question ${esc(p.id||String(i+1))}" />`
+        : `<div><div class="q-prompt-lbl">QUESTION</div><div class="q-prompt" id="qprompt-${i}">${renderMd(p.prompt||'')}</div></div>`
+      }
+      <div class="q-ans-wrap">
+        <div class="q-ans-lbl">YOUR ANSWER</div>
+        <textarea class="q-ans" id="qans-${i}" placeholder="Write your solution here…"></textarea>
+        <div class="q-btns">
+          <button class="qbtn qbtn-check" onclick="checkAnswer(${i})">✓ Check answer</button>
+        </div>
+        <div id="qresult-${i}"></div>
+      </div>
+    </div>`;
+  });
+  results.innerHTML = html;
+  renderMath(results);
+  // Restore any saved highlights for these cards
+  psetProblems.forEach((_, i) => restoreHL(`qcard-${i}`));
+  // Persist this problem set so it survives page reload
+  savePset(data);
+}
+
+
+async function checkAnswer(idx) {
+  const p = psetProblems[idx]; if (!p) return;
+  const ans = $(`qans-${idx}`).value.trim();
+  const rb  = $(`qresult-${idx}`);
+  if (!ans) { rb.innerHTML='<div class="q-result-err">Write your answer first.</div>'; return; }
+  rb.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:6px 0">Checking…</div>';
+  try {
+    const r = await fetch(`${API}/ai/mastery`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({problem: p.prompt, solution: ans})
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    const cls   = d.correct ? 'q-result-ok' : 'q-result-err';
+    const ico   = d.correct ? '✅' : '❌';
+    const delta = d.mastery_delta > 0 ? `+${d.mastery_delta}` : String(d.mastery_delta||0);
+    rb.innerHTML = `<div class="${cls}">${ico} <strong>${d.correct?'Correct!':'Not quite.'}</strong>&nbsp;<span style="font-size:10px;opacity:.55">mastery ${delta}</span><br><br>${renderMd(d.feedback||'')}</div>`;
+    renderMath(rb);
+  } catch(e) {
+    rb.innerHTML = `<div class="q-result-err">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+// ═══════════════════════════════════════
+// PROBLEM FOCUS VIEW
+// ═══════════════════════════════════════
+const MATH_SYMS = [
+  'α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ',   // Greek lower A
+  'ν','ξ','π','ρ','σ','τ','υ','φ','χ','ψ','ω','Ω',   // Greek lower B
+  'Γ','Δ','Θ','Λ','Ξ','Π','Σ','Φ','Ψ','∞','∅','∂',  // Greek upper + misc
+  '×','÷','±','∓','≈','≠','≤','≥','≡','∝','∴','√',   // Operators
+  '²','³','⁰','¹','⁻¹','⁴','⁵','⁶','⁷','⁸','⁹','ⁿ', // Powers
+  '∫','∬','∮','∇','→','⇒','←','⇐','↔','⇔','∑','∏',  // Calculus / arrows
+  '∈','∉','⊂','⊃','∪','∩','∀','∃','¬','∧','∨','⊕',  // Sets / logic
+  'ℝ','ℤ','ℕ','ℚ','ℂ','°','′','″','⊥','∥','∠','△',  // Number sets + geometry
+];
+
+let _focusIdx   = -1;
+let _focusMode  = 'text';  // 'text' | 'board'
+const _wb = { drawing:false, tool:'pen', color:'#111827', size:3, lastX:0, lastY:0 };
+
+function openCard(idx) {
+  _focusIdx = idx;
+  const p = psetProblems[idx];
+  if (!p) return;
+
+  let ov = $('prob-focus');
+  if (!ov) { ov = document.createElement('div'); ov.id = 'prob-focus'; ov.className = 'prob-focus'; document.body.appendChild(ov); }
+
+  const diff = (p.difficulty||'medium').toLowerCase();
+  const cpts = (p.concepts||[]).map(c=>`<span class="q-concept">${esc(c)}</span>`).join('');
+  const mkb  = MATH_SYMS.map(s=>`<button class="mkb-btn" onclick="pfInsert('${s}')" title="${s}">${s}</button>`).join('');
+
+  ov.innerHTML = `
+    <div class="pf-header">
+      <button class="pf-back" onclick="closeCard()">← Back</button>
+      <div style="flex:1;font-size:13px;font-weight:600;color:var(--t2);padding:0 8px">
+        Problem <span style="color:var(--em)">${idx+1}</span> <span style="color:var(--t3)">/ ${psetProblems.length}</span>
+      </div>
+      ${idx>0?`<button class="pf-back" onclick="openCard(${idx-1})" style="color:var(--t3)">‹ Prev</button>`:''}
+      ${idx<psetProblems.length-1?`<button class="pf-back" onclick="openCard(${idx+1})" style="color:var(--t3)">Next ›</button>`:''}
+      <button class="btn btn-p" onclick="checkFocusAnswer()" style="padding:7px 18px;font-size:12px">✓ Check</button>
+    </div>
+    <div class="pf-body">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+          <div style="font-size:20px;font-weight:700;line-height:1.3">${esc(p.title||'Question '+(idx+1))}</div>
+          <div class="q-diff ${diff}">${diff}</div>
+        </div>
+        ${cpts?`<div class="q-concepts" style="margin-bottom:12px">${cpts}</div>`:''}
+        <div id="pf-prompt" style="font-size:15px;line-height:1.85;color:var(--t2);
+          background:var(--surface);border:1px solid var(--border);border-radius:14px;
+          padding:18px 20px;border-left:3px solid rgba(52,211,153,.4)">
+          ${renderMd(p.prompt||'')}
+        </div>
+      </div>
+
+      <div>
+        <div style="font-size:10px;font-weight:700;letter-spacing:.08em;color:var(--t3);margin-bottom:8px">YOUR ANSWER</div>
+        <div class="pf-tabs" style="margin-bottom:12px">
+          <button class="pf-tab on" id="pf-tab-text"  onclick="pfMode('text')">✏ Text</button>
+          <button class="pf-tab"   id="pf-tab-board" onclick="pfMode('board')">🖊 Whiteboard</button>
+        </div>
+
+        <div id="pf-text-panel">
+          <textarea id="pf-ans" placeholder="Write your solution here…"
+            style="width:100%;min-height:130px;resize:vertical;border-radius:12px;
+                   padding:12px 14px;font-size:14px;line-height:1.75;
+                   background:var(--s2);border:1px solid var(--border);
+                   color:var(--t);outline:none;box-sizing:border-box;font-family:inherit"></textarea>
+          <div style="margin-top:10px">
+            <div style="font-size:9px;font-weight:700;letter-spacing:.1em;color:var(--t3);margin-bottom:6px">MATH SYMBOLS — click to insert</div>
+            <div class="math-kb">${mkb}</div>
+          </div>
+        </div>
+
+        <div id="pf-board-panel" style="display:none">
+          <div class="wb-bar">
+            <button class="wb-tool on" id="wb-btn-pen"    onclick="wbTool('pen')">✏ Pen</button>
+            <button class="wb-tool"   id="wb-btn-eraser" onclick="wbTool('eraser')">⬜ Eraser</button>
+            <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
+            ${['#111827','#ef4444','#3b82f6','#22c55e','#f59e0b','#8b5cf6'].map((c,i)=>
+              `<div class="wb-swatch${i===0?' on':''}" style="background:${c}" onclick="wbColor('${c}')" data-wbc="${c}"></div>`
+            ).join('')}
+            <div style="width:1px;height:18px;background:var(--border);margin:0 2px"></div>
+            <label style="font-size:11px;color:var(--t3);display:flex;align-items:center;gap:6px">
+              Size <input type="range" id="wb-size" min="1" max="20" value="3"
+                style="width:70px" oninput="wbSize(this.value)">
+            </label>
+            <button class="wb-tool" onclick="wbClear()" style="margin-left:auto">✕ Clear</button>
+          </div>
+          <canvas id="wb-canvas"></canvas>
+        </div>
+      </div>
+
+      <div id="pf-result"></div>
+    </div>`;
+
+  // Restore saved answer
+  const saved = $(`qans-${idx}`)?.value || '';
+  if (saved) $('pf-ans').value = saved;
+
+  renderMath($('pf-prompt'));
+  _focusMode = 'text';
+  ov.classList.add('on');
+  requestAnimationFrame(wbInit);
+}
+
+function closeCard() {
+  // Sync answer back to inline card
+  const ans = $('pf-ans')?.value;
+  if (ans && _focusIdx >= 0) { const ta = $(`qans-${_focusIdx}`); if (ta) ta.value = ans; }
+  $('prob-focus')?.classList.remove('on');
+}
+
+function pfMode(m) {
+  _focusMode = m;
+  $('pf-tab-text').classList.toggle('on', m==='text');
+  $('pf-tab-board').classList.toggle('on', m==='board');
+  $('pf-text-panel').style.display  = m==='text'  ? 'block' : 'none';
+  $('pf-board-panel').style.display = m==='board' ? 'block' : 'none';
+  if (m==='board') requestAnimationFrame(wbResize);
+}
+
+function pfInsert(ch) {
+  const ta = $('pf-ans'); if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0,s) + ch + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + ch.length;
+  ta.focus();
+}
+
+async function checkFocusAnswer() {
+  const p = psetProblems[_focusIdx]; if (!p) return;
+  const rb = $('pf-result');
+
+  let ans = '';
+  if (_focusMode === 'text') {
+    ans = $('pf-ans')?.value.trim() || '';
+  } else {
+    rb.innerHTML = '<div style="font-size:12px;color:var(--t3)">Describing your drawing…</div>';
+    ans = await wbDescribe();
+  }
+  if (!ans) { rb.innerHTML='<div style="color:#f87171;font-size:13px;padding:4px 0">Write or draw your answer first.</div>'; return; }
+
+  rb.innerHTML = '<div style="font-size:12px;color:var(--t3);padding:4px 0">Checking…</div>';
+  try {
+    const r = await fetch(`${API}/ai/mastery`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({problem: p.prompt, solution: ans})
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    const cls = d.correct ? 'q-result-ok' : 'q-result-err';
+    const ico = d.correct ? '✅' : '❌';
+    const delta = d.mastery_delta > 0 ? `+${d.mastery_delta}` : String(d.mastery_delta||0);
+    rb.innerHTML = `<div class="${cls}" style="border-radius:14px;padding:14px 16px">
+      ${ico} <strong>${d.correct?'Correct!':'Not quite.'}</strong>
+      <span style="font-size:10px;opacity:.5;margin-left:6px">mastery ${delta}</span>
+      <div style="margin-top:10px;font-size:13px;line-height:1.65">${renderMd(d.feedback||'')}</div>
+    </div>`;
+    renderMath(rb);
+    refreshUsage();
+    if (_focusMode==='text' && $(`qans-${_focusIdx}`)) $(`qans-${_focusIdx}`).value = $('pf-ans').value;
+  } catch(e) {
+    rb.innerHTML = `<div class="q-result-err" style="border-radius:12px;padding:12px">⚠ ${esc(e.message)}</div>`;
+  }
+}
+
+// ── Whiteboard ────────────────────────────────────────────────────
+function wbInit() {
+  const c = $('wb-canvas'); if (!c || c._wb_init) return;
+  c._wb_init = true;
+  wbResize();
+  c.addEventListener('mousedown',  e => wbStart(e));
+  c.addEventListener('mousemove',  e => wbMove(e));
+  c.addEventListener('mouseup',    ()=> wbEnd());
+  c.addEventListener('mouseleave', ()=> wbEnd());
+  c.addEventListener('touchstart', e => { e.preventDefault(); wbStart(e.touches[0]); }, {passive:false});
+  c.addEventListener('touchmove',  e => { e.preventDefault(); wbMove(e.touches[0]); }, {passive:false});
+  c.addEventListener('touchend',   e => { e.preventDefault(); wbEnd(); },              {passive:false});
+}
+function wbResize() {
+  const c = $('wb-canvas'); if (!c) return;
+  const w = c.parentElement.clientWidth || 600;
+  const h = Math.max(200, Math.round(window.innerHeight * 0.38));
+  c.width = w; c.height = h; c.style.height = h + 'px';
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);
+}
+function wbXY(e) {
+  const c = $('wb-canvas'), r = c.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*(c.width/r.width), y:(e.clientY-r.top)*(c.height/r.height) };
+}
+function wbStart(e) {
+  const {x,y} = wbXY(e); _wb.drawing=true; _wb.lastX=x; _wb.lastY=y;
+  const ctx = $('wb-canvas').getContext('2d');
+  ctx.beginPath(); ctx.arc(x,y,_wb.size/2,0,Math.PI*2);
+  ctx.fillStyle = _wb.tool==='eraser'?'#fff':_wb.color; ctx.fill();
+}
+function wbMove(e) {
+  if (!_wb.drawing) return;
+  const {x,y} = wbXY(e), ctx = $('wb-canvas').getContext('2d');
+  ctx.beginPath(); ctx.moveTo(_wb.lastX,_wb.lastY); ctx.lineTo(x,y);
+  ctx.strokeStyle = _wb.tool==='eraser'?'#fff':_wb.color;
+  ctx.lineWidth   = _wb.tool==='eraser'?_wb.size*5:_wb.size;
+  ctx.lineCap='round'; ctx.lineJoin='round'; ctx.stroke();
+  _wb.lastX=x; _wb.lastY=y;
+}
+function wbEnd() { _wb.drawing=false; }
+function wbTool(t) {
+  _wb.tool=t;
+  $('wb-btn-pen').classList.toggle('on', t==='pen');
+  $('wb-btn-eraser').classList.toggle('on', t==='eraser');
+}
+function wbColor(c) {
+  _wb.color=c; wbTool('pen');
+  document.querySelectorAll('[data-wbc]').forEach(el=>el.classList.toggle('on', el.dataset.wbc===c));
+}
+function wbSize(v) { _wb.size = parseInt(v); }
+function wbClear() {
+  const c=$('wb-canvas'); if(!c) return;
+  const ctx=c.getContext('2d'); ctx.fillStyle='#fff'; ctx.fillRect(0,0,c.width,c.height);
+}
+async function wbDescribe() {
+  const c=$('wb-canvas'); if(!c) return '[no drawing]';
+  const b64 = c.toDataURL('image/jpeg',.85).split(',')[1];
+  try {
+    const r = await fetch(`${API}/ai/describe-drawing`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({image:b64})
+    });
+    if(!r.ok) return '[whiteboard — could not describe]';
+    return (await r.json()).text || '[whiteboard drawing]';
+  } catch { return '[whiteboard drawing — vision unavailable]'; }
+}
+
+// ═══════════════════════════════════════
+// PROBLEM SET PERSISTENCE (localStorage)
+// ═══════════════════════════════════════
+const PSET_KEY = 'lyceum_last_pset';
+
+function savePset(data) {
+  try {
+    // Strip image_crop + figure base64 before saving (too large for localStorage)
+    const slim = psetProblems.map(p => { const {image_crop,...rest}=p; return rest; });
+    const figs = (data.figures||[]).map(({data:_d, ...rest}) => rest); // strip base64
+    localStorage.setItem(PSET_KEY, JSON.stringify({
+      summary: data.summary, source_file: data.source_file||'', problems: slim, figures: figs
+    }));
+  } catch(_) {}
+}
+function loadSavedPset() {
+  if (psetProblems.length) return;  // already have data
+  try {
+    const d = JSON.parse(localStorage.getItem(PSET_KEY) || 'null');
+    if (d?.problems?.length) {
+      psetProblems = d.problems;
+      $('pset-status').textContent = `${psetProblems.length} questions (restored)`;
+      renderPset(d);
+    }
+  } catch(_) {}
+}
+
+// ═══════════════════════════════════════
+// TOKEN USAGE TRACKING
+// ═══════════════════════════════════════
+let _lastUsage = null;
+
+function fmtNum(n) {
+  if (n >= 1_000_000) return (n/1_000_000).toFixed(1)+'M';
+  if (n >= 1_000)     return (n/1_000).toFixed(1)+'k';
+  return String(n);
+}
+
+async function refreshUsage() {
+  try {
+    const r = await fetch('http://localhost:8000/ai/usage');
+    if (!r.ok) return;
+    _lastUsage = await r.json();
+    const t = _lastUsage.total;
+    const pill = $('token-pill');
+    if (t.total_tokens > 0) {
+      pill.style.display = 'inline-block';
+      pill.textContent = `🔢 ${fmtNum(t.total_tokens)} tokens · ${t.requests} req`;
+    }
+  } catch(_) {}
+}
+
+function showUsageDetail() {
+  if (!_lastUsage) return;
+  const t = _lastUsage.total;
+  const by = _lastUsage.by_provider;
+  const lines = Object.entries(by)
+    .filter(([,v]) => v.requests > 0)
+    .map(([p,v]) => `${p}: ${fmtNum(v.prompt)}↑ + ${fmtNum(v.completion)}↓ = ${fmtNum(v.prompt+v.completion)} (${v.requests} req)`)
+    .join('\n');
+  alert(
+    `Token usage this session\n` +
+    `═══════════════════════\n` +
+    `Total: ${fmtNum(t.total_tokens)} tokens across ${t.requests} requests\n` +
+    `  Prompt:     ${fmtNum(t.prompt)}\n` +
+    `  Completion: ${fmtNum(t.completion)}\n\n` +
+    `By provider:\n${lines || '(none yet)'}\n\n` +
+    `Groq free limit: ~500k tokens/day\nGoogle free: 1M tokens/day`
+  );
+}
+
+// Poll usage every 30s while page is open
+setInterval(refreshUsage, 30_000);
+// Fetch once on load
+refreshUsage();
+
+// ═══════════════════════════════════════
+// HIGHLIGHTER
+// ═══════════════════════════════════════
+const HL_KEY = 'lyceum_highlights';
+let hlStore = {};
+try { hlStore = JSON.parse(localStorage.getItem(HL_KEY) || '{}'); } catch(_) {}
+
+function saveHL() {
+  try { localStorage.setItem(HL_KEY, JSON.stringify(hlStore)); } catch(_) {}
+}
+
+// Show toolbar when user selects text inside a .q-prompt
+document.addEventListener('mouseup', () => {
+  setTimeout(() => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) { hideHLBar(); return; }
+    const range = sel.getRangeAt(0);
+    let el = range.commonAncestorContainer;
+    if (el.nodeType === 3) el = el.parentElement;
+    if (!el.closest('.q-prompt')) { hideHLBar(); return; }
+
+    const rect = range.getBoundingClientRect();
+    const bar = $('hl-bar');
+    const bw = 200;
+    bar.style.display = 'flex';
+    bar.style.left = Math.max(8, Math.min(window.innerWidth - bw - 8,
+      rect.left + rect.width / 2 - bw / 2)) + 'px';
+    bar.style.top = (rect.top + window.scrollY - 48) + 'px';
+  }, 15);
+});
+
+// Hide toolbar when clicking outside it
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('#hl-bar')) hideHLBar();
+});
+
+function hideHLBar() { $('hl-bar').style.display = 'none'; }
+
+function applyHL(color) {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  const text  = sel.toString();
+
+  let el = range.commonAncestorContainer;
+  if (el.nodeType === 3) el = el.parentElement;
+  const card   = el.closest('.q-card');
+  const cardId = card?.id;
+
+  const span = document.createElement('span');
+  span.className = 'hl';
+  span.style.cssText = `background:${color};border-radius:3px;padding:0 2px`;
+
+  try {
+    range.surroundContents(span);
+  } catch(_) {
+    // Selection crosses element boundaries — extract & re-wrap
+    const frag = range.extractContents();
+    span.appendChild(frag);
+    range.insertNode(span);
+  }
+
+  sel.removeAllRanges();
+  hideHLBar();
+
+  if (cardId && text.trim()) {
+    if (!hlStore[cardId]) hlStore[cardId] = [];
+    hlStore[cardId].push({ text, color });
+    saveHL();
+  }
+}
+
+function eraseHL() {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed) { hideHLBar(); return; }
+
+  // Unwrap any .hl span that is or contains the selection anchor
+  const range = sel.getRangeAt(0);
+  let node = range.commonAncestorContainer;
+  if (node.nodeType === 3) node = node.parentElement;
+  const span = node.closest('span.hl') || node.querySelector('span.hl');
+  if (span) {
+    const p = span.parentNode;
+    while (span.firstChild) p.insertBefore(span.firstChild, span);
+    p.removeChild(span);
+    p.normalize();
+  }
+
+  sel.removeAllRanges();
+  hideHLBar();
+}
+
+function restoreHL(cardId) {
+  const hs = hlStore[cardId];
+  if (!hs?.length) return;
+  const promptEl = document.querySelector(`#${cardId} .q-prompt`);
+  if (!promptEl) return;
+
+  for (const h of hs) {
+    if (!h.text) continue;
+    const walker = document.createTreeWalker(promptEl, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const idx = node.textContent.indexOf(h.text);
+      if (idx < 0) continue;
+      try {
+        const r = document.createRange();
+        r.setStart(node, idx);
+        r.setEnd(node, idx + h.text.length);
+        const sp = document.createElement('span');
+        sp.className = 'hl';
+        sp.style.cssText = `background:${h.color};border-radius:3px;padding:0 2px`;
+        r.surroundContents(sp);
+      } catch(_) {}
+      break;
+    }
+  }
+}
+
+// ═══════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════
+function $(id){return document.getElementById(id);}
+
+// ═══════════════════════════════════════
+// MIND MAP
+// ═══════════════════════════════════════
+const MM = {
+  open: false,
+  nodes: [],   // {id, x, y, text, color}
+  edges: [],   // {id, from, to}
+  sel: null,   // selected node id
+  mode: 'select',  // 'select' | 'connect'
+  connFrom: null,  // first node clicked in connect mode
+  drag: null,      // active drag state
+  pan: { x: 0, y: 0 },
+  nextId: 1,
+  colorCycle: ['#34d399','#60a5fa','#818cf8','#fbbf24','#f87171','#86efac','#fb923c'],
+  colorIdx: 0,
+};
+const MM_KEY = 'lyceum_mindmap';
+const NW = 130, NH = 38, NR = 10; // node width, height, corner radius
+
+/* ── Toggle drawer ── */
+let _mmMode = 'tool'; // current drawer mode
+
+function mmToggle() {
+  MM.open = !MM.open;
+  document.getElementById('mm-drawer').classList.toggle('open', MM.open);
+  document.getElementById('mm-handle').classList.toggle('open', MM.open);
+  if (MM.open) {
+    // Build Tool Map on first open
+    const tp = $('mm-panel-tool');
+    if (!tp.dataset.built) { tmBuildDefault(tp); tp.dataset.built = '1'; }
+    mmSetMode(_mmMode);
+    // Init Free Map nodes if empty
+    if (MM.nodes.length === 0) mmInit();
+  }
+}
+
+function mmSetMode(mode) {
+  _mmMode = mode;
+  const isToolMode = mode === 'tool';
+  // panels
+  $('mm-panel-tool').style.display = isToolMode ? 'flex'  : 'none';
+  $('mm-panel-free').style.display = isToolMode ? 'none'  : 'flex';
+  // tab highlight
+  const tabTool = $('mm-tab-tool'), tabFree = $('mm-tab-free');
+  tabTool.style.color       = isToolMode ? 'var(--em)' : 'var(--t3)';
+  tabTool.style.borderBottom= isToolMode ? '2px solid var(--em)' : '2px solid transparent';
+  tabFree.style.color       = isToolMode ? 'var(--t3)' : 'var(--em)';
+  tabFree.style.borderBottom= isToolMode ? '2px solid transparent' : '2px solid var(--em)';
+  // Re-draw curves when switching to tool map
+  if (isToolMode) requestAnimationFrame(tmDrawCurves);
+  // Re-render free map SVG when switching to it
+  if (!isToolMode) mmRender();
+}
+
+function mmInit() {
+  try {
+    const s = localStorage.getItem(MM_KEY);
+    if (s) { const d = JSON.parse(s); MM.nodes = d.nodes||[]; MM.edges = d.edges||[]; MM.nextId = d.nextId||1; mmRender(); return; }
+  } catch(e) {}
+  // Default root node
+  const svg = document.getElementById('mm-svg');
+  const cx = (svg.clientWidth||600)/2, cy = (svg.clientHeight||200)/2;
+  MM.nodes = [{ id:'n1', x:cx, y:cy, text:'Main Idea', color:'#34d399' }];
+  MM.edges = []; MM.nextId = 2;
+  mmRender();
+}
+
+function mmSave() {
+  try { localStorage.setItem(MM_KEY, JSON.stringify({ nodes:MM.nodes, edges:MM.edges, nextId:MM.nextId })); } catch(e) {}
+}
+
+/* ── Render full SVG ── */
+function mmRender() {
+  const svg = document.getElementById('mm-svg');
+  if (!svg) return;
+  while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // Defs
+  const defs = svgEl('defs');
+  defs.innerHTML = `<marker id="mma" markerWidth="8" markerHeight="7" refX="7" refY="3.5" orient="auto">
+    <polygon points="0,0 8,3.5 0,7" fill="rgba(148,163,184,.35)"/></marker>`;
+  svg.appendChild(defs);
+
+  // Panning background
+  const bg = svgEl('rect');
+  bg.setAttribute('width','100%'); bg.setAttribute('height','100%'); bg.setAttribute('fill','transparent');
+  bg.addEventListener('dblclick', mmBgDblClick);
+  bg.addEventListener('mousedown', mmBgPan);
+  svg.appendChild(bg);
+
+  // Root group (transforms for pan)
+  const g = svgEl('g'); g.id = 'mm-g';
+  g.setAttribute('transform', `translate(${MM.pan.x},${MM.pan.y})`);
+  svg.appendChild(g);
+
+  // Edges
+  for (const e of MM.edges) {
+    const a = MM.nodes.find(n=>n.id===e.from), b = MM.nodes.find(n=>n.id===e.to);
+    if (!a||!b) continue;
+    const path = svgEl('path');
+    const [d] = mmBezier(a, b);
+    path.setAttribute('d', d);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','rgba(148,163,184,.25)');
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('marker-end','url(#mma)');
+    path.dataset.eid = e.id;
+    // Double-click edge to delete it
+    path.style.cursor = 'pointer';
+    path.addEventListener('dblclick', ev => {
+      ev.stopPropagation();
+      MM.edges = MM.edges.filter(x=>x.id!==e.id);
+      mmRender(); mmSave();
+    });
+    g.appendChild(path);
+  }
+
+  // Nodes
+  for (const n of MM.nodes) {
+    const nw = mmNodeWidth(n.text);
+    const ng = svgEl('g');
+    ng.setAttribute('transform',`translate(${n.x-nw/2},${n.y-NH/2})`);
+    ng.dataset.nid = n.id;
+    ng.style.cursor = 'grab';
+
+    const isSel = n.id === MM.sel;
+    const isConn = n.id === MM.connFrom;
+
+    // Shadow
+    if (isSel) {
+      const sh = svgEl('rect');
+      sh.setAttribute('width',nw); sh.setAttribute('height',NH);
+      sh.setAttribute('rx',NR); sh.setAttribute('ry',NR);
+      sh.setAttribute('fill',`${n.color}22`);
+      sh.setAttribute('transform','translate(0,2)');
+      ng.appendChild(sh);
+    }
+
+    // Background rect
+    const rect = svgEl('rect');
+    rect.setAttribute('width',nw); rect.setAttribute('height',NH);
+    rect.setAttribute('rx',NR); rect.setAttribute('ry',NR);
+    rect.setAttribute('fill', isSel ? `${n.color}1a` : '#0f172a');
+    rect.setAttribute('stroke', isConn ? '#fbbf24' : isSel ? n.color : `${n.color}70`);
+    rect.setAttribute('stroke-width', isSel||isConn ? '2' : '1.5');
+    ng.appendChild(rect);
+
+    // Left accent bar
+    const bar = svgEl('rect');
+    bar.setAttribute('x','0'); bar.setAttribute('y', NR);
+    bar.setAttribute('width','3'); bar.setAttribute('height', NH - NR*2);
+    bar.setAttribute('fill', n.color); bar.setAttribute('rx','1.5');
+    ng.appendChild(bar);
+
+    // Text
+    const txt = svgEl('text');
+    txt.setAttribute('x', nw/2 + 2); txt.setAttribute('y', NH/2 + 4.5);
+    txt.setAttribute('text-anchor','middle');
+    txt.setAttribute('fill', isSel ? n.color : 'rgba(226,232,240,.9)');
+    txt.setAttribute('font-size','12');
+    txt.setAttribute('font-family','Inter,-apple-system,sans-serif');
+    txt.setAttribute('font-weight', isSel ? '600' : '500');
+    txt.style.pointerEvents = 'none';
+    txt.textContent = n.text.length > 18 ? n.text.slice(0,16)+'…' : n.text;
+    ng.appendChild(txt);
+
+    // Connect-mode indicator dot
+    if (MM.mode === 'connect') {
+      const dot = svgEl('circle');
+      dot.setAttribute('cx', nw); dot.setAttribute('cy', NH/2);
+      dot.setAttribute('r','5'); dot.setAttribute('fill','#fbbf24');
+      dot.setAttribute('stroke','#fff'); dot.setAttribute('stroke-width','1');
+      ng.appendChild(dot);
+    }
+
+    ng.addEventListener('click',  mmNodeClick);
+    ng.addEventListener('dblclick', mmNodeDblClick);
+    ng.addEventListener('mousedown', mmNodeDrag);
+    g.appendChild(ng);
+  }
+
+  // Update color swatches active state
+  document.querySelectorAll('.mm-cswatch').forEach(sw => {
+    const sel = MM.nodes.find(n=>n.id===MM.sel);
+    sw.classList.toggle('on', !!sel && sw.dataset.c === sel.color);
+  });
+}
+
+function mmNodeWidth(text) {
+  return Math.max(90, Math.min(220, text.length * 8.5 + 32));
+}
+
+function mmBezier(a, b) {
+  const dx = Math.abs(b.x - a.x) * 0.55;
+  return [`M${a.x},${a.y} C${a.x+dx},${a.y} ${b.x-dx},${b.y} ${b.x},${b.y}`];
+}
+
+function svgEl(tag) {
+  return document.createElementNS('http://www.w3.org/2000/svg', tag);
+}
+
+/* ── Background events ── */
+function mmBgDblClick(e) {
+  if (MM.mode !== 'select') return;
+  const svgRect = document.getElementById('mm-svg').getBoundingClientRect();
+  const x = e.clientX - svgRect.left - MM.pan.x;
+  const y = e.clientY - svgRect.top  - MM.pan.y;
+  mmCreateNode(x, y);
+}
+
+function mmBgPan(e) {
+  if (e.button !== 0) return;
+  // Only pan if not clicking a node
+  if (e.target.closest('[data-nid]')) return;
+  const sx = e.clientX - MM.pan.x, sy = e.clientY - MM.pan.y;
+  const mv = ev => {
+    MM.pan.x = ev.clientX - sx; MM.pan.y = ev.clientY - sy;
+    const g = document.getElementById('mm-g');
+    if (g) g.setAttribute('transform', `translate(${MM.pan.x},${MM.pan.y})`);
+  };
+  const up = () => { document.removeEventListener('mousemove',mv); document.removeEventListener('mouseup',up); };
+  document.addEventListener('mousemove', mv);
+  document.addEventListener('mouseup', up);
+}
+
+/* ── Node events ── */
+function mmNodeClick(e) {
+  e.stopPropagation();
+  const id = e.currentTarget.dataset.nid;
+
+  if (MM.mode === 'connect') {
+    if (!MM.connFrom) { MM.connFrom = id; mmRender(); return; }
+    if (MM.connFrom === id) { MM.connFrom = null; mmRender(); return; }
+    const exists = MM.edges.some(ed =>
+      (ed.from===MM.connFrom && ed.to===id) || (ed.from===id && ed.to===MM.connFrom));
+    if (!exists) MM.edges.push({ id:'e'+Date.now(), from:MM.connFrom, to:id });
+    MM.connFrom = null;
+    mmRender(); mmSave(); return;
+  }
+
+  MM.sel = MM.sel === id ? null : id;
+  mmRender();
+}
+
+function mmNodeDblClick(e) {
+  e.stopPropagation();
+  MM.sel = e.currentTarget.dataset.nid;
+  mmRender();
+  mmStartEdit(MM.sel);
+}
+
+function mmNodeDrag(e) {
+  if (e.button !== 0) return;
+  e.stopPropagation();
+  const id = e.currentTarget.dataset.nid;
+  const node = MM.nodes.find(n=>n.id===id);
+  if (!node) return;
+  let moved = false;
+  const sx = e.clientX, sy = e.clientY, nx = node.x, ny = node.y;
+  const mv = ev => {
+    const dx = ev.clientX-sx, dy = ev.clientY-sy;
+    if (!moved && Math.hypot(dx,dy) < 4) return;
+    moved = true;
+    node.x = nx+dx; node.y = ny+dy;
+    mmRender();
+  };
+  const up = () => {
+    if (moved) mmSave();
+    document.removeEventListener('mousemove',mv);
+    document.removeEventListener('mouseup',up);
+  };
+  document.addEventListener('mousemove',mv);
+  document.addEventListener('mouseup',up);
+}
+
+/* ── Inline text editor ── */
+function mmStartEdit(id) {
+  const node = MM.nodes.find(n=>n.id===id);
+  if (!node) return;
+  const svg = document.getElementById('mm-svg');
+  const sr  = svg.getBoundingClientRect();
+  const nw  = mmNodeWidth(node.text);
+  const x   = sr.left + MM.pan.x + node.x - nw/2;
+  const y   = sr.top  + MM.pan.y + node.y - NH/2;
+
+  document.getElementById('mm-editor')?.remove();
+
+  const inp = document.createElement('input');
+  inp.id = 'mm-editor'; inp.type = 'text'; inp.value = node.text;
+  inp.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:${Math.max(nw,120)}px;height:${NH}px;
+    background:#0d1526;border:2px solid ${node.color};border-radius:${NR}px;
+    color:${node.color};font-size:12px;font-weight:600;font-family:Inter,-apple-system,sans-serif;
+    text-align:center;padding:0 10px;outline:none;z-index:1000;box-shadow:0 0 0 4px ${node.color}22`;
+  document.body.appendChild(inp);
+  inp.select(); inp.focus();
+
+  const commit = () => {
+    node.text = inp.value.trim() || node.text;
+    inp.remove(); mmRender(); mmSave();
+  };
+  inp.addEventListener('keydown', e => { if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();commit();} });
+  inp.addEventListener('blur', commit);
+}
+
+/* ── Toolbar actions ── */
+function mmCreateNode(x, y, text='Node') {
+  const color = MM.colorCycle[MM.colorIdx % MM.colorCycle.length];
+  MM.colorIdx++;
+  const id = 'n' + MM.nextId++;
+  MM.nodes.push({ id, x, y, text, color });
+  MM.sel = id; mmRender(); mmSave();
+  setTimeout(() => mmStartEdit(id), 40);
+}
+
+function mmAddNode() {
+  const svg = document.getElementById('mm-svg');
+  const cx = (svg.clientWidth||600)/2  - MM.pan.x + (Math.random()-.5)*120;
+  const cy = (svg.clientHeight||200)/2 - MM.pan.y + (Math.random()-.5)*60;
+  mmCreateNode(cx, cy);
+}
+
+function mmAddChild() {
+  const parent = MM.nodes.find(n=>n.id===MM.sel);
+  if (!parent) return mmAddNode();
+  const x = parent.x + 180, y = parent.y + (MM.nodes.filter(n=>n.id!==parent.id).length % 3 - 1) * 60;
+  const color = MM.colorCycle[MM.colorIdx % MM.colorCycle.length];
+  MM.colorIdx++;
+  const id = 'n' + MM.nextId++;
+  MM.nodes.push({ id, x, y, text:'Node', color });
+  MM.edges.push({ id:'e'+Date.now(), from:parent.id, to:id });
+  MM.sel = id; mmRender(); mmSave();
+  setTimeout(() => mmStartEdit(id), 40);
+}
+
+function mmToggleConnect() {
+  MM.mode = MM.mode === 'connect' ? 'select' : 'connect';
+  MM.connFrom = null;
+  document.getElementById('mm-tbtn-conn').classList.toggle('on', MM.mode==='connect');
+  mmRender();
+}
+
+function mmRecolor(color) {
+  const node = MM.nodes.find(n=>n.id===MM.sel);
+  if (!node) return;
+  node.color = color;
+  mmRender(); mmSave();
+}
+
+function mmDeleteSel() {
+  if (!MM.sel) return;
+  MM.nodes = MM.nodes.filter(n=>n.id!==MM.sel);
+  MM.edges = MM.edges.filter(e=>e.from!==MM.sel && e.to!==MM.sel);
+  MM.sel = null; mmRender(); mmSave();
+}
+
+function mmClear() {
+  if (!confirm('Clear the mind map?')) return;
+  MM.nodes=[]; MM.edges=[]; MM.sel=null; MM.connFrom=null; MM.nextId=1; MM.colorIdx=0;
+  mmRender(); mmSave();
+}
+
+// Keyboard shortcuts for mind map
+document.addEventListener('keydown', e => {
+  if (!MM.open) return;
+  if (document.getElementById('mm-editor')) return;
+  const tag = document.activeElement?.tagName;
+  if (tag==='INPUT'||tag==='TEXTAREA') return;
+  if ((e.key==='Delete'||e.key==='Backspace') && MM.sel) { mmDeleteSel(); e.preventDefault(); }
+  if (e.key==='Escape') { MM.sel=null; MM.connFrom=null; mmSetSelectMode(); }
+  if (e.key==='Tab' && MM.sel) { mmAddChild(); e.preventDefault(); }
+});
+
+function mmSetSelectMode() {
+  MM.mode='select'; MM.connFrom=null;
+  document.getElementById('mm-tbtn-conn').classList.remove('on');
+  mmRender();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "The Lyceum Academy",
+  "description": "An educational application simulating a Socratic learning environment with dialogue, knowledge mapping, and problem sets.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,32 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+frontend/.env*.local
+
+# OS
+.DS_Store
+*.DS_Store
+
+# Logs
+*.log
+port_test_result.txt
+backend/debug_api.py
+backend/.env
+backend/finetune.db
+backend/chroma_db/
+backend/debug_api.py
+backend/test_models.py
+backend/.env
+backend/finetune.db
+backend/chroma_db/
+backend/.venv/
+backend/__pycache__/

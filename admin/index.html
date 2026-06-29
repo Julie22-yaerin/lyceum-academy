@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PCLICK Admin — Training AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <style>
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --card:    #1c2330;
+      --border:  #30363d;
+      --muted:   #8b949e;
+      --text:    #e6edf3;
+      --em:      #3fb950;
+      --em-dim:  rgba(63,185,80,.12);
+      --em-ring: rgba(63,185,80,.3);
+      --blue:    #58a6ff;
+      --amber:   #d29922;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter','Segoe UI',sans-serif; background:var(--bg); color:var(--text); margin:0; }
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:var(--bg); }
+    ::-webkit-scrollbar-thumb { background:#30363d; border-radius:3px; }
+    input,textarea,select { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none; font-family:inherit; }
+    input:focus,textarea:focus { border-color:var(--em); }
+    textarea { resize:vertical; }
+    .btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .15s; white-space:nowrap; }
+    .btn-primary { background:var(--em); color:#0d1117; }
+    .btn-primary:hover { opacity:.85; }
+    .btn-ghost { background:transparent; color:var(--muted); border:1px solid var(--border); }
+    .btn-ghost:hover { color:var(--text); border-color:#58a6ff33; background:rgba(88,166,255,.06); }
+    .btn-danger { background:transparent; color:#f85149; border:1px solid rgba(248,81,73,.25); }
+    .btn-danger:hover { background:rgba(248,81,73,.12); }
+    .spinner { animation:spin 1s linear infinite; }
+    @keyframes spin { to{transform:rotate(360deg)} }
+    .fade-in { animation:fadein .18s ease; }
+    @keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
+    #login-screen.hidden, #app.hidden { display:none!important; }
+    .model-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:20px; cursor:pointer; transition:all .15s; }
+    .model-card:hover { border-color:var(--em-ring); background:var(--card); transform:translateY(-1px); }
+    .task-card { border:1px solid var(--border); border-radius:12px; background:var(--card); margin-bottom:10px; }
+    .task-header { display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer; }
+    .task-header:hover { background:rgba(255,255,255,.03); border-radius:12px; }
+    .task-body { padding:0 16px 16px; border-top:1px solid var(--border); }
+    .example-row { border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:8px; background:var(--surface); }
+    .shot-label { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+    .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:500; }
+    .pill-green { background:var(--em-dim); color:var(--em); border:1px solid var(--em-ring); }
+    .pill-blue  { background:rgba(88,166,255,.1); color:var(--blue); border:1px solid rgba(88,166,255,.25); }
+    .pill-amber { background:rgba(210,153,34,.1); color:var(--amber); border:1px solid rgba(210,153,34,.25); }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════════
+     LOGIN
+════════════════════════════════════════════════════════════ -->
+<div id="login-screen" class="min-h-screen flex items-center justify-center p-4">
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-8">
+      <div class="text-4xl mb-3">🐍🐈</div>
+      <h1 class="text-2xl font-bold">PCLICK Admin</h1>
+      <p style="color:var(--muted)" class="text-sm mt-1">Training AI · Knowledge Base</p>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl p-6 space-y-4 shadow-2xl">
+
+      <button id="google-btn" onclick="signInWithGoogle()"
+        class="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white hover:bg-gray-100 text-gray-800 font-medium rounded-xl transition-colors text-sm shadow">
+        <svg class="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        Continue with Google
+      </button>
+
+      <div class="flex items-center gap-3"><div class="flex-1 border-t" style="border-color:var(--border)"></div><span class="text-xs" style="color:var(--muted)">or dev token</span><div class="flex-1 border-t" style="border-color:var(--border)"></div></div>
+
+      <div class="flex gap-2">
+        <input id="dev-pw" type="password" placeholder="ADMIN_SECRET" style="flex:1"
+          onkeydown="if(event.key==='Enter')signInWithDevToken()" />
+        <button onclick="signInWithDevToken()" class="btn btn-ghost">Go</button>
+      </div>
+
+      <div id="login-error" class="text-red-400 text-xs hidden text-center"></div>
+      <div id="login-loading" class="hidden justify-center flex">
+        <svg class="spinner w-5 h-5" style="color:var(--em)" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     APP
+════════════════════════════════════════════════════════════ -->
+<div id="app" class="hidden min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
+    <span class="text-base">🐍🐈</span>
+    <span class="font-semibold text-sm">PCLICK Admin</span>
+    <div class="flex-1"></div>
+    <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" />
+    <span id="user-name" class="text-xs hidden" style="color:var(--muted)"></span>
+    <span class="w-1.5 h-1.5 rounded-full" id="api-dot" style="background:var(--border)"></span>
+    <span id="header-status" class="text-xs" style="color:var(--muted)"></span>
+    <button onclick="doLogout()" class="btn btn-ghost text-xs ml-2">Sign out</button>
+  </header>
+
+  <!-- Offline banner -->
+  <div id="offline-banner" class="hidden px-5 py-2.5 flex items-center gap-3 text-sm shrink-0"
+    style="background:#1a0a0a;border-bottom:1px solid #5c1111">
+    <svg class="w-4 h-4 shrink-0 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    <span class="text-red-300 flex-1 text-xs">Backend offline — <code style="background:rgba(255,255,255,.1);padding:0 4px;border-radius:4px">start_backend.command</code> then <button onclick="retryConnect()" class="underline hover:text-white transition-colors">retry</button></span>
+    <span id="retry-countdown" class="text-xs" style="color:#5c1111"></span>
+  </div>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-auto">
+    <div id="view-models" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-model-detail" class="hidden p-6 max-w-3xl mx-auto fade-in"></div>
+  </main>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     TASK MODAL
+════════════════════════════════════════════════════════════ -->
+<div id="task-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.7);backdrop-filter:blur(4px)">
+  <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl w-full max-w-md shadow-2xl">
+    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border)">
+      <h3 id="task-modal-title" class="font-semibold text-sm">Add task</h3>
+      <button onclick="closeModal('task-modal')" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-3">
+      <input type="hidden" id="task-edit-id" />
+      <div>
+        <div class="text-xs mb-1.5" style="color:var(--muted)">Task name <span class="text-red-400">*</span></div>
+        <input id="task-name" type="text" placeholder="e.g. Generate hint, Decompose problem, Check answer" />
+      </div>
+      <div>
+        <div class="text-xs mb-1.5" style="color:var(--muted)">Description <span style="color:var(--muted)">(optional)</span></div>
+        <input id="task-desc" type="text" placeholder="What this task does" />
+      </div>
+      <div id="task-error" class="text-red-400 text-xs hidden"></div>
+    </div>
+    <div class="px-5 pb-5 flex justify-end gap-2">
+      <button onclick="closeModal('task-modal')" class="btn btn-ghost">Cancel</button>
+      <button onclick="saveTask()" class="btn btn-primary">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EXAMPLE MODAL -->
+<div id="example-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.7);backdrop-filter:blur(4px)">
+  <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl w-full max-w-xl shadow-2xl max-h-[92vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-4 shrink-0" style="border-bottom:1px solid var(--border)">
+      <h3 id="example-modal-title" class="font-semibold text-sm">Add few-shot example</h3>
+      <button onclick="closeModal('example-modal')" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-5 space-y-3 overflow-y-auto flex-1">
+      <input type="hidden" id="ex-id" />
+      <input type="hidden" id="ex-model-id" />
+      <input type="hidden" id="ex-task-id" />
+      <div>
+        <div class="shot-label">User message <span class="text-red-400">*</span></div>
+        <textarea id="ex-user" rows="4" placeholder="What the user/student says or asks…"></textarea>
+      </div>
+      <div>
+        <div class="shot-label">Assistant reply <span class="text-red-400">*</span></div>
+        <textarea id="ex-assistant" rows="5" placeholder="The ideal AI response for fine-tuning…"></textarea>
+      </div>
+      <div id="ex-error" class="text-red-400 text-xs hidden"></div>
+    </div>
+    <div class="px-5 pb-5 flex justify-end gap-2 shrink-0" style="border-top:1px solid var(--border);padding-top:14px">
+      <button onclick="closeModal('example-modal')" class="btn btn-ghost">Cancel</button>
+      <button onclick="submitExample()" class="btn btn-primary">Save example</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed bottom-5 right-5 z-[100] px-4 py-2.5 rounded-xl text-sm font-medium shadow-xl fade-in"></div>
+
+<!-- ════════════════════════════════════════════════════════════
+     SCRIPT
+════════════════════════════════════════════════════════════ -->
+<script>
+// ── Firebase ──────────────────────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:'AIzaSyAU7tndPshfmNNClBNZA3WbBBGzbmzRWI4',
+  authDomain:'pclick-9f190.firebaseapp.com',
+  projectId:'pclick-9f190',
+  storageBucket:'pclick-9f190.firebasestorage.app',
+  messagingSenderId:'43342438061',
+  appId:'1:43342438061:web:2b9e5019339e6cf0e87024'
+});
+const auth = firebase.auth();
+
+const API        = 'http://localhost:8000';
+const COOKIE     = 'pclick_fb_token';
+const DEV_TOKEN  = 'pclick-admin-dev';
+
+let currentToken = '';
+let _shown       = false;
+let _pingTimer   = null;
+let _retryTimer  = null;
+let _retryS      = 0;
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+auth.onIdTokenChanged(async user => {
+  setLL(false);
+  if (user) {
+    try { currentToken = await user.getIdToken(); } catch { currentToken = DEV_TOKEN; }
+    if (!_shown) { _shown = true; showAdmin(user); }
+  } else {
+    await tryCookieSSO();
+  }
+});
+
+async function tryCookieSSO() {
+  const tok = getCookie(COOKIE);
+  if (tok && await verifyToken(tok)) { currentToken = tok; _shown = true; showAdmin(null); return; }
+  show('login-screen');
+}
+
+async function verifyToken(tok) {
+  try { return (await fetch(API+'/admin/finetune/stats',{headers:{'X-Admin-Token':tok}})).ok; }
+  catch { return false; }
+}
+
+function showAdmin(user) {
+  hide('login-screen');
+  document.getElementById('app').classList.remove('hidden');
+  if (user?.photoURL) { const av=document.getElementById('user-avatar'); av.src=user.photoURL; av.classList.remove('hidden'); }
+  const ne = document.getElementById('user-name');
+  ne.textContent = user ? (user.displayName || user.email) : 'dev token';
+  ne.classList.remove('hidden');
+  postLoginInit();
+  viewModels();
+}
+
+async function signInWithGoogle() {
+  setLL(true); hide('login-error');
+  try { await auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+  catch(e) { setLL(false); showLoginErr(friendlyErr(e)); }
+}
+
+async function signInWithDevToken() {
+  const pw = document.getElementById('dev-pw').value.trim();
+  if (!pw) { showLoginErr('Enter admin password.'); return; }
+  setLL(true);
+  // Dev token is static — accept immediately without backend round-trip.
+  // (Backend still validates X-Admin-Token on every API call.)
+  if (pw === DEV_TOKEN) { currentToken = pw; _shown = true; showAdmin(null); return; }
+  // Otherwise treat as a Firebase token and verify with backend.
+  if (await verifyToken(pw)) { currentToken = pw; _shown = true; showAdmin(null); }
+  else { setLL(false); showLoginErr('Wrong password or backend offline.'); }
+}
+
+function friendlyErr(e) {
+  const c = e.code||'';
+  if (c.includes('popup-closed')) return 'Popup was closed.';
+  if (c.includes('wrong-password')||c.includes('user-not-found')) return 'Wrong email or password.';
+  return e.message||'Sign-in failed.';
+}
+
+function setLL(on) { document.getElementById('login-loading').classList.toggle('hidden',!on); }
+function showLoginErr(m) { const e=document.getElementById('login-error'); e.textContent=m; e.classList.remove('hidden'); }
+
+async function doLogout() {
+  _shown = false; currentToken = '';
+  clearInterval(_pingTimer); _pingTimer = null;
+  clearInterval(_retryTimer); _retryTimer = null;
+  await auth.signOut();
+  document.cookie = `${COOKIE}=; path=/; max-age=0; SameSite=Strict`;
+  document.getElementById('app').classList.add('hidden');
+  document.getElementById('offline-banner').classList.add('hidden');
+  document.getElementById('user-avatar').classList.add('hidden');
+  document.getElementById('user-name').classList.add('hidden');
+  show('login-screen');
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+function headers(extra={}) { return {'X-Admin-Token': currentToken||DEV_TOKEN, ...extra}; }
+
+async function api(path, opts={}) {
+  const r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  if (!r.ok) { const t=await r.text().catch(()=>r.statusText); throw new Error(t||r.statusText); }
+  return r;
+}
+
+function getCookie(n) {
+  const m = document.cookie.split('; ').find(r=>r.startsWith(n+'='));
+  return m ? decodeURIComponent(m.split('=').slice(1).join('=')) : null;
+}
+
+function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+function closeModal(id) { hide(id); }
+
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = type==='ok' ? 'var(--em)' : '#da3633';
+  el.style.color = type==='ok' ? '#0d1117' : 'white';
+  el.classList.remove('hidden');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(()=>el.classList.add('hidden'), 3000);
+}
+
+// ── Backend ping ──────────────────────────────────────────────────────────────
+async function postLoginInit() {
+  setDot('yellow','connecting…');
+  const ok = await pingApi();
+  if (ok) { toast('✓ Backend connected'); startPing(); }
+  else { startRetry(10); }
+}
+
+async function pingApi() {
+  try {
+    const r = await fetch(API+'/health/live',{signal:AbortSignal.timeout(4000)});
+    if (r.ok) { setDot('green','online'); hide('offline-banner'); clearRetry(); return true; }
+    setDot('red','error'); show('offline-banner'); return false;
+  } catch {
+    setDot('red','offline'); show('offline-banner'); return false;
+  }
+}
+
+function setDot(color, label) {
+  const colors = {green:'var(--em)',yellow:'#d29922',red:'#f85149'};
+  document.getElementById('api-dot').style.background = colors[color]||'var(--border)';
+  document.getElementById('header-status').textContent = label;
+}
+
+function startPing() {
+  if (_pingTimer) return;
+  _pingTimer = setInterval(async()=>{
+    const ok=await pingApi();
+    if (ok && !document.getElementById('offline-banner').classList.contains('hidden')) {
+      hide('offline-banner'); toast('✓ Backend reconnected');
+    }
+  }, 15000);
+}
+
+function startRetry(s=10) {
+  _retryS = s; updateRetry(); clearInterval(_retryTimer);
+  _retryTimer = setInterval(async()=>{
+    _retryS--;
+    if (_retryS<=0) { clearInterval(_retryTimer); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(15); }
+    else updateRetry();
+  },1000);
+}
+function updateRetry() { const e=document.getElementById('retry-countdown'); if(e) e.textContent=`retry in ${_retryS}s`; }
+function clearRetry() { clearInterval(_retryTimer); _retryTimer=null; const e=document.getElementById('retry-countdown'); if(e)e.textContent=''; }
+async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(10); }
+
+// ════════════════════════════════════════════════════════════════
+// DATA STORE
+// Models + tasks: localStorage
+// Few-shot examples: backend finetune API (subject = modelId__taskId)
+// Role per model: localStorage (pclick:training:role:{modelId})
+// Tasks per model: localStorage (pclick:training:tasks:{modelId})
+// ════════════════════════════════════════════════════════════════
+
+// Free / near-free models on Ollama Cloud — ollama.com/settings/keys
+// Context: 128K unless noted. Tier: Level 1 = free, Level 2 = near-free.
+const DEFAULT_MODELS = [
+  { id:'qwen2.5-14b',  name:'Qwen 2.5 14B',    provider:'Ollama Cloud', color:'#6ee7b7', context:'128K', tier:'Near-free' },
+  { id:'llama3.1-8b',  name:'Llama 3.1 8B',    provider:'Ollama Cloud', color:'#4285f4', context:'128K', tier:'Free' },
+  { id:'qwen2.5-7b',   name:'Qwen 2.5 7B',     provider:'Ollama Cloud', color:'#58a6ff', context:'128K', tier:'Free' },
+  { id:'mistral-7b',   name:'Mistral 7B',       provider:'Ollama Cloud', color:'#bc8cff', context:'32K',  tier:'Free' },
+  { id:'deepseek-r1',  name:'DeepSeek R1',      provider:'OpenRouter',   color:'#d29922', context:'128K', tier:'Paid' },
+];
+
+function loadModels() {
+  try { return JSON.parse(localStorage.getItem('pclick:training:models')) || DEFAULT_MODELS; }
+  catch { return DEFAULT_MODELS; }
+}
+function saveModels(m) { localStorage.setItem('pclick:training:models', JSON.stringify(m)); }
+
+function loadRole(modelId) {
+  return localStorage.getItem(`pclick:training:role:${modelId}`) || '';
+}
+function saveRole(modelId, role) {
+  localStorage.setItem(`pclick:training:role:${modelId}`, role);
+}
+
+function loadTasks(modelId) {
+  try { return JSON.parse(localStorage.getItem(`pclick:training:tasks:${modelId}`)) || []; }
+  catch { return []; }
+}
+function saveTasks(modelId, tasks) {
+  localStorage.setItem(`pclick:training:tasks:${modelId}`, JSON.stringify(tasks));
+}
+
+// Few-shot examples stored in backend: subject = "train__{modelId}__{taskId}"
+function exSubject(modelId, taskId) { return `train__${modelId}__${taskId}`; }
+
+async function loadExamples(modelId, taskId) {
+  try {
+    const r = await api(`/admin/finetune/examples?subject=${encodeURIComponent(exSubject(modelId,taskId))}`);
+    return await r.json();
+  } catch { return []; }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: MODELS LIST
+// ════════════════════════════════════════════════════════════════
+function viewModels() {
+  hide('view-model-detail');
+  const el = document.getElementById('view-models');
+  show('view-models');
+  const models = loadModels();
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">Training AI</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Manage roles, tasks, and few-shot examples for each model</p>
+        </div>
+        <button onclick="openAddModel()" class="btn btn-ghost text-xs">+ Add model</button>
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
+        ${models.map(m => {
+          const tierStyle = m.tier==='Free'
+            ? 'background:rgba(63,185,80,.1);color:var(--em);border:1px solid rgba(63,185,80,.25)'
+            : m.tier==='Near-free'
+            ? 'background:rgba(88,166,255,.08);color:#58a6ff;border:1px solid rgba(88,166,255,.2)'
+            : 'background:rgba(210,153,34,.08);color:#d29922;border:1px solid rgba(210,153,34,.2)';
+          const taskCount = loadTasks(m.id).length;
+          return `
+          <div class="model-card" onclick="viewModelDetail('${esc(m.id)}')">
+            <div class="flex items-center gap-3 mb-3">
+              <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
+                style="background:${m.color}22;border:1px solid ${m.color}44;color:${m.color}">
+                ${m.name.slice(0,2).toUpperCase()}
+              </div>
+              <div class="min-w-0 flex-1">
+                <div class="font-semibold text-sm truncate">${esc(m.name)}</div>
+                <div class="text-xs mt-0.5" style="color:var(--muted)">${esc(m.provider)}</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${m.tier ? `<span class="pill text-xs" style="${tierStyle}">${esc(m.tier)}</span>` : ''}
+              ${m.context ? `<span class="pill text-xs" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)">${esc(m.context)}</span>` : ''}
+              ${taskCount ? `<span class="pill pill-green text-xs">${taskCount} task${taskCount>1?'s':''}</span>` : ''}
+              ${loadRole(m.id) ? `<span class="pill pill-blue text-xs">Role set</span>` : ''}
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px" class="text-xs" style="color:var(--muted)">
+        <p class="font-medium mb-1" style="color:var(--text)">How it works</p>
+        <p style="color:var(--muted)">Each model has a <strong style="color:var(--text)">Role</strong> (system prompt defining the AI persona) and <strong style="color:var(--text)">Tasks</strong> (specific behaviours). Each task can have optional <strong style="color:var(--text)">few-shot examples</strong> stored in the fine-tuning database — exportable as JSONL for OpenAI/DeepSeek fine-tuning.</p>
+      </div>
+    </div>`;
+}
+
+// Add model
+let _addingModel = false;
+function openAddModel() {
+  if (_addingModel) return;
+  _addingModel = true;
+  const name = prompt('Model name (e.g. Claude 3.5 Sonnet)');
+  if (!name) { _addingModel = false; return; }
+  const provider = prompt('Provider (e.g. Anthropic, OpenRouter, OpenAI)') || 'OpenRouter';
+  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
+  const color = ['#4285f4','#6ee7b7','#d29922','#f85149','#bc8cff'][Math.floor(Math.random()*5)];
+  const models = loadModels();
+  if (models.find(m=>m.id===id)) { toast('Model already exists','err'); _addingModel=false; return; }
+  models.push({id,name,provider,color});
+  saveModels(models);
+  _addingModel = false;
+  viewModels();
+  toast(`✓ ${name} added`);
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: MODEL DETAIL
+// ════════════════════════════════════════════════════════════════
+let _currentModelId = '';
+
+async function viewModelDetail(modelId) {
+  _currentModelId = modelId;
+  hide('view-models');
+  const el = document.getElementById('view-model-detail');
+  show('view-model-detail');
+
+  const models = loadModels();
+  const model  = models.find(m=>m.id===modelId);
+  if (!model) { viewModels(); return; }
+
+  const tasks  = loadTasks(modelId);
+  const role   = loadRole(modelId);
+
+  // Render shell first
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+
+      <!-- Back + header -->
+      <div class="flex items-center gap-3">
+        <button onclick="viewModels()" class="btn btn-ghost text-xs">← Models</button>
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
+            style="background:${model.color}22;border:1px solid ${model.color}44;color:${model.color}">
+            ${model.name.slice(0,2).toUpperCase()}
+          </div>
+          <span class="font-semibold">${esc(model.name)}</span>
+          <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.07);color:var(--muted)">${esc(model.provider)}</span>
+        </div>
+        <div class="flex-1"></div>
+        <button onclick="deleteModel('${esc(modelId)}')" class="btn btn-danger text-xs">Remove model</button>
+      </div>
+
+      <!-- Role -->
+      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <div class="font-semibold text-sm">Role</div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">System prompt — defines this model's persona and overall behaviour</div>
+          </div>
+          <button onclick="saveRoleUI()" class="btn btn-primary text-xs">Save role</button>
+        </div>
+        <textarea id="role-textarea" rows="6" placeholder="You are Pclick AI, an academic thinking companion. Your job is to help students develop deeper understanding through Socratic questioning rather than giving answers directly…"
+          style="font-size:13px;line-height:1.6">${esc(role)}</textarea>
+      </div>
+
+      <!-- Tasks -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-sm">Tasks</div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">Specific behaviours — each can have optional few-shot examples for fine-tuning</div>
+          </div>
+          <button onclick="openTaskModal(null)" class="btn btn-primary text-xs">+ Add task</button>
+        </div>
+
+        <div id="task-list">
+          ${tasks.length===0
+            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-8 text-center text-sm" style2="color:var(--muted)">
+                <p style="color:var(--muted)">No tasks yet — add one to start building few-shot examples</p>
+               </div>`
+            : tasks.map(t => renderTaskCard(model, t)).join('')}
+        </div>
+      </div>
+
+      <!-- Export -->
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px" class="flex items-center justify-between gap-3">
+        <div class="text-xs" style="color:var(--muted)">Export all few-shot examples for <strong style="color:var(--text)">${esc(model.name)}</strong> as JSONL (OpenAI/DeepSeek format)</div>
+        <button onclick="exportModel('${esc(modelId)}')" class="btn btn-ghost text-xs shrink-0">↓ Export JSONL</button>
+      </div>
+
+      <!-- ── Fine-tune on OpenAI ───────────────────────────────────── -->
+      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-4">
+        <div>
+          <div class="font-semibold text-sm flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+            Fine-tune on OpenAI
+          </div>
+          <div class="text-xs mt-1" style="color:var(--muted)">Takes all few-shot examples for this model → uploads to OpenAI → starts training a custom model</div>
+        </div>
+
+        <div class="flex items-end gap-3 flex-wrap">
+          <div class="flex-1 min-w-[200px]">
+            <div class="text-xs mb-1.5" style="color:var(--muted)">Base model</div>
+            <select id="ft-base-model-${esc(modelId)}" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;width:100%">
+              <option value="gpt-4o-mini-2024-07-18">gpt-4o-mini-2024-07-18 (recommended · cheapest)</option>
+              <option value="gpt-4o-2024-08-06">gpt-4o-2024-08-06</option>
+              <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+            </select>
+          </div>
+          <button onclick="submitFTJob('${esc(modelId)}')" id="ft-btn-${esc(modelId)}" class="btn btn-primary shrink-0">
+            🚀 Start fine-tuning
+          </button>
+        </div>
+
+        <div id="ft-jobs-${esc(modelId)}" class="space-y-2">
+          <div class="text-xs" style="color:var(--muted)">Loading jobs…</div>
+        </div>
+      </div>
+
+    </div>`;
+
+  // Load example counts async
+  await loadAllExampleCounts(modelId, tasks);
+  loadFTJobs(modelId);   // async — populates FT panel independently
+}
+
+function renderTaskCard(model, task) {
+  return `
+    <div class="task-card" id="task-card-${esc(task.id)}">
+      <div class="task-header" onclick="toggleTask('${esc(task.id)}')">
+        <svg id="chevron-${esc(task.id)}" class="w-4 h-4 shrink-0 transition-transform" style="color:var(--muted)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path d="M9 18l6-6-6-6"/>
+        </svg>
+        <div class="flex-1 min-w-0">
+          <div class="font-medium text-sm">${esc(task.name)}</div>
+          ${task.description ? `<div class="text-xs mt-0.5" style="color:var(--muted)">${esc(task.description)}</div>` : ''}
+        </div>
+        <span id="ex-count-${esc(task.id)}" class="pill pill-blue text-xs" style="display:none">0 examples</span>
+        <button onclick="event.stopPropagation();openTaskModal('${esc(task.id)}')" class="btn btn-ghost text-xs" style="padding:3px 8px">Edit</button>
+        <button onclick="event.stopPropagation();deleteTask('${esc(model.id)}','${esc(task.id)}')" class="btn btn-danger text-xs" style="padding:3px 8px">✕</button>
+      </div>
+      <div id="task-body-${esc(task.id)}" class="hidden task-body">
+        <div id="ex-list-${esc(task.id)}" class="space-y-0 pt-3">
+          <div class="text-xs" style="color:var(--muted)">Loading examples…</div>
+        </div>
+        <button onclick="openExampleModal('${esc(model.id)}','${esc(task.id)}')" class="btn btn-ghost text-xs mt-3">+ Add few-shot example</button>
+      </div>
+    </div>`;
+}
+
+async function loadAllExampleCounts(modelId, tasks) {
+  for (const task of tasks) {
+    const examples = await loadExamples(modelId, task.id);
+    const countEl = document.getElementById('ex-count-'+task.id);
+    if (countEl) {
+      countEl.textContent = `${examples.length} example${examples.length!==1?'s':''}`;
+      countEl.style.display = examples.length>0 ? '' : 'none';
+    }
+    // Cache for when the panel is opened
+    task._examples = examples;
+  }
+}
+
+function toggleTask(taskId) {
+  const body = document.getElementById('task-body-'+taskId);
+  const chev = document.getElementById('chevron-'+taskId);
+  const isHidden = body.classList.contains('hidden');
+  body.classList.toggle('hidden', !isHidden);
+  chev.style.transform = isHidden ? 'rotate(90deg)' : '';
+  if (isHidden) loadTaskExamples(_currentModelId, taskId);
+}
+
+async function loadTaskExamples(modelId, taskId) {
+  const listEl = document.getElementById('ex-list-'+taskId);
+  if (!listEl) return;
+  listEl.innerHTML = `<div class="text-xs" style="color:var(--muted)">Loading…</div>`;
+  const examples = await loadExamples(modelId, taskId);
+
+  const countEl = document.getElementById('ex-count-'+taskId);
+  if (countEl) {
+    countEl.textContent = `${examples.length} example${examples.length!==1?'s':''}`;
+    countEl.style.display = examples.length>0?'':'none';
+  }
+
+  if (!examples.length) {
+    listEl.innerHTML = `<p class="text-xs py-2" style="color:var(--muted)">No examples yet — add a few-shot example to teach the model how to handle this task.</p>`;
+    return;
+  }
+
+  listEl.innerHTML = examples.map((ex,i) => `
+    <div class="example-row">
+      <div class="flex items-start justify-between gap-2 mb-3">
+        <span class="pill" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);font-size:10px">Example ${i+1}</span>
+        <div class="flex gap-1.5">
+          <button onclick="openExampleModal('${esc(modelId)}','${esc(taskId)}',${ex.id})" class="btn btn-ghost" style="font-size:11px;padding:2px 8px">Edit</button>
+          <button onclick="deleteExample(${ex.id},'${esc(modelId)}','${esc(taskId)}')" class="btn btn-danger" style="font-size:11px;padding:2px 8px">✕</button>
+        </div>
+      </div>
+      <div class="space-y-2.5">
+        <div>
+          <div class="shot-label">User</div>
+          <div class="text-xs leading-relaxed" style="color:#c9d1d9;white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">${esc(ex.user_message)}</div>
+        </div>
+        <div>
+          <div class="shot-label">Assistant</div>
+          <div class="text-xs leading-relaxed" style="color:#c9d1d9;white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">${esc(ex.assistant_reply)}</div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+// ── Role save ─────────────────────────────────────────────────────────────────
+function saveRoleUI() {
+  const role = document.getElementById('role-textarea')?.value || '';
+  saveRole(_currentModelId, role);
+  toast('✓ Role saved');
+}
+
+// ── Task CRUD ─────────────────────────────────────────────────────────────────
+function openTaskModal(taskId) {
+  const tasks = loadTasks(_currentModelId);
+  const task  = taskId ? tasks.find(t=>t.id===taskId) : null;
+  document.getElementById('task-modal-title').textContent = task ? 'Edit task' : 'Add task';
+  document.getElementById('task-edit-id').value  = task?.id || '';
+  document.getElementById('task-name').value     = task?.name || '';
+  document.getElementById('task-desc').value     = task?.description || '';
+  hide('task-error');
+  show('task-modal');
+  setTimeout(()=>document.getElementById('task-name').focus(), 50);
+}
+
+function saveTask() {
+  const name = document.getElementById('task-name').value.trim();
+  if (!name) { const e=document.getElementById('task-error'); e.textContent='Task name is required.'; e.classList.remove('hidden'); return; }
+  const desc   = document.getElementById('task-desc').value.trim();
+  const editId = document.getElementById('task-edit-id').value;
+  const tasks  = loadTasks(_currentModelId);
+
+  if (editId) {
+    const t = tasks.find(t=>t.id===editId);
+    if (t) { t.name=name; t.description=desc; }
+  } else {
+    const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+Date.now();
+    tasks.push({id, name, description:desc});
+  }
+  saveTasks(_currentModelId, tasks);
+  closeModal('task-modal');
+  viewModelDetail(_currentModelId);
+  toast(editId ? '✓ Task updated' : '✓ Task added');
+}
+
+function deleteTask(modelId, taskId) {
+  if (!confirm('Delete this task and all its examples?')) return;
+  const tasks = loadTasks(modelId).filter(t=>t.id!==taskId);
+  saveTasks(modelId, tasks);
+  // Delete backend examples
+  api(`/admin/finetune/examples?subject=${encodeURIComponent(exSubject(modelId,taskId))}`)
+    .then(r=>r.json()).then(exs=>{ exs.forEach(ex=>api('/admin/finetune/examples/'+ex.id,{method:'DELETE'}).catch(()=>{})); });
+  viewModelDetail(modelId);
+  toast('Task deleted');
+}
+
+function deleteModel(modelId) {
+  if (!confirm('Remove this model? This won't delete examples from the backend.')) return;
+  const models = loadModels().filter(m=>m.id!==modelId);
+  saveModels(models);
+  viewModels();
+  toast('Model removed');
+}
+
+// ── Example CRUD ──────────────────────────────────────────────────────────────
+function openExampleModal(modelId, taskId, exId=null) {
+  document.getElementById('example-modal-title').textContent = exId ? 'Edit example' : 'Add few-shot example';
+  document.getElementById('ex-id').value       = exId || '';
+  document.getElementById('ex-model-id').value = modelId;
+  document.getElementById('ex-task-id').value  = taskId;
+
+  // If editing, find example
+  if (exId) {
+    loadExamples(modelId, taskId).then(exs => {
+      const ex = exs.find(e=>e.id===exId);
+      if (ex) {
+        document.getElementById('ex-user').value      = ex.user_message || '';
+        document.getElementById('ex-assistant').value = ex.assistant_reply || '';
+      }
+    });
+  } else {
+    document.getElementById('ex-user').value = '';
+    document.getElementById('ex-assistant').value = '';
+  }
+  hide('ex-error');
+  show('example-modal');
+  setTimeout(()=>document.getElementById('ex-user').focus(), 50);
+}
+
+async function submitExample() {
+  const user  = document.getElementById('ex-user').value.trim();
+  const asst  = document.getElementById('ex-assistant').value.trim();
+  const exId  = document.getElementById('ex-id').value;
+  const mId   = document.getElementById('ex-model-id').value;
+  const tId   = document.getElementById('ex-task-id').value;
+  const errEl = document.getElementById('ex-error');
+
+  if (!user || !asst) {
+    errEl.textContent = 'Both User message and Assistant reply are required.';
+    errEl.classList.remove('hidden'); return;
+  }
+
+  const tasks   = loadTasks(mId);
+  const task    = tasks.find(t=>t.id===tId);
+  const model   = loadModels().find(m=>m.id===mId);
+
+  const body = {
+    user_message:    user,
+    assistant_reply: asst,
+    system_prompt:   loadRole(mId),  // attach current role as system_prompt
+    subject:         exSubject(mId, tId),
+    tags:            [mId, tId, model?.name||mId, task?.name||tId].filter(Boolean),
+  };
+
+  try {
+    if (exId) {
+      await api('/admin/finetune/examples/'+exId, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      toast('✓ Example updated');
+    } else {
+      await api('/admin/finetune/examples', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      toast('✓ Example added');
+    }
+    closeModal('example-modal');
+    await loadTaskExamples(mId, tId);
+    // Expand task body if closed
+    const body2 = document.getElementById('task-body-'+tId);
+    if (body2?.classList.contains('hidden')) toggleTask(tId);
+  } catch(e) {
+    errEl.textContent = 'Save failed: '+e.message;
+    errEl.classList.remove('hidden');
+  }
+}
+
+async function deleteExample(exId, modelId, taskId) {
+  if (!confirm('Delete this example?')) return;
+  try {
+    await api('/admin/finetune/examples/'+exId, {method:'DELETE'});
+    toast('Example deleted');
+    await loadTaskExamples(modelId, taskId);
+  } catch(e) { toast('Delete failed: '+e.message,'err'); }
+}
+
+// ── Export JSONL for a single model ──────────────────────────────────────────
+async function exportModel(modelId) {
+  const tasks = loadTasks(modelId);
+  const role  = loadRole(modelId);
+  const lines = [];
+
+  for (const task of tasks) {
+    const exs = await loadExamples(modelId, task.id);
+    for (const ex of exs) {
+      lines.push(JSON.stringify({
+        messages: [
+          { role:'system',    content: ex.system_prompt || role || '' },
+          { role:'user',      content: ex.user_message },
+          { role:'assistant', content: ex.assistant_reply },
+        ]
+      }));
+    }
+  }
+
+  if (!lines.length) { toast('No examples to export','err'); return; }
+  const blob = new Blob([lines.join('\n')], {type:'application/jsonl'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `pclick_${modelId}_${new Date().toISOString().slice(0,10)}.jsonl`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`✓ Exported ${lines.length} examples`);
+}
+
+// ── OpenAI Fine-tuning ────────────────────────────────────────────────────────
+
+const FT_STATUS_STYLE = {
+  queued:    { dot:'#d29922', label:'Queued',    pill:'background:rgba(210,153,34,.12);color:#d29922;border:1px solid rgba(210,153,34,.3)' },
+  running:   { dot:'#58a6ff', label:'Running',   pill:'background:rgba(88,166,255,.1);color:#58a6ff;border:1px solid rgba(88,166,255,.25)' },
+  succeeded: { dot:'var(--em)', label:'Succeeded', pill:'background:rgba(63,185,80,.12);color:var(--em);border:1px solid rgba(63,185,80,.3)' },
+  failed:    { dot:'#f85149', label:'Failed',    pill:'background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.25)' },
+  cancelled: { dot:'var(--muted)', label:'Cancelled', pill:'background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)' },
+};
+
+let _ftPollTimers = {};
+
+async function submitFTJob(modelId) {
+  const btn = document.getElementById('ft-btn-'+modelId);
+  const sel = document.getElementById('ft-base-model-'+modelId);
+  if (!sel || !btn) return;
+  const baseModel = sel.value;
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+
+  try {
+    const r = await api('/admin/finetune/submit-job', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ model_id: modelId, base_model: baseModel, suffix: 'pclick' }),
+    });
+    const job = await r.json();
+    toast(`✓ Job ${job.job_id} queued`);
+    await loadFTJobs(modelId);
+    startFTPoll(modelId, job.job_id);
+  } catch(e) {
+    toast('Submit failed: '+e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🚀 Start fine-tuning';
+  }
+}
+
+async function loadFTJobs(modelId) {
+  const el = document.getElementById('ft-jobs-'+modelId);
+  if (!el) return;
+  try {
+    const r    = await api('/admin/finetune/jobs');
+    const jobs = await r.json();
+    if (!jobs.length) {
+      el.innerHTML = `<p class="text-xs" style="color:var(--muted)">No jobs yet.</p>`;
+      return;
+    }
+    el.innerHTML = jobs.map(j => renderJobRow(j, modelId)).join('');
+    // Auto-poll any active jobs
+    jobs.filter(j => j.status==='queued'||j.status==='running').forEach(j => startFTPoll(modelId, j.job_id));
+  } catch(e) {
+    el.innerHTML = `<p class="text-xs" style="color:#f85149">${esc(e.message)}</p>`;
+  }
+}
+
+function renderJobRow(job, modelId) {
+  const s   = FT_STATUS_STYLE[job.status] || FT_STATUS_STYLE.cancelled;
+  const ts  = job.created_at ? new Date(job.created_at*1000).toLocaleString() : '';
+  const fin = job.finished_at ? new Date(job.finished_at*1000).toLocaleString() : '';
+  const active = job.status==='queued'||job.status==='running';
+  return `
+    <div id="ft-job-row-${esc(job.job_id)}" style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--card)" class="space-y-2">
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full shrink-0${active?' animate-pulse':''}" style="background:${s.dot}"></span>
+          <span class="text-xs font-mono" style="color:var(--muted)">${esc(job.job_id)}</span>
+          <span class="pill text-xs" style="${s.pill}">${s.label}</span>
+        </div>
+        <div class="flex gap-1.5">
+          ${active ? `<button onclick="cancelFTJob('${esc(job.job_id)}','${esc(modelId)}')" class="btn btn-danger text-xs" style="padding:2px 8px">Cancel</button>` : ''}
+        </div>
+      </div>
+      <div class="text-xs space-y-0.5" style="color:var(--muted)">
+        <div>Base: <span style="color:var(--text)">${esc(job.base_model||'')}</span></div>
+        ${ts ? `<div>Started: <span style="color:var(--text)">${ts}</span></div>` : ''}
+        ${fin ? `<div>Finished: <span style="color:var(--text)">${fin}</span></div>` : ''}
+        ${job.trained_tokens ? `<div>Tokens trained: <span style="color:var(--text)">${job.trained_tokens.toLocaleString()}</span></div>` : ''}
+        ${job.error ? `<div style="color:#f85149">Error: ${esc(job.error)}</div>` : ''}
+      </div>
+      ${job.fine_tuned_model ? `
+        <div style="background:rgba(63,185,80,.06);border:1px solid rgba(63,185,80,.2);border-radius:8px;padding:8px 10px" class="flex items-center justify-between gap-2">
+          <div>
+            <div class="text-xs font-semibold" style="color:var(--em)">Fine-tuned model ID</div>
+            <div class="text-xs font-mono mt-0.5" style="color:var(--text)">${esc(job.fine_tuned_model)}</div>
+          </div>
+          <button onclick="copyText('${esc(job.fine_tuned_model)}')" class="btn btn-ghost text-xs">Copy</button>
+        </div>` : ''}
+    </div>`;
+}
+
+function startFTPoll(modelId, jobId) {
+  const key = modelId+'__'+jobId;
+  if (_ftPollTimers[key]) return;
+  _ftPollTimers[key] = setInterval(async () => {
+    try {
+      const r   = await api('/admin/finetune/jobs/'+jobId);
+      const job = await r.json();
+      const el  = document.getElementById('ft-job-row-'+jobId);
+      if (el) el.outerHTML = renderJobRow(job, modelId);
+      if (job.status==='succeeded'||job.status==='failed'||job.status==='cancelled') {
+        clearInterval(_ftPollTimers[key]);
+        delete _ftPollTimers[key];
+        if (job.status==='succeeded') toast(`✓ Fine-tuning done! Model: ${job.fine_tuned_model}`);
+        if (job.status==='failed')    toast('Fine-tuning failed: '+(job.error||'unknown'), 'err');
+      }
+    } catch {}
+  }, 20000);   // poll every 20s
+}
+
+async function cancelFTJob(jobId, modelId) {
+  if (!confirm('Cancel this fine-tuning job?')) return;
+  try {
+    await api('/admin/finetune/jobs/'+jobId, {method:'DELETE'});
+    toast('Job cancelled');
+    await loadFTJobs(modelId);
+  } catch(e) { toast('Cancel failed: '+e.message,'err'); }
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(()=>toast('✓ Copied')).catch(()=>{
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta);
+    toast('✓ Copied');
+  });
+}
+</script>
+</body>
+</html>
