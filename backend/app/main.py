@@ -40,7 +40,7 @@ async def lifespan(_app: FastAPI):
         logger.warning("Model will load on first upload request.")
     except Exception as exc:
         logger.warning("Embedding model warmup skipped: %s", exc)
-        logger.warning("Uploads will still work — model loads on first request.")
+        logger.warning("Uploads will still work — folel loads on first request.")
 
     yield
 
@@ -99,7 +99,8 @@ class TopicMapRequest(BaseModel):
 
 
 @app.post("/ai/chat")
-async def ai_chat(req: ChatRequest):
+@limiter.limit("10/minute")
+async def ai_chat(request: Request, req: ChatRequest):
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
     try:
         resp = await ai_svc.chat(
@@ -118,7 +119,8 @@ async def ai_chat(req: ChatRequest):
 
 
 @app.post("/ai/hint")
-async def ai_hint(req: HintRequest):
+@limiter.limit("20/minute")
+async def ai_hint(request: Request, req: HintRequest):
     """Return a Socratic hint for a problem at level 1–3."""
     try:
         hint = await ai_svc.get_hint(req.problem, req.level)
@@ -128,7 +130,8 @@ async def ai_hint(req: HintRequest):
 
 
 @app.post("/ai/decompose")
-async def ai_decompose(req: DecomposeRequest):
+@limiter.limit("10/minute")
+async def ai_decompose(request: Request, req: DecomposeRequest):
     """Decompose a problem set into a reasoning tree."""
     try:
         result = await ai_svc.decompose_pset(req.pset_text)
@@ -138,7 +141,8 @@ async def ai_decompose(req: DecomposeRequest):
 
 
 @app.post("/ai/mastery")
-async def ai_mastery(req: MasteryRequest):
+@limiter.limit("20/minute")
+async def ai_mastery(request: Request, req: MasteryRequest):
     """Evaluate a student's solution and return mastery delta."""
     try:
         result = await ai_svc.check_mastery(req.problem, req.solution)
@@ -160,7 +164,8 @@ class OnboardingRequest(BaseModel):
 
 
 @app.post("/ai/onboarding-analyze")
-async def ai_onboarding_analyze(req: OnboardingRequest):
+@limiter.limit("10/minute")
+async def ai_onboarding_analyze(request: Request, req: OnboardingRequest):
     """
     Analyze onboarding answers with Meta Llama 3.1 70B orchestrator
     and return the recommended pricing plan.
@@ -190,7 +195,8 @@ class AnalyzePageRequest(BaseModel):
     total_pages: int
 
 @app.post("/ai/analyze-page")
-async def ai_analyze_page(req: AnalyzePageRequest):
+@limiter.limit("5/minute")
+async def ai_analyze_page(request: Request, req: AnalyzePageRequest):
     """Analyze a single PDF page on demand (progressive loading). Returns {problems:[...]}."""
     try:
         pg = {"index": req.page_index, "data": req.page_data, "width": 0, "height": 0}
@@ -201,7 +207,8 @@ async def ai_analyze_page(req: AnalyzePageRequest):
 
 
 @app.post("/ai/grade-dual")
-async def ai_grade_dual(req: GradeDualRequest):
+@limiter.limit("5/minute")
+async def ai_grade_dual(request: Request, req: GradeDualRequest):
     """
     Dual-AI grading:
     - Meta Llama (Groq): grades answers + transcribes handwriting from canvas images
@@ -224,7 +231,8 @@ class ModerateCommunityRequest(BaseModel):
     messages: list[dict] = []
 
 @app.post("/ai/moderate-community")
-async def ai_moderate_community(req: ModerateCommunityRequest):
+@limiter.limit("5/minute")
+async def ai_moderate_community(request: Request, req: ModerateCommunityRequest):
     """
     Weekly AI moderation — Meta Llama 70B reviews rooms and messages.
     Archives low-engagement/off-topic rooms, flags inappropriate messages.
@@ -237,7 +245,8 @@ async def ai_moderate_community(req: ModerateCommunityRequest):
 
 
 @app.post("/ai/grade-all")
-async def ai_grade_all(req: GradeAllRequest):
+@limiter.limit("10/minute")
+async def ai_grade_all(request: Request, req: GradeAllRequest):
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
     try:
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
@@ -248,7 +257,8 @@ async def ai_grade_all(req: GradeAllRequest):
 
 
 @app.post("/ai/gemini")
-async def ai_gemini(req: ChatRequest):
+@limiter.limit("10/minute")
+async def ai_gemini(request: Request, req: ChatRequest):
     """Chat via Ollama primary model (Ollama-only mode)."""
     try:
         resp = await ai_svc.chat_gemini(
@@ -266,7 +276,8 @@ async def ai_gemini(req: ChatRequest):
 
 
 @app.post("/ai/upload-pset")
-async def ai_upload_pset(file: UploadFile = File(...)):
+@limiter.limit("5/minute")
+async def ai_upload_pset(request: Request, file: UploadFile = File(...)):
     """
     Upload a PDF or PNG/JPG image containing a problem set.
     Extracts text (PDF) or uses vision OCR (images), then decomposes into question cards.
@@ -274,6 +285,8 @@ async def ai_upload_pset(file: UploadFile = File(...)):
     """
     try:
         content  = await file.read()
+        if len(content) > 10 * 1024 * 1024:  # 10 MB limit
+            raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
         result   = await ai_svc.analyze_file_pset(content, fname, mime)
@@ -298,7 +311,8 @@ class ToolMapValidateRequest(BaseModel):
 
 
 @app.post("/ai/tool-map/validate")
-async def ai_tool_map_validate(req: ToolMapValidateRequest):
+@limiter.limit("20/minute")
+async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest):
     """
     Validate a student's INPUT → TOOL → OUTPUT map using Google Gemini.
     Returns { verdict, feedback, correct: [...], issues: [...], missing: [...], suggestions: [...] }
@@ -320,7 +334,8 @@ class DrawingRequest(BaseModel):
 
 
 @app.post("/ai/describe-drawing")
-async def ai_describe_drawing(req: DrawingRequest):
+@limiter.limit("10/minute")
+async def ai_describe_drawing(request: Request, req: DrawingRequest):
     """Use Gemini vision to transcribe a student's whiteboard drawing."""
     try:
         text = await ai_svc.describe_drawing(req.image)
@@ -337,7 +352,8 @@ class NodeSummaryRequest(BaseModel):
 
 
 @app.post("/ai/node-summary")
-async def ai_node_summary(req: NodeSummaryRequest):
+@limiter.limit("30/minute")
+async def ai_node_summary(request: Request, req: NodeSummaryRequest):
     """
     Fast Groq summary for a single knowledge graph node.
     Returns {definition, equations, example, key_insight, formula_display}
@@ -360,7 +376,8 @@ class CleanQuestionRequest(BaseModel):
 
 
 @app.post("/ai/clean-question")
-async def ai_clean_question(req: CleanQuestionRequest):
+@limiter.limit("20/minute")
+async def ai_clean_question(request: Request, req: CleanQuestionRequest):
     """
     Use NVIDIA Nemotron to distil a raw question prompt:
     - Remove OCR noise, redundant preamble, irrelevant context
@@ -434,6 +451,8 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...)):
     """
     try:
         content  = await file.read()
+        if len(content) > 20 * 1024 * 1024:  # 20 MB limit
+            raise HTTPException(status_code=413, detail="File too large (max 20 MB)")
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
 
@@ -510,7 +529,8 @@ async def ai_feynman(
 
 
 @app.post("/ai/topic-map")
-async def ai_topic_map(req: TopicMapRequest):
+@limiter.limit("10/minute")
+async def ai_topic_map(request: Request, req: TopicMapRequest):
     """
     Convert a topic into an Obsidian-style knowledge node map.
     Returns { topic, nodes: [{id, label, type, description}], edges: [{source, target, label}] }
