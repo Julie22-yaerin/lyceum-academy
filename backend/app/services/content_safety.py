@@ -18,7 +18,7 @@ MAX_PROMPT_CHARS   = 20_000   # ~5k tokens; reject anything longer
 MAX_MESSAGES_COUNT = 50       # max messages in a chat history
 
 # ── Prompt injection & jailbreak patterns ────────────────────────────────────
-_INJECTION_PATTERNS: list[re.Pattern] = [p for p in map(re.compile, [
+_INJECTION_PATTERNS: list[re.Pattern] = [re.compile(p, re.IGNORECASE) for p in [
     # Classic "ignore previous instructions" family
     r'ignore\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+instructions?',
     r'disregard\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|context|prompts?)',
@@ -51,14 +51,14 @@ _INJECTION_PATTERNS: list[re.Pattern] = [p for p in map(re.compile, [
     # Base64 / encoded injection hints
     r'base64\s*(?:decode|encoded)',
     r'hex\s*(?:decode|encoded)',
-], flags=re.IGNORECASE)]
+]]
 
-_SPAM_PATTERNS: list[re.Pattern] = [p for p in map(re.compile, [
+_SPAM_PATTERNS: list[re.Pattern] = [re.compile(p, re.IGNORECASE) for p in [
     # Repeated character floods
     r'(.)\1{200,}',
     # Repeated word floods
     r'(\b\w+\b)(?:\s+\1){30,}',
-], flags=re.IGNORECASE)]
+]]
 
 # ── Allowed MIME types for uploads ───────────────────────────────────────────
 _ALLOWED_MIME_TYPES = {
