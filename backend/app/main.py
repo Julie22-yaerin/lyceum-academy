@@ -101,7 +101,11 @@ class TopicMapRequest(BaseModel):
 
 @app.post("/ai/chat")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_chat(request: Request, req: ChatRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
     try:
         resp = await ai_svc.chat(
@@ -121,7 +125,11 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
 
 @app.post("/ai/hint")
 @limiter.limit("20/minute")
+<<<<<<< HEAD
 async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_hint(request: Request, req: HintRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Return a Socratic hint for a problem at level 1–3."""
     try:
         hint = await ai_svc.get_hint(req.problem, req.level)
@@ -132,7 +140,11 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
 
 @app.post("/ai/decompose")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_decompose(request: Request, req: DecomposeRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Decompose a problem set into a reasoning tree."""
     try:
         result = await ai_svc.decompose_pset(req.pset_text)
@@ -143,7 +155,11 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
 
 @app.post("/ai/mastery")
 @limiter.limit("20/minute")
+<<<<<<< HEAD
 async def ai_mastery(request: Request, req: MasteryRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_mastery(request: Request, req: MasteryRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Evaluate a student's solution and return mastery delta."""
     try:
         result = await ai_svc.check_mastery(req.problem, req.solution)
@@ -166,7 +182,11 @@ class OnboardingRequest(BaseModel):
 
 @app.post("/ai/onboarding-analyze")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_onboarding_analyze(request: Request, req: OnboardingRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Analyze onboarding answers with Meta Llama 3.1 70B orchestrator
     and return the recommended pricing plan.
@@ -197,7 +217,11 @@ class AnalyzePageRequest(BaseModel):
 
 @app.post("/ai/analyze-page")
 @limiter.limit("5/minute")
+<<<<<<< HEAD
 async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_analyze_page(request: Request, req: AnalyzePageRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Analyze a single PDF page on demand (progressive loading). Returns {problems:[...]}."""
     try:
         pg = {"index": req.page_index, "data": req.page_data, "width": 0, "height": 0}
@@ -209,7 +233,11 @@ async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = D
 
 @app.post("/ai/grade-dual")
 @limiter.limit("5/minute")
+<<<<<<< HEAD
 async def ai_grade_dual(request: Request, req: GradeDualRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_grade_dual(request: Request, req: GradeDualRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Dual-AI grading:
     - Meta Llama (Groq): grades answers + transcribes handwriting from canvas images
@@ -247,7 +275,11 @@ async def ai_moderate_community(request: Request, req: ModerateCommunityRequest,
 
 @app.post("/ai/grade-all")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_grade_all(request: Request, req: GradeAllRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
     try:
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
@@ -259,7 +291,11 @@ async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends
 
 @app.post("/ai/gemini")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_gemini(request: Request, req: ChatRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Chat via Ollama primary model (Ollama-only mode)."""
     try:
         resp = await ai_svc.chat_gemini(
@@ -278,7 +314,11 @@ async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(requir
 
 @app.post("/ai/upload-pset")
 @limiter.limit("5/minute")
+<<<<<<< HEAD
 async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
+=======
+async def ai_upload_pset(request: Request, file: UploadFile = File(...)):
+>>>>>>> e234994 (security: add authFetch)
     """
     Upload a PDF or PNG/JPG image containing a problem set.
     Extracts text (PDF) or uses vision OCR (images), then decomposes into question cards.
@@ -313,7 +353,11 @@ class ToolMapValidateRequest(BaseModel):
 
 @app.post("/ai/tool-map/validate")
 @limiter.limit("20/minute")
+<<<<<<< HEAD
 async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Validate a student's INPUT → TOOL → OUTPUT map using Google Gemini.
     Returns { verdict, feedback, correct: [...], issues: [...], missing: [...], suggestions: [...] }
@@ -336,7 +380,11 @@ class DrawingRequest(BaseModel):
 
 @app.post("/ai/describe-drawing")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_describe_drawing(request: Request, req: DrawingRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_describe_drawing(request: Request, req: DrawingRequest):
+>>>>>>> e234994 (security: add authFetch)
     """Use Gemini vision to transcribe a student's whiteboard drawing."""
     try:
         text = await ai_svc.describe_drawing(req.image)
@@ -354,7 +402,11 @@ class NodeSummaryRequest(BaseModel):
 
 @app.post("/ai/node-summary")
 @limiter.limit("30/minute")
+<<<<<<< HEAD
 async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_node_summary(request: Request, req: NodeSummaryRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Fast Groq summary for a single knowledge graph node.
     Returns {definition, equations, example, key_insight, formula_display}
@@ -378,7 +430,11 @@ class CleanQuestionRequest(BaseModel):
 
 @app.post("/ai/clean-question")
 @limiter.limit("20/minute")
+<<<<<<< HEAD
 async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_clean_question(request: Request, req: CleanQuestionRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Use NVIDIA Nemotron to distil a raw question prompt:
     - Remove OCR noise, redundant preamble, irrelevant context
@@ -532,7 +588,11 @@ async def ai_feynman(
 
 @app.post("/ai/topic-map")
 @limiter.limit("10/minute")
+<<<<<<< HEAD
 async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends(require_auth)):
+=======
+async def ai_topic_map(request: Request, req: TopicMapRequest):
+>>>>>>> e234994 (security: add authFetch)
     """
     Convert a topic into an Obsidian-style knowledge node map.
     Returns { topic, nodes: [{id, label, type, description}], edges: [{source, target, label}] }

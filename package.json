@@ -1,0 +1,13 @@
+{
+  "name": "omni-ai-s2s",
+  "version": "1.0.0",
+  "description": "Orb-style S2S AI listener with Socket.IO",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3"
+  }
+}

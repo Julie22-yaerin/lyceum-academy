@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orb S2S AI Assistant</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="orb-wrapper">
+        <div class="orb-glow"></div>
+        <div id="orb" class="orb"></div>
+      </div>
+
+      <div class="panel">
+        <h1>Native S2S AI Assistant</h1>
+        <p id="status">Sẵn sàng</p>
+        <p id="response">Nhấn mic để nói hoặc ngắt lời AI</p>
+        <button id="mic-btn" aria-label="Toggle microphone">🎤</button>
+        <div style="margin-top:8px">
+          <a href="/notes.html" style="color:#fff;background:#222;padding:8px 12px;border-radius:6px;text-decoration:none">Open Notes Editor</a>
+        </div>
+      </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/script.js"></script>
+  </body>
+</html>

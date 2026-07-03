@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Notes & Draw</title>
+  <link rel="stylesheet" href="/notes-v2.css">
+</head>
+<body>
+  <div class="notes-app fullpage">
+    <div class="pane top-bar">
+      <div class="doc-label">Notepad</div>
+      <div class="mode-switch">
+        <button class="active" data-mode="write">Write</button>
+        <button data-mode="draw">Draw</button>
+      </div>
+      <div class="action-group">
+        <button id="save-note">Save</button>
+        <button id="load-note">Load</button>
+        <button id="export-html">Export HTML</button>
+        <button id="export-markdown">Export MD</button>
+      </div>
+    </div>
+
+    <div class="workspace">
+      <div class="sidebar">
+        <div class="tool-panel">
+          <div class="section-title">Text Tools</div>
+          <select id="font-family">
+            <option value="">Font</option>
+            <option value="Arial">Arial</option>
+            <option value="Georgia">Georgia</option>
+            <option value="Tahoma">Tahoma</option>
+          </select>
+          <select id="font-size">
+            <option value="">Size</option>
+            <option value="1">10px</option>
+            <option value="2">13px</option>
+            <option value="3">16px</option>
+            <option value="4">18px</option>
+            <option value="5">24px</option>
+            <option value="6">32px</option>
+          </select>
+          <select id="font-color">
+            <option value="">Color</option>
+            <option value="#0f172a">Black</option>
+            <option value="#1d4ed8">Blue</option>
+            <option value="#16a34a">Green</option>
+            <option value="#ea580c">Orange</option>
+            <option value="#be123c">Red</option>
+          </select>
+
+          <div class="button-row">
+            <button data-cmd="bold">B</button>
+            <button data-cmd="italic">I</button>
+            <button data-cmd="underline">U</button>
+            <button data-cmd="strikeThrough">S</button>
+          </div>
+          <div class="button-row">
+            <button data-cmd="undo">Undo</button>
+            <button data-cmd="redo">Redo</button>
+          </div>
+          <div class="button-row">
+            <button data-cmd="justifyleft">Left</button>
+            <button data-cmd="justifycenter">Center</button>
+            <button data-cmd="justifyright">Right</button>
+          </div>
+          <div class="button-row">
+            <label>Table</label>
+            <input id="tbl-rows" type="number" min="1" value="2" />
+            <input id="tbl-cols" type="number" min="1" value="2" />
+            <button id="insert-table">Insert</button>
+          </div>
+        </div>
+
+        <div class="tool-panel draw-tools">
+          <div class="section-title">Draw Tools</div>
+          <div class="button-row">
+            <button id="pen-mode" class="active">Pen</button>
+            <button id="line-mode">Line</button>
+            <button id="eraser-mode">Eraser</button>
+          </div>
+          <div class="button-row color-palette">
+            <button class="color-btn active" data-color="#0f172a" style="background:#0f172a"></button>
+            <button class="color-btn" data-color="#1d4ed8" style="background:#1d4ed8"></button>
+            <button class="color-btn" data-color="#16a34a" style="background:#16a34a"></button>
+            <button class="color-btn" data-color="#ea580c" style="background:#ea580c"></button>
+            <button class="color-btn" data-color="#be123c" style="background:#be123c"></button>
+          </div>
+          <div class="button-row">
+            <button id="clear-draw">Clear</button>
+            <button id="save-draw">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-area">
+        <div id="editor" class="editor" contenteditable="true" spellcheck="false"></div>
+        <canvas id="drawCanvas" class="draw-canvas"></canvas>
+      </div>
+    </div>
+
+    <input id="import-file" type="file" accept=".html,.md" hidden />
+  </div>
+
+  <script src="/notes-v2.js"></script>
+</body>
+</html>

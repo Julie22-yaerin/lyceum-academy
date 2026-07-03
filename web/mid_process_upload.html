@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Mid-process Upload Example</title>
+  </head>
+  <body>
+    <h3>Upload a PDF / Image for mid-processing (OCR → Kimi → Gemini)</h3>
+    <input id="file" type="file" accept="application/pdf,image/*" />
+    <br/><br/>
+    <label>Auth token (optional): <input id="token" type="text" size="80" placeholder="Bearer token if required"/></label>
+    <br/><br/>
+    <button id="send">Upload & Process</button>
+    <pre id="out" style="white-space:pre-wrap; border:1px solid #ccc; padding:8px; margin-top:12px"></pre>
+
+    <script>
+      document.getElementById('send').addEventListener('click', async () => {
+        const f = document.getElementById('file').files[0];
+        if (!f) { alert('Choose a file first'); return; }
+        const token = document.getElementById('token').value.trim();
+        const fd = new FormData();
+        fd.append('file', f, f.name);
+        try {
+          const resp = await fetch('/ai/mid-process', {
+            method: 'POST',
+            headers: token ? { 'Authorization': token } : undefined,
+            body: fd,
+          });
+          const out = document.getElementById('out');
+          if (!resp.ok) {
+            out.textContent = `Error ${resp.status}: ${await resp.text()}`;
+            return;
+          }
+          const j = await resp.json();
+          out.textContent = JSON.stringify(j, null, 2);
+        } catch (e) {
+          document.getElementById('out').textContent = String(e);
+        }
+      });
+    </script>
+  </body>
+</html>

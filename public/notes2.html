@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Notepad</title>
+  <link rel="stylesheet" href="/notes2.css">
+</head>
+<body>
+  <div class="notes-app fullpage">
+    <header class="top-bar">
+      <div class="title-group">
+        <span class="label">Notepad</span>
+        <strong class="subtitle">Gõ và vẽ trực tiếp, không hiển thị đề bài</strong>
+      </div>
+      <div class="mode-switch">
+        <button class="active" data-mode="write">Viết</button>
+        <button data-mode="draw">Vẽ</button>
+      </div>
+      <div class="top-actions">
+        <button id="save-note">Lưu</button>
+        <button id="load-note">Tải</button>
+        <button id="export-html">Xuất HTML</button>
+        <button id="export-markdown">Xuất MD</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <section class="tool-panel">
+          <h2>Công cụ viết</h2>
+          <div class="control-row">
+            <select id="font-family">
+              <option value="">Font</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+              <option value="Tahoma">Tahoma</option>
+            </select>
+            <select id="font-size">
+              <option value="">Kích thước</option>
+              <option value="1">10px</option>
+              <option value="2">13px</option>
+              <option value="3">16px</option>
+              <option value="4">18px</option>
+              <option value="5">24px</option>
+              <option value="6">32px</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <select id="font-color">
+              <option value="">Màu chữ</option>
+              <option value="#0f172a">Đen</option>
+              <option value="#1d4ed8">Xanh dương</option>
+              <option value="#16a34a">Xanh lá</option>
+              <option value="#ea580c">Cam</option>
+              <option value="#be123c">Đỏ</option>
+            </select>
+          </div>
+          <div class="button-row">
+            <button data-cmd="bold">B</button>
+            <button data-cmd="italic">I</button>
+            <button data-cmd="underline">U</button>
+            <button data-cmd="strikeThrough">S</button>
+          </div>
+          <div class="button-row">
+            <button data-cmd="undo">Undo</button>
+            <button data-cmd="redo">Redo</button>
+          </div>
+          <div class="button-row">
+            <button data-cmd="justifyleft">Trái</button>
+            <button data-cmd="justifycenter">Giữa</button>
+            <button data-cmd="justifyright">Phải</button>
+          </div>
+          <div class="control-row table-row">
+            <label>Table</label>
+            <input id="tbl-rows" type="number" min="1" value="2" />
+            <input id="tbl-cols" type="number" min="1" value="2" />
+            <button id="insert-table">Chèn</button>
+          </div>
+        </section>
+
+        <section class="tool-panel">
+          <h2>Công cụ vẽ</h2>
+          <div class="button-row">
+            <button id="pen-mode" class="active">Bút</button>
+            <button id="line-mode">Thước</button>
+            <button id="eraser-mode">Tẩy</button>
+          </div>
+          <div class="control-row">
+            <label for="stroke-size">Kích thước</label>
+            <input id="stroke-size" type="range" min="1" max="20" value="4" />
+            <span id="stroke-value">4</span>
+          </div>
+          <div class="button-row color-palette">
+            <button class="color-btn active" data-color="#0f172a" style="background:#0f172a"></button>
+            <button class="color-btn" data-color="#1d4ed8" style="background:#1d4ed8"></button>
+            <button class="color-btn" data-color="#16a34a" style="background:#16a34a"></button>
+            <button class="color-btn" data-color="#ea580c" style="background:#ea580c"></button>
+            <button class="color-btn" data-color="#be123c" style="background:#be123c"></button>
+            <button class="color-btn" data-color="#f8b400" style="background:#f8b400"></button>
+            <button class="color-btn" data-color="#4b5563" style="background:#4b5563"></button>
+          </div>
+          <div class="button-row">
+            <button id="clear-draw">Xóa vẽ</button>
+          </div>
+        </section>
+      </aside>
+
+      <main class="editor-area">
+        <div id="editor" class="editor" contenteditable="true" spellcheck="false"></div>
+        <canvas id="drawCanvas" class="draw-canvas"></canvas>
+      </main>
+    </div>
+
+    <input id="import-file" type="file" accept=".html,.md" hidden />
+  </div>
+
+  <script src="/notes2.js"></script>
+</body>
+</html>

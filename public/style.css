@@ -1,0 +1,90 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: radial-gradient(circle at 50% 40%, #dff4ff 0%, #cfe9ff 25%, #eaf7ff 55%, #ffffff 100%);
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  background-size: cover;
+  color: #0b1720;
+  font-family: Inter, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+}
+
+.orb-wrapper {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.orb {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, #4facfe, #00f2fe);
+  box-shadow: 0 0 60px rgba(79, 172, 254, 0.45);
+  transition: transform 0.08s ease;
+  z-index: 2;
+}
+
+.orb.ai-speaking {
+  background: radial-gradient(circle at 30% 30%, #a18cd1, #fbc2eb);
+}
+
+.orb-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(79, 172, 254, 0.25), transparent 70%);
+  animation: pulse 4s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.45); opacity: 0.7; }
+}
+
+.panel {
+  text-align: center;
+  max-width: 360px;
+}
+
+h1 {
+  margin-bottom: 8px;
+  font-size: 1.5rem;
+}
+
+p {
+  margin: 6px 0;
+  color: #c7c7c7;
+}
+
+#mic-btn {
+  margin-top: 12px;
+  width: 76px;
+  height: 76px;
+  border: none;
+  border-radius: 50%;
+  font-size: 1.8rem;
+  cursor: pointer;
+  background: #1a1a1a;
+  color: white;
+  transition: 0.25s ease;
+}
+
+#mic-btn.active {
+  background: #e74c3c;
+  box-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
+}
