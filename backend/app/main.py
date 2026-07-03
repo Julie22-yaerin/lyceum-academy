@@ -16,6 +16,7 @@ import websockets as _ws
 
 from app.core.config import settings
 from app.api.deps import require_auth
+from app.services.content_safety import check_prompt, check_messages, check_upload
 
 _s2s_logger = logging.getLogger("pclick.s2s")
 
@@ -154,6 +155,7 @@ class TopicMapRequest(BaseModel):
 @limiter.limit("10/minute")
 async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
+    check_messages(req.messages)
     try:
         resp = await ai_svc.chat(
             req.messages,
@@ -174,6 +176,7 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
 @limiter.limit("20/minute")
 async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_auth)):
     """Return a Socratic hint for a problem at level 1–3."""
+    check_prompt(req.problem, "problem")
     try:
         hint = await ai_svc.get_hint(req.problem, req.level)
         return {"hint": hint}
@@ -185,6 +188,7 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
 @limiter.limit("10/minute")
 async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depends(require_auth)):
     """Decompose a problem set into a reasoning tree."""
+    check_prompt(req.pset_text, "pset_text")
     try:
         result = await ai_svc.decompose_pset(req.pset_text)
         return result
@@ -196,6 +200,8 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
 @limiter.limit("20/minute")
 async def ai_mastery(request: Request, req: MasteryRequest, _: dict = Depends(require_auth)):
     """Evaluate a student's solution and return mastery delta."""
+    check_prompt(req.problem, "problem")
+    check_prompt(req.solution, "solution")
     try:
         result = await ai_svc.check_mastery(req.problem, req.solution)
         return result
@@ -225,6 +231,8 @@ async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dic
     """
     if not req.answers:
         raise HTTPException(status_code=400, detail="answers cannot be empty")
+    for v in req.answers.values():
+        check_prompt(v, "answer")
     try:
         result = await ai_svc.analyze_onboarding(req.answers)
         return result
@@ -267,6 +275,9 @@ async def ai_grade_dual(request: Request, req: GradeDualRequest, _: dict = Depen
     - Gemma (NVIDIA): generates study suggestions for wrong answers
     Returns {grades:[{id,passed,feedback,suggestions?}]}
     """
+    for q in req.questions:
+        check_prompt(q.prompt, "prompt")
+        check_prompt(q.answer, "answer")
     try:
         items = [
             {"id": q.id, "prompt": q.prompt, "answer": q.answer, "image_b64": q.image_b64}
@@ -300,6 +311,9 @@ async def ai_moderate_community(request: Request, req: ModerateCommunityRequest,
 @limiter.limit("10/minute")
 async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends(require_auth)):
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
+    for q in req.questions:
+        check_prompt(q.prompt, "prompt")
+        check_prompt(q.answer, "answer")
     try:
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
         result = await ai_svc.grade_all(items)
@@ -336,9 +350,7 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
     Returns { summary, problems: [{id, title, prompt, difficulty, concepts}], source_file }
     """
     try:
-        content  = await file.read()
-        if len(content) > 10 * 1024 * 1024:  # 10 MB limit
-            raise HTTPException(status_code=413, detail="File too large (max 10 MB)")
+        content  = await check_upload(file, max_bytes=10 * 1024 * 1024)
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
         result   = await ai_svc.analyze_file_pset(content, fname, mime)
@@ -371,6 +383,9 @@ async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest, _:
     """
     if not req.tools:
         raise HTTPException(status_code=400, detail="Add at least one tool/step")
+    check_prompt(req.context, "context")
+    for item in req.inputs + req.tools + req.outputs:
+        check_prompt(item, "input")
     try:
         result = await ai_svc.validate_tool_map(
             inputs=req.inputs, tools=req.tools,
@@ -410,6 +425,8 @@ async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = D
     Fast Groq summary for a single knowledge graph node.
     Returns {definition, equations, example, key_insight, formula_display}
     """
+    check_prompt(req.label, "label")
+    check_prompt(req.description, "description")
     try:
         result = await ai_svc.node_summary(
             label=req.label,
@@ -437,6 +454,8 @@ async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict
     - Rewrite math clearly using LaTeX $...$ delimiters
     Returns { clean: str }
     """
+    check_prompt(req.prompt, "prompt")
+    check_prompt(req.context, "context")
     try:
         result = await ai_svc.clean_question(req.prompt, req.context)
         return {"clean": result}
@@ -461,6 +480,8 @@ async def ai_note_from_url(request: Request, req: NoteRequest, _: dict = Depends
     Synthesize a YouTube video into a structured study note.
     Returns { title, tldr, summary, key_concepts, socratic_questions, key_insight }
     """
+    check_prompt(req.url, "url")
+    check_prompt(req.title, "title")
     try:
         yt = await ai_svc.get_youtube_content(req.url)
         content = yt["content"]
@@ -502,9 +523,7 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
     Synthesize a PDF or image into a structured study note.
     """
     try:
-        content  = await file.read()
-        if len(content) > 20 * 1024 * 1024:  # 20 MB limit
-            raise HTTPException(status_code=413, detail="File too large (max 20 MB)")
+        content  = await check_upload(file, max_bytes=20 * 1024 * 1024)
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
 
@@ -552,11 +571,10 @@ async def ai_feynman(
     2. AI plays a 5-year-old: reacts, asks questions, scores the explanation
     Returns {reaction, questions, score, score_reason, gaps, transcript}
     """
+    check_prompt(note_title, "note_title")
     import json as _json
     try:
-        audio_bytes = await audio.read()
-        if not audio_bytes:
-            raise HTTPException(status_code=422, detail="Empty audio file")
+        audio_bytes = await check_upload(audio, max_bytes=25 * 1024 * 1024)
 
         transcript = await ai_svc.transcribe_audio(
             audio_bytes, audio.filename or "recording.webm"
@@ -588,6 +606,7 @@ async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends
     Convert a topic into an Obsidian-style knowledge node map.
     Returns { topic, nodes: [{id, label, type, description}], edges: [{source, target, label}] }
     """
+    check_prompt(req.topic, "topic")
     if not req.topic.strip():
         raise HTTPException(status_code=400, detail="topic cannot be empty")
     try:
