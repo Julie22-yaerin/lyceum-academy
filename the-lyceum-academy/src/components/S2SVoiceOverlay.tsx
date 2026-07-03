@@ -32,6 +32,8 @@ interface S2SVoiceOverlayProps {
   systemInstruction: string;
   enableAutoSave?: boolean;
   voiceName?: 'Puck' | 'Aoede' | 'Charon' | 'Kore' | 'Fenrir';
+  /** If true, mic starts muted (push-to-talk mode). Default: false (always-listen). */
+  startMuted?: boolean;
 }
 
 export default function S2SVoiceOverlay({
@@ -40,9 +42,10 @@ export default function S2SVoiceOverlay({
   systemInstruction,
   enableAutoSave = false,
   voiceName = 'Puck',
+  startMuted = false,
 }: S2SVoiceOverlayProps) {
   const [status, setStatus] = useState<'connecting' | 'idle' | 'listening' | 'speaking' | 'paused' | 'error'>('connecting');
-  const [isMuted, setIsMuted] = useState(false);
+  const [isMuted, setIsMuted] = useState(startMuted);
   const [liveUserTranscription, setLiveUserTranscription] = useState('');
   const [liveAiTranscription, setLiveAiTranscription] = useState('');
   const [errorMessage, setErrorMessage] = useState('');

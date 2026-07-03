@@ -1,15 +1,27 @@
 from contextlib import asynccontextmanager
+import asyncio
+import json as _json
+import logging
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
+import websockets as _ws
 
 from app.core.config import settings
 from app.api.deps import require_auth
+
+_s2s_logger = logging.getLogger("pclick.s2s")
+
+_GEMINI_LIVE_URL = (
+    "wss://generativelanguage.googleapis.com"
+    "/ws/google.ai.generativelanguage.v1beta"
+    ".GenerativeService.BidiGenerateContent"
+)
 
 # ── Rate limiter ─────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_remote_address)
@@ -101,11 +113,7 @@ class TopicMapRequest(BaseModel):
 
 @app.post("/ai/chat")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_chat(request: Request, req: ChatRequest):
->>>>>>> e234994 (security: add authFetch)
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
     try:
         resp = await ai_svc.chat(
@@ -125,11 +133,7 @@ async def ai_chat(request: Request, req: ChatRequest):
 
 @app.post("/ai/hint")
 @limiter.limit("20/minute")
-<<<<<<< HEAD
 async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_hint(request: Request, req: HintRequest):
->>>>>>> e234994 (security: add authFetch)
     """Return a Socratic hint for a problem at level 1–3."""
     try:
         hint = await ai_svc.get_hint(req.problem, req.level)
@@ -140,11 +144,7 @@ async def ai_hint(request: Request, req: HintRequest):
 
 @app.post("/ai/decompose")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_decompose(request: Request, req: DecomposeRequest):
->>>>>>> e234994 (security: add authFetch)
     """Decompose a problem set into a reasoning tree."""
     try:
         result = await ai_svc.decompose_pset(req.pset_text)
@@ -155,11 +155,7 @@ async def ai_decompose(request: Request, req: DecomposeRequest):
 
 @app.post("/ai/mastery")
 @limiter.limit("20/minute")
-<<<<<<< HEAD
 async def ai_mastery(request: Request, req: MasteryRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_mastery(request: Request, req: MasteryRequest):
->>>>>>> e234994 (security: add authFetch)
     """Evaluate a student's solution and return mastery delta."""
     try:
         result = await ai_svc.check_mastery(req.problem, req.solution)
@@ -182,11 +178,7 @@ class OnboardingRequest(BaseModel):
 
 @app.post("/ai/onboarding-analyze")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_onboarding_analyze(request: Request, req: OnboardingRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Analyze onboarding answers with Meta Llama 3.1 70B orchestrator
     and return the recommended pricing plan.
@@ -217,11 +209,7 @@ class AnalyzePageRequest(BaseModel):
 
 @app.post("/ai/analyze-page")
 @limiter.limit("5/minute")
-<<<<<<< HEAD
 async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_analyze_page(request: Request, req: AnalyzePageRequest):
->>>>>>> e234994 (security: add authFetch)
     """Analyze a single PDF page on demand (progressive loading). Returns {problems:[...]}."""
     try:
         pg = {"index": req.page_index, "data": req.page_data, "width": 0, "height": 0}
@@ -233,11 +221,7 @@ async def ai_analyze_page(request: Request, req: AnalyzePageRequest):
 
 @app.post("/ai/grade-dual")
 @limiter.limit("5/minute")
-<<<<<<< HEAD
 async def ai_grade_dual(request: Request, req: GradeDualRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_grade_dual(request: Request, req: GradeDualRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Dual-AI grading:
     - Meta Llama (Groq): grades answers + transcribes handwriting from canvas images
@@ -275,11 +259,7 @@ async def ai_moderate_community(request: Request, req: ModerateCommunityRequest,
 
 @app.post("/ai/grade-all")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_grade_all(request: Request, req: GradeAllRequest):
->>>>>>> e234994 (security: add authFetch)
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
     try:
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
@@ -291,11 +271,7 @@ async def ai_grade_all(request: Request, req: GradeAllRequest):
 
 @app.post("/ai/gemini")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_gemini(request: Request, req: ChatRequest):
->>>>>>> e234994 (security: add authFetch)
     """Chat via Ollama primary model (Ollama-only mode)."""
     try:
         resp = await ai_svc.chat_gemini(
@@ -314,11 +290,7 @@ async def ai_gemini(request: Request, req: ChatRequest):
 
 @app.post("/ai/upload-pset")
 @limiter.limit("5/minute")
-<<<<<<< HEAD
 async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
-=======
-async def ai_upload_pset(request: Request, file: UploadFile = File(...)):
->>>>>>> e234994 (security: add authFetch)
     """
     Upload a PDF or PNG/JPG image containing a problem set.
     Extracts text (PDF) or uses vision OCR (images), then decomposes into question cards.
@@ -353,11 +325,7 @@ class ToolMapValidateRequest(BaseModel):
 
 @app.post("/ai/tool-map/validate")
 @limiter.limit("20/minute")
-<<<<<<< HEAD
 async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Validate a student's INPUT → TOOL → OUTPUT map using Google Gemini.
     Returns { verdict, feedback, correct: [...], issues: [...], missing: [...], suggestions: [...] }
@@ -380,11 +348,7 @@ class DrawingRequest(BaseModel):
 
 @app.post("/ai/describe-drawing")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_describe_drawing(request: Request, req: DrawingRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_describe_drawing(request: Request, req: DrawingRequest):
->>>>>>> e234994 (security: add authFetch)
     """Use Gemini vision to transcribe a student's whiteboard drawing."""
     try:
         text = await ai_svc.describe_drawing(req.image)
@@ -402,11 +366,7 @@ class NodeSummaryRequest(BaseModel):
 
 @app.post("/ai/node-summary")
 @limiter.limit("30/minute")
-<<<<<<< HEAD
 async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_node_summary(request: Request, req: NodeSummaryRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Fast Groq summary for a single knowledge graph node.
     Returns {definition, equations, example, key_insight, formula_display}
@@ -430,11 +390,7 @@ class CleanQuestionRequest(BaseModel):
 
 @app.post("/ai/clean-question")
 @limiter.limit("20/minute")
-<<<<<<< HEAD
 async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_clean_question(request: Request, req: CleanQuestionRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Use NVIDIA Nemotron to distil a raw question prompt:
     - Remove OCR noise, redundant preamble, irrelevant context
@@ -588,11 +544,7 @@ async def ai_feynman(
 
 @app.post("/ai/topic-map")
 @limiter.limit("10/minute")
-<<<<<<< HEAD
 async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends(require_auth)):
-=======
-async def ai_topic_map(request: Request, req: TopicMapRequest):
->>>>>>> e234994 (security: add authFetch)
     """
     Convert a topic into an Obsidian-style knowledge node map.
     Returns { topic, nodes: [{id, label, type, description}], edges: [{source, target, label}] }
@@ -604,3 +556,64 @@ async def ai_topic_map(request: Request, req: TopicMapRequest):
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── ARI S2S Voice Proxy (Gemini Live API) ────────────────────────────────────
+
+@app.websocket("/ws/s2s")
+async def s2s_proxy(websocket: WebSocket):
+    """
+    Bidirectional WebSocket proxy: browser ↔ backend ↔ Gemini Live BidiGenerateContent.
+    The client sends JSON frames (setup + realtimeInput), the backend forwards them
+    to Gemini and streams audio/transcript chunks back unchanged.
+    """
+    await websocket.accept()
+
+    api_key = settings.google_api_key
+    if not api_key:
+        await websocket.send_text(_json.dumps({"error": "GOOGLE_API_KEY not configured on server"}))
+        await websocket.close(code=1011)
+        return
+
+    gemini_url = f"{_GEMINI_LIVE_URL}?key={api_key}"
+    try:
+        async with _ws.connect(gemini_url, ping_interval=20, ping_timeout=20) as gemini_ws:
+
+            async def client_to_gemini():
+                try:
+                    while True:
+                        msg = await websocket.receive_text()
+                        await gemini_ws.send(msg)
+                except (WebSocketDisconnect, Exception):
+                    # Client disconnected — close the Gemini side too
+                    try:
+                        await gemini_ws.close()
+                    except Exception:
+                        pass
+
+            async def gemini_to_client():
+                try:
+                    async for msg in gemini_ws:
+                        if isinstance(msg, bytes):
+                            msg = msg.decode()
+                        await websocket.send_text(msg)
+                except Exception:
+                    pass
+
+            await asyncio.gather(
+                client_to_gemini(),
+                gemini_to_client(),
+                return_exceptions=True,
+            )
+
+    except Exception as e:
+        _s2s_logger.error(f"S2S Proxy error: {e}")
+        err_str = str(e)
+        try:
+            await websocket.send_text(_json.dumps({"error": err_str}))
+        except Exception:
+            pass
+        try:
+            await websocket.close(code=1011, reason=err_str[:120])
+        except Exception:
+            pass
