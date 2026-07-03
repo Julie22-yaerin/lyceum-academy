@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Cookie, Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -16,17 +16,27 @@ def db_session() -> Session:
 
 async def require_auth(
     authorization: str | None = Header(default=None),
+    __session: str | None = Cookie(default=None),
 ) -> dict:
     """
     Lightweight auth guard for AI endpoints.
-    Verifies Firebase ID token only — no DB lookup.
+    Accepts either:
+      • Authorization: Bearer <firebase_id_token>   (existing API clients)
+      • __session cookie (set by POST /auth/session) (browser clients)
+    Verifies Firebase ID token — no DB lookup.
     Returns the decoded token payload {user_id, email, ...}.
     """
-    if not authorization:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    token = authorization.removeprefix("Bearer ").strip()
+    token: str | None = None
+
+    if authorization:
+        token = authorization.removeprefix("Bearer ").strip() or None
+
+    if not token and __session:
+        token = __session.strip() or None
+
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
     return await verify_firebase_id_token(token)
 
 

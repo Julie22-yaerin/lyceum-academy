@@ -67,6 +67,7 @@ limiter = Limiter(key_func=get_user_key)
 from app.services import ai         as ai_svc
 from app.services import finetune_db as ft_svc
 from app.routers  import admin      as admin_router
+from app.routers  import auth       as auth_router
 
 
 @asynccontextmanager
@@ -102,6 +103,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(admin_router.router)
+app.include_router(auth_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
