@@ -25,18 +25,30 @@ ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "pclick-admin-dev")
 # ── Auth dependency ───────────────────────────────────────────────────────────
 # Accepts either:
 #   • the static ADMIN_SECRET dev token   (fast, no network call)
-#   • a valid Firebase ID token            (SSO from main app on :3000)
+#   • a valid Firebase ID token whose email is in ADMIN_EMAILS allowlist
 
 async def _auth(x_admin_token: Optional[str] = Header(None)):
+    from app.core.config import settings as _settings
+
     if not x_admin_token:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # Static dev token — always accept (no email check needed)
     if x_admin_token == ADMIN_TOKEN:
-        return  # dev token — always accept
-    # Try as a Firebase ID token (SSO from the Next.js app)
+        return
+
+    # Firebase ID token path
     try:
-        await verify_firebase_id_token(x_admin_token)
+        payload = await verify_firebase_id_token(x_admin_token)
     except HTTPException:
         raise HTTPException(status_code=401, detail="Unauthorized")
+
+    # If ADMIN_EMAILS is configured, enforce the allowlist
+    allowed = _settings.admin_email_set
+    if allowed:
+        email = (payload.get("email") or "").lower()
+        if email not in allowed:
+            raise HTTPException(status_code=403, detail="Forbidden: not an admin")
 
 
 # ── RAG — document management ─────────────────────────────────────────────────

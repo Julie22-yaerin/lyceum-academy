@@ -83,6 +83,15 @@ class Settings(BaseSettings):
     # ── Firebase ─────────────────────────────────────────────
     firebase_project_id: str = ""
 
+    # ── Admin ────────────────────────────────────────────────
+    # Comma-separated list of Firebase emails allowed to call /admin/* endpoints.
+    # If empty, any verified Firebase user can call admin (not recommended for prod).
+    admin_emails: str = ""
+
+    @property
+    def admin_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
     # ── Derived ──────────────────────────────────────────────
     @property
     def has_supabase(self) -> bool:
