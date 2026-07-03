@@ -9,6 +9,9 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  reload,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
@@ -34,5 +37,8 @@ export {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  reload,
 };
 export type { User };

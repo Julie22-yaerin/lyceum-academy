@@ -7,16 +7,28 @@ import {
   signInWithRedirect,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 
+type Screen = 'auth' | 'verify-email' | 'forgot-password';
+
 export default function AuthPage({ onNavigate }: NavigationProps) {
   const [isLogin, setIsLogin] = useState(true);
+  const [screen, setScreen] = useState<Screen>('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
-  const { setDevMode } = useAuth();
+  const { emailVerified, resendVerificationEmail } = useAuth();
+
+  // If user just verified, let App.tsx handle redirect via emailVerified state
+  if (emailVerified) {
+    onNavigate('dialogue');
+    return null;
+  }
 
   async function handleGoogle() {
     setError(''); setBusy(true);
@@ -39,13 +51,19 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        if (!cred.user.emailVerified) {
+          setScreen('verify-email');
+        } else {
+          onNavigate('dialogue');
+        }
       } else {
-        await createUserWithEmailAndPassword(auth, email, password);
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(cred.user);
+        setScreen('verify-email');
       }
-      onNavigate('dialogue');
     } catch (err: any) {
-      const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password')
+      const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')
         ? 'Invalid email or password.'
         : err.message || 'Authentication failed.';
       setError(msg);
@@ -54,11 +72,153 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     }
   }
 
-  function devAccess() {
-    setDevMode(true);
-    onNavigate('dialogue');
+  async function handleResend() {
+    setError(''); setBusy(true);
+    try {
+      await resendVerificationEmail();
+      setInfo('Verification email sent. Check your inbox.');
+    } catch (e: any) {
+      setError(e.message || 'Could not send email.');
+    } finally {
+      setBusy(false);
+    }
   }
 
+  async function handleForgotPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setError(''); setBusy(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setInfo('Password reset email sent. Check your inbox.');
+    } catch (err: any) {
+      setError(err.message || 'Could not send reset email.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // ── Verify Email Screen ──────────────────────────────────────────────────
+  if (screen === 'verify-email') {
+    return (
+      <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+        <header className="w-full">
+          <div className="flex justify-between items-baseline w-full px-10 py-8 mx-auto">
+            <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer" onClick={() => onNavigate('landing')}>
+              The Lyceum
+            </div>
+          </div>
+        </header>
+        <main className="flex-grow flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="bg-surface border border-outline/10 p-12 shadow-sm relative text-center">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/20" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/20" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-on-surface/20" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-on-surface/20" />
+
+              <div className="text-4xl mb-6">✉️</div>
+              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-3">VERIFY YOUR EMAIL</h1>
+              <p className="font-sans text-xs text-on-surface/60 uppercase tracking-[1px] mb-8">
+                We sent a verification link to your inbox.<br />
+                Open it, then come back here.
+              </p>
+
+              {error && (
+                <p className="text-red-600 text-xs text-center mb-4 font-sans border border-red-200 bg-red-50 px-4 py-2">{error}</p>
+              )}
+              {info && (
+                <p className="text-green-700 text-xs text-center mb-4 font-sans border border-green-200 bg-green-50 px-4 py-2">{info}</p>
+              )}
+
+              <button
+                onClick={handleResend}
+                disabled={busy}
+                className="w-full border border-outline/20 py-3 px-6 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-all mb-4 disabled:opacity-40"
+              >
+                {busy ? 'Sending…' : 'Resend Email'}
+              </button>
+
+              <button
+                onClick={() => { setScreen('auth'); setError(''); setInfo(''); }}
+                className="font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
+              >
+                ← Back to Sign In
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Forgot Password Screen ───────────────────────────────────────────────
+  if (screen === 'forgot-password') {
+    return (
+      <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+        <header className="w-full">
+          <div className="flex justify-between items-baseline w-full px-10 py-8 mx-auto">
+            <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer" onClick={() => onNavigate('landing')}>
+              The Lyceum
+            </div>
+          </div>
+        </header>
+        <main className="flex-grow flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="bg-surface border border-outline/10 p-12 shadow-sm relative">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/20" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/20" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-on-surface/20" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-on-surface/20" />
+
+              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-2 text-center">RESET PASSWORD</h1>
+              <p className="font-sans text-xs text-on-surface/60 uppercase tracking-[1px] text-center mb-8">
+                Enter your email — we'll send a reset link.
+              </p>
+
+              {error && (
+                <p className="text-red-600 text-xs text-center mb-4 font-sans border border-red-200 bg-red-50 px-4 py-2">{error}</p>
+              )}
+              {info && (
+                <p className="text-green-700 text-xs text-center mb-4 font-sans border border-green-200 bg-green-50 px-4 py-2">{info}</p>
+              )}
+
+              <form className="space-y-6" onSubmit={handleForgotPassword}>
+                <div className="space-y-1">
+                  <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">Email Address</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="socrates@academy.edu"
+                    required
+                    className="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/50 py-3 font-sans text-sm focus:border-on-surface transition-colors placeholder:text-outline-variant/80 outline-none"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={busy}
+                  className="w-full bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] py-4 hover:opacity-80 transition-opacity disabled:opacity-40"
+                >
+                  {busy ? 'Sending…' : 'Send Reset Link'}
+                </button>
+              </form>
+
+              <div className="mt-6 text-center">
+                <button
+                  onClick={() => { setScreen('auth'); setError(''); setInfo(''); }}
+                  className="font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Main Auth Screen ─────────────────────────────────────────────────────
   return (
     <div className="bg-surface text-on-surface min-h-screen flex flex-col">
       <header className="w-full">
@@ -75,7 +235,6 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
       <main className="flex-grow flex items-center justify-center px-4 py-12">
         <div className="w-full max-w-md">
           <div className="bg-surface border border-outline/10 p-12 shadow-sm relative">
-            {/* Corner marks */}
             <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/20" />
             <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/20" />
             <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-on-surface/20" />
@@ -142,9 +301,20 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">
-                  Password
-                </label>
+                <div className="flex items-baseline justify-between">
+                  <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">
+                    Password
+                  </label>
+                  {isLogin && (
+                    <button
+                      type="button"
+                      onClick={() => { setScreen('forgot-password'); setError(''); setInfo(''); }}
+                      className="font-sans text-[9px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
+                    >
+                      Forgot?
+                    </button>
+                  )}
+                </div>
                 <input
                   type="password"
                   value={password}
@@ -164,7 +334,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
               </button>
             </form>
 
-            <div className="mt-8 text-center space-y-4">
+            <div className="mt-8 text-center">
               <p className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-70">
                 {isLogin ? 'New seeker? ' : 'Already a scholar? '}
                 <button
@@ -174,12 +344,6 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                   {isLogin ? 'Enroll' : 'Sign In'}
                 </button>
               </p>
-              <button
-                onClick={devAccess}
-                className="font-sans text-[10px] text-on-surface opacity-25 hover:opacity-60 transition-opacity uppercase tracking-[1px]"
-              >
-                Dev access (skip auth)
-              </button>
             </div>
           </div>
         </div>
