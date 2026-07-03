@@ -2,138 +2,291 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @theme {
-  --color-primary: #1A1A1A;
-  --color-primary-container: #333333;
-  --color-on-primary: #FDFCF8;
-  --color-on-primary-container: #FDFCF8;
-  
-  --color-surface: #FDFCF8;
-  --color-surface-dim: #F5F4EF;
-  --color-surface-bright: #FFFFFF;
-  --color-surface-container-lowest: #FFFFFF;
-  --color-surface-container-low: #FBF9F2;
-  --color-surface-container: #F8F6EF;
-  --color-surface-container-high: #F3F1E9;
-  --color-surface-container-highest: #EAE7E0;
-  
-  --color-on-surface: #1A1A1A;
-  --color-on-surface-variant: #555555;
-  
-  --color-outline: #1A1A1A;
-  --color-outline-variant: #D8D4CC;
-  
-  --color-secondary: #C5A059;
-  --color-secondary-container: #F1E5C9;
-  --color-on-secondary: #1A1A1A;
-  --color-on-secondary-container: #82632A;
+  --color-surface: #050508;
+  --color-surface-dim: #080b18;
+  --color-surface-bright: #0f1424;
+  --color-surface-container-lowest: #040408;
+  --color-surface-container-low: #080b18;
+  --color-surface-container: #0c1120;
+  --color-surface-container-high: #111828;
+  --color-surface-container-highest: #161e30;
 
-  --color-error: #ba1a1a;
-  --color-on-error: #ffffff;
+  --color-on-surface: #f0f0f5;
+  --color-on-surface-variant: #a0a5b8;
 
-  --font-sans: "Helvetica Neue", Arial, sans-serif;
-  --font-serif: "Georgia", serif;
-  --font-display: "Georgia", serif;
-  --font-body: "Helvetica Neue", Arial, sans-serif;
+  --color-outline: rgba(255, 255, 255, 0.12);
+  --color-outline-variant: rgba(255, 255, 255, 0.08);
+
+  --color-primary: #a78bfa;
+  --color-primary-container: rgba(167, 139, 250, 0.12);
+  --color-on-primary: #050508;
+  --color-on-primary-container: #d8ccff;
+
+  --color-secondary: #818cf8;
+  --color-secondary-container: rgba(129, 140, 248, 0.1);
+  --color-on-secondary: #050508;
+  --color-on-secondary-container: #c7d2fe;
+
+  --color-error: #f87171;
+  --color-on-error: #050508;
+
+  --font-sans: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: "Georgia", "Times New Roman", serif;
+  --font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-body: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
   --radius-none: 0px;
-  --radius-sm: 0px;
-  --radius: 0px;
-  --radius-md: 0px;
-  --radius-lg: 0px;
-  --radius-xl: 0px;
-  --radius-2xl: 0px;
-  --radius-3xl: 0px;
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-md: 14px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 28px;
 }
 
 body {
-  background-color: var(--color-surface);
-  color: var(--color-on-surface);
+  background-color: #050508;
+  color: #f0f0f5;
   font-family: var(--font-body);
   overflow-x: hidden;
 }
 
-.editorial-nav-link {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-weight: 600;
+.nav-link {
+  font-size: 12px;
+  font-weight: 500;
   text-decoration: none;
-  color: var(--color-on-surface);
-  opacity: 0.6;
-  transition: opacity 0.2s, border-color 0.2s;
-  padding-bottom: 2px;
+  color: rgba(255, 255, 255, 0.5);
+  transition: opacity 0.15s;
 }
 
-.editorial-nav-link:hover, .editorial-nav-link.active {
-  opacity: 1;
-  border-bottom: 1px solid var(--color-on-surface);
-}
-
-.editorial-sidebar-text {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: rotate(90deg) translateX(-50%);
-  transform-origin: right;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 4px;
-  opacity: 0.3;
-}
-
-.editorial-accent-line {
-  width: 100px;
-  height: 1px;
-  background: var(--color-on-surface);
-}
-
-.image-placeholder-gradient {
-  background: linear-gradient(45deg, transparent 48%, var(--color-outline-variant) 49%, var(--color-outline-variant) 51%, transparent 52%), linear-gradient(-45deg, transparent 48%, var(--color-outline-variant) 49%, var(--color-outline-variant) 51%, transparent 52%);
-  background-size: 20px 20px;
+.nav-link:hover, .nav-link.active {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-.manuscript-underline {
-  background-image: linear-gradient(transparent 95%, var(--color-outline-variant) 95%);
-  background-size: 100% 2.5rem;
-  line-height: 2.5rem;
-}
+/* ── Glassmorphism utilities ───────────────────────────────────────────── */
 
-/* Glass morphism classes for dark landing page */
 .glass {
   background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
 }
 
 .glass-strong {
   background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  color: #f0f0f5;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.glass-input:focus {
+  border-color: rgba(167, 139, 250, 0.5);
 }
 
 .glass-btn {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(129, 140, 248, 0.15));
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  color: #d8ccff;
+  transition: all 0.2s;
 }
 
 .glass-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.25);
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(129, 140, 248, 0.25));
+  border-color: rgba(167, 139, 250, 0.4);
 }
 
-.text-metallic {
-  background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 30%, #cbd5e1 60%, #f1f5f9 100%);
+/* ── Ambient background orbs ──────────────────────────────────────────── */
+
+@keyframes orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(60px, -40px) scale(1.1); }
+  66% { transform: translate(-30px, 30px) scale(0.95); }
+}
+
+@keyframes orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-50px, 30px) scale(1.08); }
+  66% { transform: translate(40px, -50px) scale(0.92); }
+}
+
+@keyframes orb-drift-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(30px, 50px) scale(1.05); }
+  66% { transform: translate(-60px, -20px) scale(0.98); }
+}
+
+@keyframes orb-drift-4 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, -30px) scale(0.9); }
+  66% { transform: translate(50px, 40px) scale(1.15); }
+}
+
+.ambient-orbs {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.ambient-orbs > div {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.12;
+}
+
+.orb-1 {
+  width: 600px; height: 600px;
+  background: radial-gradient(circle, #7c3aed, transparent);
+  top: -10%; left: -10%;
+  animation: orb-drift-1 18s ease-in-out infinite;
+}
+
+.orb-2 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, #3b82f6, transparent);
+  bottom: -10%; right: -10%;
+  animation: orb-drift-2 22s ease-in-out infinite;
+}
+
+.orb-3 {
+  width: 400px; height: 400px;
+  background: radial-gradient(circle, #a855f7, transparent);
+  top: 50%; left: 50%;
+  animation: orb-drift-3 20s ease-in-out infinite;
+}
+
+.orb-4 {
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, #06b6d4, transparent);
+  top: 20%; right: 20%;
+  animation: orb-drift-4 16s ease-in-out infinite;
+}
+
+/* ── Animations ───────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out;
+}
+
+/* ── Text utilities ───────────────────────────────────────────────────── */
+
+.text-gradient {
+  background: linear-gradient(135deg, #a78bfa, #818cf8, #22d3ee);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
+.text-gradient-gold {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24, #f59e0b);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.text-glow {
+  text-shadow: 0 0 20px rgba(167, 139, 250, 0.3);
+}
+
+/* ── Metallic gradient text ───────────────────────────────────────────── */
+
+.text-metallic {
+  background: linear-gradient(180deg, #ffffff 0%, #e2e5f0 35%, #a8adc4 55%, #ffffff 75%, #cdd1e0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-shadow: 0 0 60px rgba(139, 92, 246, 0.25);
+}
+
+/* ── Floating dock ─────────────────────────────────────────────────────── */
+
+.dock {
+  background: rgba(255, 255, 255, 0.045);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.dock-icon {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+}
+
+.dock-icon:hover {
+  transform: translateY(-6px) scale(1.08);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dock-dot {
+  box-shadow: 0 0 8px 2px currentColor;
+}
+
+/* ── Voice orb ─────────────────────────────────────────────────────────── */
+
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+
+@keyframes orb-mesh-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes orb-ring-expand {
+  0% { transform: scale(0.9); opacity: 0.6; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+.voice-orb-mesh {
+  background: conic-gradient(from 0deg, #ec4899, #8b5cf6, #3b82f6, #22d3ee, #ec4899);
+  filter: blur(6px);
+  animation: orb-mesh-spin 6s linear infinite;
+}
+
+.voice-orb-ring {
+  border: 1.5px solid rgba(139, 92, 246, 0.5);
+  animation: orb-ring-expand 1.8s ease-out infinite;
+}

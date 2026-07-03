@@ -1,35 +1,24 @@
 #!/bin/bash
+set -e
 
-# Load nvm / homebrew Node if present
+# Load nvm / homebrew Node if present (for vercel CLI)
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 [ -f /opt/homebrew/bin/node ] && export PATH="/opt/homebrew/bin:$PATH"
 [ -f /usr/local/bin/node ]    && export PATH="/usr/local/bin:$PATH"
-
-# Also source shell profiles in case Node is in PATH via .zshrc/.bashrc
 [ -f "$HOME/.zshrc" ]   && source "$HOME/.zshrc" 2>/dev/null
-[ -f "$HOME/.bashrc" ]  && source "$HOME/.bashrc" 2>/dev/null
-[ -f "$HOME/.profile" ] && source "$HOME/.profile" 2>/dev/null
-
-NPM=$(which npm 2>/dev/null)
-if [ -z "$NPM" ]; then
-  echo "❌ npm not found. Make sure Node.js is installed."
-  read -n 1; exit 1
-fi
-
-echo "Using npm: $NPM ($(npm --version))"
-echo ""
 
 cd "/Users/mac/Desktop/PCLICK CODE/the-lyceum-academy"
-echo "Building Lyceum Academy..."
-"$NPM" run build
 
-if [ $? -ne 0 ]; then
-  echo ""
-  echo "❌ Build failed — see errors above."
-  read -n 1; exit 1
-fi
+echo "=== Linking Vercel project ==="
+vercel link --yes --project lyceum-academy --scope julie22-yaerins-projects
 
-echo ""
-echo "✅ Done. Restart start_web.command to serve the new build."
+# vercel.json declares buildCommand/outputDirectory, so Vercel builds from
+# source itself on every deploy — no need to build locally and ship a
+# prebuilt dist/ (that also required manually keeping dist/ in sync and
+# fighting with .gitignore, which is what caused the stale prod site).
+echo "=== Deploying (Vercel builds from source) ==="
+vercel deploy --prod
+
+echo "=== DONE ==="
 read -n 1

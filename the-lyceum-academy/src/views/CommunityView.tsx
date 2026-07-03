@@ -1,9 +1,6 @@
 /**
- * CommunityView — Discord-style mini community.
- * Left: room list + search by course.
- * Right: real-time chat.
- * Top-right: avatar + profile.
- * Rooms moderated weekly by Meta Llama 70B.
+ * CommunityView — Peer Terminal (dark glassmorphism)
+ * Left: room list + search. Right: real-time chat.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,7 +12,7 @@ import {
   getDevUserId, STUDY_EMOJIS, AVATAR_COLORS, fmtTime,
 } from '../lib/community';
 
-// ── Avatar bubble ─────────────────────────────────────────────────────────────
+// ── Avatar ────────────────────────────────────────────────────────────────────
 function Avatar({ emoji, color, size = 32 }: { emoji: string; color: string; size?: number }) {
   return (
     <div style={{
@@ -26,57 +23,62 @@ function Avatar({ emoji, color, size = 32 }: { emoji: string; color: string; siz
   );
 }
 
-// ── Profile editor modal ──────────────────────────────────────────────────────
-function ProfileModal({
-  initial, onSave, onClose,
-}: { initial: CommunityProfile; onSave: (p: CommunityProfile) => void; onClose: () => void }) {
+// ── Profile modal ─────────────────────────────────────────────────────────────
+function ProfileModal({ initial, onSave, onClose }: {
+  initial: CommunityProfile; onSave: (p: CommunityProfile) => void; onClose: () => void;
+}) {
   const [name, setName] = useState(initial.display_name);
   const [emoji, setEmoji] = useState(initial.avatar_emoji);
   const [color, setColor] = useState(initial.avatar_color);
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 8, padding: 32, width: 340, boxShadow: '0 16px 60px rgba(0,0,0,0.3)' }}>
-        <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 18, marginBottom: 24 }}>Hồ sơ của bạn</h3>
+    <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center">
+      <div className="glass-strong rounded-2xl p-8 w-[360px] shadow-2xl">
+        <h3 className="font-serif text-xl text-white mb-6">Hồ sơ của bạn</h3>
 
-        {/* Preview */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <div className="flex items-center gap-4 mb-6">
           <Avatar emoji={emoji} color={color} size={48} />
           <div>
-            <div style={{ fontFamily: 'sans-serif', fontWeight: 600, fontSize: 15 }}>{name || 'Learner'}</div>
-            <div style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.4)' }}>Preview</div>
+            <div className="font-sans text-sm font-semibold text-white">{name || 'Learner'}</div>
+            <div className="font-sans text-[10px] text-white/40 uppercase tracking-[1px]">Preview</div>
           </div>
         </div>
 
-        {/* Display name */}
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 6 }}>Tên hiển thị</label>
-        <input value={name} onChange={e => setName(e.target.value)} maxLength={30}
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 20 }} />
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-2">Tên hiển thị</label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          maxLength={30}
+          className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-white mb-5 outline-none"
+        />
 
-        {/* Emoji picker */}
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 8 }}>Avatar</label>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-3">Avatar</label>
+        <div className="flex flex-wrap gap-2 mb-5">
           {STUDY_EMOJIS.map(e => (
             <button key={e} onClick={() => setEmoji(e)}
-              style={{ width: 36, height: 36, fontSize: 18, border: `2px solid ${emoji === e ? color : 'transparent'}`, borderRadius: 6, background: emoji === e ? `${color}18` : 'rgba(0,0,0,0.04)', cursor: 'pointer' }}>
+              className={`w-9 h-9 text-lg rounded-lg border-2 transition-all ${emoji === e ? 'border-white/60 bg-white/10' : 'border-transparent bg-white/5 hover:bg-white/10'}`}>
               {e}
             </button>
           ))}
         </div>
 
-        {/* Color picker */}
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 8 }}>Màu</label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-3">Màu</label>
+        <div className="flex gap-3 mb-7">
           {AVATAR_COLORS.map(c => (
             <button key={c} onClick={() => setColor(c)}
-              style={{ width: 26, height: 26, borderRadius: '50%', background: c, border: `3px solid ${color === c ? 'rgba(0,0,0,0.6)' : 'transparent'}`, cursor: 'pointer' }} />
+              className={`w-7 h-7 rounded-full border-2 transition-all ${color === c ? 'border-white scale-110' : 'border-transparent opacity-70 hover:opacity-100'}`}
+              style={{ background: c }} />
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 12, cursor: 'pointer', background: 'white' }}>Hủy</button>
-          <button onClick={() => onSave({ ...initial, display_name: name.trim() || 'Learner', avatar_emoji: emoji, avatar_color: color })}
-            style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: color, color: 'white' }}>
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 border border-white/15 rounded-xl font-sans text-[10px] uppercase tracking-[2px] text-white/60 hover:bg-white/5 transition-colors">
+            Hủy
+          </button>
+          <button
+            onClick={() => onSave({ ...initial, display_name: name.trim() || 'Learner', avatar_emoji: emoji, avatar_color: color })}
+            className="flex-1 glass-btn rounded-xl py-2.5 font-sans text-[10px] uppercase tracking-[2px] font-semibold">
             Lưu
           </button>
         </div>
@@ -85,7 +87,7 @@ function ProfileModal({
   );
 }
 
-// ── Create room modal ──────────────────────────────────────────────────────────
+// ── Create room modal ─────────────────────────────────────────────────────────
 function CreateRoomModal({ onCreated, onClose }: {
   onCreated: (room: CommunityRoom) => void; onClose: () => void;
 }) {
@@ -107,26 +109,32 @@ function CreateRoomModal({ onCreated, onClose }: {
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: 8, padding: 32, width: 380, boxShadow: '0 16px 60px rgba(0,0,0,0.3)' }}>
-        <h3 style={{ fontFamily: 'Georgia, serif', fontSize: 18, marginBottom: 24 }}>Tạo phòng chat</h3>
+    <div className="fixed inset-0 z-[300] bg-black/70 backdrop-blur-sm flex items-center justify-center">
+      <div className="glass-strong rounded-2xl p-8 w-[400px] shadow-2xl">
+        <h3 className="font-serif text-xl text-white mb-6">Tạo phòng chat</h3>
 
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 6 }}>Tên phòng *</label>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Giải tích I — Nhóm ôn thi" maxLength={60}
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-2">Tên phòng *</label>
+        <input value={name} onChange={e => setName(e.target.value)}
+          placeholder="VD: Giải tích I — Nhóm ôn thi" maxLength={60}
+          className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-white mb-4 outline-none" />
 
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 6 }}>Khoá học / môn học</label>
-        <input value={tag} onChange={e => setTag(e.target.value)} placeholder="VD: Calculus I, Algorithms, Physics II" maxLength={40}
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-2">Khoá học / môn học</label>
+        <input value={tag} onChange={e => setTag(e.target.value)}
+          placeholder="VD: Calculus I, Algorithms, Physics II" maxLength={40}
+          className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-white mb-4 outline-none" />
 
-        <label style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', display: 'block', marginBottom: 6 }}>Mô tả (tuỳ chọn)</label>
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Phòng thảo luận về…" rows={2} maxLength={120}
-          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 13, outline: 'none', boxSizing: 'border-box', resize: 'none', marginBottom: 22 }} />
+        <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-2">Mô tả (tuỳ chọn)</label>
+        <textarea value={desc} onChange={e => setDesc(e.target.value)}
+          placeholder="Phòng thảo luận về…" rows={2} maxLength={120}
+          className="glass-input w-full rounded-xl px-4 py-2.5 text-sm text-white mb-6 outline-none resize-none" />
 
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '10px', border: '1px solid rgba(0,0,0,0.15)', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 12, cursor: 'pointer', background: 'white' }}>Hủy</button>
+        <div className="flex gap-3">
+          <button onClick={onClose}
+            className="flex-1 py-2.5 border border-white/15 rounded-xl font-sans text-[10px] uppercase tracking-[2px] text-white/60 hover:bg-white/5 transition-colors">
+            Hủy
+          </button>
           <button onClick={handleCreate} disabled={!name.trim() || busy}
-            style={{ flex: 1.6, padding: '10px', border: 'none', borderRadius: 5, fontFamily: 'sans-serif', fontSize: 12, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed', background: name.trim() ? '#C5A059' : 'rgba(0,0,0,0.1)', color: name.trim() ? '#1a1a1a' : 'rgba(0,0,0,0.3)' }}>
+            className="flex-[1.6] glass-btn rounded-xl py-2.5 font-sans text-[10px] uppercase tracking-[2px] font-semibold disabled:opacity-30 transition-all">
             {busy ? '…' : 'Tạo phòng'}
           </button>
         </div>
@@ -144,25 +152,18 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLTextAreaElement>(null);
 
-  // Load history
   useEffect(() => {
-    setMessages([]);
-    setLoading(true);
+    setMessages([]); setLoading(true);
     getMessages(room.id).then(msgs => { setMessages(msgs); setLoading(false); });
   }, [room.id]);
 
-  // Realtime subscription
   useEffect(() => {
     const unsub = subscribeToRoom(room.id, msg => {
-      setMessages(prev => {
-        if (prev.find(m => m.id === msg.id)) return prev;
-        return [...prev, msg];
-      });
+      setMessages(prev => prev.find(m => m.id === msg.id) ? prev : [...prev, msg]);
     });
     return unsub;
   }, [room.id]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages.length]);
@@ -170,8 +171,7 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
   async function handleSend() {
     const txt = input.trim();
     if (!txt || sending) return;
-    setSending(true);
-    setInput('');
+    setSending(true); setInput('');
     try { await sendMessage(room.id, txt, profile); }
     catch { setInput(txt); }
     finally { setSending(false); setTimeout(() => inputRef.current?.focus(), 50); }
@@ -181,7 +181,6 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
-  // Group messages by sender (consecutive)
   const grouped: { msg: CommunityMessage; showHeader: boolean }[] = messages.map((msg, i) => ({
     msg,
     showHeader: i === 0 || messages[i - 1].user_id !== msg.user_id ||
@@ -189,47 +188,55 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
   }));
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Room header */}
-      <div style={{ padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.08)', flexShrink: 0, background: 'white' }}>
-        <div style={{ fontFamily: 'Georgia, serif', fontSize: 16, marginBottom: 2 }}># {room.name}</div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-white/10 flex-shrink-0">
+        <div className="font-serif text-base text-white/90 mb-1"># {room.name}</div>
+        <div className="flex items-center gap-3 flex-wrap">
           {room.course_tag && (
-            <span style={{ fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', border: '1px solid rgba(0,0,0,0.15)', padding: '1px 7px', color: 'rgba(0,0,0,0.5)' }}>{room.course_tag}</span>
+            <span className="font-sans text-[9px] uppercase tracking-[1px] border border-white/15 px-2 py-0.5 text-white/40">
+              {room.course_tag}
+            </span>
           )}
-          {room.description && <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.45)', fontStyle: 'italic' }}>{room.description}</span>}
-          <span style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', marginLeft: 'auto' }}>{room.message_count} tin • hoạt động {fmtTime(room.last_active)}</span>
+          {room.description && (
+            <span className="font-sans text-xs text-white/35 italic">{room.description}</span>
+          )}
+          <span className="font-sans text-[10px] text-white/25 ml-auto">
+            {room.message_count} tin · {fmtTime(room.last_active)}
+          </span>
         </div>
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 2, background: '#FAFAF8' }}>
-        {loading && <div style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', textAlign: 'center', padding: 24 }}>Đang tải…</div>}
+      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-1">
+        {loading && (
+          <div className="text-center py-8 font-sans text-xs text-white/30">Đang tải…</div>
+        )}
         {!loading && messages.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(0,0,0,0.3)' }}>
-            <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
-            <p style={{ fontFamily: 'sans-serif', fontSize: 13 }}>Chưa có tin nhắn nào. Hãy bắt đầu cuộc thảo luận!</p>
+          <div className="flex flex-col items-center justify-center py-12 text-white/25">
+            <span className="text-3xl mb-3">💬</span>
+            <p className="font-sans text-sm">Chưa có tin nhắn nào. Bắt đầu cuộc thảo luận!</p>
           </div>
         )}
         {grouped.map(({ msg, showHeader }) => (
-          <div key={msg.id} style={{ display: 'flex', gap: 10, marginTop: showHeader ? 10 : 0, alignItems: 'flex-start' }}>
-            <div style={{ width: 32, flexShrink: 0 }}>
+          <div key={msg.id} className={`flex gap-3 ${showHeader ? 'mt-3' : ''} items-start`}>
+            <div className="w-8 flex-shrink-0">
               {showHeader && <Avatar emoji={msg.avatar_emoji} color={msg.avatar_color} size={32} />}
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="flex-1 min-w-0">
               {showHeader && (
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 2 }}>
-                  <span style={{ fontFamily: 'sans-serif', fontSize: 13, fontWeight: 600, color: msg.avatar_color }}>{msg.display_name}</span>
-                  <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)' }}>{fmtTime(msg.created_at)}</span>
+                <div className="flex items-baseline gap-2 mb-1">
+                  <span className="font-sans text-xs font-semibold" style={{ color: msg.avatar_color }}>
+                    {msg.display_name}
+                  </span>
+                  <span className="font-sans text-[10px] text-white/25">{fmtTime(msg.created_at)}</span>
                 </div>
               )}
-              <p style={{
-                margin: 0, fontFamily: 'sans-serif', fontSize: 13.5, lineHeight: 1.5,
-                color: 'rgba(0,0,0,0.82)', wordBreak: 'break-word',
-                background: msg.user_id === profile.user_id ? 'rgba(197,160,89,0.1)' : 'transparent',
-                padding: msg.user_id === profile.user_id ? '4px 8px' : '0',
-                borderRadius: 4,
-              }}>{msg.content}</p>
+              <p className={`font-sans text-sm leading-relaxed text-white/80 break-words ${
+                msg.user_id === profile.user_id
+                  ? 'bg-white/5 px-3 py-1.5 rounded-lg inline-block'
+                  : ''
+              }`}>{msg.content}</p>
             </div>
           </div>
         ))}
@@ -237,7 +244,7 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
       </div>
 
       {/* Input */}
-      <div style={{ padding: '12px 20px', borderTop: '1px solid rgba(0,0,0,0.08)', background: 'white', flexShrink: 0, display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+      <div className="px-5 py-4 border-t border-white/10 flex-shrink-0 flex gap-3 items-end">
         <Avatar emoji={profile.avatar_emoji} color={profile.avatar_color} size={30} />
         <textarea
           ref={inputRef}
@@ -246,22 +253,14 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
           onKeyDown={handleKey}
           placeholder={`Nhắn tin vào #${room.name}…`}
           rows={1}
-          style={{
-            flex: 1, padding: '9px 14px', border: '1.5px solid rgba(0,0,0,0.12)', borderRadius: 6,
-            fontFamily: 'sans-serif', fontSize: 13.5, resize: 'none', outline: 'none',
-            lineHeight: 1.45, maxHeight: 120, overflowY: 'auto',
-            background: '#FAFAF8',
-          }}
+          className="flex-1 glass-input rounded-xl px-4 py-2.5 text-sm text-white resize-none outline-none leading-relaxed"
+          style={{ maxHeight: 120 }}
         />
-        <button onClick={handleSend} disabled={!input.trim() || sending}
-          style={{
-            padding: '8px 18px', border: 'none', borderRadius: 6, fontFamily: 'sans-serif',
-            fontSize: 12, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase',
-            cursor: input.trim() ? 'pointer' : 'not-allowed',
-            background: input.trim() ? '#C5A059' : 'rgba(0,0,0,0.08)',
-            color: input.trim() ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
-            transition: 'all 0.15s', flexShrink: 0,
-          }}>
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="glass-btn rounded-xl px-4 py-2.5 font-sans text-[10px] uppercase tracking-[2px] font-bold disabled:opacity-30 transition-all flex-shrink-0"
+        >
           {sending ? '…' : '↑ Gửi'}
         </button>
       </div>
@@ -272,20 +271,22 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
 // ── Room list item ─────────────────────────────────────────────────────────────
 function RoomItem({ room, active, onClick }: { room: CommunityRoom; active: boolean; onClick: () => void }) {
   return (
-    <button onClick={onClick} style={{
-      width: '100%', textAlign: 'left', padding: '10px 16px',
-      background: active ? 'rgba(197,160,89,0.12)' : 'transparent',
-      border: 'none', borderLeft: active ? '3px solid #C5A059' : '3px solid transparent',
-      cursor: 'pointer', transition: 'all 0.12s',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-        <span style={{ fontFamily: 'sans-serif', fontSize: 12, fontWeight: active ? 700 : 500, color: active ? '#8B6914' : 'rgba(0,0,0,0.75)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-4 py-3 border-l-2 transition-all hover:bg-white/5 ${
+        active ? 'border-violet-400/70 bg-white/5' : 'border-transparent'
+      }`}
+    >
+      <div className="flex items-center justify-between mb-0.5">
+        <span className={`font-sans text-xs truncate ${active ? 'font-semibold text-white/90' : 'text-white/60'}`}>
           # {room.name}
         </span>
-        <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.3)', flexShrink: 0 }}>{fmtTime(room.last_active)}</span>
+        <span className="font-sans text-[9px] text-white/25 flex-shrink-0 ml-2">{fmtTime(room.last_active)}</span>
       </div>
       {room.course_tag && (
-        <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.4)', border: '1px solid rgba(0,0,0,0.1)', padding: '0px 5px', borderRadius: 2 }}>{room.course_tag}</span>
+        <span className="font-sans text-[9px] text-white/30 border border-white/10 px-1.5 py-0.5 rounded">
+          {room.course_tag}
+        </span>
       )}
     </button>
   );
@@ -304,29 +305,22 @@ export default function CommunityView() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [loadingRooms, setLoadingRooms] = useState(true);
 
-  // Load profile
   useEffect(() => {
     if (!userId) return;
     const cached = getCachedProfile();
-    if (cached && cached.user_id === userId) { setProfile(cached); }
-    else {
-      loadProfile(userId).then(p => {
-        if (p) { setProfile(p); }
-        else {
-          // First visit — create default profile
-          const defaultP: CommunityProfile = {
-            user_id: userId,
-            display_name: user?.displayName || (devMode ? 'Dev Learner' : 'Learner'),
-            avatar_emoji: '📚',
-            avatar_color: '#C5A059',
-          };
-          upsertProfile(defaultP).then(() => setProfile(defaultP));
-        }
-      });
-    }
+    if (cached && cached.user_id === userId) { setProfile(cached); return; }
+    loadProfile(userId).then(p => {
+      if (p) { setProfile(p); return; }
+      const defaultP: CommunityProfile = {
+        user_id: userId,
+        display_name: user?.displayName || (devMode ? 'Dev Learner' : 'Learner'),
+        avatar_emoji: '📚',
+        avatar_color: '#C5A059',
+      };
+      upsertProfile(defaultP).then(() => setProfile(defaultP));
+    });
   }, [userId]);
 
-  // Load rooms
   const fetchRooms = useCallback(async () => {
     setLoadingRooms(true);
     try { setRooms(await getRooms(search)); }
@@ -335,10 +329,7 @@ export default function CommunityView() {
 
   useEffect(() => { fetchRooms(); }, [fetchRooms]);
 
-  // Realtime: new rooms appear in sidebar
   useEffect(() => {
-    const ch = (window as any).__supabase_community_rooms_ch;
-    // simple poll every 30s for new rooms
     const interval = setInterval(() => fetchRooms(), 30000);
     return () => clearInterval(interval);
   }, [fetchRooms]);
@@ -357,16 +348,14 @@ export default function CommunityView() {
 
   if (!userId) {
     return (
-      <div className="flex items-center justify-center h-full" style={{ minHeight: '60vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <p className="font-serif text-xl opacity-50 mb-4">Đăng nhập để tham gia cộng đồng</p>
-        </div>
+      <div className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
+        <p className="font-serif text-xl text-white/40">Đăng nhập để tham gia cộng đồng</p>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 80px)', background: '#FAFAF8', overflow: 'hidden' }}>
+    <div className="flex" style={{ height: 'calc(100vh - 80px)', overflow: 'hidden' }}>
       {showProfileModal && profile && (
         <ProfileModal initial={profile} onSave={handleSaveProfile} onClose={() => setShowProfileModal(false)} />
       )}
@@ -375,72 +364,80 @@ export default function CommunityView() {
       )}
 
       {/* ── Sidebar ── */}
-      <div style={{ width: 260, flexShrink: 0, borderRight: '1px solid rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', background: 'white', overflowY: 'hidden' }}>
-        {/* My profile */}
-        <div style={{ padding: '16px 16px 12px', borderBottom: '1px solid rgba(0,0,0,0.06)', flexShrink: 0 }}>
-          <button onClick={() => setShowProfileModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'rgba(0,0,0,0.03)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, padding: '8px 12px', cursor: 'pointer', transition: 'background 0.15s' }}>
+      <div className="w-64 flex-shrink-0 border-r border-white/10 flex flex-col overflow-hidden">
+        {/* Profile button */}
+        <div className="p-4 border-b border-white/10 flex-shrink-0">
+          <button
+            onClick={() => setShowProfileModal(true)}
+            className="w-full flex items-center gap-3 glass rounded-xl px-3 py-2.5 hover:bg-white/5 transition-colors"
+          >
             {profile && <Avatar emoji={profile.avatar_emoji} color={profile.avatar_color} size={34} />}
-            <div style={{ textAlign: 'left', minWidth: 0, flex: 1 }}>
-              <div style={{ fontFamily: 'sans-serif', fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile?.display_name || '…'}</div>
-              <div style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.4)' }}>Chỉnh sửa hồ sơ</div>
+            <div className="text-left min-w-0 flex-1">
+              <div className="font-sans text-sm text-white/85 font-medium truncate">{profile?.display_name || '…'}</div>
+              <div className="font-sans text-[10px] text-white/35">Chỉnh sửa hồ sơ</div>
             </div>
-            <span style={{ fontSize: 14, opacity: 0.35 }}>✎</span>
+            <span className="text-white/25 text-sm flex-shrink-0">✎</span>
           </button>
         </div>
 
-        {/* Search + create */}
-        <div style={{ padding: '12px 12px 8px', flexShrink: 0 }}>
-          <div style={{ position: 'relative', marginBottom: 8 }}>
+        {/* Search */}
+        <div className="px-4 pt-3 pb-2 flex-shrink-0">
+          <div className="relative mb-3">
             <input
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Tìm phòng, khoá học…"
-              style={{ width: '100%', padding: '8px 12px 8px 32px', border: '1px solid rgba(0,0,0,0.12)', borderRadius: 6, fontFamily: 'sans-serif', fontSize: 12, outline: 'none', background: '#F5F5F3', boxSizing: 'border-box' }}
+              className="glass-input w-full rounded-xl px-4 py-2 text-xs text-white outline-none pl-8"
             />
-            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 13, opacity: 0.35 }}>🔍</span>
+            <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-white/30 text-xs">🔍</span>
           </div>
-          <button onClick={() => setShowCreateModal(true)}
-            style={{ width: '100%', padding: '8px', border: 'none', borderRadius: 6, background: '#C5A059', color: '#1a1a1a', fontFamily: 'sans-serif', fontSize: 11, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', cursor: 'pointer' }}>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="w-full glass-btn rounded-xl py-2 font-sans text-[10px] uppercase tracking-[2px] font-bold"
+          >
             + Tạo phòng
+          </button>
+          <button className="w-full mt-2 border border-white/10 rounded-xl py-2 font-sans text-[10px] uppercase tracking-[2px] text-white/50 hover:bg-white/5 transition-colors">
+            🤝 Tìm bạn học (AI)
           </button>
         </div>
 
         {/* Room list */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          <div style={{ padding: '4px 16px 6px', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-4 py-2 font-sans text-[9px] uppercase tracking-[2px] text-white/30">
             Phòng đang hoạt động
           </div>
           {loadingRooms ? (
-            <div style={{ padding: '24px 16px', fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.3)', textAlign: 'center' }}>Đang tải…</div>
+            <div className="px-4 py-6 text-center font-sans text-xs text-white/25">Đang tải…</div>
           ) : rooms.length === 0 ? (
-            <div style={{ padding: '24px 16px', fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.4)', textAlign: 'center', lineHeight: 1.6 }}>
+            <div className="px-4 py-6 text-center font-sans text-xs text-white/30 leading-relaxed">
               Chưa có phòng nào.{'\n'}Hãy tạo phòng đầu tiên!
             </div>
           ) : rooms.map(room => (
-            <RoomItem key={room.id} room={room as CommunityRoom} active={activeRoom?.id === room.id} onClick={() => { setActiveRoom(room as CommunityRoom); }} />
+            <RoomItem key={room.id} room={room as CommunityRoom} active={activeRoom?.id === room.id}
+              onClick={() => setActiveRoom(room as CommunityRoom)} />
           ))}
         </div>
 
-        {/* AI moderation notice */}
-        <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(0,0,0,0.06)', flexShrink: 0 }}>
-          <p style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.3)', margin: 0, lineHeight: 1.5, letterSpacing: 0.3 }}>
+        {/* Moderation notice */}
+        <div className="px-4 py-3 border-t border-white/10 flex-shrink-0">
+          <p className="font-sans text-[9px] text-white/25 leading-relaxed">
             🛡 Phòng chat được AI kiểm duyệt hằng tuần. Chỉ nội dung học thuật.
           </p>
         </div>
       </div>
 
       {/* ── Chat area ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="flex-1 flex flex-col overflow-hidden">
         {activeRoom && profile ? (
           <ChatRoom room={activeRoom} profile={profile} />
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-            <div style={{ textAlign: 'center', color: 'rgba(0,0,0,0.35)' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🏛</div>
-              <p style={{ fontFamily: 'Georgia, serif', fontSize: 20, marginBottom: 8, color: 'rgba(0,0,0,0.5)' }}>Chào mừng đến Lyceum Community</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 13 }}>Chọn một phòng để bắt đầu thảo luận</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 12, marginTop: 4, opacity: 0.7 }}>hoặc tạo phòng mới theo môn học của bạn</p>
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-white/30">
+              <div className="text-5xl mb-5">🏛</div>
+              <p className="font-serif text-2xl text-white/50 mb-2">Chào mừng đến Lyceum Community</p>
+              <p className="font-sans text-sm mb-1">Chọn một phòng để bắt đầu thảo luận</p>
+              <p className="font-sans text-xs opacity-70">hoặc tạo phòng mới theo môn học của bạn</p>
             </div>
           </div>
         )}

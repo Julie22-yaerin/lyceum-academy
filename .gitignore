@@ -30,3 +30,5 @@ backend/finetune.db
 backend/chroma_db/
 backend/.venv/
 backend/__pycache__/
+.vercel
+.env*

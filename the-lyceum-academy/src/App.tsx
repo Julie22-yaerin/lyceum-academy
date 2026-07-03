@@ -13,17 +13,22 @@ import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
 import OnboardingModal from './components/OnboardingModal';
 import CommunityView from './views/CommunityView';
+import NexusView from './views/NexusView';
+import MistakeBankView from './views/MistakeBankView';
+import GoalSettingView from './views/GoalSettingView';
+import TaskSetupModal from './components/TaskSetupModal';
 
 
 function AppInner() {
   const [view, setView] = useState<View>('landing');
   const { user, loading, devMode, emailVerified } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTaskSetup, setShowTaskSetup] = useState(false);
 
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
     if (!loading && ((user && emailVerified) || devMode) && view === 'auth') {
-      setView('dialogue');
+      setView('nexus');
     }
   }, [user, emailVerified, loading, devMode, view]);
 
@@ -37,6 +42,15 @@ function AppInner() {
       } catch { /* ignore */ }
     }
   }, [loading, user, devMode, view]);
+
+  function handleOnboardingClose() {
+    setShowOnboarding(false);
+    try {
+      if (!localStorage.getItem('lyceum_task_config')) {
+        setShowTaskSetup(true);
+      }
+    } catch { /* ignore */ }
+  }
 
   if (loading) {
     return (
@@ -59,16 +73,22 @@ function AppInner() {
   return (
     <>
       {showOnboarding && (
-        <OnboardingModal onClose={() => setShowOnboarding(false)} />
+        <OnboardingModal onClose={handleOnboardingClose} />
+      )}
+      {showTaskSetup && (
+        <TaskSetupModal onClose={() => setShowTaskSetup(false)} />
       )}
       <MainLayout currentView={view} onNavigate={setView}>
+        {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
         {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}
         {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
         {view === 'knowledge-map' && <KnowledgeMapView />}
         {view === 'notes' && <NoteView />}
+        {view === 'mistake-bank' && <MistakeBankView />}
         {view === 'progress' && <ProgressView />}
         {view === 'community' && <CommunityView />}
+        {view === 'goal-setting' && <GoalSettingView />}
       </MainLayout>
     </>
   );

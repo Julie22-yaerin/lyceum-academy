@@ -167,6 +167,43 @@ export function deleteGraph(id: string): void {
   try { localStorage.setItem(GRAPHS_KEY, JSON.stringify(loadGraphs().filter(g => g.id !== id))); } catch {}
 }
 
+// ── Subject detection ─────────────────────────────────────────────────────
+
+export const SUBJECT_META: Record<string, { icon: string; label: string }> = {
+  math:       { icon: '📐', label: 'Toán' },
+  physics:    { icon: '⚡', label: 'Vật lý' },
+  chemistry:  { icon: '🧪', label: 'Hoá học' },
+  biology:    { icon: '🧬', label: 'Sinh học' },
+  cs:         { icon: '💻', label: 'Lập trình' },
+  history:    { icon: '📜', label: 'Lịch sử' },
+  literature: { icon: '📖', label: 'Văn học' },
+  economics:  { icon: '📈', label: 'Kinh tế' },
+  philosophy: { icon: '🤔', label: 'Triết học' },
+  english:    { icon: '🗣', label: 'Tiếng Anh' },
+  other:      { icon: '📝', label: 'Khác' },
+};
+
+const SUBJECT_KEYWORDS: Record<string, string[]> = {
+  math:       ['math', 'toán', 'calculus', 'algebra', 'geometry', 'statistics', 'xác suất', 'vi tích phân', 'đại số', 'hình học', 'số học'],
+  physics:    ['physics', 'vật lý', 'mechanics', 'electro', 'thermodynamics', 'quantum', 'lực', 'điện', 'nhiệt', 'quang'],
+  chemistry:  ['chemistry', 'hoá', 'chemical', 'molecule', 'reaction', 'acid', 'base', 'nguyên tử', 'phân tử'],
+  biology:    ['biology', 'sinh', 'cell', 'dna', 'gene', 'organism', 'tế bào', 'sinh vật', 'di truyền'],
+  cs:         ['programming', 'lập trình', 'algorithm', 'code', 'software', 'database', 'network', 'javascript', 'python', 'java', 'c++', 'typescript', 'react'],
+  history:    ['history', 'lịch sử', 'war', 'revolution', 'dynasty', 'empire', 'chiến tranh', 'triều đại'],
+  literature: ['literature', 'văn', 'poem', 'novel', 'essay', 'grammar', 'thơ', 'truyện', 'ngữ pháp'],
+  economics:  ['economics', 'kinh tế', 'market', 'supply', 'demand', 'gdp', 'finance', 'tài chính', 'thị trường'],
+  philosophy: ['philosophy', 'triết', 'ethics', 'logic', 'metaphysics', 'đạo đức', 'tư duy'],
+  english:    ['english', 'tiếng anh', 'vocabulary', 'toeic', 'ielts', 'toefl', 'pronunciation', 'grammar'],
+};
+
+export function detectSubject(text: string): string {
+  const lower = text.toLowerCase();
+  for (const [subject, keywords] of Object.entries(SUBJECT_KEYWORDS)) {
+    if (keywords.some(kw => lower.includes(kw))) return subject;
+  }
+  return 'other';
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 export function timeAgo(ts: number): string {
   const diff = Date.now() - ts;

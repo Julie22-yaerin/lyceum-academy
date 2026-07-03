@@ -38,7 +38,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       await signInWithPopup(auth, googleProvider);
-      onNavigate('dialogue');
+      onNavigate('nexus');
     } catch (e: any) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
         await signInWithRedirect(auth, googleProvider);
@@ -59,7 +59,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         if (!cred.user.emailVerified) {
           setScreen('verify-email');
         } else {
-          onNavigate('dialogue');
+          onNavigate('nexus');
         }
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
