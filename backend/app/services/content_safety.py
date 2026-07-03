@@ -205,6 +205,9 @@ async def check_upload(file: UploadFile, max_bytes: int = 10 * 1024 * 1024) -> b
     if ext in {'.txt', '.md'} and b'\x00' in content:
         raise HTTPException(status_code=400, detail="Invalid file content.")
 
+    # Heuristic malware scan
+    scan_content(content, detected or declared)
+
     return content
 
 
@@ -220,3 +223,50 @@ def _mime_compatible(detected: str, declared: str) -> bool:
     if detected == 'application/pdf' and declared == 'application/pdf':
         return True
     return False
+
+
+# ── Heuristic malware scan ────────────────────────────────────────────────────
+
+# Malicious PDF indicators (Adobe spec attack vectors)
+_PDF_MALWARE_PATTERNS: list[bytes] = [
+    b'/JavaScript',
+    b'/JS ',
+    b'/JS\n',
+    b'/JS\r',
+    b'/Launch',
+    b'/EmbeddedFile',
+    b'/OpenAction',
+    b'/AA ',          # Additional Actions
+    b'/RichMedia',    # Flash embedding
+    b'/XFA',          # XML Forms Architecture (exploited in CVEs)
+    b'eval(',
+    b'unescape(',
+]
+
+# Polyglot / EICAR-style markers
+_GENERIC_MALWARE_BYTES: list[bytes] = [
+    b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR',  # EICAR test string
+    b'MZ\x90\x00',    # PE executable header embedded in non-exe
+]
+
+
+def scan_content(data: bytes, mime: str) -> None:
+    """
+    Heuristic malware scan.
+    - PDFs: flag known exploit/shellcode indicators
+    - All files: flag embedded PE headers and EICAR test string
+    Raises HTTP 400 if suspicious content is detected.
+    """
+    # Generic checks for all file types
+    for marker in _GENERIC_MALWARE_BYTES:
+        if marker in data:
+            raise HTTPException(status_code=400, detail="File contains disallowed content.")
+
+    # PDF-specific deep scan
+    if mime == 'application/pdf' or data[:4] == b'%PDF':
+        for pattern in _PDF_MALWARE_PATTERNS:
+            if pattern in data:
+                raise HTTPException(
+                    status_code=400,
+                    detail="PDF contains disallowed content (active scripts or embedded files).",
+                )
