@@ -54,11 +54,50 @@ def get_user_key(request: Request) -> str:
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
+
+        # ── Prevent MIME-type sniffing ────────────────────────────────────────
         response.headers["X-Content-Type-Options"] = "nosniff"
+
+        # ── Prevent clickjacking ──────────────────────────────────────────────
         response.headers["X-Frame-Options"] = "DENY"
+
+        # ── Legacy XSS filter (belt-and-suspenders for old browsers) ─────────
         response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        # ── Limit referrer leakage ────────────────────────────────────────────
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+        # ── Force HTTPS for 1 year (prod only; header ignored on HTTP) ────────
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains; preload"
+        )
+
+        # ── Permissions Policy — disable unneeded browser APIs ────────────────
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+        )
+
+        # ── Content Security Policy ───────────────────────────────────────────
+        # This is a pure JSON API — no HTML served except /docs (Swagger).
+        # /docs needs unsafe-inline for Swagger UI JS; all other paths get strict CSP.
+        path = request.url.path
+        if path.startswith("/docs") or path.startswith("/redoc") or path == "/openapi.json":
+            # Swagger UI requires inline scripts and styles
+            csp = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+                "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+                "img-src 'self' data: fastapi.tiangolo.com; "
+                "frame-ancestors 'none';"
+            )
+        else:
+            # Strict CSP for all API endpoints
+            csp = (
+                "default-src 'none'; "
+                "frame-ancestors 'none';"
+            )
+        response.headers["Content-Security-Policy"] = csp
+
         return response
 
 
