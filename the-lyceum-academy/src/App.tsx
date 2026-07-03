@@ -17,19 +17,19 @@ import CommunityView from './views/CommunityView';
 
 function AppInner() {
   const [view, setView] = useState<View>('landing');
-  const { user, loading, devMode } = useAuth();
+  const { user, loading, devMode, emailVerified } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // After auth resolves: redirect authenticated users out of auth page
+  // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
-    if (!loading && (user || devMode) && view === 'auth') {
+    if (!loading && ((user && emailVerified) || devMode) && view === 'auth') {
       setView('dialogue');
     }
-  }, [user, loading, devMode, view]);
+  }, [user, emailVerified, loading, devMode, view]);
 
   // Show onboarding once after first login
   useEffect(() => {
-    if (!loading && (user || devMode) && view !== 'landing' && view !== 'auth') {
+    if (!loading && ((user && emailVerified) || devMode) && view !== 'landing' && view !== 'auth') {
       try {
         if (!localStorage.getItem('lyceum_onboarding_done')) {
           setShowOnboarding(true);
@@ -51,8 +51,8 @@ function AppInner() {
   if (view === 'landing') return <LandingPage onNavigate={setView} currentView={view} />;
   if (view === 'auth') return <AuthPage onNavigate={setView} currentView={view} />;
 
-  // Guard: non-dev, non-authed users get sent to auth
-  if (!user && !devMode) {
+  // Guard: unauthenticated or unverified email users get sent to auth
+  if ((!user || !emailVerified) && !devMode) {
     return <AuthPage onNavigate={setView} currentView={view} />;
   }
 

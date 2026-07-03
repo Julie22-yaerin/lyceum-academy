@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavigationProps } from '../types';
 import {
   auth,
@@ -22,13 +22,17 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
-  const { emailVerified, resendVerificationEmail } = useAuth();
+  const { user, emailVerified, resendVerificationEmail } = useAuth();
 
-  // If user just verified, let App.tsx handle redirect via emailVerified state
-  if (emailVerified) {
-    onNavigate('dialogue');
-    return null;
-  }
+  // If user is logged in but unverified (e.g., persisted session), jump to verify screen
+  useEffect(() => {
+    if (user && !emailVerified) {
+      setScreen('verify-email');
+    }
+  }, [user, emailVerified]);
+
+  // If already verified, let App.tsx redirect
+  if (emailVerified) return null;
 
   async function handleGoogle() {
     setError(''); setBusy(true);
