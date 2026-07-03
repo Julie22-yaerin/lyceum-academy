@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 import asyncio
+import base64
 import json as _json
 import logging
 
@@ -9,6 +10,7 @@ from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 import websockets as _ws
 
@@ -23,8 +25,44 @@ _GEMINI_LIVE_URL = (
     ".GenerativeService.BidiGenerateContent"
 )
 
+
+# ── Per-user rate limiting key ────────────────────────────────────────────────
+def get_user_key(request: Request) -> str:
+    """Rate limit by Firebase UID when authenticated, else fall back to IP."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[7:].strip()
+        try:
+            # Decode payload without signature verification — just need the UID.
+            # Verification is handled by require_auth; here we only need the key.
+            parts = token.split(".")
+            if len(parts) == 3:
+                payload_b64 = parts[1]
+                padding = (4 - len(payload_b64) % 4) % 4
+                payload_bytes = base64.urlsafe_b64decode(payload_b64 + "=" * padding)
+                payload_data = _json.loads(payload_bytes)
+                uid = payload_data.get("user_id") or payload_data.get("sub") or ""
+                if uid and len(uid) > 4:
+                    return f"uid:{uid}"
+        except Exception:
+            pass
+    return get_remote_address(request)
+
+
+# ── Security headers middleware ───────────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
 # ── Rate limiter ─────────────────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_user_key)
 from app.services import ai         as ai_svc
 from app.services import finetune_db as ft_svc
 from app.routers  import admin      as admin_router
@@ -61,6 +99,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SecurityHeadersMiddleware)
 app.include_router(admin_router.router)
 
 _cors_origins = settings.cors_origins_list
