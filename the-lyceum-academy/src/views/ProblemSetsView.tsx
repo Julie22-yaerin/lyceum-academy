@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage } from '../lib/api';
 import { saveGradeSession } from '../lib/progress';
+import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, type SavedPSet } from '../lib/persist';
 
@@ -573,6 +574,23 @@ function LensView({
         map[g.id] = { passed: g.passed, feedback: g.feedback, suggestions: g.suggestions };
       });
       setGradeResults(map);
+
+      // Mistake Bank is populated by AI grading, not manual entry — every
+      // question marked wrong here gets logged automatically so the student
+      // never has to type it in themselves.
+      result.grades.forEach(g => {
+        if (g.passed) return;
+        const oq = questions.find(q => q.id === g.id);
+        if (!oq) return;
+        try {
+          saveMistake({
+            mistake: oq.prompt.slice(0, 300),
+            location: `${docKey} · Q${questions.indexOf(oq) + 1}`,
+            explanation: g.feedback || '',
+          });
+        } catch { /* ignore */ }
+      });
+
       // Save to progress store
       saveGradeSession({
         sessionId: `${docKey}_${Date.now()}`,

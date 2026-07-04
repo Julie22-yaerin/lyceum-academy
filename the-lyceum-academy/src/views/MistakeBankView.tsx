@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { analyzeMistake, chatMessage } from '../lib/api';
+import { chatMessage } from '../lib/api';
 import {
   loadMistakes,
-  saveMistake,
   deleteMistake,
   clearMistakes,
   getSubjectIcon,
@@ -196,14 +195,10 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
 }
 
 export default function MistakeBankView() {
-  const [mistake, setMistake] = useState('');
-  const [location, setLocation] = useState('');
   const [entries, setEntries] = useState<MistakeEntry[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [filterSubject, setFilterSubject] = useState('');
-  const [busy, setBusy] = useState(false);
   const [showClear, setShowClear] = useState(false);
-  const [showForm, setShowForm] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [chatEntries, setChatEntries] = useState<MistakeEntry[] | null>(null);
@@ -240,29 +235,6 @@ export default function MistakeBankView() {
     setSelectMode(false);
   }
 
-  async function handleSubmit() {
-    if (!mistake.trim()) return;
-    setBusy(true);
-    try {
-      let explanation = '';
-      try {
-        const result = await analyzeMistake(mistake.trim(), location.trim());
-        explanation = result.explanation || '';
-      } catch {}
-      saveMistake({
-        mistake: mistake.trim(),
-        location: location.trim(),
-        explanation,
-      });
-      setMistake('');
-      setLocation('');
-      setShowForm(false);
-      refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
   function handleDelete(id: string) {
     deleteMistake(id);
     refresh();
@@ -285,13 +257,6 @@ export default function MistakeBankView() {
       {/* Controls */}
       <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowForm(v => !v)}
-            className="flex items-center gap-1.5 glass-btn rounded-xl px-3 py-2 text-xs font-medium transition-all"
-          >
-            <span className="material-symbols-outlined text-[15px]">{showForm ? 'expand_less' : 'add'}</span>
-            {showForm ? 'Collapse' : 'Log Mistake'}
-          </button>
           {subjects.length > 0 && (
             <select
               value={filterSubject}
@@ -371,54 +336,13 @@ export default function MistakeBankView() {
         </div>
       )}
 
-      {/* Add form */}
-      {showForm && (
-        <div className="glass-strong rounded-2xl p-4 mb-6 animate-fade-in">
-          <div className="mb-3">
-            <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 mb-1.5 block">
-              What went wrong? <span className="text-rose-400">*</span>
-            </label>
-            <textarea
-              value={mistake}
-              onChange={e => setMistake(e.target.value)}
-              placeholder="Paste the problem or describe your mistake..."
-              rows={2}
-              className="glass-input w-full resize-none rounded-xl px-3 py-2.5 text-sm leading-relaxed"
-            />
-          </div>
-          <div className="mb-3">
-            <label className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 mb-1.5 block">
-              Location (bài / pset / lesson)
-            </label>
-            <input
-              value={location}
-              onChange={e => setLocation(e.target.value)}
-              placeholder="e.g. Bài 3 - Pset 1 - 02/07/2026"
-              className="glass-input w-full rounded-xl px-3 py-2.5 text-sm"
-            />
-          </div>
-          <button
-            onClick={handleSubmit}
-            disabled={busy || !mistake.trim()}
-            className="flex w-full items-center justify-center gap-2 glass-btn rounded-xl py-2.5 text-xs font-medium disabled:opacity-30 transition-all"
-          >
-            {busy ? (
-              <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />
-            ) : (
-              <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-            )}
-            {busy ? 'Analyzing with Gemini Flash...' : 'Log Mistake'}
-          </button>
-        </div>
-      )}
-
-      {/* List */}
+      {/* List — populated automatically whenever AI grading marks an answer wrong in Problem Sets */}
       {entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <span className="material-symbols-outlined text-4xl text-white/10 mb-3">check_circle</span>
           <p className="font-serif text-lg text-white/25 mb-1">No mistakes logged yet</p>
           <p className="font-sans text-xs text-white/20 text-center max-w-xs">
-            Mistakes are proof that you're trying. Log them here and learn from them.
+            Whenever AI grading marks an answer wrong in Problem Sets, it shows up here automatically.
           </p>
         </div>
       ) : (

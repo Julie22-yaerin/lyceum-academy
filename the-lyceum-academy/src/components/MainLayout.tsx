@@ -111,7 +111,7 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
   const isFullBleed = currentView === 'knowledge-map';
 
   return (
-    <div className="bg-[#050508] text-white/90 min-h-screen flex flex-col">
+    <div className="bg-[#ADD8E6] text-white/90 min-h-screen flex flex-col">
       <FloatingDock currentView={currentView} onNavigate={handleNavigate} />
       <VoiceOrb currentView={currentView} />
       <main id="lyceum-workspace-content" className={`flex flex-1 w-full ${isFullBleed ? '' : 'max-w-7xl mx-auto px-6 pt-24 pb-32'}`}>
