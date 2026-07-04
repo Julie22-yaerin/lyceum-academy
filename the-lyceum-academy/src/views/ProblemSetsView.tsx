@@ -4,6 +4,7 @@ import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, type SavedPSet } from '../lib/persist';
+import MindMapTool from '../components/MindMapTool';
 
 // ── Math keyboard symbols ─────────────────────────────────────────────────
 const MATH_SYMBOLS = [
@@ -649,6 +650,8 @@ function LensView({
           100% { transform: rotate(-0.35deg) scale(1) translateY(0); opacity:1; filter:blur(0); }
         }
       `}</style>
+
+      <MindMapTool />
 
       {/* ── Header bar ── */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-white/10 flex-shrink-0 bg-neutral-900">
