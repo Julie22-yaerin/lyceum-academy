@@ -290,6 +290,26 @@ async def _nvidia_call(
         return data
 
 
+async def voice_fallback_chat(messages: list[dict], system_instruction: str = "") -> str:
+    """
+    Text fallback for ARI's voice session when the Gemini Live WebSocket is
+    unreachable. Uses NVIDIA NIM's gpt-oss-20b (OpenAI-compatible chat
+    completions) — same behavior-trained system instruction as Gemini Live,
+    just no native audio output; the frontend speaks the reply via the
+    browser's own speechSynthesis instead.
+    """
+    full_messages = (
+        [{"role": "system", "content": system_instruction}] if system_instruction else []
+    ) + messages
+    data = await _nvidia_call(
+        full_messages,
+        model=settings.nvidia_voice_fallback_model,
+        temperature=0.8,
+        max_tokens=1024,
+    )
+    return extract_text(data)
+
+
 async def _gemini_vision_call(
     messages: list[dict],
     temperature: float = 0.1,

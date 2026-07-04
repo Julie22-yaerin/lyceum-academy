@@ -174,6 +174,11 @@ class ChatRequest(BaseModel):
     max_tokens: int = 2048
 
 
+class VoiceFallbackRequest(BaseModel):
+    messages: list[dict]
+    system_instruction: str = ""
+
+
 class HintRequest(BaseModel):
     problem: str
     level: int = 1   # 1 = vague, 2 = name concept, 3 = first step
@@ -209,6 +214,18 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
             "model": resp.get("model"),
             "usage": resp.get("usage"),
         }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/ai/voice-fallback")
+@limiter.limit("20/minute")
+async def ai_voice_fallback(request: Request, req: VoiceFallbackRequest, _: dict = Depends(require_auth)):
+    """Text-based GPT fallback for ARI when the Gemini Live WS session is down."""
+    check_messages(req.messages)
+    try:
+        text = await ai_svc.voice_fallback_chat(req.messages, req.system_instruction)
+        return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

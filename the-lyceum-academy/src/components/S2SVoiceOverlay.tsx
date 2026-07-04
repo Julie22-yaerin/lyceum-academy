@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { saveNote } from '../lib/persist';
-import { saveMistake } from '../lib/mistakes';
-import { getNodeSummary } from '../lib/api';
+import { saveNote, attachToNote, attachToGraphNode } from '../lib/persist';
+import { saveMistake, attachToMistake } from '../lib/mistakes';
+import { getNodeSummary, voiceFallbackChat } from '../lib/api';
 
 // Gemini 2.0 Flash + v1alpha BidiGenerateContent were shut down 2026-06-01.
 // Live voice now runs on the native-audio Live model over v1beta (see backend/app/main.py).
@@ -35,7 +35,7 @@ export default function S2SVoiceOverlay({
   voiceName = 'Puck',
   startMuted = false,
 }: S2SVoiceOverlayProps) {
-  const [status, setStatus] = useState<'connecting' | 'idle' | 'listening' | 'speaking' | 'paused' | 'error'>('connecting');
+  const [status, setStatus] = useState<'connecting' | 'idle' | 'listening' | 'speaking' | 'paused' | 'error' | 'fallback'>('connecting');
   const [isMuted, setIsMuted] = useState(startMuted);
   const [liveUserTranscription, setLiveUserTranscription] = useState('');
   const [liveAiTranscription, setLiveAiTranscription] = useState('');
@@ -61,6 +61,10 @@ export default function S2SVoiceOverlay({
   const currentTurnAiTextRef = useRef('');
 
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fallbackHistoryRef = useRef<{ role: string; content: string }[]>([]);
+  // Last thing Gemma researched — what an [ATTACH: ...] tag attaches.
+  const lastResearchRef = useRef<{ topic: string; imageUrl?: string; sourceUrl?: string } | null>(null);
 
   // Mirrors `status` for the async callbacks inside the setup effect below.
   // The effect itself must NOT depend on `status` (it calls setStatus internally —
@@ -112,7 +116,7 @@ export default function S2SVoiceOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMuted]);
 
-  function showToastMsg(message: string, type: 'note' | 'mistake' | 'research', image?: string) {
+  function showToastMsg(message: string, type: 'note' | 'mistake' | 'research' | 'attach', image?: string) {
     setToast({ message, type, image });
     setTimeout(() => setToast(null), type === 'research' ? 8000 : 5000);
   }
@@ -122,28 +126,107 @@ export default function S2SVoiceOverlay({
   // concept a note/graph didn't cover, etc.), shows it as a toast, and feeds
   // the result back into the live session as a text turn so Ari can actually
   // talk about it on its next reply instead of just silently fetching it.
+  // Also remembers {topic, imageUrl, sourceUrl} so a follow-up [ATTACH: ...]
+  // tag knows what to attach and where the source link points.
   async function handleResearch(topic: string) {
     try {
       const result = await getNodeSummary(topic);
       const text = result.definition || result.summary || '';
       if (!text) return;
+      const sourceUrl = `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
+      lastResearchRef.current = { topic, imageUrl: result.image_url, sourceUrl };
       showToastMsg(text, 'research', result.image_url);
+      const relayText = `[Gemma đã tra cứu giúp về "${topic}": ${text}${result.image_url ? ' (kèm hình minh hoạ)' : ''}. Hãy tóm tắt ngắn gọn lại cho học sinh bằng giọng nói.]`;
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           clientContent: {
-            turns: [{
-              role: 'user',
-              parts: [{
-                text: `[Gemma đã tra cứu giúp về "${topic}": ${text}${result.image_url ? ' (kèm hình minh hoạ)' : ''}. Hãy tóm tắt ngắn gọn lại cho học sinh bằng giọng nói.]`,
-              }],
-            }],
+            turns: [{ role: 'user', parts: [{ text: relayText }] }],
             turnComplete: true,
           },
         }));
+      } else if (statusRef.current === 'fallback') {
+        // Same relay, just routed through the GPT fallback loop instead.
+        runFallbackTurn(relayText, true);
       }
     } catch (e) {
       console.error('ARI research lookup failed:', e);
     }
+  }
+
+  // "Gắn hình/nguồn đó vào note X" — attaches whatever Gemma last researched
+  // to a Note, Mistake Bank entry, or Knowledge Tree node (fuzzy-matched by
+  // title). Deliberately excludes PDF problem sets — those are fixed
+  // documents, not editable app records.
+  function handleAttach(targetType: string, targetText: string) {
+    const research = lastResearchRef.current;
+    if (!research) {
+      showToastMsg('Chưa có kết quả tra cứu nào để gắn — hãy nhờ ARI tra cứu trước.', 'attach');
+      return;
+    }
+    const patch = { imageUrl: research.imageUrl, sourceUrl: research.sourceUrl, sourceLabel: research.topic };
+    const type = targetType.trim().toLowerCase();
+    let ok = false;
+    if (type.startsWith('note')) ok = attachToNote(targetText, patch);
+    else if (type.startsWith('mistake')) ok = attachToMistake(targetText, patch);
+    else if (type.startsWith('node') || type.startsWith('graph')) ok = attachToGraphNode(targetText, patch);
+
+    showToastMsg(
+      ok ? `Đã gắn vào "${targetText}".` : `Không tìm thấy "${targetText}" để gắn — thử nói rõ tên hơn.`,
+      'attach',
+    );
+  }
+
+  // ── GPT (NVIDIA gpt-oss-20b) fallback — kicks in only when Gemini Live's
+  // WebSocket is unreachable. The mic + SpeechRecognition never stop; this
+  // just routes finished utterances to a text model instead, and speaks the
+  // reply back via the browser's own speechSynthesis.
+  function speakText(text: string) {
+    try {
+      window.speechSynthesis.cancel();
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'vi-VN';
+      utter.onstart = () => setStatus('speaking');
+      utter.onend = () => setStatus('fallback');
+      utter.onerror = () => setStatus('fallback');
+      window.speechSynthesis.speak(utter);
+    } catch { /* speechSynthesis unsupported — reply stays text-only */ }
+  }
+
+  async function runFallbackTurn(overrideText?: string, silent = false) {
+    const userText = (overrideText ?? currentTurnUserTextRef.current).trim();
+    if (!userText) return;
+    currentTurnUserTextRef.current = '';
+    setLiveUserTranscription('');
+    if (!silent) {
+      fallbackHistoryRef.current.push({ role: 'user', content: userText });
+      onNewMessage('user', userText);
+    }
+    try {
+      const reply = await voiceFallbackChat(fallbackHistoryRef.current.slice(-12), systemInstruction);
+      if (!reply) return;
+      const researchMatch = reply.match(/\[RESEARCH:\s*([^\]]+)\]/i);
+      const attachMatch = reply.match(/\[ATTACH:\s*(note|mistake|node|graph)\s*\|\s*([^\]]+)\]/i);
+      let spoken = reply.replace(/\[RESEARCH:[^\]]+\]/i, '').replace(/\[ATTACH:[^\]]+\]/i, '').trim();
+      fallbackHistoryRef.current.push({ role: 'assistant', content: reply });
+      onNewMessage('assistant', reply, 'gpt-oss-20b (fallback)');
+      setLiveAiTranscription(spoken);
+      if (spoken) speakText(spoken);
+      if (researchMatch) handleResearch(researchMatch[1].trim());
+      if (attachMatch) handleAttach(attachMatch[1], attachMatch[2].trim());
+    } catch (e) {
+      console.error('GPT fallback chat failed:', e);
+    }
+  }
+
+  function armFallbackDebounce() {
+    if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    fallbackTimerRef.current = setTimeout(() => { runFallbackTurn(); }, 1300);
+  }
+
+  function enterFallbackMode(reason: string) {
+    setErrorMessage(reason);
+    fallbackHistoryRef.current = [];
+    setStatus('fallback');
   }
 
   useEffect(() => {
@@ -232,6 +315,12 @@ export default function S2SVoiceOverlay({
       if (researchMatch) {
         aiText = aiText.replace(researchMatch[0], '').trim();
         handleResearch(researchMatch[1].trim());
+      }
+
+      const attachMatch = aiText.match(/\[ATTACH:\s*(note|mistake|node|graph)\s*\|\s*([^\]]+)\]/i);
+      if (attachMatch) {
+        aiText = aiText.replace(attachMatch[0], '').trim();
+        handleAttach(attachMatch[1], attachMatch[2].trim());
       }
 
       if (enableAutoSave) {
@@ -337,12 +426,16 @@ export default function S2SVoiceOverlay({
             }
             if (final) {
               currentTurnUserTextRef.current += (currentTurnUserTextRef.current ? ' ' : '') + final.trim();
-              armSilenceTimer();
+              if (statusRef.current === 'fallback') {
+                armFallbackDebounce();
+              } else {
+                armSilenceTimer();
+              }
             }
             const currentShowText = currentTurnUserTextRef.current + (interim ? ' ' + interim.trim() : '');
             setLiveUserTranscription(currentShowText);
 
-            if (statusRef.current !== 'speaking' && statusRef.current !== 'paused') {
+            if (statusRef.current !== 'speaking' && statusRef.current !== 'paused' && statusRef.current !== 'fallback') {
               setStatus('listening');
             }
           };
@@ -456,21 +549,19 @@ export default function S2SVoiceOverlay({
           console.error('WebSocket Error:', err);
           clearSilenceTimer();
           if (active) {
-            setStatus('error');
-            setErrorMessage('Không kết nối được với AI Voice service. Kiểm tra backend đang chạy.');
+            enterFallbackMode('Gemini Live không kết nối được — đã chuyển ARI sang GPT dự phòng (chỉ văn bản + giọng đọc trình duyệt).');
           }
         };
 
         ws.onclose = (evt) => {
           clearSilenceTimer();
-          if (active && statusRef.current !== 'error') {
-            setStatus('error');
-            let reason = evt.reason || 'Kết nối Voice AI bị đóng.';
+          if (active && statusRef.current !== 'fallback') {
+            let reason = evt.reason || 'Kết nối Gemini Live bị đóng.';
             try {
               const parsed = JSON.parse(evt.reason);
               reason = parsed.error || parsed.message || reason;
             } catch { /* reason stays as-is */ }
-            setErrorMessage(reason);
+            enterFallbackMode(`${reason} — đã chuyển ARI sang GPT dự phòng.`);
           }
         };
 
@@ -596,6 +687,7 @@ export default function S2SVoiceOverlay({
     status === 'speaking' ? 'rgba(52,211,153,0.7)' :
     status === 'listening' ? 'rgba(96,165,250,0.7)' :
     status === 'error' ? 'rgba(248,113,113,0.7)' :
+    status === 'fallback' ? 'rgba(251,191,36,0.6)' :
     status === 'paused' ? 'rgba(255,255,255,0.15)' :
     'rgba(139,92,246,0.35)';
 
@@ -608,7 +700,9 @@ export default function S2SVoiceOverlay({
           )}
           <div className="min-w-0">
             <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-1">
-              {toast.type === 'research' ? '🔎 Gemma researched' : toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
+              {toast.type === 'research' ? '🔎 Gemma researched' :
+               toast.type === 'attach' ? '📎 Attached' :
+               toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
             </span>
             <p className="font-sans text-xs text-white/85 leading-relaxed line-clamp-4">{toast.message}</p>
           </div>
@@ -627,8 +721,8 @@ export default function S2SVoiceOverlay({
         </div>
       )}
 
-      {status === 'error' && (
-        <div className="fixed bottom-24 md:bottom-28 right-24 z-30 max-w-[220px] glass-strong rounded-2xl px-4 py-3 text-[11px] text-red-300 leading-relaxed">
+      {(status === 'error' || status === 'fallback') && errorMessage && (
+        <div className={`fixed bottom-24 md:bottom-28 right-24 z-30 max-w-[220px] glass-strong rounded-2xl px-4 py-3 text-[11px] leading-relaxed ${status === 'error' ? 'text-red-300' : 'text-amber-300'}`}>
           {errorMessage}
         </div>
       )}
@@ -669,6 +763,7 @@ export default function S2SVoiceOverlay({
             status === 'listening' ? 'ARI đang nghe...' :
             status === 'paused' ? 'ARI tạm dừng' :
             status === 'error' ? 'Lỗi kết nối' :
+            status === 'fallback' ? 'ARI (chế độ GPT dự phòng)' :
             'ARI đang lắng nghe nền'
           }
         >

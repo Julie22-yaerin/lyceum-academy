@@ -146,6 +146,30 @@ export function deleteNote(id: string): void {
   try { localStorage.setItem(NOTES_KEY, JSON.stringify(loadNotes().filter(n => n.id !== id))); } catch {}
 }
 
+/**
+ * Fuzzy-attaches an image/source link (from ARI's Gemma research) to the
+ * most recent saved note whose title matches `matchTitle`. Returns true if
+ * a match was found and updated.
+ */
+export function attachToNote(matchTitle: string, patch: { imageUrl?: string; sourceUrl?: string; sourceLabel?: string }): boolean {
+  const all = loadNotes();
+  const needle = matchTitle.trim().toLowerCase();
+  if (!needle) return false;
+  const match = all.find(n => n.title.toLowerCase().includes(needle) || needle.includes(n.title.toLowerCase()));
+  if (!match) return false;
+  const updated: SavedNote = {
+    ...match,
+    note: {
+      ...match.note,
+      attachedImage: patch.imageUrl ?? match.note?.attachedImage,
+      attachedSourceUrl: patch.sourceUrl ?? match.note?.attachedSourceUrl,
+      attachedSourceLabel: patch.sourceLabel ?? match.note?.attachedSourceLabel,
+    },
+  };
+  saveNote(updated);
+  return true;
+}
+
 export function timeRemaining(expiresAt: number): string {
   const ms = expiresAt - Date.now();
   if (ms <= 0) return 'hết hạn';
@@ -165,6 +189,28 @@ export function saveGraph(g: SavedGraph): void {
 
 export function deleteGraph(id: string): void {
   try { localStorage.setItem(GRAPHS_KEY, JSON.stringify(loadGraphs().filter(g => g.id !== id))); } catch {}
+}
+
+/**
+ * Fuzzy-attaches an image/source link (from ARI's Gemma research) to a node
+ * (by label) in the most recently saved graph that contains it. Returns
+ * true if a match was found and updated.
+ */
+export function attachToGraphNode(matchLabel: string, patch: { imageUrl?: string; sourceUrl?: string; sourceLabel?: string }): boolean {
+  const graphs = loadGraphs();
+  const needle = matchLabel.trim().toLowerCase();
+  if (!needle) return false;
+  for (const g of graphs) {
+    const node = (g.nodes || []).find((n: any) => (n.label || '').toLowerCase().includes(needle) || needle.includes((n.label || '').toLowerCase()));
+    if (node) {
+      node.image_url = patch.imageUrl ?? node.image_url;
+      node.source_url = patch.sourceUrl ?? node.source_url;
+      node.source_label = patch.sourceLabel ?? node.source_label;
+      saveGraph(g);
+      return true;
+    }
+  }
+  return false;
 }
 
 // ── Subject detection ─────────────────────────────────────────────────────

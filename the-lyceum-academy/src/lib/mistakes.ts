@@ -7,6 +7,10 @@ export interface MistakeEntry {
   subject: string;
   explanation: string;
   createdAt: number;
+  /** Set via ARI's [ATTACH: mistake | ...] tag after a Gemma research lookup. */
+  attachedImage?: string;
+  attachedSourceUrl?: string;
+  attachedSourceLabel?: string;
 }
 
 const KEY = 'lyceum_mistakes_v1';
@@ -61,4 +65,24 @@ export function getSortedMistakes(subjectFilter?: string): MistakeEntry[] {
 export function getAllSubjects(): string[] {
   const subjects = new Set(loadMistakes().map(m => m.subject));
   return Array.from(subjects).sort();
+}
+
+/**
+ * Fuzzy-attaches an image/source link (from ARI's Gemma research) to the
+ * most recent Mistake Bank entry whose text matches `matchText`. Returns
+ * true if a match was found and updated.
+ */
+export function attachToMistake(matchText: string, patch: { imageUrl?: string; sourceUrl?: string; sourceLabel?: string }): boolean {
+  const all = loadMistakes();
+  const needle = matchText.trim().toLowerCase();
+  if (!needle) return false;
+  const match = all.find(m => m.mistake.toLowerCase().includes(needle) || needle.includes(m.mistake.toLowerCase()));
+  if (!match) return false;
+  const updated = all.map(m => m.id === match.id ? {
+    ...m,
+    attachedImage: patch.imageUrl ?? m.attachedImage,
+    attachedSourceUrl: patch.sourceUrl ?? m.attachedSourceUrl,
+    attachedSourceLabel: patch.sourceLabel ?? m.attachedSourceLabel,
+  } : m);
+  try { localStorage.setItem(KEY, JSON.stringify(updated)); return true; } catch { return false; }
 }

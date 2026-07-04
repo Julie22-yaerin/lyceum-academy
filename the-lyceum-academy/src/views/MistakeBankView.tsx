@@ -56,6 +56,23 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
             {entry.explanation && (
               <p className="font-sans text-[11px] text-amber-300/60 italic">{entry.explanation}</p>
             )}
+            {(entry.attachedImage || entry.attachedSourceUrl) && (
+              <div className="mt-2 flex items-center gap-2">
+                {entry.attachedImage && (
+                  <img src={entry.attachedImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                )}
+                {entry.attachedSourceUrl && (
+                  <a
+                    href={entry.attachedSourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-sans text-[10px] text-sky-300/80 hover:text-sky-200 underline truncate"
+                  >
+                    🔗 {entry.attachedSourceLabel || 'Nguồn tham khảo'}
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         </div>
         {!onToggle && (

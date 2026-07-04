@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     nvidia_primary_model: str = "google/gemma-2-2b-it"
     nvidia_node_model: str = "google/gemma-2-2b-it"   # model for knowledge graph node summaries
     nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    # Text fallback for ARI's voice session when the Gemini Live WebSocket is
+    # down — no native audio here, the frontend speaks the reply via the
+    # browser's own speechSynthesis instead.
+    nvidia_voice_fallback_model: str = "openai/gpt-oss-20b"
 
     # ── NVIDIA NIM Vision (image analysis) ────────────────────────
     nvidia_vision_key: str = ""
