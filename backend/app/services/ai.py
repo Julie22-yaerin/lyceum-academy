@@ -3315,6 +3315,12 @@ async def get_youtube_content(url: str) -> dict:
     vid_id = vid_match.group(1)
     title = url  # will be updated when we get real metadata
 
+    # YouTube rate-limits/blocks datacenter IPs regardless of the video's own
+    # privacy — if a cookies file is configured, every yt-dlp call below uses
+    # it so requests look like they come from a real logged-in session.
+    cookies_args = ["--cookies", settings.ytdlp_cookies_file] if settings.ytdlp_cookies_file else []
+    last_stderr = ""
+
     # ── Attempt 1: youtube-transcript-api ─────────────────────────────────
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
@@ -3339,6 +3345,7 @@ async def get_youtube_content(url: str) -> dict:
                 "--sub-langs", "en,vi,en-US,vi-VN",
                 "--sub-format", "vtt",
                 "--no-playlist",
+                *cookies_args,
                 "-o", out_tmpl,
                 url,
             ],
@@ -3357,7 +3364,7 @@ async def get_youtube_content(url: str) -> dict:
                 # Try to get title from yt-dlp json too
                 try:
                     meta = subprocess.run(
-                        ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", url],
+                        ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
                         capture_output=True, text=True, timeout=15,
                     )
                     if meta.returncode == 0:
@@ -3368,8 +3375,9 @@ async def get_youtube_content(url: str) -> dict:
                 return {"title": title, "content": transcript, "video_id": vid_id}
             log.warning("yt-dlp auto-subs returned short transcript (%d chars)", len(transcript))
         else:
+            last_stderr = proc.stderr[:500]
             log.warning("yt-dlp auto-subs: no VTT file generated (rc=%d): %s",
-                        proc.returncode, proc.stderr[:200])
+                        proc.returncode, last_stderr)
     except Exception as e:
         log.warning("yt-dlp auto-subs failed: %s", e)
 
@@ -3387,6 +3395,7 @@ async def get_youtube_content(url: str) -> dict:
                     "--audio-quality", "5",          # 128kbps — good enough for speech
                     "--max-filesize", "24M",         # Groq Whisper limit is 25MB
                     "--no-playlist",
+                    *cookies_args,
                     "-o", out_tmpl2,
                     url,
                 ],
@@ -3409,7 +3418,7 @@ async def get_youtube_content(url: str) -> dict:
                         # Get title
                         try:
                             meta = subprocess.run(
-                                ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", url],
+                                ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
                                 capture_output=True, text=True, timeout=15,
                             )
                             if meta.returncode == 0:
@@ -3421,14 +3430,15 @@ async def get_youtube_content(url: str) -> dict:
                 else:
                     log.warning("Audio file too large (%.1f MB) for Whisper", file_size / 1e6)
             else:
-                log.warning("yt-dlp audio download produced no file: %s", proc2.stderr[:200])
+                last_stderr = proc2.stderr[:500]
+                log.warning("yt-dlp audio download produced no file: %s", last_stderr)
         except Exception as e:
             log.warning("yt-dlp + Whisper failed: %s", e)
 
     # ── Attempt 4: yt-dlp metadata only (thin fallback) ───────────────────
     try:
         proc3 = await loop.run_in_executor(None, lambda: subprocess.run(
-            ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", url],
+            ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
             capture_output=True, text=True, timeout=20,
         ))
         if proc3.returncode == 0:
@@ -3445,9 +3455,26 @@ async def get_youtube_content(url: str) -> dict:
             )
             log.info("YT attempt 4 OK: %d chars via yt-dlp metadata", len(content))
             return {"title": title, "content": content, "video_id": vid_id}
+        else:
+            last_stderr = proc3.stderr[:500]
+            log.warning("yt-dlp metadata fallback: rc=%d: %s", proc3.returncode, last_stderr)
     except Exception as e:
         log.warning("yt-dlp metadata fallback failed: %s", e)
 
+    # All 4 attempts failed — including attempt 4, which needs no captions or
+    # download at all. That almost always means YouTube is blocking/rate-
+    # limiting this server's IP (common for cloud/datacenter hosts), not that
+    # the video itself is actually private/age-restricted/region-locked.
+    log.error("All YouTube extraction attempts failed for %s. Last yt-dlp stderr: %s", url, last_stderr)
+    blocked_hint = (
+        any(s in last_stderr.lower() for s in ("sign in", "confirm you", "not a bot", "429", "http error 403"))
+    )
+    if blocked_hint or last_stderr:
+        raise RuntimeError(
+            "Server hiện đang bị YouTube giới hạn/chặn tạm thời (rất có thể do IP của server, "
+            "không phải do video của bạn). Thử lại sau ít phút, hoặc dùng file PDF/ảnh thay vì link YouTube. "
+            f"(chi tiết: {last_stderr[:200] or 'no stderr captured'})"
+        )
     raise RuntimeError(
         "Could not extract content from this YouTube video. "
         "The video may be private, age-restricted, or unavailable in this region."

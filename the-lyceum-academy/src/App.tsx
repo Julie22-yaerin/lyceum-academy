@@ -17,11 +17,13 @@ import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
 import GoalSettingView from './views/GoalSettingView';
 import TaskSetupModal from './components/TaskSetupModal';
+import TermsModal from './components/TermsModal';
 
 
 function AppInner() {
   const [view, setView] = useState<View>('landing');
   const { user, loading, devMode, emailVerified } = useAuth();
+  const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTaskSetup, setShowTaskSetup] = useState(false);
 
@@ -32,16 +34,31 @@ function AppInner() {
     }
   }, [user, emailVerified, loading, devMode, view]);
 
-  // Show onboarding once after first login
+  // First workspace entry ever (per account/browser): terms gate comes before
+  // anything else, including onboarding. Once agreed, never shown again.
   useEffect(() => {
     if (!loading && ((user && emailVerified) || devMode) && view !== 'landing' && view !== 'auth') {
       try {
+        if (!localStorage.getItem('lyceum_terms_accepted')) {
+          setShowTerms(true);
+          return;
+        }
         if (!localStorage.getItem('lyceum_onboarding_done')) {
           setShowOnboarding(true);
         }
       } catch { /* ignore */ }
     }
   }, [loading, user, devMode, view]);
+
+  function handleAgreeTerms() {
+    try { localStorage.setItem('lyceum_terms_accepted', '1'); } catch { /* ignore */ }
+    setShowTerms(false);
+    try {
+      if (!localStorage.getItem('lyceum_onboarding_done')) {
+        setShowOnboarding(true);
+      }
+    } catch { /* ignore */ }
+  }
 
   function handleOnboardingClose() {
     setShowOnboarding(false);

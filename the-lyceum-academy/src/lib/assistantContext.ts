@@ -1,6 +1,5 @@
 import type { View } from '../types';
-import { loadNotes } from './persist';
-import { loadPSets } from './persist';
+import { loadNotes, loadPSets, SUBJECT_META, loadTodayStudySubject } from './persist';
 import { loadMistakes } from './mistakes';
 import { loadProgress } from './progress';
 
@@ -36,6 +35,14 @@ export function buildAssistantContext(currentView: View): string {
   const parts: string[] = [];
 
   parts.push(`Người dùng hiện đang ở màn hình: ${VIEW_LABELS[currentView] || currentView}.`);
+
+  try {
+    const todaySubject = loadTodayStudySubject();
+    if (todaySubject) {
+      const meta = SUBJECT_META[todaySubject];
+      parts.push(`Môn học học sinh chọn tập trung hôm nay: ${meta ? `${meta.icon} ${meta.label}` : todaySubject}.`);
+    }
+  } catch { /* ignore */ }
 
   const screenText = grabVisibleScreenText();
   if (screenText) {

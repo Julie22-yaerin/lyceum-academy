@@ -7,6 +7,7 @@ import StudyTimer from './StudyTimer';
 import MiniTimer from './MiniTimer';
 import { loadTaskConfig, loadTodayMinutes, saveTodayMinutes, loadBreakMinutes, saveBreakMinutes } from './TaskSetupModal';
 import type { TaskConfig } from './TaskSetupModal';
+import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
 
 interface MainLayoutProps extends NavigationProps {
   children: ReactNode;
@@ -25,6 +26,7 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
   const [showTimePrompt, setShowTimePrompt] = useState(false);
   const [timeInput, setTimeInput] = useState('60');
   const [breakInput, setBreakInput] = useState('10');
+  const [subjectInput, setSubjectInput] = useState('');
   const [timerActive, setTimerActive] = useState(false);
   const [currentTaskView, setCurrentTaskView] = useState<View | null>(null);
   const [breakActive, setBreakActive] = useState(false);
@@ -32,7 +34,8 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
   const [lockDialog, setLockDialog] = useState<{ target: View; label: string } | null>(null);
   const initRef = useRef<string | null>(null);
 
-  // Check for task config and today's time once per day
+  // Daily check-in — asked once per day regardless of whether a task chain
+  // is configured (time + subject only; the terms modal is the one-time gate).
   useEffect(() => {
     const config = loadTaskConfig();
     setTaskConfig(config);
@@ -40,16 +43,15 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
     if (initRef.current === today) return;
     initRef.current = today;
 
-    if (config && config.tasks.length > 0) {
-      const existing = loadTodayMinutes();
-      if (existing === null) {
-        setTimeInput('60');
-        setBreakInput(String(loadBreakMinutes()));
-        setShowTimePrompt(true);
-      } else {
-        setTotalMinutes(existing);
-        setTimerActive(true);
-      }
+    const existing = loadTodayMinutes();
+    if (existing === null) {
+      setTimeInput('60');
+      setBreakInput(String(loadBreakMinutes()));
+      setSubjectInput(loadTodayStudySubject() || '');
+      setShowTimePrompt(true);
+    } else {
+      setTotalMinutes(existing);
+      setTimerActive(true);
     }
   }, [currentView]);
 
@@ -60,6 +62,7 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
     const clampedBreak = isNaN(breakMins) || breakMins < 1 ? 10 : breakMins;
     saveBreakMinutes(clampedBreak);
     saveTodayMinutes(mins);
+    if (subjectInput) saveTodayStudySubject(subjectInput);
     setTotalMinutes(mins);
     setShowTimePrompt(false);
     setTimerActive(true);
@@ -149,8 +152,31 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
               Học hôm nay thế nào?
             </h2>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 18px' }}>
-              Chọn thời gian tập trung. Tài liệu ngoài nhiệm vụ hiện tại sẽ được khoá.
+              Chọn thời gian tập trung và môn học hôm nay.
             </p>
+
+            {/* Subject picker */}
+            <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', margin: '0 0 8px' }}>
+              Môn học hôm nay
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
+              {Object.entries(SUBJECT_META).map(([key, meta]) => (
+                <button
+                  key={key}
+                  onClick={() => setSubjectInput(key)}
+                  style={{
+                    padding: '6px 12px', fontSize: 11, cursor: 'pointer',
+                    borderRadius: 999,
+                    border: subjectInput === key ? '1px solid rgba(167,139,250,0.7)' : '1px solid rgba(255,255,255,0.12)',
+                    background: subjectInput === key ? 'rgba(167,139,250,0.18)' : 'transparent',
+                    color: subjectInput === key ? '#d8ccff' : 'rgba(255,255,255,0.55)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {meta.icon} {meta.label}
+                </button>
+              ))}
+            </div>
 
             {/* Time input */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

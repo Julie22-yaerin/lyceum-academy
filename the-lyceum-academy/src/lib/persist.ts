@@ -204,6 +204,24 @@ export function detectSubject(text: string): string {
   return 'other';
 }
 
+// ── Today's study subject (asked once per day in the daily time prompt) ───
+const TODAY_SUBJECT_KEY = 'lyceum_today_subject';
+const TODAY_SUBJECT_DATE_KEY = 'lyceum_today_subject_date';
+
+export function loadTodayStudySubject(): string | null {
+  try {
+    if (localStorage.getItem(TODAY_SUBJECT_DATE_KEY) !== new Date().toDateString()) return null;
+    return localStorage.getItem(TODAY_SUBJECT_KEY);
+  } catch { return null; }
+}
+
+export function saveTodayStudySubject(subject: string) {
+  try {
+    localStorage.setItem(TODAY_SUBJECT_KEY, subject);
+    localStorage.setItem(TODAY_SUBJECT_DATE_KEY, new Date().toDateString());
+  } catch { /* quota */ }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 export function timeAgo(ts: number): string {
   const diff = Date.now() - ts;

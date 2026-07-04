@@ -52,6 +52,14 @@ class Settings(BaseSettings):
     groq_primary_model: str = "qwen/qwen3-32b"
     groq_fast_model:    str = "llama-3.1-8b-instant"
 
+    # ── yt-dlp cookies (optional) ────────────────────────────────
+    # YouTube rate-limits/blocks requests from datacenter IPs (Railway etc.)
+    # regardless of the video's own privacy settings. Exporting cookies.txt
+    # from a real, logged-in browser session (e.g. via the "Get cookies.txt"
+    # extension) and pointing this at that file lets yt-dlp authenticate as
+    # a real session, which YouTube treats far less suspiciously.
+    ytdlp_cookies_file: str = ""
+
     # ── Google AI Studio (optional — needs AIza... key) ──────────
     google_api_key:       str = ""
     google_primary_model: str = "gemini-2.5-flash"
