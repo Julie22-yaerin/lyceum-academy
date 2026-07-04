@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 
 @theme {
-  --color-surface: #ADD8E6;
+  --color-surface: #050508;
   --color-surface-dim: #080b18;
   --color-surface-bright: #0f1424;
   --color-surface-container-lowest: #040408;
@@ -46,7 +46,7 @@
 }
 
 body {
-  background-color: #ADD8E6;
+  background-color: #050508;
   color: #f0f0f5;
   font-family: var(--font-body);
   overflow-x: hidden;

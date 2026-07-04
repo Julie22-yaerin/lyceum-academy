@@ -87,7 +87,7 @@ export default function MindMapOverlay({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#ADD8E6]/85 flex items-center justify-center" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-[#050508]/85 flex items-center justify-center" onClick={onClose}>
       <div className="glass-strong w-[90vw] h-[85vh] flex flex-col rounded-2xl animate-scale-in"
         onClick={e => e.stopPropagation()}>
         {/* Header */}

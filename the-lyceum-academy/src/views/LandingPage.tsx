@@ -2,7 +2,7 @@ import { NavigationProps } from '../types';
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
   return (
-    <div className="bg-[#ADD8E6] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen">
+    <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen">
       {/* Background ambient blobs */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-600/15 rounded-full blur-[120px]" />

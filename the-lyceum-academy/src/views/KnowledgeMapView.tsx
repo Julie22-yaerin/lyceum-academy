@@ -406,11 +406,6 @@ export default function KnowledgeMapView() {
 
       {/* Graph area */}
       <div className="flex-1 relative overflow-hidden">
-        {/* Watermark */}
-        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-[0.03] select-none">
-          <img className="w-[614px] grayscale" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCp-JCQoMithSNjk9cu5mdUImJX5XcdgQmIRC8FGX1ym2vb_76leJrIM1dLhS_dTcu3_RMqXOzYt_jVSI-r4E_wbWWsuzdt6j_OEvv7BqNFZIb4IuceDzFFxstAIo7m6lvkV_Dkms_8YGtf_VeO8Yc8oonLe2gx6woVwpXvw21xcgq6aSU8iYUCUrnRhO8t756bzaKoOLJJhcNpbkUw2XXUJhm7-OcjNDUqu7Ik4UZQ_GGLKr_T_3VTnzuI4DR7yLldlOFv6NZt0P70" alt="" />
-        </div>
-
         {nodes.length === 0 && !loadingGraph && !graphError && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
