@@ -949,9 +949,12 @@ async def _fetch_wiki_media(query: str) -> dict:
                 if r and r.status_code == 200:
                     pages = r.json().get("query", {}).get("pages", {})
                     for page in pages.values():
+                        # Return the API's thumbnail URL as-is: rewriting the
+                        # /NNNpx- segment 400s when the requested width exceeds
+                        # the original image's width.
                         thumb = page.get("thumbnail", {}).get("source")
                         if thumb:
-                            return re.sub(r"/\d+px-", "/600px-", thumb)
+                            return thumb
         except Exception as e:
             log.debug("_pageimages_api(%s): %s", title, e)
         return None

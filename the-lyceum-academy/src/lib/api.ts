@@ -13,6 +13,15 @@ async function authFetch(url: string, options: RequestInit = {}): Promise<Respon
   return fetch(url, { ...options, headers });
 }
 
+/**
+ * Route an external image through the backend's /media/proxy so hosts that
+ * block hotlinking (Referer checks / opaque-response blocking) still render.
+ * The proxy only accepts the trusted image CDNs the research pipeline uses.
+ */
+export function proxiedImageUrl(url: string): string {
+  return `${API_BASE}/media/proxy?url=${encodeURIComponent(url)}`;
+}
+
 export interface ChatMsg { role: string; content: string; }
 
 export async function chatMessage(messages: ChatMsg[], _devMode = false) {

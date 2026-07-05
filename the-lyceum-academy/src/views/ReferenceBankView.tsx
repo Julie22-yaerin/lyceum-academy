@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { loadReferences, deleteReference, SUBJECT_META, type ReferenceEntry } from '../lib/persist';
+import SmartImage from '../components/SmartImage';
 
 function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry; onDelete: () => void; onOpenImage: (url: string) => void }) {
   const date = new Date(entry.savedAt);
@@ -12,19 +13,17 @@ function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry
     <div className="glass-strong rounded-2xl p-4 flex gap-4 items-start hover:bg-white/[0.03] transition-all">
       {images.length > 0 && (
         <div className="flex flex-col gap-1.5 flex-shrink-0">
-          <img
+          <SmartImage
             src={images[0]}
             alt=""
             onClick={() => onOpenImage(images[0])}
             className="w-16 h-16 rounded-xl object-cover cursor-pointer hover:opacity-85 transition-opacity"
-            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
           {images.length > 1 && (
             <div className="flex gap-1.5">
               {images.slice(1, 3).map((img, i) => (
-                <img key={i} src={img} alt="" onClick={() => onOpenImage(img)}
-                  className="w-[29px] h-[29px] rounded-md object-cover cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
-                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                <SmartImage key={i} src={img} alt="" onClick={() => onOpenImage(img)}
+                  className="w-[29px] h-[29px] rounded-md object-cover cursor-pointer opacity-80 hover:opacity-100 transition-opacity" />
               ))}
             </div>
           )}
@@ -141,7 +140,7 @@ export default function ReferenceBankView() {
           className="fixed inset-0 z-[250] flex items-center justify-center p-8 bg-black/60 backdrop-blur-xl animate-scale-in"
           onClick={() => setLightboxImage(null)}
         >
-          <img src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
+          <SmartImage src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
           <button onClick={() => setLightboxImage(null)}
             className="absolute top-6 right-6 w-10 h-10 rounded-full glass-strong flex items-center justify-center text-white/80 hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[20px]">close</span>

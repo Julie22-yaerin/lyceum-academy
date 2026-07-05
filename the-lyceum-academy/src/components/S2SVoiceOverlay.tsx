@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { saveNote, attachToNote, attachToGraphNode, saveReference } from '../lib/persist';
+import SmartImage from './SmartImage';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
 import { getNodeSummary, voiceFallbackChat } from '../lib/api';
 
@@ -777,7 +778,7 @@ export default function S2SVoiceOverlay({
         <div className="fixed bottom-24 md:bottom-28 right-6 z-40 max-w-xs glass-strong rounded-2xl p-3 shadow-2xl animate-scale-in">
           <div className="flex gap-3 items-start">
             {toast.images && toast.images.length > 0 && (
-              <img src={toast.images[0]} alt="" onClick={() => setLightboxImage(toast.images![0])}
+              <SmartImage src={toast.images[0]} alt="" onClick={() => setLightboxImage(toast.images![0])}
                 className="w-12 h-12 rounded-xl object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" />
             )}
             <div className="min-w-0">
@@ -793,7 +794,7 @@ export default function S2SVoiceOverlay({
           {toast.images && toast.images.length > 1 && (
             <div className="flex gap-2 mt-2 pl-[60px]">
               {toast.images.slice(1, 3).map((img, i) => (
-                <img key={i} src={img} alt="" onClick={() => setLightboxImage(img)}
+                <SmartImage key={i} src={img} alt="" onClick={() => setLightboxImage(img)}
                   className="w-9 h-9 rounded-lg object-cover cursor-pointer opacity-80 hover:opacity-100 transition-opacity" />
               ))}
             </div>
@@ -807,7 +808,7 @@ export default function S2SVoiceOverlay({
           className="fixed inset-0 z-[250] flex items-center justify-center p-8 bg-black/60 backdrop-blur-xl animate-scale-in"
           onClick={() => setLightboxImage(null)}
         >
-          <img src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
+          <SmartImage src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
           <button onClick={() => setLightboxImage(null)}
             className="absolute top-6 right-6 w-10 h-10 rounded-full glass-strong flex items-center justify-center text-white/80 hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[20px]">close</span>

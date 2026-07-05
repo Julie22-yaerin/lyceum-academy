@@ -31,6 +31,18 @@ export function loadKaTeX(onReady?: () => void): void {
 }
 
 /**
+ * Normalize LaTeX delimiter variants to $...$/$$...$$.
+ * Models (especially OpenAI-style ones) frequently emit \(...\) and \[...\]
+ * — the $-only math regex never matches those, so without this they render
+ * as raw backslash text.
+ */
+function normalizeDelimiters(text: string): string {
+  text = text.replace(/\\\[([\s\S]+?)\\\]/g, (_, inner) => `$$${inner}$$`);
+  text = text.replace(/\\\(([\s\S]+?)\\\)/g, (_, inner) => `$${inner}$`);
+  return text;
+}
+
+/**
  * Auto-wrap plain math notation in $...$ so KaTeX can render it.
  * Handles: x^2, x^{n+1}, x_i, x_{ij}, sqrt(...), frac(a,b), etc.
  * Only wraps tokens that look clearly mathematical.
@@ -79,6 +91,10 @@ function sanitizeLatex(s: string): string {
        .replace(/\x0Aotin/g,   '\\notin')
        .replace(/\x0Aot\b/g,   '\\not')
        .replace(/\x0Aum/g,     '\\num')
+       .replace(/\x0Aexists/g, '\\nexists')
+       .replace(/\x0Amid\b/g,  '\\nmid')
+       .replace(/\x0Aleq/g,    '\\nleq')
+       .replace(/\x0Ageq/g,    '\\ngeq')
 
   // ── \t (0x09) artifacts ──────────────────────────────────────────────────
        .replace(/\x09au\b/g,   '\\tau')     // \tau
@@ -88,24 +104,26 @@ function sanitizeLatex(s: string): string {
        .replace(/\x09op\b/g,   '\\top')
        .replace(/\x09ext\b/g,  '\\text')
        .replace(/\x09ilde/g,   '\\tilde')
+       .replace(/\x09anh\b/g,  '\\tanh')
+       .replace(/\x09an\b/g,   '\\tan')
+       .replace(/\x09riangle/g, '\\triangle')
+       .replace(/\x09herefore/g, '\\therefore')
 
-  // ── \b (0x08) artifacts ──────────────────────────────────────────────────
-       .replace(/\x08eta/g,    '\\beta')    // \beta
-       .replace(/\x08ar\b/g,   '\\bar')
-       .replace(/\x08egin/g,   '\\begin')
-       .replace(/\x08inom/g,   '\\binom')
-       .replace(/\x08ig\b/g,   '\\big')
-       .replace(/\x08ullet/g,  '\\bullet')
-
-  // ── \f (0x0C) artifacts ──────────────────────────────────────────────────
-       .replace(/\x0Crac/g,    '\\frac')    // \frac ← very common
-       .replace(/\x0Corall/g,  '\\forall')
+  // ── \b (0x08) / \f (0x0C) artifacts — generalized ────────────────────────
+  // Backspace/formfeed control chars have no legitimate use inside a math
+  // expression, so any letters right after one are always a mangled LaTeX
+  // command (\beta, \binom, \frac, \forall, …). Same rule as the backend.
+       .replace(/\x08([a-zA-Z]+)/g, '\\b$1')
+       .replace(/\x0C([a-zA-Z]+)/g, '\\f$1')
 
   // ── Bare commands (backslash stripped entirely) ───────────────────────────
        .replace(/(?<![\\a-zA-Z])(left)(?=\s*[\(\[|{])/g,   '\\left')
        .replace(/(?<![\\a-zA-Z])(right)(?=\s*[\)\]|.}])/g, '\\right')
        .replace(/(?<![\\a-zA-Z])(frac)(?=\s*\{)/g,         '\\frac')
-       .replace(/(?<![\\a-zA-Z])(sqrt)(?=\s*[\{\(])/g,     '\\sqrt');
+       .replace(/(?<![\\a-zA-Z])(sqrt)(?=\s*[\{\(])/g,     '\\sqrt')
+       // Only tokens that are unambiguously LaTeX — words like "sum"/"delta"
+       // can legitimately appear inside \text{...}, so they stay untouched.
+       .replace(/(?<![\\a-zA-Z])(cdot|infty|varepsilon|geqslant|leqslant)(?![a-zA-Z])/g, '\\$1');
 
   // ── Balance unclosed braces ───────────────────────────────────────────────
   const opens  = (s.match(/\{/g) || []).length;
@@ -168,6 +186,7 @@ function escapeHtml(s: string): string {
  */
 function renderInline(text: string): string {
   if (!text) return '';
+  text = normalizeDelimiters(text);
   text = autoWrapMath(text);
   const parts: string[] = [];
   const mathPattern = /(\$\$[\s\S]+?\$\$|\$[^\$\n]+?\$)/g;
@@ -303,7 +322,9 @@ export function renderNote(text: string): string {
 export function renderMath(text: string): string {
   if (!text) return '';
 
-  // Auto-wrap plain math notation BEFORE escaping HTML
+  // Normalize \(...\)/\[...\] to $-delimiters, then auto-wrap plain notation
+  // — both BEFORE escaping HTML.
+  text = normalizeDelimiters(text);
   text = autoWrapMath(text);
 
   const parts: string[] = [];

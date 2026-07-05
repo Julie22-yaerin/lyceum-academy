@@ -6,7 +6,8 @@ import logging
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse, Response
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -101,6 +102,22 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# ── Request body size cap ─────────────────────────────────────────────────────
+# check_upload/check_prompt already enforce per-field limits, but only AFTER
+# the whole body has been read into memory. Rejecting oversized requests at
+# the middleware level (via Content-Length) protects the worker from having
+# its memory filled before those checks ever run.
+_MAX_BODY_BYTES = 40 * 1024 * 1024   # base64-encoded PDF pages are the biggest legit payload
+
+
+class BodySizeLimitMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        cl = request.headers.get("content-length")
+        if cl and cl.isdigit() and int(cl) > _MAX_BODY_BYTES:
+            return JSONResponse(status_code=413, content={"detail": "Request body too large."})
+        return await call_next(request)
+
+
 # ── Rate limiter ─────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_user_key)
 from app.services import ai         as ai_svc
@@ -141,6 +158,10 @@ app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(BodySizeLimitMiddleware)
+# Compress JSON responses >1KB — note/pset analysis payloads are often 50-200KB
+# of text, so this is a large win for load time and egress under load.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(admin_router.router)
 app.include_router(auth_router.router)
 
@@ -163,6 +184,79 @@ app.add_middleware(
 @app.get("/health/live")
 def health_live():
     return {"status": "ok"}
+
+
+# ── Image proxy ──────────────────────────────────────────────────────────────
+# Some image hosts block hotlinking (Referer checks) or trip the browser's
+# Opaque Response Blocking, so Gemma's research images fail to render even
+# though the URLs are valid. Re-serving them from our own origin fixes that.
+#
+# NOT an open proxy: <img> tags can't send Authorization headers, so instead
+# of auth this endpoint is locked to an allowlist of the trusted image CDNs
+# our research pipeline actually returns, with size/type/scheme validation
+# and rate limiting.
+_IMAGE_PROXY_ALLOWED_HOSTS = (
+    "wikimedia.org",        # upload.wikimedia.org — main Wikipedia image host
+    "wikipedia.org",
+    "gstatic.com",          # Google Knowledge Graph thumbnails (t0/encrypted-tbn*)
+    "googleusercontent.com",
+    "ggpht.com",
+)
+_IMAGE_PROXY_MAX_BYTES = 8 * 1024 * 1024
+_IMAGE_PROXY_MAX_REDIRECTS = 3
+
+
+def _image_proxy_host_ok(url: str) -> bool:
+    from urllib.parse import urlparse
+    try:
+        p = urlparse(url)
+    except Exception:
+        return False
+    if p.scheme != "https" or not p.hostname:
+        return False
+    host = p.hostname.lower()
+    return any(host == h or host.endswith("." + h) for h in _IMAGE_PROXY_ALLOWED_HOSTS)
+
+
+@app.get("/media/proxy")
+@limiter.limit("120/minute")
+async def media_proxy(request: Request, url: str):
+    if not _image_proxy_host_ok(url):
+        raise HTTPException(status_code=400, detail="URL host not allowed.")
+    import httpx
+    headers = {"User-Agent": "Pclick/1.0 (educational app)"}
+    try:
+        async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
+            current = url
+            for _ in range(_IMAGE_PROXY_MAX_REDIRECTS + 1):
+                r = await client.get(current, headers=headers)
+                if r.status_code in (301, 302, 303, 307, 308):
+                    nxt = r.headers.get("location", "")
+                    # Re-validate every hop so a redirect can't escape the allowlist.
+                    if not _image_proxy_host_ok(nxt):
+                        raise HTTPException(status_code=400, detail="Redirect target not allowed.")
+                    current = nxt
+                    continue
+                break
+            if r.status_code != 200:
+                raise HTTPException(status_code=502, detail=f"Upstream returned {r.status_code}.")
+            ctype = r.headers.get("content-type", "")
+            if not ctype.startswith("image/"):
+                raise HTTPException(status_code=415, detail="Upstream response is not an image.")
+            if len(r.content) > _IMAGE_PROXY_MAX_BYTES:
+                raise HTTPException(status_code=413, detail="Image too large.")
+            return Response(
+                content=r.content,
+                media_type=ctype,
+                headers={
+                    "Cache-Control": "public, max-age=86400, immutable",
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Image fetch failed: {e}")
 
 
 # ── AI endpoints ──────────────────────────────────────────────────────────────
