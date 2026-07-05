@@ -18,67 +18,67 @@ interface OQ { id: string; text: string; type: QType; options?: string[]; max?: 
 const QUESTIONS: OQ[] = [
   {
     id: 'q1', type: 'single',
-    text: 'Mục đích học chính của bạn là gì?',
-    options: ['Qua môn', 'GPA cao', 'Nghiên cứu', 'Tự học ngoài chương trình'],
+    text: 'What is your main learning goal?',
+    options: ['Pass the class', 'High GPA', 'Research', 'Self-study beyond the curriculum'],
   },
   {
     id: 'q2', type: 'text',
-    text: 'Bạn đang học ngành gì?',
-    hint: 'Ví dụ: Computer Science, Y khoa, Kinh tế, Vật lý…',
+    text: 'What are you studying?',
+    hint: 'e.g. Computer Science, Medicine, Economics, Physics…',
   },
   {
     id: 'q3', type: 'single',
-    text: 'Một tuần bạn học bao nhiêu giờ?',
-    options: ['< 5 giờ', '5 – 10 giờ', '10 – 20 giờ', '20+ giờ'],
+    text: 'How many hours do you study per week?',
+    options: ['< 5 hours', '5 – 10 hours', '10 – 20 hours', '20+ hours'],
   },
   {
     id: 'q4', type: 'single',
-    text: 'Bạn thường học bao nhiêu môn cùng lúc?',
-    options: ['1–2 môn', '3–4 môn', '5+ môn'],
+    text: 'How many subjects do you usually study at once?',
+    options: ['1–2 subjects', '3–4 subjects', '5+ subjects'],
   },
   {
     id: 'q5', type: 'multi', max: 3,
-    text: 'Vấn đề bạn đang đau đầu nhất? (chọn tối đa 3)',
+    text: 'What frustrates you most right now? (pick up to 3)',
     options: [
-      'Không hiểu lecture/note/PDF sau khi đọc',
-      'Quá nhiều tài liệu, không biết phân bổ thời gian',
-      'Thiếu roadmap học tập',
-      'Mơ hồ trong việc tự đánh giá tiến độ',
-      'Không có người đồng hành / người để hỏi',
-      'Hỏi AI nhưng bị ngợp hoặc không hiểu câu trả lời',
-      'Nhiều môn, không biết phân bổ',
-      'Deadline nhiều, không biết quản lý thời gian',
-      'Khác',
+      "Don't understand lectures/notes/PDFs after reading them",
+      'Too much material, no idea how to allocate time',
+      'No study roadmap',
+      'Unclear on how to self-assess progress',
+      'No one to study with / ask questions to',
+      'Ask AI but get overwhelmed or confused by the answer',
+      "Many subjects, don't know how to split time",
+      "Lots of deadlines, can't manage time",
+      'Other',
     ],
   },
   {
     id: 'q6', type: 'multi', max: 3,
-    text: 'Bạn thường upload tài liệu cỡ nào mỗi tuần? (chọn tối đa 3)',
+    text: 'How much material do you usually upload per week? (pick up to 3)',
     options: [
-      '3+ môn/tuần',
-      '1–3 môn/tuần',
-      'Vài lecture YouTube ≤7 video/tuần',
-      'Nhiều lecture YouTube >7 video/tuần',
-      'Vài PDF/note — tổng dưới 10 trang',
-      'Vài PDF/note — tổng khoảng/trên 10 trang',
+      '3+ subjects/week',
+      '1–3 subjects/week',
+      'A few YouTube lectures ≤7 videos/week',
+      'Many YouTube lectures >7 videos/week',
+      'A few PDFs/notes — under 10 pages total',
+      'A few PDFs/notes — around/over 10 pages total',
     ],
   },
   {
     id: 'q7', type: 'multi', max: 3,
-    text: 'Bạn thích học kiểu nào? (chọn tối đa 3)',
+    text: 'How do you like to learn? (pick up to 3)',
     options: [
-      'Được khám phá (mở rộng, ứng dụng thực tế)',
-      'Được dẫn dắt từng bước',
-      'Được thử thách tư duy',
-      'Được cho framework để lên điểm',
-      'Được thảo luận và có góc nhìn đa chiều',
-      'Khác',
+      'Exploring (broader context, real-world applications)',
+      'Being guided step by step',
+      'Having my thinking challenged',
+      'Given a framework to boost my grades',
+      'Discussion with multiple perspectives',
+      'Other',
     ],
   },
   {
     id: 'q8', type: 'multi', max: 3,
-    text: 'Bạn dành phần lớn thời gian học cho việc gì? (chọn tối đa 3)',
-    options: ['Đọc lý thuyết', 'Làm bài tập', 'Làm project', 'Đọc paper', 'Ôn thi'],
+    text: 'What do you spend most of your study time on? (pick up to 3)',
+    options: ['Reading theory', 'Doing exercises', 'Working on projects', 'Reading papers', 'Exam review'],
   },
 ];
 
@@ -92,28 +92,28 @@ interface Plan {
 const PLANS: Plan[] = [
   {
     id: 'compass', name: 'Compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
-    tagline: '"Tôi bị lạc."',
-    features: ['Roadmap học tập cá nhân hoá', 'Neural Map cơ bản', 'Progress tracking', 'Planner tuần'],
+    tagline: '"I feel lost."',
+    features: ['Personalized study roadmap', 'Basic Neural Map', 'Progress tracking', 'Weekly planner'],
   },
   {
     id: 'scholar', name: 'Scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
     tagline: 'Flagship — 80% users', flagship: true,
-    features: ['Chấm bài AI (Meta + Gemma)', 'Neural Map đầy đủ', 'Roadmap', 'AI discussion', 'Reflection', 'Planner'],
+    features: ['AI grading (Meta + Gemma)', 'Full Neural Map', 'Roadmap', 'AI discussion', 'Reflection', 'Planner'],
   },
   {
     id: 'builder', name: 'Builder', price: 24.99, emoji: '🚀', color: '#2563EB',
-    tagline: '"Học để làm."',
-    features: ['Skill roadmap', 'Project roadmap', 'Learning dependency graph', 'AI mentor', '+ Tất cả Scholar'],
+    tagline: '"Learn to build."',
+    features: ['Skill roadmap', 'Project roadmap', 'Learning dependency graph', 'AI mentor', '+ Everything in Scholar'],
   },
   {
     id: 'polymath', name: 'Polymath', price: 34.99, emoji: '🧠', color: '#7C3AED',
-    tagline: '"Bộ não thứ hai."',
-    features: ['Cross-domain Neural Map', 'Long-term memory', 'Multi-subject planning', 'Knowledge graph nâng cao', '+ Tất cả Scholar'],
+    tagline: '"A second brain."',
+    features: ['Cross-domain Neural Map', 'Long-term memory', 'Multi-subject planning', 'Advanced knowledge graph', '+ Everything in Scholar'],
   },
   {
     id: 'research', name: 'Research', price: 39.99, emoji: '🔬', color: '#DC2626',
-    tagline: '"Paper, thesis, nghiên cứu."',
-    features: ['Paper analysis', 'Figure explanation', 'Citation map', 'Literature comparison', '+ Tất cả Scholar'],
+    tagline: '"Papers, theses, research."',
+    features: ['Paper analysis', 'Figure explanation', 'Citation map', 'Literature comparison', '+ Everything in Scholar'],
   },
 ];
 
@@ -142,12 +142,12 @@ function PayPalButtons({ plan, onSuccess }: { plan: Plan; onSuccess: (planId: st
 
   useEffect(() => {
     if (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === 'YOUR_PAYPAL_SANDBOX_CLIENT_ID') {
-      setError('PayPal Client ID chưa được cấu hình. Thêm VITE_PAYPAL_CLIENT_ID vào .env');
+      setError('PayPal Client ID is not configured. Add VITE_PAYPAL_CLIENT_ID to .env');
       return;
     }
     loadPayPalScript()
       .then(() => setReady(true))
-      .catch(() => setError('Không tải được PayPal SDK.'));
+      .catch(() => setError('Failed to load the PayPal SDK.'));
   }, []);
 
   useEffect(() => {
@@ -167,7 +167,7 @@ function PayPalButtons({ plan, onSuccess }: { plan: Plan; onSuccess: (planId: st
       },
       onError: (err: any) => {
         console.error('PayPal error', err);
-        setError('Thanh toán thất bại. Thử lại.');
+        setError('Payment failed. Please try again.');
       },
     }).render(containerRef.current);
   }, [ready]);
@@ -209,7 +209,7 @@ function PlanCard({
           background: plan.color, color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 10px',
           borderRadius: 10, whiteSpace: 'nowrap',
-        }}>✦ Phù hợp với bạn</div>
+        }}>✦ Recommended for you</div>
       )}
       {isAlt && !recommended && (
         <div style={{
@@ -217,7 +217,7 @@ function PlanCard({
           background: 'rgba(0,0,0,0.5)', color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 8px',
           borderRadius: 10, whiteSpace: 'nowrap',
-        }}>Cũng phù hợp</div>
+        }}>Also a good fit</div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
@@ -229,7 +229,7 @@ function PlanCard({
       </div>
 
       <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
-        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>/tháng</span>
+        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>/month</span>
       </div>
       <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{plan.tagline}</p>
 
@@ -254,7 +254,7 @@ function PlanCard({
           letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center',
           color: plan.color, background: 'transparent',
         }}>
-          Chọn gói này
+          Choose this plan
         </div>
       )}
     </div>
@@ -357,10 +357,10 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
-              {step < QUESTIONS.length ? `The Lyceum — Setup  ${step + 1} / ${QUESTIONS.length}` : 'The Lyceum — Gói phù hợp với bạn'}
+              {step < QUESTIONS.length ? `The Lyceum — Setup  ${step + 1} / ${QUESTIONS.length}` : 'The Lyceum — Plans for you'}
             </span>
             <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.28)' }}>
-              Bỏ qua
+              Skip
             </button>
           </div>
           {/* Progress bar */}
@@ -375,8 +375,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {paid && (
             <div className="ob-enter" style={{ textAlign: 'center', padding: '40px 0' }}>
               <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
-              <p style={{ fontSize: 22, marginBottom: 8 }}>Chào mừng đến với The Lyceum</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Đang khởi động không gian học tập…</p>
+              <p style={{ fontSize: 22, marginBottom: 8 }}>Welcome to The Lyceum</p>
+              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
             </div>
           )}
 
@@ -387,19 +387,19 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
                   <div style={{ width: 32, height: 32, border: '2px solid rgba(0,0,0,0.12)', borderTop: '2px solid #C5A059', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
                   <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)' }}>Phân tích câu trả lời…</p>
+                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)' }}>Analyzing your answers…</p>
                 </div>
               ) : (
                 <div className="ob-enter">
                   {aiResult?.reasoning && (
                     <div style={{ background: 'rgba(197,160,89,0.1)', border: '1px solid rgba(197,160,89,0.35)', borderRadius: 6, padding: '14px 18px', marginBottom: 24 }}>
-                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: '#C5A059', display: 'block', marginBottom: 6 }}>Đánh giá từ AI</span>
+                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: '#C5A059', display: 'block', marginBottom: 6 }}>AI assessment</span>
                       <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.72)', margin: 0, lineHeight: 1.6 }}>{aiResult.reasoning}</p>
                     </div>
                   )}
 
                   <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', marginBottom: 18 }}>
-                    Chọn gói và thanh toán để bắt đầu
+                    Choose a plan and pay to get started
                   </p>
 
                   {/* Plan cards — horizontal scroll on small screens */}
@@ -419,7 +419,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
                   {aiResult?.alternatives && aiResult.alternatives.length > 0 && (
                     <div style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 14 }}>
-                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Gói khác cũng phù hợp</span>
+                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Other good fits</span>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
                         {aiResult.alternatives.map(alt => {
                           const p = PLANS.find(x => x.id === alt.plan_id);
@@ -515,7 +515,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                     );
                   })}
                   <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: '4px 0 0 0' }}>
-                    Đã chọn {((answers[q.id] as string[] | undefined) || []).length} / {q.max}
+                    Selected {((answers[q.id] as string[] | undefined) || []).length} / {q.max}
                   </p>
                 </div>
               )}
@@ -530,7 +530,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                   fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase',
                   color: canAdvance ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700, transition: 'all 0.15s',
                 }}>
-                {step === QUESTIONS.length - 1 ? 'Xem kết quả →' : 'Tiếp →'}
+                {step === QUESTIONS.length - 1 ? 'See results →' : 'Next →'}
               </button>
             </div>
           )}

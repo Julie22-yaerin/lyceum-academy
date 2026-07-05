@@ -109,7 +109,7 @@ export async function uploadProblemSet(file: File) {
       })),
     };
   } catch (e: any) {
-    if (e.name === 'AbortError') throw new Error('Upload timed out (3 min). NVIDIA model có thể đang busy — thử lại.');
+    if (e.name === 'AbortError') throw new Error('Upload timed out (3 min). The NVIDIA model may be busy — try again.');
     if (e.message?.includes('Failed to fetch') || e.message?.includes('NetworkError')) {
       throw new Error('Cannot reach backend at localhost:8000 — is it running?');
     }
@@ -392,7 +392,7 @@ export async function feynmanTest(
     }
     return res.json();
   } catch (e: any) {
-    if (e.name === 'AbortError') throw new Error('Timeout — thử lại với đoạn ngắn hơn');
+    if (e.name === 'AbortError') throw new Error('Timeout — try again with a shorter clip');
     throw e;
   } finally {
     clearTimeout(timeout);
@@ -494,7 +494,7 @@ export interface CommunityMatchResult {
 }
 
 // AI study-buddy matcher — ranks candidates by compatibility with the requester's
-// bio (ngành/trường/mục tiêu/vấn đề) for a focused, time-limited 1:1 chat.
+// bio (major/school/goals/pain points) for a focused, time-limited 1:1 chat.
 export async function matchCommunityUsers(
   requester: CommunityBio, candidates: CommunityBio[]
 ): Promise<CommunityMatchResult> {

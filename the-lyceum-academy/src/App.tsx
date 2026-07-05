@@ -15,6 +15,7 @@ import OnboardingModal from './components/OnboardingModal';
 import CommunityView from './views/CommunityView';
 import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
+import ReferenceBankView from './views/ReferenceBankView';
 import GoalSettingView from './views/GoalSettingView';
 import TaskSetupModal from './components/TaskSetupModal';
 import TermsModal from './components/TermsModal';
@@ -103,6 +104,7 @@ function AppInner() {
         {view === 'knowledge-map' && <KnowledgeMapView />}
         {view === 'notes' && <NoteView />}
         {view === 'mistake-bank' && <MistakeBankView />}
+        {view === 'reference-bank' && <ReferenceBankView />}
         {view === 'progress' && <ProgressView />}
         {view === 'community' && <CommunityView />}
         {view === 'goal-setting' && <GoalSettingView />}

@@ -133,7 +133,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
       setPhase('recording'); setSeconds(0);
       timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
     } catch {
-      setError('Không thể truy cập microphone — kiểm tra quyền trong trình duyệt.');
+      setError('Could not access the microphone — check your browser permissions.');
     }
   }
 
@@ -149,7 +149,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
       const data = await feynmanTest(blob, note.title || '', concepts);
       setResult(data); setPhase('result');
     } catch (e: any) {
-      setError(e.message || 'Có lỗi xảy ra'); setPhase('idle');
+      setError(e.message || 'Something went wrong'); setPhase('idle');
     }
   }
 
@@ -159,7 +159,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
     ? result.score >= 8 ? 'text-emerald-600' : result.score >= 5 ? 'text-amber-500' : 'text-red-500'
     : '';
   const scoreLabel = result
-    ? result.score >= 8 ? 'Hiểu rõ lắm! 🎉' : result.score >= 5 ? 'Khá rồi! 🤔' : 'Chưa đủ rõ 😅'
+    ? result.score >= 8 ? 'You really get it! 🎉' : result.score >= 5 ? 'Pretty good! 🤔' : 'Not quite clear yet 😅'
     : '';
 
   return (
@@ -170,7 +170,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
         <div>
           <p className="font-serif text-base font-medium">Feynman Test</p>
           <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-            Giải thích như cho đứa 5 tuổi
+            Explain it like they're 5 years old
           </p>
         </div>
       </div>
@@ -180,14 +180,14 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
         {phase === 'idle' && (
           <div className="flex flex-col items-center gap-5 py-4 text-center">
             <p className="font-sans text-sm opacity-55 leading-relaxed max-w-sm">
-              Giải thích lại những gì mày vừa học. AI sẽ đóng vai đứa 5 tuổi — hỏi những câu ngây thơ nhất có thể. Nếu mày giải thích được, mày thực sự hiểu rồi.
+              Explain what you just learned out loud. The AI will play a curious 5-year-old — asking the most naive questions it can. If you can explain it clearly, you really understand it.
             </p>
             <button
               onClick={startRecording}
               className="flex items-center gap-3 px-8 py-4 bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[18px]">mic</span>
-              Bắt đầu giải thích
+              Start explaining
             </button>
           </div>
         )}
@@ -201,14 +201,14 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
               <span className="material-symbols-outlined text-red-500 text-3xl relative z-10">mic</span>
             </div>
             <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-45">
-              {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')} · Đang ghi âm
+              {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')} · Recording
             </p>
             <button
               onClick={stopRecording}
               className="flex items-center gap-2 px-6 py-3 border border-red-400/50 text-red-600 font-sans text-[10px] uppercase tracking-[2px] hover:bg-red-50 transition-colors"
             >
               <span className="material-symbols-outlined text-[14px]">stop_circle</span>
-              Xong, gửi cho AI
+              Done, send to AI
             </button>
           </div>
         )}
@@ -223,7 +223,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
                   style={{ animationDelay: `${i * 0.15}s` }} />
               ))}
             </div>
-            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">AI đang lắng nghe và suy nghĩ…</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">AI is listening and thinking…</p>
           </div>
         )}
 
@@ -271,7 +271,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
             {/* Gaps — words/concepts child didn't get */}
             {result.gaps.length > 0 && (
               <div>
-                <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mb-2">Từ em chưa hiểu</p>
+                <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mb-2">Words I didn't understand</p>
                 <div className="flex flex-wrap gap-2">
                   {result.gaps.map((g, i) => (
                     <span key={i} className="font-sans text-[11px] px-2.5 py-1 border border-outline/15 bg-surface-container-highest/30 opacity-70">
@@ -285,7 +285,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
             {/* Transcript (collapsible) */}
             <details className="border-t border-outline/10 pt-4">
               <summary className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-35 cursor-pointer hover:opacity-60 transition-opacity select-none">
-                Xem transcript của mày
+                View the transcript
               </summary>
               <p className="font-sans text-xs opacity-55 leading-relaxed mt-3 italic">"{result.transcript}"</p>
             </details>
@@ -297,7 +297,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
                 className="flex items-center gap-2 px-5 py-2.5 border border-outline/25 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors"
               >
                 <span className="material-symbols-outlined text-[14px]">replay</span>
-                Thử lại
+                Try again
               </button>
             </div>
           </div>
@@ -313,10 +313,10 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
 
 // ── NoteChatPanel — AI dialogue panel (right half) ───────────────────────
 const QUICK_PROMPTS = [
-  { label: '📊 Bảng so sánh', msg: 'Tạo bảng so sánh các khái niệm chính trong note này' },
-  { label: '💡 Ví dụ thực tế', msg: 'Cho tao 3 ví dụ thực tế áp dụng nội dung trong note này' },
-  { label: '🤓 Giải thích sâu hơn', msg: 'Giải thích phần quan trọng nhất trong note sâu hơn, có ví dụ cụ thể' },
-  { label: '✏️ Bổ sung gì còn thiếu?', msg: 'Nội dung note này thiếu phần nào quan trọng không? Gợi ý bổ sung.' },
+  { label: '📊 Comparison table', msg: 'Create a comparison table of the key concepts in this note' },
+  { label: '💡 Real-world example', msg: 'Give me 3 real-world examples applying the content of this note' },
+  { label: '🤓 Explain in more depth', msg: 'Explain the most important part of this note in more depth, with a concrete example' },
+  { label: '✏️ What am I missing?', msg: 'Is there anything important missing from this note? Suggest additions.' },
 ];
 
 interface ChatBubble { role: 'user' | 'assistant'; content: string; }
@@ -370,7 +370,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
       <div className="px-6 py-5 border-b border-outline/10 bg-surface-container-lowest/40 shrink-0">
         <p className="font-serif text-xl font-medium">Hey, I'm Lyceum</p>
         <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-          Hỏi tao bất cứ điều gì về note này
+          Ask me anything about this note
         </p>
       </div>
 
@@ -439,7 +439,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Hỏi gì về note này... (Enter để gửi)"
+            placeholder="Ask something about this note... (Enter to send)"
             className="flex-1 border border-outline/20 px-4 py-3 font-sans text-sm bg-surface-container-lowest outline-none focus:border-on-surface/40 transition-colors resize-none leading-relaxed"
             style={{ minHeight: '60px', maxHeight: '120px' }}
           />
@@ -456,7 +456,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
             onClick={() => setMessages([])}
             className="mt-2 font-sans text-[9px] uppercase tracking-[1.5px] opacity-25 hover:opacity-50 transition-opacity"
           >
-            Xóa hội thoại
+            Clear conversation
           </button>
         )}
       </div>
@@ -722,12 +722,12 @@ export default function NoteView() {
               className="flex items-center gap-1.5 font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[13px]">arrow_back</span>
-              Note mới
+              New note
             </button>
             {saved ? (
               <div className="flex items-center gap-2 font-sans text-[10px] uppercase tracking-[2px] text-emerald-600 opacity-80">
                 <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                Đã lưu · còn 24h
+                Saved · 24h left
               </div>
             ) : (
               <button
@@ -735,7 +735,7 @@ export default function NoteView() {
                 className="flex items-center gap-2 px-4 py-2 border border-outline/30 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors"
               >
                 <span className="material-symbols-outlined text-[15px]">bookmark_add</span>
-                Lưu · 24h
+                Save · 24h
               </button>
             )}
           </div>
@@ -770,8 +770,8 @@ export default function NoteView() {
         <div className="w-full max-w-3xl mb-16">
           <div className="flex items-center gap-3 mb-4">
             <span className="material-symbols-outlined text-[16px] opacity-40">folder_open</span>
-            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Note đã lưu</span>
-            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">lưu trữ 24h</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Saved notes</span>
+            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">kept for 24h</span>
           </div>
           <div className="flex flex-col gap-2">
             {savedNotes.map(sn => {
@@ -785,7 +785,7 @@ export default function NoteView() {
                         dangerouslySetInnerHTML={{ __html: sn.title.replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim() || sn.title }} />
                       <p className="font-sans text-[9px] uppercase tracking-[1.5px] mt-0.5">
                         <span className="text-amber-600 opacity-80">{timeRemaining(sn.expiresAt)}</span>
-                        <span className="opacity-30"> · {new Date(sn.savedAt).toLocaleDateString('vi-VN')}</span>
+                        <span className="opacity-30"> · {new Date(sn.savedAt).toLocaleDateString('en-US')}</span>
                       </p>
                     </div>
                   </div>
@@ -795,7 +795,7 @@ export default function NoteView() {
                       className="border border-amber-400/50 bg-amber-50 px-4 py-1.5 font-sans text-[9px] uppercase tracking-[1.5px] text-amber-700 hover:bg-amber-100 transition-colors flex items-center gap-1.5"
                     >
                       <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                      Xem lại
+                      Review
                     </button>
                     <button
                       onClick={() => { deleteNote(sn.id); setSavedNotes(loadNotes()); }}

@@ -172,10 +172,10 @@ export function attachToNote(matchTitle: string, patch: { imageUrl?: string; sou
 
 export function timeRemaining(expiresAt: number): string {
   const ms = expiresAt - Date.now();
-  if (ms <= 0) return 'hết hạn';
+  if (ms <= 0) return 'expired';
   const h = Math.floor(ms / 3600000);
   const m = Math.ceil((ms % 3600000) / 60000);
-  return h >= 1 ? `còn ${h}h` : `còn ${m}m`;
+  return h >= 1 ? `${h}h left` : `${m}m left`;
 }
 
 // ── Graphs ────────────────────────────────────────────────────────────────
@@ -216,17 +216,17 @@ export function attachToGraphNode(matchLabel: string, patch: { imageUrl?: string
 // ── Subject detection ─────────────────────────────────────────────────────
 
 export const SUBJECT_META: Record<string, { icon: string; label: string }> = {
-  math:       { icon: '📐', label: 'Toán' },
-  physics:    { icon: '⚡', label: 'Vật lý' },
-  chemistry:  { icon: '🧪', label: 'Hoá học' },
-  biology:    { icon: '🧬', label: 'Sinh học' },
-  cs:         { icon: '💻', label: 'Lập trình' },
-  history:    { icon: '📜', label: 'Lịch sử' },
-  literature: { icon: '📖', label: 'Văn học' },
-  economics:  { icon: '📈', label: 'Kinh tế' },
-  philosophy: { icon: '🤔', label: 'Triết học' },
-  english:    { icon: '🗣', label: 'Tiếng Anh' },
-  other:      { icon: '📝', label: 'Khác' },
+  math:       { icon: '📐', label: 'Math' },
+  physics:    { icon: '⚡', label: 'Physics' },
+  chemistry:  { icon: '🧪', label: 'Chemistry' },
+  biology:    { icon: '🧬', label: 'Biology' },
+  cs:         { icon: '💻', label: 'Programming' },
+  history:    { icon: '📜', label: 'History' },
+  literature: { icon: '📖', label: 'Literature' },
+  economics:  { icon: '📈', label: 'Economics' },
+  philosophy: { icon: '🤔', label: 'Philosophy' },
+  english:    { icon: '🗣', label: 'English' },
+  other:      { icon: '📝', label: 'Other' },
 };
 
 const SUBJECT_KEYWORDS: Record<string, string[]> = {
@@ -268,14 +268,47 @@ export function saveTodayStudySubject(subject: string) {
   } catch { /* quota */ }
 }
 
+// ── Reference Bank (Gemma research results, auto-categorized by subject) ──
+const REFERENCES_KEY = 'lyceum_reference_bank_v1';
+
+export interface ReferenceEntry {
+  id: string;
+  topic: string;
+  category: string;      // SUBJECT_META key, via detectSubject(topic)
+  summary: string;
+  imageUrl?: string;
+  sourceUrl?: string;
+  savedAt: number;
+}
+
+export function loadReferences(): ReferenceEntry[] {
+  return parse<ReferenceEntry>(REFERENCES_KEY);
+}
+
+export function saveReference(entry: Omit<ReferenceEntry, 'id' | 'category' | 'savedAt'>): void {
+  const list = loadReferences();
+  const full: ReferenceEntry = {
+    ...entry,
+    id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    category: detectSubject(entry.topic),
+    savedAt: Date.now(),
+  };
+  list.unshift(full);
+  try { localStorage.setItem(REFERENCES_KEY, JSON.stringify(list.slice(0, 200))); } catch { /* quota exceeded */ }
+}
+
+export function deleteReference(id: string): void {
+  try { localStorage.setItem(REFERENCES_KEY, JSON.stringify(loadReferences().filter(r => r.id !== id))); } catch {}
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────
 export function timeAgo(ts: number): string {
   const diff = Date.now() - ts;
   const min = Math.floor(diff / 60000);
-  if (min < 1)  return 'vừa xong';
-  if (min < 60) return `${min} phút trước`;
+  if (min < 1)  return 'just now';
+  if (min < 60) return `${min}m ago`;
   const h = Math.floor(min / 60);
-  if (h < 24)   return `${h} giờ trước`;
+  if (h < 24)   return `${h}h ago`;
   const d = Math.floor(h / 24);
-  return `${d} ngày trước`;
+  return `${d}d ago`;
 }

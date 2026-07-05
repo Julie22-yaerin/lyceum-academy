@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { saveNote, attachToNote, attachToGraphNode } from '../lib/persist';
+import { saveNote, attachToNote, attachToGraphNode, saveReference } from '../lib/persist';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
 import { getNodeSummary, voiceFallbackChat } from '../lib/api';
 
@@ -128,15 +128,30 @@ export default function S2SVoiceOverlay({
   // talk about it on its next reply instead of just silently fetching it.
   // Also remembers {topic, imageUrl, sourceUrl} so a follow-up [ATTACH: ...]
   // tag knows what to attach and where the source link points.
-  async function handleResearch(topic: string) {
-    try {
-      const result = await getNodeSummary(topic);
-      const text = result.definition || result.summary || '';
-      if (!text) return;
-      const sourceUrl = `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
+  // Core lookup: runs the Gemma-backed search, toasts + saves it to the
+  // Reference Bank, and returns a plain-text result summary. Callers decide
+  // how to feed that back to whichever model is currently active.
+  async function runResearch(topic: string): Promise<{ text: string; imageUrl?: string; sourceUrl?: string }> {
+    const result = await getNodeSummary(topic);
+    const text = result.definition || result.summary || '';
+    const sourceUrl = `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
+    if (text) {
       lastResearchRef.current = { topic, imageUrl: result.image_url, sourceUrl };
       showToastMsg(text, 'research', result.image_url);
-      const relayText = `[Gemma đã tra cứu giúp về "${topic}": ${text}${result.image_url ? ' (kèm hình minh hoạ)' : ''}. Hãy tóm tắt ngắn gọn lại cho học sinh bằng giọng nói.]`;
+      saveReference({ topic, summary: text, imageUrl: result.image_url, sourceUrl });
+    }
+    return { text, imageUrl: result.image_url, sourceUrl };
+  }
+
+  // Text-tag path (used by the GPT fallback, and as a legacy path for Live —
+  // superseded there by the toolCall handler in ws.onmessage, which is the
+  // reliable mechanism since it doesn't depend on the model speaking a
+  // bracket tag out loud).
+  async function handleResearch(topic: string) {
+    try {
+      const { text, imageUrl } = await runResearch(topic);
+      if (!text) return;
+      const relayText = `[Gemma researched "${topic}": ${text}${imageUrl ? ' (with an illustrative image)' : ''}. Summarize this briefly for the student out loud.]`;
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           clientContent: {
@@ -153,15 +168,15 @@ export default function S2SVoiceOverlay({
     }
   }
 
-  // "Gắn hình/nguồn đó vào note X" — attaches whatever Gemma last researched
+  // "Attach that image/source to note X" — attaches whatever Gemma last researched
   // to a Note, Mistake Bank entry, or Knowledge Tree node (fuzzy-matched by
   // title). Deliberately excludes PDF problem sets — those are fixed
   // documents, not editable app records.
-  function handleAttach(targetType: string, targetText: string) {
+  function handleAttach(targetType: string, targetText: string): boolean {
     const research = lastResearchRef.current;
     if (!research) {
-      showToastMsg('Chưa có kết quả tra cứu nào để gắn — hãy nhờ ARI tra cứu trước.', 'attach');
-      return;
+      showToastMsg('Nothing researched yet to attach — ask ARI to look something up first.', 'attach');
+      return false;
     }
     const patch = { imageUrl: research.imageUrl, sourceUrl: research.sourceUrl, sourceLabel: research.topic };
     const type = targetType.trim().toLowerCase();
@@ -171,9 +186,10 @@ export default function S2SVoiceOverlay({
     else if (type.startsWith('node') || type.startsWith('graph')) ok = attachToGraphNode(targetText, patch);
 
     showToastMsg(
-      ok ? `Đã gắn vào "${targetText}".` : `Không tìm thấy "${targetText}" để gắn — thử nói rõ tên hơn.`,
+      ok ? `Attached to "${targetText}".` : `Couldn't find "${targetText}" to attach to — try saying the name more precisely.`,
       'attach',
     );
+    return ok;
   }
 
   // ── GPT (NVIDIA gpt-oss-20b) fallback — kicks in only when Gemini Live's
@@ -184,7 +200,7 @@ export default function S2SVoiceOverlay({
     try {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'vi-VN';
+      utter.lang = 'en-US';
       utter.onstart = () => setStatus('speaking');
       utter.onend = () => setStatus('fallback');
       utter.onerror = () => setStatus('fallback');
@@ -347,7 +363,7 @@ export default function S2SVoiceOverlay({
               },
               subject: 'General Study Notes'
             });
-            showToastMsg(`Đã lưu ghi chú: "${title}"`, 'note');
+            showToastMsg(`Saved note: "${title}"`, 'note');
           } catch (err) {
             console.error('Failed to save note from S2S:', err);
           }
@@ -364,7 +380,7 @@ export default function S2SVoiceOverlay({
               location: locationText,
               explanation: explanationText
             });
-            showToastMsg(`Đã thêm lỗi sai: "${mistakeText}"`, 'mistake');
+            showToastMsg(`Logged mistake: "${mistakeText}"`, 'mistake');
           } catch (err) {
             console.error('Failed to save mistake from S2S:', err);
           }
@@ -410,7 +426,8 @@ export default function S2SVoiceOverlay({
           const rec = new SpeechRecognitionClass();
           rec.continuous = true;
           rec.interimResults = true;
-          rec.lang = 'vi-VN';
+          // S2S is focused on English speech recognition.
+          rec.lang = 'en-US';
 
           rec.onresult = (e: any) => {
             // Muted: don't transcribe, don't touch status.
@@ -471,6 +488,7 @@ export default function S2SVoiceOverlay({
               generationConfig: {
                 responseModalities: ["AUDIO"],
                 speechConfig: {
+                  languageCode: 'en-US',
                   voiceConfig: {
                     prebuiltVoiceConfig: {
                       voiceName: voiceName
@@ -485,13 +503,43 @@ export default function S2SVoiceOverlay({
                   }
                 ]
               },
+              // Real function calling for research/attach — reliable because it's a
+              // structured tool call, not text the model has to speak out loud and
+              // then have us regex out of the audio transcript.
+              tools: [
+                {
+                  functionDeclarations: [
+                    {
+                      name: 'research_topic',
+                      description: 'Look up reference material (definition + an illustrative image if one is available) on a topic the student needs more context on — a Mistake Bank entry, a note, a graph node, or anything else that needs outside material.',
+                      parameters: {
+                        type: 'OBJECT',
+                        properties: { topic: { type: 'STRING', description: 'Brief topic to look up' } },
+                        required: ['topic'],
+                      },
+                    },
+                    {
+                      name: 'attach_reference',
+                      description: 'Attach the most recently researched image/source to a Note, Mistake Bank entry, or Knowledge Tree node (never a PDF Problem Set — those cannot be attached to). Only call this after research_topic has already returned a result.',
+                      parameters: {
+                        type: 'OBJECT',
+                        properties: {
+                          target_type: { type: 'STRING', description: "'note', 'mistake', or 'node'" },
+                          target_text: { type: 'STRING', description: 'Title/keyword identifying which one, e.g. the note title or a description of the mistake' },
+                        },
+                        required: ['target_type', 'target_text'],
+                      },
+                    },
+                  ],
+                },
+              ],
               realtimeInputConfig: {
                 automaticActivityDetection: {
                   disabled: false,
-                  startOfSpeechSensitivity: 'START_SENSITIVITY_LOW',
-                  endOfSpeechSensitivity: 'END_SENSITIVITY_LOW',
+                  startOfSpeechSensitivity: 'START_SENSITIVITY_HIGH',
+                  endOfSpeechSensitivity: 'END_SENSITIVITY_HIGH',
                   prefixPaddingMs: 20,
-                  silenceDurationMs: 650,
+                  silenceDurationMs: 400,
                 },
                 activityHandling: 'START_OF_ACTIVITY_INTERRUPTS',
               },
@@ -540,6 +588,33 @@ export default function S2SVoiceOverlay({
                 handleTurnComplete();
               }
             }
+
+            if (data.toolCall?.functionCalls) {
+              armSilenceTimer();
+              const functionResponses = await Promise.all(
+                data.toolCall.functionCalls.map(async (call: { id: string; name: string; args: any }) => {
+                  let response: Record<string, unknown> = {};
+                  try {
+                    if (call.name === 'research_topic') {
+                      const { text, imageUrl } = await runResearch(String(call.args?.topic || ''));
+                      response = text
+                        ? { result: text, has_image: !!imageUrl }
+                        : { result: 'No reference material found for that topic.' };
+                    } else if (call.name === 'attach_reference') {
+                      const ok = handleAttach(String(call.args?.target_type || ''), String(call.args?.target_text || ''));
+                      response = { attached: ok };
+                    }
+                  } catch (e) {
+                    console.error(`Tool call ${call.name} failed:`, e);
+                    response = { error: 'Lookup failed.' };
+                  }
+                  return { id: call.id, name: call.name, response };
+                })
+              );
+              if (wsRef.current?.readyState === WebSocket.OPEN) {
+                wsRef.current.send(JSON.stringify({ toolResponse: { functionResponses } }));
+              }
+            }
           } catch (e) {
             console.error('Error parsing WS message:', e);
           }
@@ -549,19 +624,19 @@ export default function S2SVoiceOverlay({
           console.error('WebSocket Error:', err);
           clearSilenceTimer();
           if (active) {
-            enterFallbackMode('Gemini Live không kết nối được — đã chuyển ARI sang GPT dự phòng (chỉ văn bản + giọng đọc trình duyệt).');
+            enterFallbackMode('Gemini Live could not connect — switched ARI to the GPT fallback (text + browser voice only).');
           }
         };
 
         ws.onclose = (evt) => {
           clearSilenceTimer();
           if (active && statusRef.current !== 'fallback') {
-            let reason = evt.reason || 'Kết nối Gemini Live bị đóng.';
+            let reason = evt.reason || 'Gemini Live connection closed.';
             try {
               const parsed = JSON.parse(evt.reason);
               reason = parsed.error || parsed.message || reason;
             } catch { /* reason stays as-is */ }
-            enterFallbackMode(`${reason} — đã chuyển ARI sang GPT dự phòng.`);
+            enterFallbackMode(`${reason} — switched ARI to the GPT fallback.`);
           }
         };
 
@@ -569,7 +644,7 @@ export default function S2SVoiceOverlay({
         console.error('S2S Init failed:', e);
         if (active) {
           setStatus('error');
-          setErrorMessage(e.message || 'Không khởi tạo được Micro hoặc Audio.');
+          setErrorMessage(e.message || 'Could not initialize microphone or audio.');
         }
       }
     }
@@ -737,7 +812,7 @@ export default function S2SVoiceOverlay({
               ? 'bg-red-500/20 border-red-500/40 text-red-400'
               : 'glass hover:bg-white/10 border-white/10 text-white/80'
           }`}
-          title={isMuted ? 'Bật Mic' : 'Tắt Mic'}
+          title={isMuted ? 'Turn mic on' : 'Turn mic off'}
         >
           <span className="material-symbols-outlined text-[16px]">{isMuted ? 'mic_off' : 'mic'}</span>
         </button>
@@ -749,7 +824,7 @@ export default function S2SVoiceOverlay({
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
               : 'glass hover:bg-white/10 border-white/10 text-white/80'
           }`}
-          title={status === 'paused' ? 'Tiếp tục' : 'Tạm dừng'}
+          title={status === 'paused' ? 'Resume' : 'Pause'}
         >
           <span className="material-symbols-outlined text-[18px]">{status === 'paused' ? 'play_arrow' : 'pause'}</span>
         </button>
@@ -759,12 +834,12 @@ export default function S2SVoiceOverlay({
           className="w-16 h-16 rounded-full glass-strong flex items-center justify-center flex-shrink-0 transition-shadow duration-500"
           style={{ boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 24px ${ringColor}` }}
           title={
-            status === 'speaking' ? 'ARI đang nói...' :
-            status === 'listening' ? 'ARI đang nghe...' :
-            status === 'paused' ? 'ARI tạm dừng' :
-            status === 'error' ? 'Lỗi kết nối' :
-            status === 'fallback' ? 'ARI (chế độ GPT dự phòng)' :
-            'ARI đang lắng nghe nền'
+            status === 'speaking' ? 'ARI is speaking...' :
+            status === 'listening' ? 'ARI is listening...' :
+            status === 'paused' ? 'ARI paused' :
+            status === 'error' ? 'Connection error' :
+            status === 'fallback' ? 'ARI (GPT fallback mode)' :
+            'ARI listening in the background'
           }
         >
           <span className="voice-orb-ring absolute inset-0 rounded-full pointer-events-none" style={{ borderColor: ringColor, animationDelay: '0s' }} />

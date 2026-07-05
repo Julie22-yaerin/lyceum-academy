@@ -461,7 +461,7 @@ function LensView({
       setPopupOpen(true);
     } else {
       // Popup was blocked — alert the user
-      alert('Trình duyệt đang chặn popup.\n\nBấm vào icon 🔒 trên thanh địa chỉ → "Luôn cho phép popup từ localhost" rồi thử lại.');
+      alert('Your browser is blocking the popup.\n\nClick the 🔒 icon in the address bar → "Always allow popups from localhost", then try again.');
     }
   }
 
@@ -715,20 +715,20 @@ function LensView({
       {warnEmpty.length > 0 && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60">
           <div className="bg-surface border border-outline-variant/30 shadow-2xl p-8 max-w-sm w-full mx-4" style={{ borderRadius: 4 }}>
-            <p className="font-sans text-[10px] uppercase tracking-[2px] text-amber-600 mb-3">Chưa trả lời</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] text-amber-600 mb-3">Not answered yet</p>
             <p className="font-serif text-base mb-4 leading-snug">
-              {warnEmpty.length} câu chưa có bài làm:&nbsp;
+              {warnEmpty.length} question(s) not yet answered:&nbsp;
               <span className="font-sans text-sm opacity-60">{warnEmpty.map(i => `Q${i + 1}`).join(', ')}</span>
             </p>
-            <p className="font-sans text-sm opacity-60 mb-6">Vẫn nộp bài hay quay lại làm tiếp?</p>
+            <p className="font-sans text-sm opacity-60 mb-6">Submit anyway, or go back and finish them?</p>
             <div className="flex gap-3">
               <button onClick={() => { setWarnEmpty([]); setIdx(warnEmpty[0]); }}
                 className="flex-1 border border-outline-variant/30 py-2.5 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors">
-                Làm tiếp
+                Keep working
               </button>
               <button onClick={doGrade}
                 className="flex-1 bg-on-surface text-surface py-2.5 font-sans text-[10px] uppercase tracking-[2px] hover:opacity-80 transition-opacity">
-                Nộp luôn
+                Submit anyway
               </button>
             </div>
           </div>
@@ -1077,7 +1077,7 @@ function LensView({
                   openNotepadPopup();
                 }
               }}
-              title="Mở notepad trong cửa sổ riêng"
+              title="Open notepad in a separate window"
               className={`flex items-center gap-1 px-2 py-1 border font-sans text-[9px] uppercase tracking-[1px] transition-all rounded-sm ${
                 popupOpen
                   ? 'border-amber-400/70 text-amber-600 bg-amber-50'
@@ -1478,7 +1478,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         <div className="w-full max-w-3xl mb-6 border border-amber-200/60 bg-amber-50/40 flex items-center justify-between px-5 py-3">
           <div>
             <span className="font-sans text-[10px] uppercase tracking-[2px] text-amber-700 opacity-70">Session in progress</span>
-            <p className="font-sans text-sm mt-0.5 opacity-80">{docKey} — {questions.length} câu</p>
+            <p className="font-sans text-sm mt-0.5 opacity-80">{docKey} — {questions.length} questions</p>
           </div>
           <button onClick={() => setLensOpen(true)}
             className="px-5 py-2 bg-amber-400 text-amber-950 font-sans text-[10px] uppercase tracking-[2px] font-bold hover:bg-amber-300 transition-colors">
@@ -1585,13 +1585,13 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         </div>
       </div>
 
-      {/* ── PDF đã tải lên (24h cache) ── */}
+      {/* ── Uploaded PDFs (24h cache) ── */}
       {savedSets.length > 0 && (
         <div className="w-full max-w-3xl mb-10">
           <div className="flex items-center gap-3 mb-4">
             <span className="material-symbols-outlined text-[16px] opacity-40">folder_open</span>
-            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">PDF đã tải lên</span>
-            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">lưu trữ 24h</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Uploaded PDFs</span>
+            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">kept for 24h</span>
           </div>
           <div className="flex flex-col gap-2">
             {savedSets.map(s => {
@@ -1600,7 +1600,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
               const msLeft = s.expiresAt - now;
               const hLeft = Math.max(0, Math.ceil(msLeft / 3600000));
               const mLeft = Math.max(0, Math.ceil(msLeft / 60000));
-              const timeLeft = hLeft >= 1 ? `còn ${hLeft}h` : `còn ${mLeft}m`;
+              const timeLeft = hLeft >= 1 ? `${hLeft}h left` : `${mLeft}m left`;
               return (
                 <div key={s.id} className="flex items-center justify-between border border-outline/15 px-5 py-3.5 hover:bg-surface-container-lowest transition-colors group">
                   <div className="min-w-0 flex items-start gap-3">
@@ -1610,11 +1610,11 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                     <div className="min-w-0">
                       <p className="font-sans text-sm text-on-surface truncate">{s.name}</p>
                       <p className="font-sans text-[9px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-                        {s.questions.length} câu · Q{s.currentIdx + 1}/{s.questions.length}
+                        {s.questions.length} questions · Q{s.currentIdx + 1}/{s.questions.length}
                         {hasCached ? (
                           <span className="text-amber-600 opacity-80"> · {timeLeft}</span>
                         ) : (
-                          <span className="text-red-400 opacity-70"> · PDF hết hạn</span>
+                          <span className="text-red-400 opacity-70"> · PDF expired</span>
                         )}
                       </p>
                     </div>
@@ -1634,13 +1634,13 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                         className="border border-outline/25 px-4 py-1.5 font-sans text-[9px] uppercase tracking-[1.5px] hover:bg-surface-container-lowest transition-colors flex items-center gap-1.5 opacity-60"
                       >
                         <span className="material-symbols-outlined text-[13px]">upload_file</span>
-                        Tải lại PDF
+                        Reload PDF
                       </button>
                     )}
                     <button
                       onClick={() => { deletePSet(s.id); setSavedSets(loadPSets()); }}
                       className="opacity-0 group-hover:opacity-30 hover:!opacity-70 transition-opacity p-1"
-                      title="Xóa"
+                      title="Delete"
                     >
                       <span className="material-symbols-outlined text-[14px]">delete</span>
                     </button>

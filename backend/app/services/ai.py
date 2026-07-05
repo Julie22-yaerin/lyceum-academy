@@ -1119,15 +1119,24 @@ def _repair_json(raw: str) -> str:
     #     so \right, \rho, \nabla, \theta, \tau, \beta etc. would NOT be fixed.
     #     We must handle them FIRST with a negative lookbehind (don't touch \\right).
     _latex_r = r'right|rho|rceil|rfloor|rangle|rm(?=[^a-z])'
-    _latex_n = r'nabla|nu(?=[^a-z])|neq|notin|norm|newline'
-    _latex_t = r'tau(?=[^a-z])|theta|times|to(?=[^a-z])|top(?=[^a-z])|text|tilde'
-    _latex_b = r'beta|bar(?=[^a-z])|begin|binom|boldsymbol|bullet|big(?=[^a-z])'
-    s = re.sub(rf'(?<!\\)\\({_latex_r}|{_latex_n}|{_latex_t}|{_latex_b})', r'\\\\\\1', s)
+    _latex_n = (r'nabla|nu(?=[^a-z])|neq|notin|norm|newline|nexists|ncong|napprox|'
+                r'nmid|nleq|ngeq|nearrow|nwarrow|ni(?=[^a-z])')
+    _latex_t = (r'tau(?=[^a-z])|theta|times|to(?=[^a-z])|top(?=[^a-z])|text|tilde|'
+                r'tanh|tan(?=[^a-z])|tbinom|triangle|therefore|trace')
+    _latex_b = (r'beta|bar(?=[^a-z])|begin|binom|boldsymbol|bullet|big(?=[^a-z])|'
+                r'bmod|boxed|backslash|bot(?=[^a-z])|bigcup|bigcap|bigoplus|bigvee|bigwedge')
+    # \b and \f have no legitimate use as literal control chars in AI-written math
+    # prose, so any letters immediately after them are always corrupted LaTeX —
+    # safe to generalize instead of maintaining an exhaustive whitelist.
+    _latex_f = r'[a-zA-Z]+'
+    s = re.sub(rf'(?<!\\)\\({_latex_r}|{_latex_n}|{_latex_t}|{_latex_b})', r'\\\\\1', s)
+    s = re.sub(rf'(?<!\\)\\f({_latex_f})', r'\\\\f\1', s)
+    s = re.sub(rf'(?<!\\)\\b({_latex_f})', r'\\\\b\1', s)
 
     # 2b. Fix remaining invalid backslash escapes.
     #     Valid JSON escapes after \: " \ / b f n r t  plus \uXXXX
     #     After pre-pass, \r / \n / \t / \b that remain are plain control chars (OK).
-    s = re.sub(r'\\(?!["\\/bnrt]|u[0-9a-fA-F]{4})', r'\\\\', s)
+    s = re.sub(r'\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})', r'\\\\', s)
 
     # 3. Remove trailing commas before } or ]
     s = re.sub(r',(\s*[}\]])', r'\1', s)
@@ -2436,8 +2445,37 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
 
     parsed: dict | None = None
 
-    # Attempt 1 — Groq / Meta Llama 3.3-70b (90s timeout — large output ~4096 tokens)
-    if _use_groq():
+    # Attempt 1 — Google Gemma (gemma-3-27b-it) — tried first: strong at following
+    # structured JSON + LaTeX formatting instructions for note synthesis.
+    if _use_google():
+        try:
+            payload = {
+                "model": settings.google_fast_model,
+                "messages": messages,
+                "temperature": 0.7,
+                "max_tokens": 8000,
+                "stream": False,
+                "response_format": {"type": "json_object"},
+            }
+            headers = {"Authorization": f"Bearer {settings.google_api_key}", "Content-Type": "application/json"}
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp_http = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
+                resp_http.raise_for_status()
+                data = resp_http.json()
+                _record_usage("google", data)
+            raw = extract_text(data)
+            log.info("synthesize_note Gemma preview: %s", raw[:150])
+            parsed = _parse_json_robust(raw)
+            if parsed and parsed.get("summary"):
+                log.info("synthesize_note: Gemma OK")
+            else:
+                log.warning("synthesize_note Gemma parse fail: %s", raw[:300])
+                parsed = None
+        except Exception as e:
+            log.warning("synthesize_note Gemma error: %s — type: %s", e, type(e).__name__)
+
+    # Attempt 2 — Groq / Meta Llama 3.3-70b (90s timeout — large output ~4096 tokens)
+    if not parsed and _use_groq():
         try:
             resp = await _groq_call(messages, model=settings.groq_primary_model, temperature=0.7, max_tokens=6000, timeout=90)
             raw = extract_text(resp)
@@ -2451,7 +2489,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
         except Exception as e:
             log.warning("synthesize_note Groq error: %s — type: %s", e, type(e).__name__)
 
-    # Attempt 2 — NVIDIA Orchestrator (Meta Llama 3.1 70B) — ít dùng nhất, còn nhiều quota
+    # Attempt 3 — NVIDIA Orchestrator (Meta Llama 3.1 70B) — ít dùng nhất, còn nhiều quota
     if not parsed and settings.nvidia_orchestrator_key:
         try:
             payload = {
@@ -2485,7 +2523,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
         except Exception as e:
             log.warning("synthesize_note NVIDIA error: %s — type: %s", e, type(e).__name__)
 
-    # Attempt 3 — Gemini Flash (fallback — may be out of daily quota)
+    # Attempt 4 — Gemini Flash (fallback — may be out of daily quota)
     if not parsed and _use_google():
         try:
             payload = {
@@ -2513,7 +2551,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
         except Exception as e:
             log.warning("synthesize_note Google error: %s — type: %s", e, type(e).__name__)
 
-    # Attempt 4 — OpenRouter free model
+    # Attempt 5 — OpenRouter free model
     if not parsed and _use_openrouter():
         try:
             resp = await _openrouter_call(messages, model=settings.openrouter_primary_model, temperature=0.7, max_tokens=3000)
@@ -2527,7 +2565,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
         except Exception as e:
             log.warning("synthesize_note OpenRouter error: %s", e)
 
-    # Attempt 5 — Ollama Cloud
+    # Attempt 6 — Ollama Cloud
     if not parsed and _use_ollama():
         try:
             resp = await _ollama_call(messages, model=settings.ollama_primary_model, temperature=0.7, max_tokens=3000)

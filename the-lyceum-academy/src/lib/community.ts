@@ -186,8 +186,8 @@ export function fmtTime(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
   const diffMs = now.getTime() - d.getTime();
-  if (diffMs < 60000)  return 'vừa xong';
+  if (diffMs < 60000)  return 'just now';
   if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m`;
   if (diffMs < 86400000) return `${Math.floor(diffMs / 3600000)}h`;
-  return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+  return d.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit' });
 }

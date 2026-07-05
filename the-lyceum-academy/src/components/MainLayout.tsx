@@ -149,15 +149,15 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
             padding: '28px 32px', maxWidth: 420, width: '90vw',
           }}>
             <h2 style={{ fontSize: 18, fontWeight: 500, color: '#f0f0f5', margin: '0 0 4px' }}>
-              Học hôm nay thế nào?
+              How's today's study session?
             </h2>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 18px' }}>
-              Chọn thời gian tập trung và môn học hôm nay.
+              Choose today's focus time and subject.
             </p>
 
             {/* Subject picker */}
             <p style={{ fontSize: 10, letterSpacing: 1, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)', margin: '0 0 8px' }}>
-              Môn học hôm nay
+              Today's subject
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 18 }}>
               {Object.entries(SUBJECT_META).map(([key, meta]) => (

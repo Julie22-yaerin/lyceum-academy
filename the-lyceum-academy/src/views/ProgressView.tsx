@@ -111,7 +111,7 @@ export default function ProgressView() {
 
   // Sessions (last 12)
   const sessions = records.slice(-12).map(r => ({
-    label: new Date(r.date).toLocaleDateString('vi-VN', { month: 'numeric', day: 'numeric' }),
+    label: new Date(r.date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric' }),
     filename: r.filename.replace(/\.pdf$/i, '').slice(0, 18),
     rate: r.grades.length > 0 ? Math.round(r.grades.filter(g => g.passed).length / r.grades.length * 100) : 0,
     total: r.grades.length,

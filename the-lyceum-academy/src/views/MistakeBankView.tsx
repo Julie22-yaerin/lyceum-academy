@@ -17,10 +17,10 @@ interface ChatMsg {
 
 function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEntry; selected: boolean; onToggle?: () => void; onDelete: () => void }) {
   const date = new Date(entry.createdAt);
-  const dateStr = date.toLocaleDateString('vi-VN', {
+  const dateStr = date.toLocaleDateString('en-US', {
     day: '2-digit', month: '2-digit', year: 'numeric',
   });
-  const timeStr = date.toLocaleTimeString('vi-VN', {
+  const timeStr = date.toLocaleTimeString('en-US', {
     hour: '2-digit', minute: '2-digit',
   });
 
@@ -68,7 +68,7 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
                     rel="noopener noreferrer"
                     className="font-sans text-[10px] text-sky-300/80 hover:text-sky-200 underline truncate"
                   >
-                    🔗 {entry.attachedSourceLabel || 'Nguồn tham khảo'}
+                    🔗 {entry.attachedSourceLabel || 'Reference source'}
                   </a>
                 )}
               </div>

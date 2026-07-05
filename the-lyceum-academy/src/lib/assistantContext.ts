@@ -4,16 +4,16 @@ import { loadMistakes } from './mistakes';
 import { loadProgress } from './progress';
 
 const VIEW_LABELS: Record<string, string> = {
-  nexus: 'Nexus Dashboard (trang tổng quan)',
-  dialogue: 'Socratic Dialogue (chat với AI)',
-  'knowledge-map': 'Knowledge Tree (bản đồ kiến thức)',
-  'problem-sets': 'Problem Sets (bộ bài tập)',
-  exercise: 'Current Thesis (bài tập đang làm)',
-  'goal-setting': 'Goal Setting (đặt mục tiêu)',
-  notes: 'Feynman Notes (ghi chú)',
-  progress: 'Progress (tiến độ học tập)',
-  'mistake-bank': 'Mistake Bank (ngân hàng lỗi sai)',
-  community: 'Peer Terminal (cộng đồng)',
+  nexus: 'Nexus Dashboard (overview)',
+  dialogue: 'Socratic Dialogue (chat with AI)',
+  'knowledge-map': 'Knowledge Tree (concept map)',
+  'problem-sets': 'Problem Sets (assignment sets)',
+  exercise: 'Current Thesis (active exercise)',
+  'goal-setting': 'Goal Setting',
+  notes: 'Feynman Notes',
+  progress: 'Progress (study progress)',
+  'mistake-bank': 'Mistake Bank',
+  community: 'Peer Terminal (community)',
 };
 
 const MAIN_CONTENT_SELECTOR = '#lyceum-workspace-content';
@@ -34,39 +34,39 @@ function grabVisibleScreenText(): string {
 export function buildAssistantContext(currentView: View): string {
   const parts: string[] = [];
 
-  parts.push(`Người dùng hiện đang ở màn hình: ${VIEW_LABELS[currentView] || currentView}.`);
+  parts.push(`The student is currently on screen: ${VIEW_LABELS[currentView] || currentView}.`);
 
   try {
     const todaySubject = loadTodayStudySubject();
     if (todaySubject) {
       const meta = SUBJECT_META[todaySubject];
-      parts.push(`Môn học học sinh chọn tập trung hôm nay: ${meta ? `${meta.icon} ${meta.label}` : todaySubject}.`);
+      parts.push(`Subject the student chose to focus on today: ${meta ? `${meta.icon} ${meta.label}` : todaySubject}.`);
     }
   } catch { /* ignore */ }
 
   const screenText = grabVisibleScreenText();
   if (screenText) {
-    parts.push(`--- Nội dung đang hiển thị trên màn hình ---\n${screenText}\n--- Hết nội dung màn hình ---`);
+    parts.push(`--- Content currently visible on screen ---\n${screenText}\n--- End of screen content ---`);
   }
 
   try {
     const notes = loadNotes().slice(0, 3);
     if (notes.length) {
-      parts.push('Ghi chú gần đây đã lưu:\n' + notes.map(n => `• "${n.title}" — ${n.note?.tldr || ''}`).join('\n'));
+      parts.push('Recently saved notes:\n' + notes.map(n => `• "${n.title}" — ${n.note?.tldr || ''}`).join('\n'));
     }
   } catch { /* ignore */ }
 
   try {
     const mistakes = loadMistakes().slice(0, 5);
     if (mistakes.length) {
-      parts.push('Lỗi sai gần đây trong Mistake Bank:\n' + mistakes.map(m => `• ${m.mistake} (${m.location})`).join('\n'));
+      parts.push('Recent Mistake Bank entries:\n' + mistakes.map(m => `• ${m.mistake} (${m.location})`).join('\n'));
     }
   } catch { /* ignore */ }
 
   try {
     const psets = loadPSets().slice(0, 3);
     if (psets.length) {
-      parts.push('Problem sets đang lưu: ' + psets.map(p => p.id).join(', '));
+      parts.push('Saved problem sets: ' + psets.map(p => p.id).join(', '));
     }
   } catch { /* ignore */ }
 
@@ -75,7 +75,7 @@ export function buildAssistantContext(currentView: View): string {
     if (records.length) {
       const allGrades = records.flatMap(r => r.grades);
       const rate = allGrades.length ? Math.round(allGrades.filter(g => g.passed).length / allGrades.length * 100) : 0;
-      parts.push(`Tỷ lệ đúng tổng thể: ${rate}% trên ${allGrades.length} câu hỏi (${records.length} phiên học).`);
+      parts.push(`Overall pass rate: ${rate}% across ${allGrades.length} questions (${records.length} sessions).`);
     }
   } catch { /* ignore */ }
 
