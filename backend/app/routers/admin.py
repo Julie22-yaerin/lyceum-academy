@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from app.services import rag             as rag_svc
 from app.services import finetune_db     as ft_svc
 from app.services import openai_finetune as ft_openai
+from app.services import activity_log    as activity_svc
 from app.services.firebase_auth import verify_firebase_id_token
 
 router      = APIRouter(prefix="/admin", tags=["admin"])
@@ -147,6 +148,28 @@ def ft_delete(ex_id: int, _: None = Depends(_auth)):
     if not ft_svc.delete(ex_id):
         raise HTTPException(404, "Example not found")
     return {"ok": True}
+
+
+# ── AI activity log — every provider call the backend makes, with the task/
+# role that triggered it. Populated automatically from ai.py's _record_usage.
+
+@router.get("/activity/log")
+def activity_log(
+    limit: int = 100, offset: int = 0, provider: str = "", task: str = "",
+    _: None = Depends(_auth),
+):
+    return {"items": activity_svc.list_recent(limit=limit, offset=offset, provider=provider, task=task)}
+
+
+@router.get("/activity/summary")
+def activity_summary(_: None = Depends(_auth)):
+    return activity_svc.summary()
+
+
+@router.get("/activity/roles")
+def activity_roles(_: None = Depends(_auth)):
+    """Reference list of every known task -> friendly role label, for the admin UI filter dropdown."""
+    return {"roles": activity_svc.ROLE_LABELS}
 
 
 @router.get("/finetune/export.jsonl", response_class=PlainTextResponse)

@@ -129,6 +129,8 @@ from app.routers  import auth       as auth_router
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     ft_svc.init_db()          # create SQLite tables if not present
+    from app.services import activity_log as activity_log_svc
+    activity_log_svc.init_db()
 
     # Pre-warm the embedding model so the first upload doesn't time out.
     # all-MiniLM-L6-v2 (~80 MB) is downloaded from HuggingFace on first run.

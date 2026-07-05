@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev", "--prefix", "the-lyceum-academy", "--", "--port=3010"],
       "port": 3010
+    },
+    {
+      "name": "admin-static",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "4321", "--directory", "admin"],
+      "port": 4321
     }
   ]
 }

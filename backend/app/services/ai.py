@@ -60,13 +60,58 @@ _session_usage: dict[str, dict[str, int]] = {
     "ollama":     {"prompt": 0, "completion": 0, "requests": 0},
 }
 
-def _record_usage(provider: str, resp: dict) -> None:
-    """Accumulate token counts from an API response into _session_usage."""
+import contextvars
+
+# Tags every AI provider call with the name of the public task function that
+# triggered it, for the admin activity log. A contextvar (not call-stack
+# introspection) because node_summary() and others fan out via
+# asyncio.gather() — each gathered coroutine runs as its own Task, which
+# decouples the Python call stack from the logical caller. contextvars are
+# copied into each new Task at creation time, so they survive gather/
+# create_task correctly (verified) where stack-walking does not.
+_current_ai_task: contextvars.ContextVar[str] = contextvars.ContextVar("current_ai_task", default="unknown")
+
+
+def _tag_task(fn):
+    """Decorator for every public task-level function in this module — sets
+    the current-task tag for the duration of the call (and everything it
+    fans out to), so _record_usage can attribute the AI call correctly."""
+    import functools
+
+    @functools.wraps(fn)
+    async def wrapper(*args, **kwargs):
+        _current_ai_task.set(fn.__name__)
+        return await fn(*args, **kwargs)
+    return wrapper
+
+
+def _record_usage(provider: str, resp: dict, model: str = "") -> None:
+    """Accumulate token counts from an API response into _session_usage,
+    and persist a row to the admin activity log (best-effort).
+
+    `model` should be the model name that was actually REQUESTED — not
+    every provider's response reliably echoes it back (confirmed: NVIDIA's
+    OpenAI-compatible response omits it), so callers that know the model
+    they asked for should pass it explicitly.
+    """
     usage = resp.get("usage") or {}
+    prompt_tokens = usage.get("prompt_tokens", 0)
+    completion_tokens = usage.get("completion_tokens", 0)
     if provider in _session_usage:
-        _session_usage[provider]["prompt"]     += usage.get("prompt_tokens", 0)
-        _session_usage[provider]["completion"] += usage.get("completion_tokens", 0)
+        _session_usage[provider]["prompt"]     += prompt_tokens
+        _session_usage[provider]["completion"] += completion_tokens
         _session_usage[provider]["requests"]   += 1
+    try:
+        from app.services import activity_log
+        activity_log.record(
+            provider=provider,
+            task=_current_ai_task.get(),
+            model=model or str(resp.get("model") or resp.get("modelVersion") or ""),
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
+    except Exception:
+        pass  # the activity log must never break an actual AI call
 
 def get_session_usage() -> dict:
     """Return a summary of token usage this process lifetime."""
@@ -150,7 +195,7 @@ async def _groq_call(
                 continue
             resp.raise_for_status()
             data = resp.json()
-            _record_usage("groq", data)
+            _record_usage("groq", data, model=attempt_model)
             return data
     raise RuntimeError("Groq: all models failed")
 
@@ -189,7 +234,7 @@ async def _google_call(
         resp = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("google", data)
+        _record_usage("google", data, model=model)
         return data
 
 
@@ -220,7 +265,7 @@ async def _openrouter_call(
         resp = await client.post(OPENROUTER_CHAT_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("openrouter", data)
+        _record_usage("openrouter", data, model=model)
         return data
 
 
@@ -286,10 +331,11 @@ async def _nvidia_call(
             )
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("nvidia", data)
+        _record_usage("nvidia", data, model=model)
         return data
 
 
+@_tag_task
 async def voice_fallback_chat(messages: list[dict], system_instruction: str = "") -> str:
     """
     Text fallback for ARI's voice session when the Gemini Live WebSocket is
@@ -337,7 +383,7 @@ async def _gemini_vision_call(
         resp = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("google", data)
+        _record_usage("google", data, model=settings.google_primary_model)
         return data
 
 
@@ -413,7 +459,7 @@ async def _ollama_call(
                 resp = await client.post(OLLAMA_CHAT_URL, headers=headers, json=payload)
                 resp.raise_for_status()
                 data = resp.json()
-                _record_usage("ollama", data)
+                _record_usage("ollama", data, model=model)
                 return data
             except httpx.HTTPStatusError as e:
                 last_exc = e
@@ -465,6 +511,7 @@ async def _ollama_vision_call(
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+@_tag_task
 async def chat(
     messages: list[dict],
     *,
@@ -581,6 +628,7 @@ def extract_text(response: dict) -> str:
     return content
 
 
+@_tag_task
 async def chat_gemini(
     messages: list[dict],
     *,
@@ -598,6 +646,7 @@ async def chat_gemini(
 
 # ── Pclick-specific helpers ───────────────────────────────────────────────────
 
+@_tag_task
 async def analyze_tool_map(tool: str) -> dict:
     """
     Analyze a math/science tool (technique, theorem, formula) and return a
@@ -685,6 +734,7 @@ async def analyze_tool_map(tool: str) -> dict:
     return {"error": "parse_failed", "tool": tool, "inputs": [], "outputs": []}
 
 
+@_tag_task
 async def validate_tool_map(
     inputs: list[str],
     tools:  list[str],
@@ -777,6 +827,7 @@ async def validate_tool_map(
     }
 
 
+@_tag_task
 async def topic_to_nodemap(topic: str) -> dict:
     """
     Convert a topic string into an Obsidian-style knowledge node map.
@@ -827,10 +878,10 @@ async def topic_to_nodemap(topic: str) -> dict:
         try:
             log.info("topic_to_nodemap → Gemini %s", settings.google_primary_model)
             resp = await _google_call(messages, settings.google_primary_model, 0.2, 2048)
+            # _google_call already recorded usage for this response — don't double-count.
             raw = extract_text(resp)
             result = _parse_nodemap(raw)
             if result and result.get("nodes"):
-                _record_usage("google", resp)
                 return result
         except Exception as e:
             log.warning("Gemini topic_to_nodemap failed: %s — falling back to chat()", e)
@@ -1077,6 +1128,7 @@ async def _fetch_node_media(label: str) -> dict:
     return result
 
 
+@_tag_task
 async def node_summary(
     label: str,
     node_type: str,
@@ -1137,7 +1189,7 @@ async def node_summary(
         if _use_google():
             try:
                 resp = await _google_call(messages, settings.google_primary_model, 0.25, 1024)
-                _record_usage("google", resp)
+                # _google_call already recorded usage for this response — don't double-count.
                 return extract_text(resp)
             except Exception as e:
                 log.warning("Gemini node_summary fallback failed: %s", e)
@@ -1177,6 +1229,7 @@ async def node_summary(
     }
 
 
+@_tag_task
 async def describe_drawing(image_b64: str) -> str:
     """
     Use Gemini vision to transcribe a student's whiteboard drawing.
@@ -1369,6 +1422,7 @@ _MATH_NOTATION_RULE = (
 )
 
 
+@_tag_task
 async def extract_pdf_text(file_bytes: bytes) -> str:
     """
     Extract text from a PDF.
@@ -1537,6 +1591,7 @@ def _crop_question_image(image_bytes: bytes, y_start: float, y_end: float) -> st
     return b64lib.b64encode(buf.getvalue()).decode()
 
 
+@_tag_task
 async def analyze_image_pset_direct(
     image_bytes: bytes,
     mime_type: str,
@@ -2032,6 +2087,7 @@ async def _analyze_pdf_pages_vision(pages: list[dict]) -> dict:
     return {"summary": "", "problems": all_problems}
 
 
+@_tag_task
 async def analyze_file_pset(file_bytes: bytes, filename: str, mime_type: str) -> dict:
     """
     Accept a PDF or image upload → extract questions + figures → return card data.
@@ -2187,6 +2243,7 @@ def _parse_delimiter_format(text: str) -> dict | None:
     return {"summary": summary, "problems": problems}
 
 
+@_tag_task
 async def decompose_pset(pset_text: str) -> dict:
     """
     Decompose a problem set into individual question cards.
@@ -2329,6 +2386,7 @@ async def decompose_pset(pset_text: str) -> dict:
     }
 
 
+@_tag_task
 async def clean_question(prompt: str, context: str = "") -> str:
     """
     Distil a raw question prompt using NVIDIA Nemotron (preferred) or best available AI.
@@ -2381,6 +2439,7 @@ async def clean_question(prompt: str, context: str = "") -> str:
         return prompt
 
 
+@_tag_task
 async def grade_all(items: list[dict]) -> dict:
     """
     Grade a batch of answered questions using Groq (fast).
@@ -2418,6 +2477,7 @@ async def grade_all(items: list[dict]) -> dict:
     return {"grades": [{"id": it["id"], "passed": False, "feedback": "Could not grade."} for it in items]}
 
 
+@_tag_task
 async def get_hint(problem_text: str, hint_level: int = 1) -> str:
     """
     Return a Socratic hint for a problem at the given level (1=vague, 3=direct).
@@ -2439,6 +2499,7 @@ async def get_hint(problem_text: str, hint_level: int = 1) -> str:
     return extract_text(resp)
 
 
+@_tag_task
 async def check_mastery(problem: str, student_solution: str) -> dict:
     """
     Evaluate a student's solution.
@@ -2486,6 +2547,7 @@ async def _wiki_image(concept: str) -> str | None:
     return None
 
 
+@_tag_task
 async def synthesize_note(content: str, source_type: str = "text", source_title: str = "") -> dict:
     """
     Explain content like a fun, knowledgeable teacher:
@@ -2585,7 +2647,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
                 resp_http = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
                 resp_http.raise_for_status()
                 data = resp_http.json()
-                _record_usage("google", data)
+                _record_usage("google", data, model=settings.google_fast_model)
             raw = extract_text(data)
             log.info("synthesize_note Gemma preview: %s", raw[:150])
             parsed = _parse_json_robust(raw)
@@ -2634,7 +2696,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
                 )
                 resp_http.raise_for_status()
                 data = resp_http.json()
-                _record_usage("nvidia", data)
+                _record_usage("nvidia", data, model=settings.nvidia_orchestrator_model)
             raw = extract_text(data)
             log.info("synthesize_note NVIDIA preview: %s", raw[:150])
             parsed = _parse_json_robust(raw)
@@ -2662,7 +2724,7 @@ Return ONLY this raw JSON (no markdown fences, no extra text):
                 resp_http = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
                 resp_http.raise_for_status()
                 data = resp_http.json()
-                _record_usage("google", data)
+                _record_usage("google", data, model=settings.google_primary_model)
             raw = extract_text(data)
             log.info("synthesize_note Google preview: %s", raw[:150])
             parsed = _parse_json_robust(raw)
@@ -2769,6 +2831,7 @@ VISUAL STYLE:
 
 # ── Feynman technique: transcribe + evaluate ──────────────────────────────
 
+@_tag_task
 async def transcribe_audio(audio_bytes: bytes, filename: str = "recording.webm") -> str:
     """
     Transcribe audio using Groq Whisper (whisper-large-v3-turbo).
@@ -2793,6 +2856,7 @@ async def transcribe_audio(audio_bytes: bytes, filename: str = "recording.webm")
         return transcript
 
 
+@_tag_task
 async def feynman_evaluate(transcript: str, note_title: str, key_concepts: list[str]) -> dict:
     """
     React to a Feynman explanation as a genuinely curious 5-year-old.
@@ -2841,6 +2905,7 @@ async def feynman_evaluate(transcript: str, note_title: str, key_concepts: list[
     return parsed
 
 
+@_tag_task
 async def generate_note_diagrams(parsed: dict) -> list[dict]:
     """
     Generate 1-3 SVG educational diagrams for a synthesized note.
@@ -2892,7 +2957,7 @@ async def generate_note_diagrams(parsed: dict) -> list[dict]:
                 r = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
                 r.raise_for_status()
                 data = r.json()
-                _record_usage("google", data)
+                _record_usage("google", data, model=settings.google_primary_model)
             raw = extract_text(data)
             log.info("generate_note_diagrams Gemini OK, len=%d", len(raw or ""))
         except Exception as e:
@@ -2964,7 +3029,7 @@ async def _orchestrator_call(
         )
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("nvidia", data)
+        _record_usage("nvidia", data, model=settings.nvidia_orchestrator_model)
         return data
 
 
@@ -3110,6 +3175,7 @@ _PRICING_PLANS: list[dict] = [
 ]
 
 
+@_tag_task
 async def analyze_onboarding(answers: dict[str, str]) -> dict:
     """
     Orchestrator: analyze user's onboarding answers using Meta Llama 3.1 70B
@@ -3223,6 +3289,7 @@ async def _transcribe_handwriting(image_b64: str) -> str:
     return ""
 
 
+@_tag_task
 async def grade_dual(items: list[dict]) -> dict:
     """
     Dual-AI grading:
@@ -3369,6 +3436,7 @@ async def grade_dual(items: list[dict]) -> dict:
 
 # ── Community AI moderation ────────────────────────────────────────────────────
 
+@_tag_task
 async def moderate_community(rooms: list[dict], messages: list[dict]) -> dict:
     """
     Weekly moderation by Meta Llama 3.1 70B.

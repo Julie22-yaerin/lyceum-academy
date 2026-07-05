@@ -36,6 +36,9 @@
     .btn-ghost:hover { color:var(--text); border-color:#58a6ff33; background:rgba(88,166,255,.06); }
     .btn-danger { background:transparent; color:#f85149; border:1px solid rgba(248,81,73,.25); }
     .btn-danger:hover { background:rgba(248,81,73,.12); }
+    .nav-btn { padding:5px 12px; border-radius:7px; background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; transition:all .15s; }
+    .nav-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
+    .nav-btn.active { color:var(--text); background:rgba(88,166,255,.1); }
     .spinner { animation:spin 1s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
     .fade-in { animation:fadein .18s ease; }
@@ -108,6 +111,10 @@
   <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
+    <nav class="flex items-center gap-1 ml-4">
+      <button id="nav-models" onclick="viewModels()" class="nav-btn text-xs">Training AI</button>
+      <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
+    </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" />
     <span id="user-name" class="text-xs hidden" style="color:var(--muted)"></span>
@@ -128,6 +135,7 @@
   <main class="flex-1 overflow-auto">
     <div id="view-models" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-model-detail" class="hidden p-6 max-w-3xl mx-auto fade-in"></div>
+    <div id="view-activity" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
   </main>
 </div>
 
@@ -416,8 +424,16 @@ async function loadExamples(modelId, taskId) {
 // ════════════════════════════════════════════════════════════════
 // VIEW: MODELS LIST
 // ════════════════════════════════════════════════════════════════
+function setActiveNav(id) {
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById(id);
+  if (btn) btn.classList.add('active');
+}
+
 function viewModels() {
   hide('view-model-detail');
+  hide('view-activity');
+  setActiveNav('nav-models');
   const el = document.getElementById('view-models');
   show('view-models');
   const models = loadModels();
@@ -467,6 +483,133 @@ function viewModels() {
         <p style="color:var(--muted)">Each model has a <strong style="color:var(--text)">Role</strong> (system prompt defining the AI persona) and <strong style="color:var(--text)">Tasks</strong> (specific behaviours). Each task can have optional <strong style="color:var(--text)">few-shot examples</strong> stored in the fine-tuning database — exportable as JSONL for OpenAI/DeepSeek fine-tuning.</p>
       </div>
     </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// ACTIVITY LOG — every AI provider call the backend makes, with the
+// task/role that triggered it (populated server-side automatically).
+// ════════════════════════════════════════════════════════════════
+let _activityFilter = { provider: '', task: '' };
+let _activityOffset = 0;
+const ACTIVITY_PAGE_SIZE = 50;
+
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+const PROVIDER_COLORS = {
+  groq: '#FF6B35', google: '#4285F4', nvidia: '#76B900', openrouter: '#7C3AED', ollama: '#6B7280',
+};
+
+async function viewActivity() {
+  hide('view-models');
+  hide('view-model-detail');
+  setActiveNav('nav-activity');
+  show('view-activity');
+  _activityOffset = 0;
+  await renderActivity();
+}
+
+async function renderActivity() {
+  const el = document.getElementById('view-activity');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const [summary, rolesResp] = await Promise.all([
+    api('/admin/activity/summary').then(r => r.json()).catch(() => ({ total_calls: 0, by_role: [] })),
+    api('/admin/activity/roles').then(r => r.json()).catch(() => ({ roles: {} })),
+  ]);
+
+  const params = new URLSearchParams({ limit: ACTIVITY_PAGE_SIZE, offset: _activityOffset });
+  if (_activityFilter.provider) params.set('provider', _activityFilter.provider);
+  if (_activityFilter.task) params.set('task', _activityFilter.task);
+  const logResp = await api('/admin/activity/log?' + params.toString()).then(r => r.json()).catch(() => ({ items: [] }));
+  const items = logResp.items || [];
+
+  const providers = [...new Set(summary.by_role.map(r => r.provider))];
+  const taskOptions = Object.entries(rolesResp.roles || {});
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">AI Activity Log</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Every AI call the backend has made this run, by role/provider/model — ${summary.total_calls} total.</p>
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        ${summary.by_role.map(r => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+            <div class="flex items-center gap-2 mb-1.5">
+              <span class="w-2 h-2 rounded-full shrink-0" style="background:${PROVIDER_COLORS[r.provider]||'#666'}"></span>
+              <span class="text-xs font-medium truncate">${esc(r.role)}</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span class="text-lg font-bold">${r.calls}</span>
+              <span class="text-xs" style="color:var(--muted)">calls · ${(r.prompt_tokens+r.completion_tokens).toLocaleString()} tok</span>
+            </div>
+            <div class="text-xs mt-1" style="color:var(--muted)">${esc(r.provider)} · ${timeAgo(r.last_used)}</div>
+          </div>`).join('') || `<div class="text-sm col-span-full" style="color:var(--muted)">No AI activity recorded yet.</div>`}
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <select id="activity-provider-filter" onchange="onActivityFilterChange()" class="text-xs" style="padding:6px 10px;border-radius:8px">
+          <option value="">All providers</option>
+          ${providers.map(p => `<option value="${esc(p)}" ${_activityFilter.provider===p?'selected':''}>${esc(p)}</option>`).join('')}
+        </select>
+        <select id="activity-task-filter" onchange="onActivityFilterChange()" class="text-xs" style="padding:6px 10px;border-radius:8px">
+          <option value="">All roles</option>
+          ${taskOptions.map(([task,label]) => `<option value="${esc(task)}" ${_activityFilter.task===task?'selected':''}>${esc(label)}</option>`).join('')}
+        </select>
+        <button onclick="viewActivity()" class="btn btn-ghost text-xs">↻ Refresh</button>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">When</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Role</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Provider</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Model</th>
+              <th class="text-right px-4 py-2.5 font-medium" style="color:var(--muted)">Tokens</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(row => `
+              <tr style="border-bottom:1px solid var(--border)">
+                <td class="px-4 py-2.5" style="color:var(--muted)">${timeAgo(row.created_at)}</td>
+                <td class="px-4 py-2.5">${esc(row.role)}</td>
+                <td class="px-4 py-2.5">
+                  <span class="pill text-xs" style="background:${PROVIDER_COLORS[row.provider]||'#666'}22;color:${PROVIDER_COLORS[row.provider]||'#999'};border:1px solid ${PROVIDER_COLORS[row.provider]||'#666'}44">${esc(row.provider)}</span>
+                </td>
+                <td class="px-4 py-2.5" style="color:var(--muted)">${esc(row.model) || '—'}</td>
+                <td class="px-4 py-2.5 text-right" style="color:var(--muted)">${(row.prompt_tokens+row.completion_tokens).toLocaleString()}</td>
+              </tr>`).join('') || `<tr><td colspan="5" class="px-4 py-8 text-center" style="color:var(--muted)">No matching activity.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="flex items-center justify-between text-xs" style="color:var(--muted)">
+        <button onclick="activityPage(-1)" class="btn btn-ghost text-xs" ${_activityOffset===0?'disabled':''}>← Newer</button>
+        <span>Showing ${_activityOffset+1}–${_activityOffset+items.length}</span>
+        <button onclick="activityPage(1)" class="btn btn-ghost text-xs" ${items.length<ACTIVITY_PAGE_SIZE?'disabled':''}>Older →</button>
+      </div>
+    </div>`;
+}
+
+function onActivityFilterChange() {
+  _activityFilter.provider = document.getElementById('activity-provider-filter').value;
+  _activityFilter.task = document.getElementById('activity-task-filter').value;
+  _activityOffset = 0;
+  renderActivity();
+}
+
+function activityPage(dir) {
+  _activityOffset = Math.max(0, _activityOffset + dir * ACTIVITY_PAGE_SIZE);
+  renderActivity();
 }
 
 // Add model
@@ -736,7 +879,7 @@ function deleteTask(modelId, taskId) {
 }
 
 function deleteModel(modelId) {
-  if (!confirm('Remove this model? This won't delete examples from the backend.')) return;
+  if (!confirm('Remove this model? This will not delete examples from the backend.')) return;
   const models = loadModels().filter(m=>m.id!==modelId);
   saveModels(models);
   viewModels();
