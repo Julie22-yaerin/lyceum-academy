@@ -278,6 +278,20 @@ export async function synthesizeNoteFromUrl(url: string): Promise<NoteResult> {
   return res.json();
 }
 
+/** Synthesize a note from text the browser extracted itself (YouTube fallback path). */
+export async function synthesizeNoteFromText(content: string, title: string, sourceType = 'YouTube video'): Promise<NoteResult> {
+  const res = await authFetch(`${API_BASE}/ai/note-text`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, title, source_type: sourceType }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
 export async function synthesizeNoteFromFile(file: File): Promise<NoteResult> {
   const form = new FormData();
   form.append('file', file);

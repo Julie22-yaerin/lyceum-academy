@@ -117,13 +117,16 @@ function sanitizeLatex(s: string): string {
        .replace(/\x0C([a-zA-Z]+)/g, '\\f$1')
 
   // ── Bare commands (backslash stripped entirely) ───────────────────────────
-       .replace(/(?<![\\a-zA-Z])(left)(?=\s*[\(\[|{])/g,   '\\left')
-       .replace(/(?<![\\a-zA-Z])(right)(?=\s*[\)\]|.}])/g, '\\right')
-       .replace(/(?<![\\a-zA-Z])(frac)(?=\s*\{)/g,         '\\frac')
-       .replace(/(?<![\\a-zA-Z])(sqrt)(?=\s*[\{\(])/g,     '\\sqrt')
+  // No regex lookbehind here: Safari/iOS < 16.4 throws a SyntaxError at
+  // module PARSE time for lookbehind literals, white-screening the whole app.
+  // A captured prefix group ((^|[^\\a-zA-Z])) is equivalent and universal.
+       .replace(/(^|[^\\a-zA-Z])(left)(?=\s*[\(\[|{])/g,   '$1\\left')
+       .replace(/(^|[^\\a-zA-Z])(right)(?=\s*[\)\]|.}])/g, '$1\\right')
+       .replace(/(^|[^\\a-zA-Z])(frac)(?=\s*\{)/g,         '$1\\frac')
+       .replace(/(^|[^\\a-zA-Z])(sqrt)(?=\s*[\{\(])/g,     '$1\\sqrt')
        // Only tokens that are unambiguously LaTeX — words like "sum"/"delta"
        // can legitimately appear inside \text{...}, so they stay untouched.
-       .replace(/(?<![\\a-zA-Z])(cdot|infty|varepsilon|geqslant|leqslant)(?![a-zA-Z])/g, '\\$1');
+       .replace(/(^|[^\\a-zA-Z])(cdot|infty|varepsilon|geqslant|leqslant)(?![a-zA-Z])/g, '$1\\$2');
 
   // ── Balance unclosed braces ───────────────────────────────────────────────
   const opens  = (s.match(/\{/g) || []).length;
@@ -203,7 +206,8 @@ function renderInline(text: string): string {
   parts.push(escapeHtml(text.slice(lastIdx)));
   let out = parts.join('');
   out = out.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-  out = out.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>');
+  // No lookbehind (Safari < 16.4 parse crash) — captured prefix instead.
+  out = out.replace(/(^|[^*])\*(?!\*)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
   out = out.replace(/`([^`]+)`/g, '<code class="font-mono text-xs bg-surface-container-highest px-1 py-0.5 rounded">$1</code>');
   return out;
 }

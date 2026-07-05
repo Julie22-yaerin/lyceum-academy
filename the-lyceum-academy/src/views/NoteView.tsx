@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { synthesizeNoteFromUrl, synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
+import { synthesizeNoteFromUrl, synthesizeNoteFromFile, synthesizeNoteFromText, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
+import { extractYouTubeInBrowser, parseYouTubeId } from '../lib/youtubeClient';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { loadNotes, saveNote, deleteNote, timeRemaining, type SavedNote } from '../lib/persist';
 
@@ -579,11 +580,25 @@ export default function NoteView() {
     if (!ytUrl.trim()) return;
     setError(''); setNote(null); setLoading(true); setSaved(false);
     setSourceType('youtube');
+    const url = ytUrl.trim();
     try {
-      const result = await synthesizeNoteFromUrl(ytUrl.trim());
+      const result = await synthesizeNoteFromUrl(url);
       if (result.error) { setError(result.summary || 'Synthesis failed.'); }
       else { setNote(result); setShowYt(false); }
     } catch (e: any) {
+      // Server-side extraction failed (usually YouTube blocking the server's
+      // IP). Fall back to extracting from THIS browser — the user's own IP
+      // isn't blocked — then submit the transcript for synthesis.
+      try {
+        const extracted = await extractYouTubeInBrowser(url);
+        if (extracted) {
+          const result = await synthesizeNoteFromText(extracted.content, extracted.title);
+          const vidId = parseYouTubeId(url);
+          if (vidId) result.video_id = vidId;
+          setNote(result); setShowYt(false);
+          return;
+        }
+      } catch { /* fall through to the original server error */ }
       setError(e.message || String(e));
     } finally { setLoading(false); }
   }

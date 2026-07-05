@@ -3475,6 +3475,131 @@ def _parse_vtt(vtt_text: str) -> str:
     return " ".join(lines)
 
 
+# Public Piped / Invidious API instances. These fetch YouTube data from THEIR
+# servers, so they work even when YouTube has rate-limited/blocked THIS
+# server's IP. Instances come and go — each is tried briefly and skipped on
+# any failure, so a dead instance only costs its timeout.
+_PIPED_INSTANCES = [
+    "https://pipedapi.kavin.rocks",
+    "https://api.piped.yt",
+    "https://pipedapi.adminforge.de",
+]
+_INVIDIOUS_INSTANCES = [
+    "https://yewtu.be",
+    "https://inv.nadeko.net",
+    "https://invidious.nerdvpn.de",
+]
+
+
+async def _youtube_via_alt_instances(vid_id: str) -> dict | None:
+    """
+    Fetch title + transcript through public Piped/Invidious instances.
+    Returns {title, content} or None if every instance fails.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+    headers = {"User-Agent": "Pclick/1.0 (educational app)"}
+
+    def _pick_sub(subs: list[dict], url_key: str, lang_key: str) -> str | None:
+        """Prefer English, then Vietnamese, then whatever exists."""
+        for want in ("en", "vi"):
+            for s in subs:
+                if str(s.get(lang_key, "")).lower().startswith(want):
+                    return s.get(url_key)
+        return subs[0].get(url_key) if subs else None
+
+    fallback: dict | None = None   # description-only result, kept while hunting for a real transcript
+
+    async with httpx.AsyncClient(timeout=8, follow_redirects=True) as client:
+        # Piped: /streams/{id} → {title, description, subtitles:[{url, code}]}
+        for inst in _PIPED_INSTANCES:
+            try:
+                r = await client.get(f"{inst}/streams/{vid_id}", headers=headers)
+                if r.status_code != 200:
+                    continue
+                data = r.json()
+                title = data.get("title") or ""
+                sub_url = _pick_sub(data.get("subtitles") or [], "url", "code")
+                if sub_url:
+                    rs = await client.get(sub_url, headers=headers)
+                    if rs.status_code == 200:
+                        transcript = _parse_vtt(rs.text)
+                        if len(transcript) > 200:
+                            log.info("YT via Piped %s OK: %d chars", inst, len(transcript))
+                            return {"title": title, "content": transcript, "kind": "transcript"}
+                # No usable captions — description is still better than nothing,
+                # but keep trying other instances for a real transcript first.
+                desc = (data.get("description") or "").strip()
+                if fallback is None and title and len(desc) > 300:
+                    fallback = {"title": title, "content": f"Video: {title}\n\nDescription:\n{desc[:4000]}", "kind": "description"}
+            except Exception as e:
+                log.debug("Piped %s failed: %s", inst, e)
+
+        # Invidious: /api/v1/videos/{id} → {title, description, captions:[{label, url}]}
+        for inst in _INVIDIOUS_INSTANCES:
+            try:
+                r = await client.get(f"{inst}/api/v1/videos/{vid_id}", headers=headers)
+                if r.status_code != 200:
+                    continue
+                data = r.json()
+                title = data.get("title") or ""
+                caps = data.get("captions") or []
+                cap_path = _pick_sub(caps, "url", "language_code")
+                if cap_path:
+                    rs = await client.get(f"{inst}{cap_path}", headers=headers)
+                    if rs.status_code == 200:
+                        transcript = _parse_vtt(rs.text)
+                        if len(transcript) > 200:
+                            log.info("YT via Invidious %s OK: %d chars", inst, len(transcript))
+                            return {"title": title, "content": transcript, "kind": "transcript"}
+                desc = (data.get("description") or "").strip()
+                if fallback is None and title and len(desc) > 300:
+                    fallback = {"title": title, "content": f"Video: {title}\n\nDescription:\n{desc[:4000]}", "kind": "description"}
+            except Exception as e:
+                log.debug("Invidious %s failed: %s", inst, e)
+
+    return fallback  # description-only result from whichever instance answered, or None
+
+
+async def _youtube_data_api_metadata(vid_id: str) -> dict | None:
+    """
+    Official YouTube Data API v3 — quota is per API key, NOT per IP
+    reputation, so it keeps working when scraping paths are blocked.
+    Reuses the existing GOOGLE_API_KEY. Returns {title, content} or None.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+    if not settings.google_api_key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(
+                "https://www.googleapis.com/youtube/v3/videos",
+                params={"part": "snippet", "id": vid_id, "key": settings.google_api_key},
+            )
+            if r.status_code != 200:
+                log.warning("YouTube Data API returned %d: %s", r.status_code, r.text[:200])
+                return None
+            items = r.json().get("items", [])
+            if not items:
+                return None
+            sn = items[0].get("snippet", {})
+            title = sn.get("title") or ""
+            description = (sn.get("description") or "")[:4000]
+            tags = ", ".join((sn.get("tags") or [])[:20])
+            content = (
+                f"Video: {title}\n"
+                + (f"Channel: {sn.get('channelTitle', '')}\n" if sn.get("channelTitle") else "")
+                + (f"Tags: {tags}\n" if tags else "")
+                + f"\nDescription:\n{description}"
+            )
+            log.info("YT via Data API v3 OK: %d chars (metadata only)", len(content))
+            return {"title": title, "content": content}
+    except Exception as e:
+        log.warning("YouTube Data API failed: %s", e)
+        return None
+
+
 async def get_youtube_content(url: str) -> dict:
     """
     Extract title + transcript from a YouTube URL.
@@ -3515,7 +3640,14 @@ async def get_youtube_content(url: str) -> dict:
     # ── Attempt 1: youtube-transcript-api ─────────────────────────────────
     try:
         from youtube_transcript_api import YouTubeTranscriptApi
-        entries = YouTubeTranscriptApi.get_transcript(vid_id, languages=['en', 'vi', 'en-US', 'vi-VN'])
+        # Honor the same proxy yt-dlp uses — a residential proxy un-blocks
+        # this path completely, and it's the cheapest full-transcript route.
+        yta_kwargs = {}
+        if settings.ytdlp_proxy:
+            yta_kwargs["proxies"] = {"http": settings.ytdlp_proxy, "https": settings.ytdlp_proxy}
+        entries = YouTubeTranscriptApi.get_transcript(
+            vid_id, languages=['en', 'vi', 'en-US', 'vi-VN'], **yta_kwargs,
+        )
         transcript = " ".join(e['text'] for e in entries)
         if len(transcript) > 200:
             log.info("YT attempt 1 OK: %d chars via youtube-transcript-api", len(transcript))
@@ -3523,6 +3655,21 @@ async def get_youtube_content(url: str) -> dict:
         log.warning("youtube-transcript-api returned short transcript (%d chars), trying next", len(transcript))
     except Exception as e:
         log.warning("youtube-transcript-api failed: %s", e)
+
+    # ── Attempt 1.5: public Piped/Invidious instances ──────────────────────
+    # These fetch from THEIR servers — a completely different IP than ours —
+    # so they sidestep YouTube's rate-limit/block on this host entirely.
+    alt_desc_fallback: dict | None = None
+    try:
+        alt = await _youtube_via_alt_instances(vid_id)
+        if alt:
+            # A real transcript wins immediately; a description-only result is
+            # held as a better final fallback than raising.
+            if alt.get("kind") == "transcript":
+                return {"title": alt["title"] or url, "content": alt["content"], "video_id": vid_id}
+            alt_desc_fallback = alt
+    except Exception as e:
+        log.warning("Alt-instance extraction failed: %s", e)
 
     # ── Attempt 2: yt-dlp auto-subtitles (no video download, fast) ────────
     try:
@@ -3652,10 +3799,21 @@ async def get_youtube_content(url: str) -> dict:
     except Exception as e:
         log.warning("yt-dlp metadata fallback failed: %s", e)
 
-    # All 4 attempts failed — including attempt 4, which needs no captions or
-    # download at all. That almost always means YouTube is blocking/rate-
-    # limiting this server's IP (common for cloud/datacenter hosts), not that
-    # the video itself is actually private/age-restricted/region-locked.
+    # ── Attempt 5: official YouTube Data API v3 (metadata only) ───────────
+    # Quota is per API key, not per IP reputation — immune to the block that
+    # kills the scraping paths above.
+    meta = await _youtube_data_api_metadata(vid_id)
+    if meta:
+        return {"title": meta["title"] or url, "content": meta["content"], "video_id": vid_id}
+
+    # A Piped/Invidious description-only result beats raising an error.
+    if alt_desc_fallback:
+        return {"title": alt_desc_fallback["title"] or url, "content": alt_desc_fallback["content"], "video_id": vid_id}
+
+    # Every attempt failed — including the metadata paths that need no
+    # captions or download at all. That almost always means YouTube is
+    # blocking/rate-limiting this server's IP (common for cloud/datacenter
+    # hosts), not that the video itself is private/age-restricted/region-locked.
     log.error("All YouTube extraction attempts failed for %s. Last yt-dlp stderr: %s", url, last_stderr)
     blocked_hint = (
         any(s in last_stderr.lower() for s in ("sign in", "confirm you", "not a bot", "429", "http error 403"))

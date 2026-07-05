@@ -668,6 +668,37 @@ async def ai_note_from_url(request: Request, req: NoteRequest, _: dict = Depends
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@app.post("/ai/note-text")
+@limiter.limit("10/minute")
+async def ai_note_from_text(request: Request, req: NoteTextRequest, _: dict = Depends(require_auth)):
+    """
+    Synthesize a study note from raw text the CLIENT extracted itself.
+    Used as the browser-side YouTube fallback: when this server's IP is
+    blocked by YouTube, the user's own browser (residential IP — not
+    blocked) fetches the transcript and submits it here.
+    """
+    # Transcripts run 30-100KB — far past check_prompt's 20K cap, which is
+    # sized for user-typed prompts. Enforce a transcript-sized cap here and
+    # run the injection/spam scan on a window (same treatment /ai/note gives
+    # server-extracted transcripts, which skip check_prompt entirely).
+    if len(req.content) > 400_000:
+        raise HTTPException(status_code=400, detail="Content too long — max 400,000 characters.")
+    check_prompt(req.content[:20_000], "content")
+    check_prompt(req.title, "title")
+    try:
+        result = await ai_svc.synthesize_note(
+            req.content, source_type=req.source_type or "text", source_title=req.title,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=502, detail=result.get("summary", "Synthesis failed."))
+        result["diagrams"] = []
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 @app.post("/ai/note-upload")
 @limiter.limit("10/minute")
 async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
