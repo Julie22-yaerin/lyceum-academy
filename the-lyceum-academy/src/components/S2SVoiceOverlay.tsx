@@ -40,7 +40,8 @@ export default function S2SVoiceOverlay({
   const [liveUserTranscription, setLiveUserTranscription] = useState('');
   const [liveAiTranscription, setLiveAiTranscription] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [toast, setToast] = useState<{ message: string; type: 'note' | 'mistake' | 'research'; image?: string } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'note' | 'mistake' | 'research'; images?: string[] } | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -64,7 +65,7 @@ export default function S2SVoiceOverlay({
   const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fallbackHistoryRef = useRef<{ role: string; content: string }[]>([]);
   // Last thing Gemma researched — what an [ATTACH: ...] tag attaches.
-  const lastResearchRef = useRef<{ topic: string; imageUrl?: string; sourceUrl?: string } | null>(null);
+  const lastResearchRef = useRef<{ topic: string; imageUrl?: string; imageUrls?: string[]; sourceUrl?: string } | null>(null);
 
   // Mirrors `status` for the async callbacks inside the setup effect below.
   // The effect itself must NOT depend on `status` (it calls setStatus internally —
@@ -116,8 +117,8 @@ export default function S2SVoiceOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMuted]);
 
-  function showToastMsg(message: string, type: 'note' | 'mistake' | 'research' | 'attach', image?: string) {
-    setToast({ message, type, image });
+  function showToastMsg(message: string, type: 'note' | 'mistake' | 'research' | 'attach', images?: string[]) {
+    setToast({ message, type, images });
     setTimeout(() => setToast(null), type === 'research' ? 8000 : 5000);
   }
 
@@ -126,21 +127,25 @@ export default function S2SVoiceOverlay({
   // concept a note/graph didn't cover, etc.), shows it as a toast, and feeds
   // the result back into the live session as a text turn so Ari can actually
   // talk about it on its next reply instead of just silently fetching it.
-  // Also remembers {topic, imageUrl, sourceUrl} so a follow-up [ATTACH: ...]
+  // Also remembers {topic, imageUrls, sourceUrl} so a follow-up [ATTACH: ...]
   // tag knows what to attach and where the source link points.
   // Core lookup: runs the Gemma-backed search, toasts + saves it to the
   // Reference Bank, and returns a plain-text result summary. Callers decide
   // how to feed that back to whichever model is currently active.
-  async function runResearch(topic: string): Promise<{ text: string; imageUrl?: string; sourceUrl?: string }> {
+  async function runResearch(topic: string): Promise<{ text: string; imageUrls: string[]; sourceUrl?: string }> {
     const result = await getNodeSummary(topic);
     const text = result.definition || result.summary || '';
-    const sourceUrl = `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
+    const imageUrls = result.image_urls?.length ? result.image_urls : (result.image_url ? [result.image_url] : []);
+    // Prefer the backend's real citation (Wikipedia article / Knowledge Graph
+    // entity page) — only fall back to a generic search link if it truly
+    // couldn't find one, so the source is an actual reference, not a query.
+    const sourceUrl = result.source_url || `https://www.google.com/search?q=${encodeURIComponent(topic)}`;
     if (text) {
-      lastResearchRef.current = { topic, imageUrl: result.image_url, sourceUrl };
-      showToastMsg(text, 'research', result.image_url);
-      saveReference({ topic, summary: text, imageUrl: result.image_url, sourceUrl });
+      lastResearchRef.current = { topic, imageUrl: imageUrls[0], imageUrls, sourceUrl };
+      showToastMsg(text, 'research', imageUrls);
+      saveReference({ topic, summary: text, imageUrl: imageUrls[0], imageUrls, sourceUrl });
     }
-    return { text, imageUrl: result.image_url, sourceUrl };
+    return { text, imageUrls, sourceUrl };
   }
 
   // Text-tag path (used by the GPT fallback, and as a legacy path for Live —
@@ -149,9 +154,9 @@ export default function S2SVoiceOverlay({
   // bracket tag out loud).
   async function handleResearch(topic: string) {
     try {
-      const { text, imageUrl } = await runResearch(topic);
+      const { text, imageUrls } = await runResearch(topic);
       if (!text) return;
-      const relayText = `[Gemma researched "${topic}": ${text}${imageUrl ? ' (with an illustrative image)' : ''}. Summarize this briefly for the student out loud.]`;
+      const relayText = `[Gemma researched "${topic}": ${text}${imageUrls.length ? ' (with an illustrative image)' : ''}. Summarize this briefly for the student out loud.]`;
       if (wsRef.current?.readyState === WebSocket.OPEN) {
         wsRef.current.send(JSON.stringify({
           clientContent: {
@@ -596,9 +601,9 @@ export default function S2SVoiceOverlay({
                   let response: Record<string, unknown> = {};
                   try {
                     if (call.name === 'research_topic') {
-                      const { text, imageUrl } = await runResearch(String(call.args?.topic || ''));
+                      const { text, imageUrls } = await runResearch(String(call.args?.topic || ''));
                       response = text
-                        ? { result: text, has_image: !!imageUrl }
+                        ? { result: text, has_image: imageUrls.length > 0 }
                         : { result: 'No reference material found for that topic.' };
                     } else if (call.name === 'attach_reference') {
                       const ok = handleAttach(String(call.args?.target_type || ''), String(call.args?.target_text || ''));
@@ -769,18 +774,44 @@ export default function S2SVoiceOverlay({
   return (
     <>
       {toast && (
-        <div className="fixed bottom-24 md:bottom-28 right-6 z-40 max-w-xs glass-strong rounded-2xl p-3 shadow-2xl flex gap-3 items-start animate-scale-in">
-          {toast.image && (
-            <img src={toast.image} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-          )}
-          <div className="min-w-0">
-            <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-1">
-              {toast.type === 'research' ? '🔎 Gemma researched' :
-               toast.type === 'attach' ? '📎 Attached' :
-               toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
-            </span>
-            <p className="font-sans text-xs text-white/85 leading-relaxed line-clamp-4">{toast.message}</p>
+        <div className="fixed bottom-24 md:bottom-28 right-6 z-40 max-w-xs glass-strong rounded-2xl p-3 shadow-2xl animate-scale-in">
+          <div className="flex gap-3 items-start">
+            {toast.images && toast.images.length > 0 && (
+              <img src={toast.images[0]} alt="" onClick={() => setLightboxImage(toast.images![0])}
+                className="w-12 h-12 rounded-xl object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" />
+            )}
+            <div className="min-w-0">
+              <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-1">
+                {toast.type === 'research' ? '🔎 Gemma researched' :
+                 toast.type === 'attach' ? '📎 Attached' :
+                 toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
+              </span>
+              <p className="font-sans text-xs text-white/85 leading-relaxed line-clamp-4">{toast.message}</p>
+            </div>
           </div>
+          {/* Extra reference images (2nd/3rd) — small strip, click to view full-size on a blurred backdrop */}
+          {toast.images && toast.images.length > 1 && (
+            <div className="flex gap-2 mt-2 pl-[60px]">
+              {toast.images.slice(1, 3).map((img, i) => (
+                <img key={i} src={img} alt="" onClick={() => setLightboxImage(img)}
+                  className="w-9 h-9 rounded-lg object-cover cursor-pointer opacity-80 hover:opacity-100 transition-opacity" />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lightbox: full-size reference image on a blurred backdrop */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[250] flex items-center justify-center p-8 bg-black/60 backdrop-blur-xl animate-scale-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <img src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
+          <button onClick={() => setLightboxImage(null)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full glass-strong flex items-center justify-center text-white/80 hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
         </div>
       )}
 

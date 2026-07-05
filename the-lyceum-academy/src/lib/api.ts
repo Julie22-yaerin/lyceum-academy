@@ -61,7 +61,11 @@ export async function getNodeSummary(concept: string) {
     const body = await res.text().catch(() => '');
     throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
   }
-  return res.json() as Promise<{ summary?: string; definition?: string; image_url?: string; equations?: string[]; example?: string; key_insight?: string }>;
+  return res.json() as Promise<{
+    summary?: string; definition?: string;
+    image_url?: string; image_urls?: string[]; source_url?: string;
+    equations?: string[]; example?: string; key_insight?: string;
+  }>;
 }
 
 /** GPT (NVIDIA gpt-oss-20b) text fallback for ARI when Gemini Live's WS is down. */

@@ -1,19 +1,34 @@
 import { useState } from 'react';
 import { loadReferences, deleteReference, SUBJECT_META, type ReferenceEntry } from '../lib/persist';
 
-function ReferenceCard({ entry, onDelete }: { entry: ReferenceEntry; onDelete: () => void }) {
+function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry; onDelete: () => void; onOpenImage: (url: string) => void }) {
   const date = new Date(entry.savedAt);
   const dateStr = date.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const images = entry.imageUrls?.length ? entry.imageUrls : (entry.imageUrl ? [entry.imageUrl] : []);
+  // A real Wikipedia/Knowledge-Graph article, not a generic search query — label it accordingly.
+  const isCitable = !!entry.sourceUrl && !entry.sourceUrl.includes('google.com/search');
 
   return (
     <div className="glass-strong rounded-2xl p-4 flex gap-4 items-start hover:bg-white/[0.03] transition-all">
-      {entry.imageUrl && (
-        <img
-          src={entry.imageUrl}
-          alt=""
-          className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+      {images.length > 0 && (
+        <div className="flex flex-col gap-1.5 flex-shrink-0">
+          <img
+            src={images[0]}
+            alt=""
+            onClick={() => onOpenImage(images[0])}
+            className="w-16 h-16 rounded-xl object-cover cursor-pointer hover:opacity-85 transition-opacity"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+          {images.length > 1 && (
+            <div className="flex gap-1.5">
+              {images.slice(1, 3).map((img, i) => (
+                <img key={i} src={img} alt="" onClick={() => onOpenImage(img)}
+                  className="w-[29px] h-[29px] rounded-md object-cover cursor-pointer opacity-80 hover:opacity-100 transition-opacity"
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              ))}
+            </div>
+          )}
+        </div>
       )}
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2 mb-1">
@@ -32,7 +47,7 @@ function ReferenceCard({ entry, onDelete }: { entry: ReferenceEntry; onDelete: (
               rel="noreferrer"
               className="font-sans text-[10px] text-blue-300/70 hover:text-blue-300 transition-colors"
             >
-              Source ↗
+              {isCitable ? 'Source ↗' : 'Search ↗'}
             </a>
           )}
         </div>
@@ -44,6 +59,7 @@ function ReferenceCard({ entry, onDelete }: { entry: ReferenceEntry; onDelete: (
 export default function ReferenceBankView() {
   const [refs, setRefs] = useState<ReferenceEntry[]>(() => loadReferences());
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
   function handleDelete(id: string) {
     deleteReference(id);
@@ -109,7 +125,7 @@ export default function ReferenceBankView() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {byCategory[cat].map(r => (
-                      <ReferenceCard key={r.id} entry={r} onDelete={() => handleDelete(r.id)} />
+                      <ReferenceCard key={r.id} entry={r} onDelete={() => handleDelete(r.id)} onOpenImage={setLightboxImage} />
                     ))}
                   </div>
                 </div>
@@ -117,6 +133,20 @@ export default function ReferenceBankView() {
             })}
           </div>
         </>
+      )}
+
+      {/* Lightbox: full-size reference image on a blurred backdrop */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-[250] flex items-center justify-center p-8 bg-black/60 backdrop-blur-xl animate-scale-in"
+          onClick={() => setLightboxImage(null)}
+        >
+          <img src={lightboxImage} alt="" className="max-w-full max-h-full rounded-2xl shadow-2xl" onClick={e => e.stopPropagation()} />
+          <button onClick={() => setLightboxImage(null)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full glass-strong flex items-center justify-center text-white/80 hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[20px]">close</span>
+          </button>
+        </div>
       )}
     </div>
   );

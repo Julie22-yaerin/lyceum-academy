@@ -844,15 +844,50 @@ async def topic_to_nodemap(topic: str) -> dict:
     return {"raw": raw, "error": "parse_failed", "topic": topic, "nodes": [], "edges": []}
 
 
-async def _fetch_google_image(query: str) -> str | None:
+async def _get_with_retry(
+    client: "httpx.AsyncClient", url: str, headers: dict, retries: int = 2, backoff: float = 0.35,
+) -> "httpx.Response | None":
     """
-    Fetch an image URL using the Google Knowledge Graph Search API.
-    Uses the existing GOOGLE_API_KEY — no additional key required.
+    GET with a couple of quick retries. The Wikipedia/Knowledge-Graph lookups
+    behind Gemma's research feature are flaky enough (transient timeouts,
+    momentary rate limits) that the same query can return 3 images on one
+    call and 0 on the next with no retry at all — this is what was causing
+    "common topics sometimes show no image" reports.
+    """
+    import asyncio, logging
+    log = logging.getLogger("pclick")
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            r = await client.get(url, headers=headers)
+            if r.status_code == 200:
+                return r
+            if r.status_code in (429, 502, 503, 504) and attempt < retries:
+                await asyncio.sleep(backoff * (attempt + 1))
+                continue
+            return r
+        except Exception as e:
+            last_exc = e
+            if attempt < retries:
+                await asyncio.sleep(backoff * (attempt + 1))
+                continue
+    if last_exc:
+        log.debug("_get_with_retry(%s) exhausted retries: %s", url[:80], last_exc)
+    return None
+
+
+async def _fetch_google_media(query: str) -> dict:
+    """
+    Fetch up to 3 image URLs + a real citation link using the Google Knowledge
+    Graph Search API. Uses the existing GOOGLE_API_KEY — no additional key
+    required. Returns {"images": [...], "source_url": str | None}.
     """
     if not settings.google_api_key:
-        return None
+        return {"images": [], "source_url": None}
     import urllib.parse, logging
     log = logging.getLogger("pclick")
+    images: list[str] = []
+    source_url: str | None = None
     try:
         encoded = urllib.parse.quote(query, safe="")
         url = (
@@ -860,27 +895,45 @@ async def _fetch_google_image(query: str) -> str | None:
             f"?query={encoded}&key={settings.google_api_key}&limit=3&indent=False"
         )
         async with httpx.AsyncClient(timeout=6) as client:
-            r = await client.get(url, headers={"User-Agent": "Pclick/1.0"})
-            if r.status_code == 200:
+            r = await _get_with_retry(client, url, {"User-Agent": "Pclick/1.0"})
+            if r and r.status_code == 200:
                 items = r.json().get("itemListElement", [])
                 for item in items:
-                    img = item.get("result", {}).get("image", {}).get("contentUrl")
-                    if img:
-                        return img
+                    result = item.get("result", {})
+                    img = result.get("image", {}).get("contentUrl")
+                    if img and img not in images:
+                        images.append(img)
+                    if not source_url:
+                        # Prefer the entity's own detailed-description source
+                        # (usually Wikipedia) over its raw homepage URL —
+                        # that's a citable reference, not just a link.
+                        source_url = (
+                            result.get("detailedDescription", {}).get("url")
+                            or result.get("url")
+                        )
     except Exception as e:
-        log.debug("_fetch_google_image(%s) failed: %s", query, e)
-    return None
+        log.debug("_fetch_google_media(%s) failed: %s", query, e)
+    return {"images": images[:3], "source_url": source_url}
 
 
-async def _fetch_wiki_image(query: str) -> str | None:
+async def _fetch_wiki_media(query: str) -> dict:
     """
-    Fetch a thumbnail image from Wikipedia using two strategies:
-    1. Wikipedia search API → pageimages API (most reliable for math/science)
-    2. REST summary fallback
+    Fetch up to 3 real content images + the article URL from Wikipedia.
+    Returns {"images": [...], "source_url": str | None}.
     """
     import urllib.parse, logging, re
     log = logging.getLogger("pclick")
     headers = {"User-Agent": "Pclick/1.0 (educational app)"}
+
+    def _article_url(title: str) -> str:
+        return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
+
+    # Skip icons/logos/edit-buttons that Wikipedia articles are full of —
+    # not useful as an "illustrative image" for a student.
+    _junk = re.compile(
+        r"(commons-logo|wiktionary|wikiquote|edit-icon|folder|question_book|"
+        r"padlock|disambig|ambox|nuvola|icon|\.svg$)", re.IGNORECASE,
+    )
 
     async def _pageimages_api(title: str) -> str | None:
         """Use prop=pageimages — works for articles without a lead photo too."""
@@ -892,8 +945,8 @@ async def _fetch_wiki_image(query: str) -> str | None:
         )
         try:
             async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get(url, headers=headers)
-                if r.status_code == 200:
+                r = await _get_with_retry(client, url, headers)
+                if r and r.status_code == 200:
                     pages = r.json().get("query", {}).get("pages", {})
                     for page in pages.values():
                         thumb = page.get("thumbnail", {}).get("source")
@@ -903,33 +956,59 @@ async def _fetch_wiki_image(query: str) -> str | None:
             log.debug("_pageimages_api(%s): %s", title, e)
         return None
 
-    async def _rest_summary(title: str) -> str | None:
-        encoded = urllib.parse.quote(title.replace(" ", "_"), safe="")
+    async def _extra_images(title: str, limit: int = 4) -> list[str]:
+        """List a few more content images from the article body (beyond the lead photo)."""
+        encoded = urllib.parse.quote(title, safe="")
         try:
             async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get(
-                    f"https://en.wikipedia.org/api/rest_v1/page/summary/{encoded}",
-                    headers=headers,
+                r = await _get_with_retry(
+                    client,
+                    "https://en.wikipedia.org/w/api.php"
+                    f"?action=query&titles={encoded}&prop=images&imlimit={limit + 5}&format=json",
+                    headers,
                 )
-                if r.status_code == 200:
-                    thumb = r.json().get("thumbnail", {}).get("source")
-                    if thumb:
-                        return re.sub(r"/\d+px-", "/600px-", thumb)
+                if not r or r.status_code != 200:
+                    return []
+                pages = r.json().get("query", {}).get("pages", {})
+                filenames = [
+                    im["title"] for page in pages.values()
+                    for im in page.get("images", [])
+                    if not _junk.search(im.get("title", ""))
+                ][:limit]
+                if not filenames:
+                    return []
+                titles_param = urllib.parse.quote("|".join(filenames), safe="|")
+                r2 = await _get_with_retry(
+                    client,
+                    "https://en.wikipedia.org/w/api.php"
+                    f"?action=query&titles={titles_param}&prop=imageinfo&iiprop=url"
+                    "&iiurlwidth=600&format=json",
+                    headers,
+                )
+                if not r2 or r2.status_code != 200:
+                    return []
+                pages2 = r2.json().get("query", {}).get("pages", {})
+                return [
+                    info["thumburl"] for page in pages2.values()
+                    for info in page.get("imageinfo", [])
+                    if info.get("thumburl")
+                ]
         except Exception as e:
-            log.debug("_rest_summary(%s): %s", title, e)
-        return None
+            log.debug("_extra_images(%s): %s", title, e)
+            return []
 
     async def _search_title(q: str) -> str | None:
         """Return the best Wikipedia article title for query q."""
         encoded = urllib.parse.quote(q, safe="")
         try:
             async with httpx.AsyncClient(timeout=8) as client:
-                r = await client.get(
+                r = await _get_with_retry(
+                    client,
                     f"https://en.wikipedia.org/w/api.php"
                     f"?action=query&list=search&srsearch={encoded}&srlimit=1&format=json",
-                    headers=headers,
+                    headers,
                 )
-                if r.status_code == 200:
+                if r and r.status_code == 200:
                     hits = r.json().get("query", {}).get("search", [])
                     if hits:
                         return hits[0]["title"]
@@ -937,32 +1016,62 @@ async def _fetch_wiki_image(query: str) -> str | None:
             log.debug("_search_title(%s): %s", q, e)
         return None
 
-    # Strategy 1: search → pageimages (best for math/science diagrams)
-    title = await _search_title(query)
-    if title:
-        img = await _pageimages_api(title)
-        if img:
-            log.debug("wiki image found via pageimages: %s", img[:60])
-            return img
-        img = await _rest_summary(title)
-        if img:
-            return img
+    title = await _search_title(query) or query
+    images: list[str] = []
+    lead = await _pageimages_api(title)
+    if lead:
+        images.append(lead)
+    for extra in await _extra_images(title):
+        if extra not in images:
+            images.append(extra)
+        if len(images) >= 3:
+            break
 
-    # Strategy 2: direct exact-title lookup
-    img = await _pageimages_api(query)
-    if img:
-        return img
-
-    return None
+    if not images:
+        return {"images": [], "source_url": None}
+    return {"images": images[:3], "source_url": _article_url(title)}
 
 
-async def _fetch_node_image(label: str) -> str | None:
-    """Google Knowledge Graph first, Wikipedia fallback."""
-    import asyncio
-    img = await _fetch_google_image(label)
-    if not img:
-        img = await _fetch_wiki_image(label)
-    return img
+_MEDIA_CACHE: dict[str, tuple[float, dict]] = {}
+_MEDIA_CACHE_TTL = 24 * 3600   # a day — image/citation results for a topic don't go stale
+_MEDIA_CACHE_MAX = 500
+
+
+async def _fetch_node_media(label: str) -> dict:
+    """
+    Google Knowledge Graph first (images + citation), Wikipedia fills in
+    anything still missing. Returns {"images": [...], "source_url": str | None}.
+
+    Cached in-process by topic: Wikipedia/KG occasionally throttle bursts of
+    requests from the same server IP, so a topic that failed to return images
+    a moment ago can succeed on the next try and vice versa. Once a topic
+    resolves with at least one image, we stop re-rolling that dice for
+    everyone asking about it — which also matters because common topics
+    (photosynthesis, sodium chloride, ...) get asked about constantly.
+    """
+    import time
+    key = label.strip().lower()
+    cached = _MEDIA_CACHE.get(key)
+    if cached and time.time() - cached[0] < _MEDIA_CACHE_TTL:
+        return cached[1]
+
+    google = await _fetch_google_media(label)
+    if len(google["images"]) >= 3 and google["source_url"]:
+        result = google
+    else:
+        wiki = await _fetch_wiki_media(label)
+        images = google["images"] + [i for i in wiki["images"] if i not in google["images"]]
+        result = {
+            "images": images[:3],
+            "source_url": google["source_url"] or wiki["source_url"],
+        }
+
+    if result["images"]:
+        if len(_MEDIA_CACHE) >= _MEDIA_CACHE_MAX:
+            oldest_key = min(_MEDIA_CACHE, key=lambda k: _MEDIA_CACHE[k][0])
+            _MEDIA_CACHE.pop(oldest_key, None)
+        _MEDIA_CACHE[key] = (time.time(), result)
+    return result
 
 
 async def node_summary(
@@ -972,11 +1081,15 @@ async def node_summary(
     connections: list[str],
 ) -> dict:
     """
-    NVIDIA Gemma summary for a knowledge graph node + Google/Wikipedia image.
-    Returns {definition, equations, example, key_insight, formula_display, image_url}
+    NVIDIA Gemma summary for a knowledge graph node + Google/Wikipedia images.
+    Returns {definition, equations, example, key_insight, formula_display,
+             image_url, image_urls, source_url}
     - equations: Unicode math strings (no LaTeX)
     - formula_display: the most iconic equation to show large
-    - image_url: Google Knowledge Graph image, then Wikipedia fallback
+    - image_urls: up to 3 images (Google Knowledge Graph first, Wikipedia fills
+      in the rest); image_url is kept as the first one for backward compat
+    - source_url: a real citable reference (Wikipedia article / KG entity page),
+      not a generic search-engine link
     """
     import logging, asyncio
     log = logging.getLogger("pclick")
@@ -1033,15 +1146,20 @@ async def node_summary(
             log.warning("node_summary chat() fallback failed: %s", e)
             return ""
 
-    # Run text generation + image search concurrently
-    raw, image_url = await asyncio.gather(
+    # Run text generation + image/citation search concurrently
+    raw, media = await asyncio.gather(
         _nvidia_summary(),
-        _fetch_node_image(label),
+        _fetch_node_media(label),
     )
+    image_urls = media["images"]
+    source_url = media["source_url"]
+    image_url = image_urls[0] if image_urls else None
 
     parsed = _parse_json_robust(raw)
     if parsed and parsed.get("definition"):
         parsed["image_url"] = image_url
+        parsed["image_urls"] = image_urls
+        parsed["source_url"] = source_url
         return parsed
 
     return {
@@ -1051,6 +1169,8 @@ async def node_summary(
         "key_insight": "",
         "formula_display": "",
         "image_url": image_url,
+        "image_urls": image_urls,
+        "source_url": source_url,
     }
 
 
@@ -3377,6 +3497,16 @@ async def get_youtube_content(url: str) -> dict:
     # privacy — if a cookies file is configured, every yt-dlp call below uses
     # it so requests look like they come from a real logged-in session.
     cookies_args = ["--cookies", settings.ytdlp_cookies_file] if settings.ytdlp_cookies_file else []
+    # Route through a proxy if one is configured (helps when the server's own
+    # IP has been rate-limited/blacklisted by YouTube).
+    proxy_args = ["--proxy", settings.ytdlp_proxy] if settings.ytdlp_proxy else []
+    # The android/ios player clients skip several of the bot-detection/
+    # signature checks the web client is subject to — a well-known, low-risk
+    # workaround for "Sign in to confirm you're not a bot" / 403 errors that
+    # has nothing to do with the video itself. Listing more than one lets
+    # yt-dlp fall through to the next client if the first gets blocked too.
+    client_args = ["--extractor-args", "youtube:player_client=android,ios,web"]
+    yt_common_args = [*cookies_args, *proxy_args, *client_args]
     last_stderr = ""
 
     # ── Attempt 1: youtube-transcript-api ─────────────────────────────────
@@ -3403,7 +3533,7 @@ async def get_youtube_content(url: str) -> dict:
                 "--sub-langs", "en,vi,en-US,vi-VN",
                 "--sub-format", "vtt",
                 "--no-playlist",
-                *cookies_args,
+                *yt_common_args,
                 "-o", out_tmpl,
                 url,
             ],
@@ -3422,7 +3552,7 @@ async def get_youtube_content(url: str) -> dict:
                 # Try to get title from yt-dlp json too
                 try:
                     meta = subprocess.run(
-                        ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
+                        ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *yt_common_args, url],
                         capture_output=True, text=True, timeout=15,
                     )
                     if meta.returncode == 0:
@@ -3453,7 +3583,7 @@ async def get_youtube_content(url: str) -> dict:
                     "--audio-quality", "5",          # 128kbps — good enough for speech
                     "--max-filesize", "24M",         # Groq Whisper limit is 25MB
                     "--no-playlist",
-                    *cookies_args,
+                    *yt_common_args,
                     "-o", out_tmpl2,
                     url,
                 ],
@@ -3476,7 +3606,7 @@ async def get_youtube_content(url: str) -> dict:
                         # Get title
                         try:
                             meta = subprocess.run(
-                                ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
+                                ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *yt_common_args, url],
                                 capture_output=True, text=True, timeout=15,
                             )
                             if meta.returncode == 0:
@@ -3496,7 +3626,7 @@ async def get_youtube_content(url: str) -> dict:
     # ── Attempt 4: yt-dlp metadata only (thin fallback) ───────────────────
     try:
         proc3 = await loop.run_in_executor(None, lambda: subprocess.run(
-            ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *cookies_args, url],
+            ["yt-dlp", "--dump-json", "--no-download", "--no-playlist", *yt_common_args, url],
             capture_output=True, text=True, timeout=20,
         ))
         if proc3.returncode == 0:
@@ -3529,9 +3659,9 @@ async def get_youtube_content(url: str) -> dict:
     )
     if blocked_hint or last_stderr:
         raise RuntimeError(
-            "Server hiện đang bị YouTube giới hạn/chặn tạm thời (rất có thể do IP của server, "
-            "không phải do video của bạn). Thử lại sau ít phút, hoặc dùng file PDF/ảnh thay vì link YouTube. "
-            f"(chi tiết: {last_stderr[:200] or 'no stderr captured'})"
+            "YouTube is currently rate-limiting/blocking this server (most likely the server's IP, "
+            "not your video). Try again in a few minutes, or use a PDF/image upload instead of a YouTube link. "
+            f"(details: {last_stderr[:200] or 'no stderr captured'})"
         )
     raise RuntimeError(
         "Could not extract content from this YouTube video. "

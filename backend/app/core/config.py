@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # extension) and pointing this at that file lets yt-dlp authenticate as
     # a real session, which YouTube treats far less suspiciously.
     ytdlp_cookies_file: str = ""
+    # Route yt-dlp through a proxy (http://user:pass@host:port or socks5://...)
+    # when the server's own IP gets rate-limited/blocked by YouTube.
+    ytdlp_proxy: str = ""
 
     # ── Google AI Studio (optional — needs AIza... key) ──────────
     google_api_key:       str = ""

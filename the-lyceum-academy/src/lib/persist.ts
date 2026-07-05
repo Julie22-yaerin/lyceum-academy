@@ -276,8 +276,9 @@ export interface ReferenceEntry {
   topic: string;
   category: string;      // SUBJECT_META key, via detectSubject(topic)
   summary: string;
-  imageUrl?: string;
-  sourceUrl?: string;
+  imageUrl?: string;      // kept for backward compat — first of imageUrls
+  imageUrls?: string[];   // up to 3 images (Google Knowledge Graph + Wikipedia)
+  sourceUrl?: string;     // real citable reference (Wikipedia/KG entity page)
   savedAt: number;
 }
 
