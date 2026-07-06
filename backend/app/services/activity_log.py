@@ -31,6 +31,19 @@ CREATE TABLE IF NOT EXISTS ai_activity_log (
 );
 CREATE INDEX IF NOT EXISTS idx_ai_activity_created_at ON ai_activity_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_ai_activity_provider ON ai_activity_log(provider);
+
+-- Never pruned, unlike ai_activity_log's rolling window — this is the
+-- authoritative "total tokens used globally, per model" source for the
+-- admin dashboard. ai_activity_log is only for the recent-activity table.
+CREATE TABLE IF NOT EXISTS ai_model_totals (
+    model                     TEXT PRIMARY KEY,
+    provider                  TEXT    NOT NULL DEFAULT '',
+    total_calls               INTEGER NOT NULL DEFAULT 0,
+    total_prompt_tokens       INTEGER NOT NULL DEFAULT 0,
+    total_completion_tokens   INTEGER NOT NULL DEFAULT 0,
+    first_used                TEXT    NOT NULL,
+    last_used                 TEXT    NOT NULL
+);
 """
 
 # Maps the Python function name that triggered the call (captured
@@ -84,6 +97,7 @@ def record(provider: str, task: str, model: str = "", prompt_tokens: int = 0, co
     try:
         role = ROLE_LABELS.get(task, task or "unknown")
         now = datetime.now(timezone.utc).isoformat()
+        model_key = model or f"({provider} — unspecified)"
         with _conn() as c:
             c.execute(
                 """INSERT INTO ai_activity_log
@@ -91,8 +105,24 @@ def record(provider: str, task: str, model: str = "", prompt_tokens: int = 0, co
                    VALUES (?,?,?,?,?,?,?)""",
                 (now, provider, model, task, role, prompt_tokens, completion_tokens),
             )
-            # Prune occasionally rather than every insert (cheap check, avoids
-            # a COUNT(*) scan on the hot path most of the time).
+            # Global per-model totals — upsert, never pruned. This is what
+            # answers "how many tokens has each model used across ALL users,
+            # ever," which the rolling-window log alone can't (it drops old
+            # rows once _MAX_ROWS is exceeded).
+            c.execute(
+                """INSERT INTO ai_model_totals
+                       (model, provider, total_calls, total_prompt_tokens, total_completion_tokens, first_used, last_used)
+                   VALUES (?,?,1,?,?,?,?)
+                   ON CONFLICT(model) DO UPDATE SET
+                       total_calls = total_calls + 1,
+                       total_prompt_tokens = total_prompt_tokens + excluded.total_prompt_tokens,
+                       total_completion_tokens = total_completion_tokens + excluded.total_completion_tokens,
+                       last_used = excluded.last_used""",
+                (model_key, provider, prompt_tokens, completion_tokens, now, now),
+            )
+            # Prune the detail log occasionally rather than every insert
+            # (cheap check, avoids a COUNT(*) scan on the hot path most of
+            # the time). ai_model_totals above is NEVER pruned.
             row_id = c.execute("SELECT last_insert_rowid()").fetchone()[0]
             if row_id % 200 == 0:
                 total = c.execute("SELECT COUNT(*) FROM ai_activity_log").fetchone()[0]
@@ -125,7 +155,8 @@ def list_recent(limit: int = 100, offset: int = 0, provider: str = "", task: str
 
 
 def summary() -> dict:
-    """All-time (within the rolling window) counts grouped by role/provider."""
+    """Counts grouped by role/provider, within the rolling detail-log window
+    (recent activity only — see model_totals() for true all-time totals)."""
     with _conn() as c:
         total = c.execute("SELECT COUNT(*) FROM ai_activity_log").fetchone()[0]
         by_role = c.execute(
@@ -136,3 +167,18 @@ def summary() -> dict:
                FROM ai_activity_log GROUP BY role, provider ORDER BY calls DESC"""
         ).fetchall()
     return {"total_calls": total, "by_role": [dict(r) for r in by_role]}
+
+
+def model_totals() -> list[dict]:
+    """
+    True all-time token usage per model, across every user/session this
+    backend has ever served — never pruned, unlike list_recent()/summary().
+    """
+    with _conn() as c:
+        rows = c.execute(
+            """SELECT model, provider, total_calls, total_prompt_tokens, total_completion_tokens,
+                      (total_prompt_tokens + total_completion_tokens) as total_tokens,
+                      first_used, last_used
+               FROM ai_model_totals ORDER BY total_tokens DESC"""
+        ).fetchall()
+    return [dict(r) for r in rows]

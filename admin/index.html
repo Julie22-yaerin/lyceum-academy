@@ -382,17 +382,41 @@ async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){t
 
 // Free / near-free models on Ollama Cloud — ollama.com/settings/keys
 // Context: 128K unless noted. Tier: Level 1 = free, Level 2 = near-free.
+// Mirrors backend/app/core/config.py's actual model constants — keep in
+// sync when those change. modelId is the exact string sent to the provider
+// API, which is also what shows up in the activity log / model_totals.
 const DEFAULT_MODELS = [
-  { id:'qwen2.5-14b',  name:'Qwen 2.5 14B',    provider:'Ollama Cloud', color:'#6ee7b7', context:'128K', tier:'Near-free' },
-  { id:'llama3.1-8b',  name:'Llama 3.1 8B',    provider:'Ollama Cloud', color:'#4285f4', context:'128K', tier:'Free' },
-  { id:'qwen2.5-7b',   name:'Qwen 2.5 7B',     provider:'Ollama Cloud', color:'#58a6ff', context:'128K', tier:'Free' },
-  { id:'mistral-7b',   name:'Mistral 7B',       provider:'Ollama Cloud', color:'#bc8cff', context:'32K',  tier:'Free' },
-  { id:'deepseek-r1',  name:'DeepSeek R1',      provider:'OpenRouter',   color:'#d29922', context:'128K', tier:'Paid' },
+  { id:'groq-qwen3-32b',         name:'Qwen3 32B',                    provider:'Groq',             modelId:'qwen/qwen3-32b',                              color:'#FF6B35', context:'131K', tier:'Free' },
+  { id:'groq-llama31-8b',        name:'Llama 3.1 8B Instant',         provider:'Groq',             modelId:'llama-3.1-8b-instant',                        color:'#FF6B35', context:'131K', tier:'Free' },
+  { id:'gemini-2.5-flash',       name:'Gemini 2.5 Flash',             provider:'Google AI Studio', modelId:'gemini-2.5-flash',                            color:'#4285F4', context:'1M',   tier:'Free' },
+  { id:'gemma-3-27b',            name:'Gemma 3 27B IT',               provider:'Google AI Studio', modelId:'gemma-3-27b-it',                              color:'#4285F4', context:'128K', tier:'Free' },
+  { id:'gemini-live-audio',      name:'Gemini 2.5 Flash Live (native audio)', provider:'Google AI Studio', modelId:'gemini-2.5-flash-native-audio-preview-12-2025', color:'#4285F4', context:'32K', tier:'Free' },
+  { id:'nvidia-gemma-2-2b',      name:'Gemma 2 2B IT',                provider:'NVIDIA NIM',       modelId:'google/gemma-2-2b-it',                        color:'#76B900', context:'8K',   tier:'Free' },
+  { id:'nvidia-llama32-vision',  name:'Llama 3.2 11B Vision',         provider:'NVIDIA NIM',       modelId:'meta/llama-3.2-11b-vision-instruct',          color:'#76B900', context:'128K', tier:'Free' },
+  { id:'nvidia-llama31-70b',     name:'Llama 3.1 70B Instruct',       provider:'NVIDIA NIM',       modelId:'meta/llama-3.1-70b-instruct',                 color:'#76B900', context:'128K', tier:'Free' },
+  { id:'nvidia-gpt-oss-20b',     name:'GPT-OSS 20B',                  provider:'NVIDIA NIM',       modelId:'openai/gpt-oss-20b',                          color:'#76B900', context:'128K', tier:'Free' },
+  { id:'openrouter-nemotron',    name:'Nemotron 3 Super 120B',        provider:'OpenRouter',       modelId:'nvidia/nemotron-3-super-120b-a12b:free',      color:'#7C3AED', context:'128K', tier:'Free' },
+  { id:'openrouter-qwen3-coder', name:'Qwen3 Coder',                  provider:'OpenRouter',       modelId:'qwen/qwen3-coder:free',                       color:'#7C3AED', context:'128K', tier:'Free' },
+  { id:'ollama-deepseek-v4',     name:'DeepSeek V4 Flash',            provider:'Ollama Cloud',     modelId:'deepseek-v4-flash',                           color:'#6B7280', context:'1M',   tier:'Free' },
+  { id:'ollama-qwen3.5-9b',      name:'Qwen3.5 9B',                   provider:'Ollama Cloud',     modelId:'qwen3.5:9b',                                  color:'#6B7280', context:'128K', tier:'Free' },
 ];
 
+// Bump this whenever DEFAULT_MODELS changes in a way that should replace
+// whatever's saved in the admin's browser — old placeholder models (Qwen
+// 2.5 14B, Mistral 7B, etc. that never matched any real backend model) get
+// wiped and replaced rather than accumulating alongside the real list.
+const MODELS_SCHEMA_VERSION = 2;
+
 function loadModels() {
-  try { return JSON.parse(localStorage.getItem('pclick:training:models')) || DEFAULT_MODELS; }
-  catch { return DEFAULT_MODELS; }
+  try {
+    const storedVersion = parseInt(localStorage.getItem('pclick:training:models:version') || '1', 10);
+    if (storedVersion < MODELS_SCHEMA_VERSION) {
+      saveModels(DEFAULT_MODELS);
+      localStorage.setItem('pclick:training:models:version', String(MODELS_SCHEMA_VERSION));
+      return DEFAULT_MODELS;
+    }
+    return JSON.parse(localStorage.getItem('pclick:training:models')) || DEFAULT_MODELS;
+  } catch { return DEFAULT_MODELS; }
 }
 function saveModels(m) { localStorage.setItem('pclick:training:models', JSON.stringify(m)); }
 
@@ -409,6 +433,26 @@ function loadTasks(modelId) {
 }
 function saveTasks(modelId, tasks) {
   localStorage.setItem(`pclick:training:tasks:${modelId}`, JSON.stringify(tasks));
+}
+
+// ── User Types (by Symptom) — what kind of struggling student this model
+// should recognize, and how it should respond to that pattern.
+function loadUserTypes(modelId) {
+  try { return JSON.parse(localStorage.getItem(`pclick:training:usertypes:${modelId}`)) || []; }
+  catch { return []; }
+}
+function saveUserTypes(modelId, items) {
+  localStorage.setItem(`pclick:training:usertypes:${modelId}`, JSON.stringify(items));
+}
+
+// ── Connections with other AI — how this model's task hands off to / feeds
+// from another model in the pipeline (e.g. ARI -> Gemma research -> ARI).
+function loadConnections(modelId) {
+  try { return JSON.parse(localStorage.getItem(`pclick:training:connections:${modelId}`)) || []; }
+  catch { return []; }
+}
+function saveConnections(modelId, items) {
+  localStorage.setItem(`pclick:training:connections:${modelId}`, JSON.stringify(items));
 }
 
 // Few-shot examples stored in backend: subject = "train__{modelId}__{taskId}"
@@ -430,7 +474,7 @@ function setActiveNav(id) {
   if (btn) btn.classList.add('active');
 }
 
-function viewModels() {
+async function viewModels() {
   hide('view-model-detail');
   hide('view-activity');
   setActiveNav('nav-models');
@@ -438,12 +482,16 @@ function viewModels() {
   show('view-models');
   const models = loadModels();
 
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const tokensByModel = await fetchModelTotals();
+
   el.innerHTML = `
     <div class="space-y-6 fade-in">
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-xl font-bold">Training AI</h1>
-          <p class="text-sm mt-0.5" style="color:var(--muted)">Manage roles, tasks, and few-shot examples for each model</p>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Current production models — role &amp; characteristic, user types, tasks, and cross-AI connections</p>
         </div>
         <button onclick="openAddModel()" class="btn btn-ghost text-xs">+ Add model</button>
       </div>
@@ -456,6 +504,7 @@ function viewModels() {
             ? 'background:rgba(88,166,255,.08);color:#58a6ff;border:1px solid rgba(88,166,255,.2)'
             : 'background:rgba(210,153,34,.08);color:#d29922;border:1px solid rgba(210,153,34,.2)';
           const taskCount = loadTasks(m.id).length;
+          const usage = tokensByModel[m.modelId];
           return `
           <div class="model-card" onclick="viewModelDetail('${esc(m.id)}')">
             <div class="flex items-center gap-3 mb-3">
@@ -468,11 +517,16 @@ function viewModels() {
                 <div class="text-xs mt-0.5" style="color:var(--muted)">${esc(m.provider)}</div>
               </div>
             </div>
-            <div class="flex items-center gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5 flex-wrap mb-2">
               ${m.tier ? `<span class="pill text-xs" style="${tierStyle}">${esc(m.tier)}</span>` : ''}
               ${m.context ? `<span class="pill text-xs" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)">${esc(m.context)}</span>` : ''}
               ${taskCount ? `<span class="pill pill-green text-xs">${taskCount} task${taskCount>1?'s':''}</span>` : ''}
               ${loadRole(m.id) ? `<span class="pill pill-blue text-xs">Role set</span>` : ''}
+            </div>
+            <div class="text-xs" style="color:var(--muted);border-top:1px solid var(--border);padding-top:8px">
+              ${usage
+                ? `<strong style="color:var(--text)">${usage.total_tokens.toLocaleString()}</strong> tokens · ${usage.total_calls.toLocaleString()} calls (global, all users)`
+                : `No usage recorded yet`}
             </div>
           </div>`;
         }).join('')}
@@ -480,7 +534,7 @@ function viewModels() {
 
       <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px" class="text-xs" style="color:var(--muted)">
         <p class="font-medium mb-1" style="color:var(--text)">How it works</p>
-        <p style="color:var(--muted)">Each model has a <strong style="color:var(--text)">Role</strong> (system prompt defining the AI persona) and <strong style="color:var(--text)">Tasks</strong> (specific behaviours). Each task can have optional <strong style="color:var(--text)">few-shot examples</strong> stored in the fine-tuning database — exportable as JSONL for OpenAI/DeepSeek fine-tuning.</p>
+        <p style="color:var(--muted)">Each model is configured with four components: <strong style="color:var(--text)">Role &amp; Characteristic</strong> (system prompt — persona and overall behaviour), <strong style="color:var(--text)">User Types (by Symptom)</strong> (recognizable struggle patterns and how to respond to each), <strong style="color:var(--text)">Tasks</strong> (specific behaviours, each with optional few-shot examples), and <strong style="color:var(--text)">Connections with other AI</strong> (how this model's output feeds into or receives from another model in the pipeline). Token counts shown are true global totals across every user, not just this session.</p>
       </div>
     </div>`;
 }
@@ -635,19 +689,34 @@ function openAddModel() {
 // VIEW: MODEL DETAIL
 // ════════════════════════════════════════════════════════════════
 let _currentModelId = '';
+let _lastModelTotals = {};   // model -> {total_tokens, total_calls, ...}, refreshed each time it's fetched
+
+async function fetchModelTotals() {
+  try {
+    const resp = await api('/admin/activity/model-totals').then(r => r.json());
+    const byModel = {};
+    (resp.models || []).forEach(row => { byModel[row.model] = row; });
+    _lastModelTotals = byModel;
+  } catch { /* offline / no data yet */ }
+  return _lastModelTotals;
+}
 
 async function viewModelDetail(modelId) {
   _currentModelId = modelId;
   hide('view-models');
   const el = document.getElementById('view-model-detail');
   show('view-model-detail');
+  await fetchModelTotals();
 
   const models = loadModels();
   const model  = models.find(m=>m.id===modelId);
   if (!model) { viewModels(); return; }
 
-  const tasks  = loadTasks(modelId);
-  const role   = loadRole(modelId);
+  const tasks       = loadTasks(modelId);
+  const role        = loadRole(modelId);
+  const userTypes   = loadUserTypes(modelId);
+  const connections = loadConnections(modelId);
+  const usage       = _lastModelTotals[model.modelId];
 
   // Render shell first
   el.innerHTML = `
@@ -663,29 +732,47 @@ async function viewModelDetail(modelId) {
           </div>
           <span class="font-semibold">${esc(model.name)}</span>
           <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.07);color:var(--muted)">${esc(model.provider)}</span>
+          ${model.modelId ? `<span class="text-xs px-2 py-0.5 rounded-full font-mono" style="background:rgba(255,255,255,.04);color:var(--muted)">${esc(model.modelId)}</span>` : ''}
         </div>
         <div class="flex-1"></div>
+        ${usage ? `<span class="text-xs" style="color:var(--muted)">${usage.total_tokens.toLocaleString()} tokens · ${usage.total_calls.toLocaleString()} calls (global)</span>` : ''}
         <button onclick="deleteModel('${esc(modelId)}')" class="btn btn-danger text-xs">Remove model</button>
       </div>
 
-      <!-- Role -->
+      <!-- 1. Role & Characteristic -->
       <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-3">
         <div class="flex items-center justify-between gap-3">
           <div>
-            <div class="font-semibold text-sm">Role</div>
-            <div class="text-xs mt-0.5" style="color:var(--muted)">System prompt — defines this model's persona and overall behaviour</div>
+            <div class="font-semibold text-sm">1. Role &amp; Characteristic</div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">System prompt — this model's persona, tone, and overall behaviour</div>
           </div>
-          <button onclick="saveRoleUI()" class="btn btn-primary text-xs">Save role</button>
+          <button onclick="saveRoleUI()" class="btn btn-primary text-xs">Save</button>
         </div>
-        <textarea id="role-textarea" rows="6" placeholder="You are Pclick AI, an academic thinking companion. Your job is to help students develop deeper understanding through Socratic questioning rather than giving answers directly…"
+        <textarea id="role-textarea" rows="6" placeholder="You are Ari, Lyceum's 24/7 background research assistant. Warm, curious, and direct — you explain concepts in plain language first, then switch to rigorous debate the moment the student pushes back…"
           style="font-size:13px;line-height:1.6">${esc(role)}</textarea>
       </div>
 
-      <!-- Tasks -->
+      <!-- 2. User Types (by Symptom) -->
       <div class="space-y-3">
         <div class="flex items-center justify-between">
           <div>
-            <div class="font-semibold text-sm">Tasks</div>
+            <div class="font-semibold text-sm">2. User Types (by Symptom)</div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">Recognizable struggle patterns this model should detect, and how to respond to each</div>
+          </div>
+          <button onclick="addUserType('${esc(modelId)}')" class="btn btn-primary text-xs">+ Add user type</button>
+        </div>
+        <div id="user-type-list" class="space-y-2">
+          ${userTypes.length===0
+            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No user types yet — e.g. "Can't self-assess progress", "Understands in theory but can't apply it"</p></div>`
+            : userTypes.map(u => renderUserTypeCard(modelId, u)).join('')}
+        </div>
+      </div>
+
+      <!-- 3. Tasks -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-sm">3. Tasks</div>
             <div class="text-xs mt-0.5" style="color:var(--muted)">Specific behaviours — each can have optional few-shot examples for fine-tuning</div>
           </div>
           <button onclick="openTaskModal(null)" class="btn btn-primary text-xs">+ Add task</button>
@@ -697,6 +784,22 @@ async function viewModelDetail(modelId) {
                 <p style="color:var(--muted)">No tasks yet — add one to start building few-shot examples</p>
                </div>`
             : tasks.map(t => renderTaskCard(model, t)).join('')}
+        </div>
+      </div>
+
+      <!-- 4. Connections with other AI -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-sm">4. Connections with other AI</div>
+            <div class="text-xs mt-0.5" style="color:var(--muted)">How this model's task hands off to / receives from another model in the pipeline</div>
+          </div>
+          <button onclick="addConnection('${esc(modelId)}')" class="btn btn-primary text-xs">+ Add connection</button>
+        </div>
+        <div id="connection-list" class="space-y-2">
+          ${connections.length===0
+            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No connections yet — e.g. ARI hands a topic to Gemma's research task and gets an image/citation back</p></div>`
+            : connections.map(c => renderConnectionCard(modelId, c)).join('')}
         </div>
       </div>
 
@@ -740,6 +843,67 @@ async function viewModelDetail(modelId) {
   // Load example counts async
   await loadAllExampleCounts(modelId, tasks);
   loadFTJobs(modelId);   // async — populates FT panel independently
+}
+
+// ── User Types (by Symptom) ────────────────────────────────────────────────
+function renderUserTypeCard(modelId, ut) {
+  return `
+    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);padding:12px 14px" class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-medium text-sm">${esc(ut.symptom)}</div>
+        ${ut.response ? `<div class="text-xs mt-1" style="color:var(--muted);white-space:pre-wrap">${esc(ut.response)}</div>` : ''}
+      </div>
+      <button onclick="deleteUserType('${esc(modelId)}','${esc(ut.id)}')" class="btn btn-danger text-xs shrink-0" style="padding:3px 8px">✕</button>
+    </div>`;
+}
+
+function addUserType(modelId) {
+  const symptom = prompt('Symptom / struggle pattern (e.g. "Cannot self-assess own progress")');
+  if (!symptom) return;
+  const response = prompt(`How should this model respond when it recognizes "${symptom}"?`) || '';
+  const items = loadUserTypes(modelId);
+  items.push({ id: 'ut-'+Date.now(), symptom, response });
+  saveUserTypes(modelId, items);
+  viewModelDetail(modelId);
+  toast('✓ User type added');
+}
+
+function deleteUserType(modelId, id) {
+  saveUserTypes(modelId, loadUserTypes(modelId).filter(u => u.id !== id));
+  viewModelDetail(modelId);
+}
+
+// ── Connections with other AI ──────────────────────────────────────────────
+function renderConnectionCard(modelId, conn) {
+  const target = loadModels().find(m => m.id === conn.targetModelId);
+  return `
+    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);padding:12px 14px" class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <div class="font-medium text-sm">→ ${target ? esc(target.name) : esc(conn.targetModelId)}</div>
+        ${conn.description ? `<div class="text-xs mt-1" style="color:var(--muted);white-space:pre-wrap">${esc(conn.description)}</div>` : ''}
+      </div>
+      <button onclick="deleteConnection('${esc(modelId)}','${esc(conn.id)}')" class="btn btn-danger text-xs shrink-0" style="padding:3px 8px">✕</button>
+    </div>`;
+}
+
+function addConnection(modelId) {
+  const others = loadModels().filter(m => m.id !== modelId);
+  if (!others.length) { toast('No other models to connect to', 'err'); return; }
+  const list = others.map((m,i) => `${i+1}. ${m.name} (${m.provider})`).join('\n');
+  const choice = prompt(`Connect to which model? Enter a number:\n${list}`);
+  const idx = parseInt(choice, 10) - 1;
+  if (isNaN(idx) || !others[idx]) return;
+  const description = prompt(`Describe the connection (e.g. "Feeds researched image/citation back into ARI's next reply")`) || '';
+  const items = loadConnections(modelId);
+  items.push({ id: 'conn-'+Date.now(), targetModelId: others[idx].id, description });
+  saveConnections(modelId, items);
+  viewModelDetail(modelId);
+  toast('✓ Connection added');
+}
+
+function deleteConnection(modelId, id) {
+  saveConnections(modelId, loadConnections(modelId).filter(c => c.id !== id));
+  viewModelDetail(modelId);
 }
 
 function renderTaskCard(model, task) {

@@ -172,6 +172,13 @@ def activity_roles(_: None = Depends(_auth)):
     return {"roles": activity_svc.ROLE_LABELS}
 
 
+@router.get("/activity/model-totals")
+def activity_model_totals(_: None = Depends(_auth)):
+    """True all-time token usage per model, across every user this backend
+    has ever served (never pruned — see /activity/summary for recent-only)."""
+    return {"models": activity_svc.model_totals()}
+
+
 @router.get("/finetune/export.jsonl", response_class=PlainTextResponse)
 def ft_export(_: None = Depends(_auth)):
     """Download all examples as OpenAI-format JSONL for fine-tuning."""
