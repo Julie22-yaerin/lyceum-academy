@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { synthesizeNoteFromUrl, synthesizeNoteFromFile, synthesizeNoteFromText, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
 import { extractYouTubeInBrowser, parseYouTubeId } from '../lib/youtubeClient';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
-import { loadNotes, saveNote, deleteNote, timeRemaining, type SavedNote } from '../lib/persist';
+import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
 
 // ── ConceptCard ───────────────────────────────────────────────────────────
 function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applications?: string; why?: string } }) {
@@ -147,7 +147,8 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
   async function submit(blob: Blob) {
     try {
       const concepts = (note.key_concepts || []).map(kc => kc.concept);
-      const data = await feynmanTest(blob, note.title || '', concepts);
+      const subject = concepts[0] ? detectSubject(concepts[0]) : detectSubject(note.title || '');
+      const data = await feynmanTest(blob, note.title || '', concepts, subject);
       setResult(data); setPhase('result');
     } catch (e: any) {
       setError(e.message || 'Something went wrong'); setPhase('idle');

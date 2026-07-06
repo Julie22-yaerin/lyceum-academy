@@ -6,7 +6,7 @@ const API_BASE = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:
  * Fetch wrapper that automatically attaches the current user's Firebase ID token.
  * Falls back to unauthenticated if no user is signed in (dev/testing).
  */
-async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function authFetch(url: string, options: RequestInit = {}): Promise<Response> {
   const token = await auth.currentUser?.getIdToken().catch(() => null);
   const headers = new Headers(options.headers);
   if (token) headers.set('Authorization', `Bearer ${token}`);
@@ -156,12 +156,13 @@ export async function decomposeProblemSet(text: string) {
   };
 }
 
-export async function checkMastery(question: string, answer: string) {
+export async function checkMastery(question: string, answer: string, concepts: string[] = [], subject = '') {
   // Backend expects { problem, solution }, returns { correct, mastery_delta, feedback }
+  // concepts/subject feed the shared personalization profile — see lib/profile.ts
   const res = await authFetch(`${API_BASE}/ai/mastery`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ problem: question, solution: answer }),
+    body: JSON.stringify({ problem: question, solution: answer, concepts, subject }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -338,7 +339,7 @@ export interface GradeSuggestion {
 }
 
 export async function gradeDual(
-  questions: { id: string; prompt: string; answer: string; image_b64?: string }[]
+  questions: { id: string; prompt: string; answer: string; image_b64?: string; concepts?: string[]; subject?: string }[]
 ): Promise<{ grades: { id: string; passed: boolean; feedback: string; suggestions?: GradeSuggestion }[] }> {
   const res = await authFetch(`${API_BASE}/ai/grade-dual`, {
     method: 'POST',
@@ -352,7 +353,7 @@ export async function gradeDual(
   return res.json();
 }
 
-export async function gradeAll(questions: { id: string; prompt: string; answer: string }[]) {
+export async function gradeAll(questions: { id: string; prompt: string; answer: string; concepts?: string[]; subject?: string }[]) {
   const res = await authFetch(`${API_BASE}/ai/grade-all`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -399,11 +400,13 @@ export async function feynmanTest(
   audio: Blob,
   noteTitle: string,
   keyConcepts: string[],
+  subject = '',
 ): Promise<FeynmanResult> {
   const form = new FormData();
   form.append('audio', audio, 'recording.webm');
   form.append('note_title', noteTitle);
   form.append('key_concepts', JSON.stringify(keyConcepts));
+  form.append('subject', subject);
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 60_000);

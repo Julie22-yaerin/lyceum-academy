@@ -51,6 +51,34 @@ def get_user_key(request: Request) -> str:
     return get_remote_address(request)
 
 
+def _uid(payload: dict) -> str:
+    """Firebase UID from a require_auth-verified token payload, for scoping
+    the personalization profile (app/services/mastery_profile.py)."""
+    return payload.get("user_id") or payload.get("sub") or ""
+
+
+def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
+    """Feed the personalization profile from a batch grading result — never
+    blocks the actual response. `items` is the request's question list
+    (each with .id/.concepts/.subject); `grades` is [{id, passed, ...}]."""
+    if not uid:
+        return
+    try:
+        from app.services import mastery_profile as mp_svc
+        by_id = {q.id: q for q in items}
+        for g in grades:
+            item = by_id.get(g.get("id"))
+            if not item or not item.concepts:
+                continue
+            passed = bool(g.get("passed"))
+            for concept in item.concepts[:3]:
+                mp_svc.record_attempt(uid, concept, item.subject or "other", passed)
+                if not passed:
+                    mp_svc.record_event(uid, concept, item.subject or "other", "confusion")
+    except Exception:
+        pass
+
+
 # ── Security headers middleware ───────────────────────────────────────────────
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -131,6 +159,8 @@ async def lifespan(_app: FastAPI):
     ft_svc.init_db()          # create SQLite tables if not present
     from app.services import activity_log as activity_log_svc
     activity_log_svc.init_db()
+    from app.services import mastery_profile as mastery_profile_svc
+    mastery_profile_svc.init_db()
 
     # Pre-warm the embedding model so the first upload doesn't time out.
     # all-MiniLM-L6-v2 (~80 MB) is downloaded from HuggingFace on first run.
@@ -287,6 +317,8 @@ class HintRequest(BaseModel):
 class MasteryRequest(BaseModel):
     problem: str
     solution: str
+    concepts: list[str] = []   # feeds the personalization profile — see app/services/mastery_profile.py
+    subject: str = ""
 
 
 class DecomposeRequest(BaseModel):
@@ -356,12 +388,24 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
 
 @app.post("/ai/mastery")
 @limiter.limit("20/minute")
-async def ai_mastery(request: Request, req: MasteryRequest, _: dict = Depends(require_auth)):
+async def ai_mastery(request: Request, req: MasteryRequest, auth: dict = Depends(require_auth)):
     """Evaluate a student's solution and return mastery delta."""
     check_prompt(req.problem, "problem")
     check_prompt(req.solution, "solution")
     try:
         result = await ai_svc.check_mastery(req.problem, req.solution)
+        # Feed the personalization profile — never blocks the actual response.
+        try:
+            from app.services import mastery_profile as mp_svc
+            uid = _uid(auth)
+            if uid and req.concepts:
+                passed = bool(result.get("correct"))
+                for concept in req.concepts[:3]:
+                    mp_svc.record_attempt(uid, concept, req.subject or "other", passed)
+                    if not passed:
+                        mp_svc.record_event(uid, concept, req.subject or "other", "confusion")
+        except Exception:
+            pass
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -371,6 +415,8 @@ class GradeItem(BaseModel):
     id: str
     prompt: str
     answer: str
+    concepts: list[str] = []   # feeds the personalization profile
+    subject: str = ""
 
 class GradeAllRequest(BaseModel):
     questions: list[GradeItem]
@@ -403,6 +449,8 @@ class GradeDualItem(BaseModel):
     prompt: str
     answer: str
     image_b64: str | None = None   # base64 PNG from canvas (handwriting)
+    concepts: list[str] = []   # feeds the personalization profile
+    subject: str = ""
 
 class GradeDualRequest(BaseModel):
     questions: list[GradeDualItem]
@@ -426,7 +474,7 @@ async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = D
 
 @app.post("/ai/grade-dual")
 @limiter.limit("5/minute")
-async def ai_grade_dual(request: Request, req: GradeDualRequest, _: dict = Depends(require_auth)):
+async def ai_grade_dual(request: Request, req: GradeDualRequest, auth: dict = Depends(require_auth)):
     """
     Dual-AI grading:
     - Meta Llama (Groq): grades answers + transcribes handwriting from canvas images
@@ -442,6 +490,7 @@ async def ai_grade_dual(request: Request, req: GradeDualRequest, _: dict = Depen
             for q in req.questions
         ]
         result = await ai_svc.grade_dual(items)
+        _record_grade_results(_uid(auth), req.questions, result.get("grades", []))
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -467,7 +516,7 @@ async def ai_moderate_community(request: Request, req: ModerateCommunityRequest,
 
 @app.post("/ai/grade-all")
 @limiter.limit("10/minute")
-async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends(require_auth)):
+async def ai_grade_all(request: Request, req: GradeAllRequest, auth: dict = Depends(require_auth)):
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
     for q in req.questions:
         check_prompt(q.prompt, "prompt")
@@ -475,6 +524,7 @@ async def ai_grade_all(request: Request, req: GradeAllRequest, _: dict = Depends
     try:
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
         result = await ai_svc.grade_all(items)
+        _record_grade_results(_uid(auth), req.questions, result.get("grades", []))
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -752,7 +802,8 @@ async def ai_feynman(
     audio: UploadFile = File(...),
     note_title: str = Form(""),
     key_concepts: str = Form("[]"),
-    _: dict = Depends(require_auth),
+    subject: str = Form(""),
+    auth: dict = Depends(require_auth),
 ):
     """
     Feynman technique evaluator.
@@ -771,7 +822,7 @@ async def ai_feynman(
         if not transcript.strip():
             raise HTTPException(
                 status_code=422,
-                detail="Không nhận ra giọng nói — thử nói to hơn hoặc gần mic hơn"
+                detail="Couldn't make out any speech — try speaking louder or closer to the mic."
             )
 
         try:
@@ -781,6 +832,25 @@ async def ai_feynman(
 
         result = await ai_svc.feynman_evaluate(transcript, note_title, concepts)
         result["transcript"] = transcript
+
+        # Feed the personalization profile: gaps the 5-year-old persona
+        # flagged are exactly "lỗ hổng tự phát hiện khi giảng lại" — the
+        # student's OWN re-explanation revealed them, not a quiz. A low
+        # self-rated score (out of 10) is a "not yet understood" signal.
+        try:
+            from app.services import mastery_profile as mp_svc
+            uid = _uid(auth)
+            gaps = result.get("gaps") or []
+            score = result.get("score")
+            if uid and concepts:
+                for concept in concepts[:3]:
+                    for _ in range(len(gaps)):
+                        mp_svc.record_event(uid, concept, subject or "other", "self_discovered_gap")
+                    if isinstance(score, (int, float)) and score < 5:
+                        mp_svc.record_event(uid, concept, subject or "other", "not_understood")
+        except Exception:
+            pass
+
         return result
     except HTTPException:
         raise
@@ -803,6 +873,110 @@ async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+# ── Personalization profile ───────────────────────────────────────────────
+# The shared store every AI feature reads/writes — see
+# app/services/mastery_profile.py for the full design. Endpoints that
+# generate an AI response with clean concept context (mastery check,
+# grading, Feynman) record events directly in their own handlers above;
+# these generic endpoints exist for signals that never otherwise reach the
+# backend (Mistake Bank entries, community activity, daily study focus —
+# all currently client-side/localStorage only).
+
+from app.services.mastery_profile import EVENT_COLUMNS as _PROFILE_EVENT_COLUMNS
+_PROFILE_EVENT_TYPES = set(_PROFILE_EVENT_COLUMNS.keys())
+
+
+class ProfileEventRequest(BaseModel):
+    concept: str
+    subject: str = "other"
+    event_type: str   # one of mastery_profile.EVENT_COLUMNS keys
+
+
+class ProfileSubjectActivityRequest(BaseModel):
+    subject: str
+    kind: str   # 'study' | 'community'
+
+
+class ProfileBaselineRequest(BaseModel):
+    concept: str
+    subject: str = "other"
+    score: int   # 1-20
+
+
+@app.post("/profile/event")
+@limiter.limit("60/minute")
+async def profile_record_event(request: Request, req: ProfileEventRequest, auth: dict = Depends(require_auth)):
+    """Record one raw personalization signal for (concept). See
+    mastery_profile.EVENT_COLUMNS for the full list of event_type values."""
+    if req.event_type not in _PROFILE_EVENT_TYPES:
+        raise HTTPException(status_code=400, detail=f"event_type must be one of {sorted(_PROFILE_EVENT_TYPES)}")
+    check_prompt(req.concept, "concept")
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import mastery_profile as mp_svc
+    mp_svc.record_event(uid, req.concept.strip().lower(), req.subject, req.event_type)
+    return {"ok": True}
+
+
+@app.post("/profile/baseline")
+@limiter.limit("30/minute")
+async def profile_record_baseline(request: Request, req: ProfileBaselineRequest, auth: dict = Depends(require_auth)):
+    """Set/refresh the pre-learning proficiency baseline for a concept (1-20)."""
+    check_prompt(req.concept, "concept")
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import mastery_profile as mp_svc
+    mp_svc.record_baseline(uid, req.concept.strip().lower(), req.subject, req.score)
+    return {"ok": True}
+
+
+@app.post("/profile/subject-activity")
+@limiter.limit("60/minute")
+async def profile_subject_activity(request: Request, req: ProfileSubjectActivityRequest, auth: dict = Depends(require_auth)):
+    """Record a study or community-interaction event for a subject — feeds
+    the love/fear bars (see mastery_profile.get_subject_affinity)."""
+    if req.kind not in ("study", "community"):
+        raise HTTPException(status_code=400, detail="kind must be 'study' or 'community'")
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import mastery_profile as mp_svc
+    mp_svc.record_subject_activity(uid, req.subject, req.kind)
+    return {"ok": True}
+
+
+@app.get("/profile/full")
+@limiter.limit("30/minute")
+async def profile_get_full(request: Request, auth: dict = Depends(require_auth)):
+    """The complete shared personalization store for the current user —
+    every AI feature should fetch this before responding."""
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import mastery_profile as mp_svc
+    return mp_svc.get_full_profile(uid)
+
+
+@app.get("/profile/concept/{concept}")
+@limiter.limit("60/minute")
+async def profile_get_concept(request: Request, concept: str, auth: dict = Depends(require_auth)):
+    """Bars + derived AI tuning for a single concept (null fields until any
+    signal has been recorded for it)."""
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import mastery_profile as mp_svc
+    profile = mp_svc.get_concept_profile(uid, concept.strip().lower())
+    return profile or {"concept": concept, "subject": "other", "baseline_proficiency_bar": 10,
+                        "confusion_frequency_bar": 1, "knowledge_gap_bar": 1, "not_understood_bar": 1,
+                        "questions_asked_bar": 1, "self_discovered_gap_bar": 1, "voiced_uncertainty_bar": 1,
+                        "question_frequency_bar": 1,
+                        "teaching_style": {"baby_mode_pct": 100, "cross_subject_link_pct": 0, "reverse_hypothesis_pct": 0},
+                        "raw": {}}
 
 
 # ── ARI S2S Voice Proxy (Gemini Live API) ────────────────────────────────────

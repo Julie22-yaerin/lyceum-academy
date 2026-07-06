@@ -1,4 +1,5 @@
 import { detectSubject, SUBJECT_META } from './persist';
+import { recordProfileEvent } from './profile';
 
 export interface MistakeEntry {
   id: string;
@@ -7,6 +8,8 @@ export interface MistakeEntry {
   subject: string;
   explanation: string;
   createdAt: number;
+  /** Which concept this mistake belongs to, if known — feeds the personalization profile. */
+  concept?: string;
   /** Set via ARI's [ATTACH: mistake | ...] tag after a Gemma research lookup. */
   attachedImage?: string;
   attachedSourceUrl?: string;
@@ -37,6 +40,9 @@ export function saveMistake(entry: Omit<MistakeEntry, 'id' | 'createdAt' | 'subj
   try {
     localStorage.setItem(KEY, JSON.stringify(all.slice(0, 200)));
   } catch {}
+  // Every mistake is direct evidence of a knowledge gap — feed the shared
+  // personalization profile so all AI features see it, not just this bank.
+  recordProfileEvent(entry.concept || entry.mistake.slice(0, 60), subject, 'confusion');
   return full;
 }
 

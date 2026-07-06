@@ -45,14 +45,21 @@ export default function VoiceOrb({ currentView }: VoiceOrbProps) {
   const [systemInstruction, setSystemInstruction] = useState(BASE_INSTRUCTION);
 
   // Decide immediately on mount — this is the only gate, and only ever once.
+  // `ready` (which mounts S2SVoiceOverlay, starting the Gemini Live
+  // connection) waits for the context fetch too — otherwise ARI could
+  // connect with the bare BASE_INSTRUCTION on the fast path (mode already
+  // chosen) before the async personalization/screen-context load resolves,
+  // since systemInstruction is only read once at S2SVoiceOverlay mount.
   useEffect(() => {
-    const context = buildAssistantContext(currentView);
-    setSystemInstruction(`${BASE_INSTRUCTION}\n\n=== CURRENT CONTEXT ===\n${context}`);
-    if (getSavedMode() === null) {
-      setShowPrefDialog(true);
-    } else {
-      setReady(true);
-    }
+    let active = true;
+    (async () => {
+      const context = await buildAssistantContext(currentView);
+      if (!active) return;
+      setSystemInstruction(`${BASE_INSTRUCTION}\n\n=== CURRENT CONTEXT ===\n${context}`);
+      if (getSavedMode() !== null) setReady(true);
+    })();
+    if (getSavedMode() === null) setShowPrefDialog(true);
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

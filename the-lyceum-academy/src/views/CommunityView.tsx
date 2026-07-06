@@ -11,6 +11,8 @@ import {
   getRooms, createRoom, getMessages, sendMessage, subscribeToRoom,
   getDevUserId, STUDY_EMOJIS, AVATAR_COLORS, fmtTime,
 } from '../lib/community';
+import { detectSubject } from '../lib/persist';
+import { recordSubjectActivity } from '../lib/profile';
 
 // ── Avatar ────────────────────────────────────────────────────────────────────
 function Avatar({ emoji, color, size = 32 }: { emoji: string; color: string; size?: number }) {
@@ -172,7 +174,11 @@ function ChatRoom({ room, profile }: { room: CommunityRoom; profile: CommunityPr
     const txt = input.trim();
     if (!txt || sending) return;
     setSending(true); setInput('');
-    try { await sendMessage(room.id, txt, profile); }
+    try {
+      await sendMessage(room.id, txt, profile);
+      // Peer interaction on this subject — feeds the love/fear bars (see lib/profile.ts).
+      recordSubjectActivity(detectSubject(room.course_tag || room.name), 'community');
+    }
     catch { setInput(txt); }
     finally { setSending(false); setTimeout(() => inputRef.current?.focus(), 50); }
   }

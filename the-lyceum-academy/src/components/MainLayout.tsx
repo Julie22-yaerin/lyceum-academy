@@ -8,6 +8,7 @@ import MiniTimer from './MiniTimer';
 import { loadTaskConfig, loadTodayMinutes, saveTodayMinutes, loadBreakMinutes, saveBreakMinutes } from './TaskSetupModal';
 import type { TaskConfig } from './TaskSetupModal';
 import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
+import { recordSubjectActivity } from '../lib/profile';
 
 interface MainLayoutProps extends NavigationProps {
   children: ReactNode;
@@ -62,7 +63,12 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
     const clampedBreak = isNaN(breakMins) || breakMins < 1 ? 10 : breakMins;
     saveBreakMinutes(clampedBreak);
     saveTodayMinutes(mins);
-    if (subjectInput) saveTodayStudySubject(subjectInput);
+    if (subjectInput) {
+      saveTodayStudySubject(subjectInput);
+      // Choosing to focus on this subject today is a study-frequency signal
+      // — feeds the love/fear bars (see lib/profile.ts).
+      recordSubjectActivity(subjectInput, 'study');
+    }
     setTotalMinutes(mins);
     setShowTimePrompt(false);
     setTimerActive(true);

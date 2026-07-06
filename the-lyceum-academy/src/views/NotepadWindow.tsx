@@ -12,6 +12,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { checkMastery, describeDrawing } from '../lib/api';
 import { loadKaTeX, renderMath } from '../lib/math';
+import { detectSubject } from '../lib/persist';
 
 const MATH_SYMBOLS = [
   '÷','×','±','∓','√','∛','∜','∞','≈','≠','≤','≥',
@@ -206,7 +207,9 @@ export default function NotepadWindow() {
     const ans = mode === 'text' ? answer : canvasTranscript;
     if (!ans.trim()) return;
     setBusy(true);
-    try { setMasteryResult(await checkMastery(qData.question.prompt, ans)); }
+    const concepts = qData.question.concepts || [];
+    const subject = concepts[0] ? detectSubject(concepts[0]) : detectSubject(qData.question.prompt);
+    try { setMasteryResult(await checkMastery(qData.question.prompt, ans, concepts, subject)); }
     catch (err: any) { setMasteryResult({ passed: false, feedback: err.message }); }
     finally { setBusy(false); }
   }

@@ -3,7 +3,8 @@ import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, g
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
-import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, type SavedPSet } from '../lib/persist';
+import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectSubject, type SavedPSet } from '../lib/persist';
+import { recordProfileEvent } from '../lib/profile';
 import MindMapTool from '../components/MindMapTool';
 
 // ── Math keyboard symbols ─────────────────────────────────────────────────
@@ -157,7 +158,8 @@ function AnswerPanel({
     const ans = mode === 'text' ? answer : canvasTranscript;
     if (!ans.trim()) return;
     setBusy(true);
-    try { setMasteryResult(await checkMastery(question.prompt, ans)); }
+    const subject = question.concepts[0] ? detectSubject(question.concepts[0]) : detectSubject(question.prompt);
+    try { setMasteryResult(await checkMastery(question.prompt, ans, question.concepts, subject)); }
     catch (e: any) { setMasteryResult({ passed: false, feedback: 'Error: ' + e.message }); }
     finally { setBusy(false); }
   }
@@ -519,7 +521,8 @@ function LensView({
   async function handleMastery() {
     const ans = mode === 'text' ? answer : canvasTranscript; if (!ans.trim()) return;
     setBusy(true);
-    try { setMasteryResult(await checkMastery(q.prompt, ans)); } catch (e: any) { setMasteryResult({ passed: false, feedback: e.message }); } finally { setBusy(false); }
+    const subject = q.concepts[0] ? detectSubject(q.concepts[0]) : detectSubject(q.prompt);
+    try { setMasteryResult(await checkMastery(q.prompt, ans, q.concepts, subject)); } catch (e: any) { setMasteryResult({ passed: false, feedback: e.message }); } finally { setBusy(false); }
   }
 
   async function handleOK() {
@@ -567,8 +570,10 @@ function LensView({
           prompt: oq.prompt,
           answer: noteText || '[handwritten answer]',
           image_b64: noteImg ? noteImg.replace(/^data:[^;]+;base64,/, '') : undefined,
+          concepts: oq.concepts,
+          subject: oq.concepts[0] ? detectSubject(oq.concepts[0]) : detectSubject(oq.prompt),
         };
-      }).filter(Boolean) as { id: string; prompt: string; answer: string; image_b64?: string }[];
+      }).filter(Boolean) as { id: string; prompt: string; answer: string; image_b64?: string; concepts: string[]; subject: string }[];
 
       const result = await gradeDual(items);
       const map: Record<string, { passed: boolean; feedback: string; suggestions?: GradeSuggestion }> = {};
@@ -589,6 +594,7 @@ function LensView({
             mistake: oq.prompt.slice(0, 300),
             location: `${docKey} · Q${questions.indexOf(oq) + 1}`,
             explanation: g.feedback || '',
+            concept: oq.concepts[0],
           });
         } catch { /* ignore */ }
       });
