@@ -3,6 +3,8 @@ import { NavigationProps } from '../types';
 import { loadTaskConfig, loadTodayMinutes } from '../components/TaskSetupModal';
 import { loadProgress } from '../lib/progress';
 import { loadMistakes } from '../lib/mistakes';
+import { loadOnboardingAnswers } from '../lib/persist';
+import { generateRoadmap, type RoadmapResult } from '../lib/api';
 
 function streakDays(): number {
   const records = loadProgress();
@@ -43,6 +45,139 @@ function StreakPath({ values }: { values: number[] }) {
         return <circle key={i} cx={x} cy={y} r="2.5" fill="#e9e4ff" />;
       })}
     </svg>
+  );
+}
+
+const APPROACH_META: Record<string, { label: string; color: string }> = {
+  top_down: { label: 'Top-down', color: '#60A5FA' },
+  bottom_up: { label: 'Bottom-up', color: '#4ADE80' },
+  just_in_time: { label: 'Just-in-time', color: '#FBBF24' },
+};
+
+function StyleBar({ label, pct, color }: { label: string; pct: number; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-white/50 w-24 flex-shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <span className="text-[10px] text-white/40 w-9 text-right flex-shrink-0">{pct}%</span>
+    </div>
+  );
+}
+
+/**
+ * Learning roadmap — DeepSeek-generated (backend /ai/roadmap), blended
+ * across top-down/bottom-up/just-in-time by the student's measured fit.
+ * Reasoning takes 1-2 minutes for real, so the loading state says so.
+ */
+function RoadmapWidget() {
+  const [topic, setTopic] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<RoadmapResult | null>(null);
+  const [error, setError] = useState('');
+
+  async function handleGenerate() {
+    if (!topic.trim() || loading) return;
+    setLoading(true); setError(''); setResult(null);
+    try {
+      const answers = loadOnboardingAnswers();
+      const r = await generateRoadmap(topic.trim(), answers);
+      if (r.error) setError('Could not generate a roadmap — try a more specific topic.');
+      else setResult(r);
+    } catch (e: any) {
+      setError(e.message || 'Something went wrong.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="lg:col-span-3 glass-card rounded-3xl p-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Learning Roadmap</p>
+          <p className="text-xs text-white/30">What to shore up first, and in what order — blended to how you actually learn.</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 mb-5">
+        <input
+          value={topic}
+          onChange={e => setTopic(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') handleGenerate(); }}
+          placeholder="What do you want to learn? e.g. quantum mechanics"
+          disabled={loading}
+          className="flex-1 glass-input rounded-xl px-4 py-2.5 text-sm text-white outline-none"
+        />
+        <button
+          onClick={handleGenerate}
+          disabled={loading || !topic.trim()}
+          className="glass-btn rounded-xl px-5 py-2.5 text-[10px] uppercase tracking-[2px] font-semibold disabled:opacity-30 flex items-center gap-2 flex-shrink-0"
+        >
+          {loading ? <div className="w-3 h-3 border border-current/40 border-t-current rounded-full animate-spin" /> : null}
+          {loading ? 'Thinking…' : 'Generate'}
+        </button>
+      </div>
+
+      {loading && (
+        <p className="text-xs text-white/30 mb-4">
+          DeepSeek is reasoning through prerequisites and sequencing — this genuinely takes 1-2 minutes for a good roadmap, not a quick lookup.
+        </p>
+      )}
+
+      {error && <p className="text-xs text-red-300/80 mb-4">{error}</p>}
+
+      {result && (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2 max-w-sm">
+            <StyleBar label="Top-down" pct={result.learning_style.top_down_pct} color={APPROACH_META.top_down.color} />
+            <StyleBar label="Bottom-up" pct={result.learning_style.bottom_up_pct} color={APPROACH_META.bottom_up.color} />
+            <StyleBar label="Just-in-time" pct={result.learning_style.just_in_time_pct} color={APPROACH_META.just_in_time.color} />
+          </div>
+
+          {result.style_summary && <p className="text-xs text-white/50 italic">{result.style_summary}</p>}
+
+          {result.prerequisites.length > 0 && (
+            <div>
+              <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-2">Prerequisites</p>
+              <div className="flex flex-wrap gap-2">
+                {result.prerequisites.map((p, i) => (
+                  <div key={i} className={`rounded-xl px-3 py-2 border ${p.priority === 'required' ? 'border-amber-400/40 bg-amber-400/5' : 'border-white/10 bg-white/[0.03]'}`}>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-xs font-medium text-white/85">{p.name}</span>
+                      <span className={`text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${p.priority === 'required' ? 'text-amber-300 bg-amber-400/10' : 'text-white/30 bg-white/5'}`}>{p.priority}</span>
+                    </div>
+                    <p className="text-[10px] text-white/40 max-w-[220px]">{p.why}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-2">Sequenced path</p>
+            <div className="flex flex-col gap-2">
+              {result.roadmap_steps.map(s => {
+                const meta = APPROACH_META[s.approach] || APPROACH_META.top_down;
+                return (
+                  <div key={s.order} className="flex gap-3 rounded-xl bg-white/[0.03] border border-white/5 px-4 py-3">
+                    <span className="text-sm font-semibold flex-shrink-0" style={{ color: meta.color }}>{s.order}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-sm text-white/85">{s.title}</span>
+                        <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ color: meta.color, background: `${meta.color}1a` }}>{meta.label}</span>
+                      </div>
+                      <p className="text-xs text-white/45 leading-relaxed">{s.description}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -179,6 +314,8 @@ export default function NexusView({ onNavigate }: NavigationProps) {
             <button onClick={() => onNavigate('knowledge-map')} className="text-sm font-semibold text-cyan-300 hover:text-cyan-200">Explore →</button>
           </div>
         </div>
+
+        <RoadmapWidget />
       </div>
     </div>
   );

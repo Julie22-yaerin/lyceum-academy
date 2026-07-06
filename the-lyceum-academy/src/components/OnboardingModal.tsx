@@ -9,6 +9,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { analyzeOnboarding } from '../lib/api';
+import { saveOnboardingAnswers } from '../lib/persist';
 
 // ── Question config ─────────────────────────────────────────────────────────
 
@@ -301,6 +302,10 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
       // Last question done → analyze
       setStep(QUESTIONS.length); // pricing screen
       setAnalyzing(true);
+      // Persist raw answers — previously only sent once to the pricing
+      // analyzer then discarded; the roadmap generator and personalization
+      // profile read these later (learning-style q7, study-intensity q1/q3).
+      saveOnboardingAnswers(answers);
       try {
         const result = await analyzeOnboarding(answers);
         setAiResult(result);

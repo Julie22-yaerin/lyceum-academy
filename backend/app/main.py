@@ -875,6 +875,46 @@ async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends
         raise HTTPException(status_code=502, detail=str(e))
 
 
+class RoadmapRequest(BaseModel):
+    topic: str
+    # Onboarding answers, passed straight from the frontend (localStorage) —
+    # not persisted server-side, see lib/onboarding.ts. Optional so the
+    # roadmap still works (with a neutral 1/3-1/3-1/3 style split) for a
+    # user who skipped onboarding.
+    q1_goal: str = ""          # "What is your main learning goal?"
+    q3_hours: str = ""         # "How many hours do you study per week?"
+    q7_learning_style: list[str] = []   # "How do you like to learn?"
+
+
+@app.post("/ai/roadmap")
+@limiter.limit("10/minute")
+async def ai_roadmap(request: Request, req: RoadmapRequest, auth: dict = Depends(require_auth)):
+    """
+    DeepSeek-generated learning roadmap for a target topic — prerequisites
+    + a sequenced path, blended across top-down/bottom-up/just-in-time
+    styles by the student's measured fit (mastery_profile.py). Shown in
+    Nexus (e.g. "want to learn quantum mechanics? here's what to shore up
+    first, and in what order").
+    """
+    check_prompt(req.topic, "topic")
+    if not req.topic.strip():
+        raise HTTPException(status_code=400, detail="topic cannot be empty")
+    uid = _uid(auth)
+    try:
+        from app.services import mastery_profile as mp_svc
+        learning_style = mp_svc.derive_learning_style_fit(uid, req.q7_learning_style) if uid else \
+            {"top_down_pct": 34, "bottom_up_pct": 33, "just_in_time_pct": 33}
+        study_mode = mp_svc.derive_study_mode(req.q1_goal, req.q3_hours)
+        needs_attention = mp_svc.get_full_profile(uid)["needs_attention"] if uid else []
+
+        result = await ai_svc.generate_roadmap(req.topic.strip(), learning_style, study_mode, needs_attention)
+        result["learning_style"] = learning_style
+        result["study_mode"] = study_mode
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 # ── Personalization profile ───────────────────────────────────────────────
 # The shared store every AI feature reads/writes — see
 # app/services/mastery_profile.py for the full design. Endpoints that

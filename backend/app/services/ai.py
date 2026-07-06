@@ -828,6 +828,108 @@ async def validate_tool_map(
 
 
 @_tag_task
+async def generate_roadmap(
+    topic: str,
+    learning_style: dict,
+    study_mode: str,
+    needs_attention: list[dict] | None = None,
+) -> dict:
+    """
+    DeepSeek-powered learning roadmap: given a target topic, what
+    prerequisites/supplementary subjects it needs and a sequenced path to
+    it — blended across three roadmap styles per the product spec, not a
+    single pure style:
+      - top-down: start from the big picture / real-world application,
+        drill into fundamentals only as needed
+      - traditional bottom-up: build systematically from fundamentals up
+      - just-in-time: identify the course's key checkpoints, only pull in
+        extra background material exactly when a gap actually blocks
+        understanding
+
+    `learning_style` is the student's current fit across the three
+    (percentages, from mastery_profile.derive_learning_style_fit) — the
+    roadmap should blend styles in those proportions, not pick just one.
+
+    Returns {topic, prerequisites: [{name, why, priority}],
+             roadmap_steps: [{order, title, description, approach}],
+             style_summary}
+    """
+    import logging, json as _json
+    log = logging.getLogger("pclick")
+
+    attention_str = ""
+    if needs_attention:
+        attention_str = "Concepts the student is currently struggling with (weave in as prerequisites if relevant): " + \
+            ", ".join(f"{a['concept']} ({a['subject']})" for a in needs_attention[:5])
+
+    system = (
+        "You are a curriculum designer building a personalized learning roadmap. "
+        "The student's fit across three roadmap styles has already been measured:\n"
+        f"- Top-down (start from big picture/application, drill into fundamentals only as needed): {learning_style.get('top_down_pct', 33)}%\n"
+        f"- Traditional bottom-up (build systematically from fundamentals upward): {learning_style.get('bottom_up_pct', 33)}%\n"
+        f"- Just-in-time (spot the course's key checkpoints, only pull in extra background exactly when a gap blocks understanding): {learning_style.get('just_in_time_pct', 34)}%\n\n"
+        f"Student's overall study mode: {study_mode}.\n"
+        "BLEND all three styles in these exact proportions when designing the roadmap — do not just pick "
+        "the single highest one. E.g. if top-down is dominant, most steps should start from context/application, "
+        "but still include a few bottom-up scaffolding steps and just-in-time checkpoints in proportion to their percentages.\n\n"
+        "Return ONLY raw JSON (no markdown fences, no extra text):\n"
+        '{"prerequisites":[{"name":"...","why":"one sentence","priority":"required|recommended"}],'
+        '"roadmap_steps":[{"order":1,"title":"...","description":"2-3 sentences","approach":"top_down|bottom_up|just_in_time"}],'
+        '"style_summary":"1-2 sentences explaining how this specific roadmap reflects the blended percentages"}\n\n'
+        "5-10 roadmap_steps, 0-6 prerequisites (empty array if the topic has none worth calling out)."
+    )
+    user_msg = f"Target topic: {topic}\n{attention_str}"
+
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": user_msg},
+    ]
+
+    api_key = settings.nvidia_deepseek_key or settings.nvidia_api_key
+    if not api_key:
+        raise RuntimeError("NVIDIA_DEEPSEEK_KEY / NVIDIA_API_KEY not configured")
+
+    payload: dict[str, Any] = {
+        "model": settings.nvidia_deepseek_model,
+        "messages": messages,
+        "temperature": 1,
+        "top_p": 0.95,
+        "max_tokens": 4096,
+        "stream": False,
+        # `extra_body` is an OpenAI-Python-SDK-only convenience wrapper that
+        # merges its contents into the top-level request — over raw HTTP
+        # (no SDK involved here) chat_template_kwargs must be a real
+        # top-level field, not nested under a literal "extra_body" key
+        # (confirmed live: nesting it gets a 400 "Unsupported parameter").
+        "chat_template_kwargs": {"thinking": True, "reasoning_effort": "high"},
+    }
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    # reasoning_effort="high" on a thinking model genuinely takes longer than
+    # this file's usual 90s timeout (confirmed live: a 90s timeout hit
+    # ReadTimeout on a real roadmap request) — this is a slow-but-thorough
+    # call, not a hung request.
+    async with httpx.AsyncClient(timeout=180) as client:
+        resp = await client.post(f"{settings.nvidia_base_url}/chat/completions", headers=headers, json=payload)
+        if not resp.is_success:
+            log.warning("DeepSeek roadmap %s → %s: %s", settings.nvidia_deepseek_model, resp.status_code, resp.text[:300])
+        resp.raise_for_status()
+        data = resp.json()
+        _record_usage("nvidia", data, model=settings.nvidia_deepseek_model)
+
+    raw = extract_text(data)
+    parsed = _parse_json_robust(raw)
+    if not parsed:
+        log.warning("generate_roadmap: could not parse DeepSeek output: %s", raw[:300])
+        return {"topic": topic, "prerequisites": [], "roadmap_steps": [], "style_summary": "", "error": "parse_failed", "raw": raw[:1000]}
+
+    parsed["topic"] = topic
+    parsed.setdefault("prerequisites", [])
+    parsed.setdefault("roadmap_steps", [])
+    parsed.setdefault("style_summary", "")
+    return parsed
+
+
+@_tag_task
 async def topic_to_nodemap(topic: str) -> dict:
     """
     Convert a topic string into an Obsidian-style knowledge node map.

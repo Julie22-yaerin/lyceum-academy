@@ -86,6 +86,11 @@ class Settings(BaseSettings):
     nvidia_orchestrator_key: str = ""
     nvidia_orchestrator_model: str = "meta/llama-3.1-70b-instruct"
 
+    # ── NVIDIA NIM DeepSeek (learning roadmap generator) ───────────
+    # Falls back to nvidia_api_key if no dedicated key is set.
+    nvidia_deepseek_key: str = ""
+    nvidia_deepseek_model: str = "deepseek-ai/deepseek-v4-flash"
+
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""
     openrouter_primary_model: str = "nvidia/nemotron-3-super-120b-a12b:free"

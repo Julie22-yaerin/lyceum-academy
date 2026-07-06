@@ -387,6 +387,50 @@ export async function analyzeOnboarding(answers: Record<string, string | string[
   }>;
 }
 
+export interface RoadmapResult {
+  topic: string;
+  prerequisites: { name: string; why: string; priority: 'required' | 'recommended' }[];
+  roadmap_steps: { order: number; title: string; description: string; approach: 'top_down' | 'bottom_up' | 'just_in_time' }[];
+  style_summary: string;
+  learning_style: { top_down_pct: number; bottom_up_pct: number; just_in_time_pct: number };
+  study_mode: string;
+  error?: string;
+}
+
+/**
+ * DeepSeek roadmap generator (see backend /ai/roadmap) — a reasoning model
+ * with reasoning_effort="high" genuinely takes 1-2 minutes, not seconds.
+ * Callers must show a real loading state, not a quick spinner.
+ */
+export async function generateRoadmap(topic: string, onboardingAnswers: Record<string, string | string[]>): Promise<RoadmapResult> {
+  const q7 = onboardingAnswers['q7'];
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 170_000);
+  try {
+    const res = await authFetch(`${API_BASE}/ai/roadmap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic,
+        q1_goal: typeof onboardingAnswers['q1'] === 'string' ? onboardingAnswers['q1'] : '',
+        q3_hours: typeof onboardingAnswers['q3'] === 'string' ? onboardingAnswers['q3'] : '',
+        q7_learning_style: Array.isArray(q7) ? q7 : [],
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw new Error('Roadmap generation timed out — try again.');
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export interface FeynmanResult {
   reaction: string;
   questions: string[];

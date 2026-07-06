@@ -372,3 +372,90 @@ def get_full_profile(user_id: str) -> dict:
         "needs_attention": [{"concept": c["concept"], "subject": c["subject"]} for c in needs_attention],
         "discovery_interest_subjects": discovery_candidates,
     }
+
+
+# ── Learning-style fit + study mode ──────────────────────────────────────
+# Feeds /ai/roadmap (DeepSeek roadmap generator) — top-down vs traditional
+# bottom-up vs just-in-time, blended by measured fit rather than picked as
+# a single style. Onboarding q7 ("How do you like to learn?") gives an
+# explicit stated preference; ongoing behavior (self-discovered-gap rate,
+# not-understood rate, baseline proficiency) refines it over time.
+
+_Q7_STYLE_WEIGHTS: dict[str, dict[str, int]] = {
+    "Exploring (broader context, real-world applications)": {"top_down": 2},
+    "Being guided step by step":                            {"bottom_up": 2},
+    "Having my thinking challenged":                        {"top_down": 1, "just_in_time": 1},
+    "Given a framework to boost my grades":                 {"just_in_time": 2},
+    "Discussion with multiple perspectives":                {"top_down": 1},
+}
+
+# Onboarding is an explicit stated preference; behavior is what they
+# actually do. Weighted 60/40 so stated preference leads but real usage
+# still pulls the mix over time — tune here without touching storage.
+_ONBOARDING_WEIGHT = 0.6
+_BEHAVIOR_WEIGHT = 0.4
+_STYLE_FLOOR_PCT = 10   # no style ever drops to 0 — nobody is 100% pure
+
+
+def derive_learning_style_fit(user_id: str, q7_answers: list[str] | None = None) -> dict:
+    """
+    Returns {top_down_pct, bottom_up_pct, just_in_time_pct} summing to 100.
+    """
+    onboarding_scores = {"top_down": 0.0, "bottom_up": 0.0, "just_in_time": 0.0}
+    for ans in (q7_answers or []):
+        for style, weight in _Q7_STYLE_WEIGHTS.get(ans, {}).items():
+            onboarding_scores[style] += weight
+    onboarding_total = sum(onboarding_scores.values())
+    if onboarding_total > 0:
+        onboarding_scores = {k: v / onboarding_total for k, v in onboarding_scores.items()}
+    else:
+        onboarding_scores = {"top_down": 1 / 3, "bottom_up": 1 / 3, "just_in_time": 1 / 3}
+
+    concepts = get_all_concepts(user_id)
+    if concepts:
+        avg_self_gap = sum(c["self_discovered_gap_bar"] for c in concepts) / len(concepts)
+        avg_not_understood = sum(c["not_understood_bar"] for c in concepts) / len(concepts)
+        avg_baseline = sum(c["baseline_proficiency_bar"] for c in concepts) / len(concepts)
+        behavior_scores = {
+            "just_in_time": avg_self_gap,     # good at catching own gaps -> fix-as-you-go suits them
+            "bottom_up":    avg_not_understood,  # needs more foundational scaffolding
+            "top_down":     avg_baseline,      # grasps fundamentals fast -> can start from the big picture
+        }
+    else:
+        behavior_scores = {"top_down": 1, "bottom_up": 1, "just_in_time": 1}
+    behavior_total = sum(behavior_scores.values())
+    behavior_scores = {k: v / behavior_total for k, v in behavior_scores.items()} if behavior_total else onboarding_scores
+
+    blended = {
+        style: onboarding_scores[style] * _ONBOARDING_WEIGHT + behavior_scores[style] * _BEHAVIOR_WEIGHT
+        for style in ("top_down", "bottom_up", "just_in_time")
+    }
+    total = sum(blended.values()) or 1
+    pcts = {style: max(_STYLE_FLOOR_PCT, round(v / total * 100)) for style, v in blended.items()}
+    # Floor can push the sum over 100 — trim from the largest to compensate.
+    overflow = sum(pcts.values()) - 100
+    if overflow:
+        largest = max(pcts, key=lambda s: pcts[s])
+        pcts[largest] -= overflow
+
+    return {
+        "top_down_pct": pcts["top_down"],
+        "bottom_up_pct": pcts["bottom_up"],
+        "just_in_time_pct": pcts["just_in_time"],
+    }
+
+
+def derive_study_mode(q1_answer: str = "", q3_answer: str = "") -> str:
+    """
+    Rough study-mode classification from onboarding q1 (main goal) + q3
+    (hours/week) — per spec: "tự học hoàn toàn hoặc bán thời gian." Every
+    user of this app is doing self-directed study to some degree; this
+    just captures how intensive.
+    """
+    intensive_hours = q3_answer in ("10 – 20 hours", "20+ hours")
+    light_hours = q3_answer == "< 5 hours"
+    if q1_answer == "Self-study beyond the curriculum" or intensive_hours:
+        return "intensive_self_study"
+    if light_hours:
+        return "light_supplementary"
+    return "moderate_self_study"

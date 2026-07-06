@@ -268,6 +268,20 @@ export function saveTodayStudySubject(subject: string) {
   } catch { /* quota */ }
 }
 
+// ── Onboarding answers — persisted (previously only sent once to the
+// pricing-plan analyzer, then discarded) so features like the DeepSeek
+// roadmap generator can read the student's stated learning-style
+// preference (q7) and study intensity (q1/q3) later, not just at signup.
+const ONBOARDING_ANSWERS_KEY = 'lyceum_onboarding_answers';
+
+export function saveOnboardingAnswers(answers: Record<string, string | string[]>): void {
+  try { localStorage.setItem(ONBOARDING_ANSWERS_KEY, JSON.stringify(answers)); } catch { /* quota */ }
+}
+
+export function loadOnboardingAnswers(): Record<string, string | string[]> {
+  try { return JSON.parse(localStorage.getItem(ONBOARDING_ANSWERS_KEY) || '{}'); } catch { return {}; }
+}
+
 // ── Reference Bank (Gemma research results, auto-categorized by subject) ──
 const REFERENCES_KEY = 'lyceum_reference_bank_v1';
 
