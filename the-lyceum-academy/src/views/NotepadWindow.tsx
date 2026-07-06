@@ -34,6 +34,8 @@ interface GradeResult {
   feedback: string;
 }
 
+type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'circle' | 'triangle';
+
 export default function NotepadWindow() {
   const channelRef = useRef<BroadcastChannel | null>(null);
   const [qData, setQData]     = useState<{ question: SyncedQuestion; idx: number; total: number; docKey: string } | null>(null);
@@ -45,9 +47,9 @@ export default function NotepadWindow() {
   const [showMathKb, setShowMathKb] = useState(false);
   const [brushColor, setBrushColor] = useState('#F5F0E8');
   const [brushSize, setBrushSize]   = useState(3);
+  const [drawTool, setDrawTool]     = useState<DrawTool>('pen');
   const [canvasTranscript, setCanvasTranscript] = useState('');
   const [busy, setBusy]             = useState(false);
-  const [showQuestion, setShowQuestion] = useState(true);
   const [tearing, setTearing]       = useState(false);
 
   // Mastery check
@@ -63,6 +65,8 @@ export default function NotepadWindow() {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const drawing     = useRef(false);
   const lastPos     = useRef({ x: 0, y: 0 });
+  const shapeStart      = useRef<{ x: number; y: number } | null>(null);
+  const shapeSnapshot   = useRef<ImageData | null>(null);
 
   // ── BroadcastChannel ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -115,7 +119,16 @@ export default function NotepadWindow() {
 
   function startDraw(e: React.MouseEvent | React.TouchEvent) {
     const c = canvasRef.current; if (!c) return;
-    drawing.current = true; lastPos.current = getPos(e, c);
+    const ctx = c.getContext('2d'); if (!ctx) return;
+    const pos = getPos(e, c);
+    drawing.current = true;
+    lastPos.current = pos;
+    // Shape tools rubber-band a preview from a snapshot taken at the start —
+    // pen/eraser just stroke continuously and need no snapshot.
+    if (drawTool !== 'pen' && drawTool !== 'eraser') {
+      shapeStart.current = pos;
+      shapeSnapshot.current = ctx.getImageData(0, 0, c.width, c.height);
+    }
   }
 
   function draw(e: React.MouseEvent | React.TouchEvent) {
@@ -124,12 +137,50 @@ export default function NotepadWindow() {
     const ctx = c.getContext('2d'); if (!ctx) return;
     e.preventDefault();
     const pos = getPos(e, c);
-    ctx.strokeStyle = brushColor; ctx.lineWidth = brushSize; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(lastPos.current.x, lastPos.current.y); ctx.lineTo(pos.x, pos.y); ctx.stroke();
-    lastPos.current = pos;
+
+    if (drawTool === 'pen' || drawTool === 'eraser') {
+      ctx.globalCompositeOperation = drawTool === 'eraser' ? 'destination-out' : 'source-over';
+      ctx.strokeStyle = brushColor;
+      ctx.lineWidth = drawTool === 'eraser' ? brushSize * 4 : brushSize;
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.beginPath(); ctx.moveTo(lastPos.current.x, lastPos.current.y); ctx.lineTo(pos.x, pos.y); ctx.stroke();
+      lastPos.current = pos;
+      return;
+    }
+
+    // Shape tools: restore the pre-drag snapshot, then draw a live preview
+    // from the drag start point to the current pointer position.
+    if (!shapeStart.current || !shapeSnapshot.current) return;
+    ctx.putImageData(shapeSnapshot.current, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = brushColor;
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const { x: x0, y: y0 } = shapeStart.current;
+    ctx.beginPath();
+    if (drawTool === 'line') {
+      ctx.moveTo(x0, y0); ctx.lineTo(pos.x, pos.y);
+    } else if (drawTool === 'rect') {
+      ctx.rect(Math.min(x0, pos.x), Math.min(y0, pos.y), Math.abs(pos.x - x0), Math.abs(pos.y - y0));
+    } else if (drawTool === 'circle') {
+      const cx = (x0 + pos.x) / 2, cy = (y0 + pos.y) / 2;
+      const rx = Math.abs(pos.x - x0) / 2, ry = Math.abs(pos.y - y0) / 2;
+      ctx.ellipse(cx, cy, Math.max(rx, 0.01), Math.max(ry, 0.01), 0, 0, Math.PI * 2);
+    } else if (drawTool === 'triangle') {
+      const midX = (x0 + pos.x) / 2;
+      ctx.moveTo(midX, Math.min(y0, pos.y));
+      ctx.lineTo(Math.min(x0, pos.x), Math.max(y0, pos.y));
+      ctx.lineTo(Math.max(x0, pos.x), Math.max(y0, pos.y));
+      ctx.closePath();
+    }
+    ctx.stroke();
   }
 
-  function stopDraw() { drawing.current = false; }
+  function stopDraw() {
+    drawing.current = false;
+    shapeStart.current = null;
+    shapeSnapshot.current = null;
+  }
 
   async function transcribeCanvas() {
     const c = canvasRef.current; if (!c) return;
@@ -212,7 +263,7 @@ export default function NotepadWindow() {
   const diffColor = DIFF_COLOR[question.difficulty] || '#C5A059';
 
   return (
-    <div style={{ background: '#131313', minHeight: '100vh', display: 'flex', flexDirection: 'column', color: '#F5F0E8', fontFamily: 'Georgia, serif', userSelect: 'none' }}>
+    <div style={{ background: '#131313', height: '100vh', display: 'flex', flexDirection: 'column', color: '#F5F0E8', fontFamily: 'Georgia, serif', userSelect: 'none', overflow: 'hidden' }}>
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; background: #131313; }
@@ -234,27 +285,11 @@ export default function NotepadWindow() {
             {question.difficulty}
           </span>
         </div>
-        <button
-          onClick={() => setShowQuestion(v => !v)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', fontFamily: 'sans-serif' }}>
-          {showQuestion ? 'Hide Q' : 'Show Q'}
-        </button>
       </div>
 
-      {/* ── Question ── */}
-      {showQuestion && (
-        <div style={{ padding: '12px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', background: '#0e0e0e', flexShrink: 0, maxHeight: 160, overflowY: 'auto' }}>
-          <div style={{ fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.8)' }}
-            dangerouslySetInnerHTML={{ __html: renderMath(question.prompt) }} />
-          {question.concepts.length > 0 && (
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-              {question.concepts.map(c => (
-                <span key={c} style={{ fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', fontFamily: 'sans-serif', border: '1px solid rgba(255,255,255,0.15)', padding: '1px 6px', color: 'rgba(255,255,255,0.35)' }}>{c}</span>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Intentionally no question text here — the popup is a pure input
+          surface. The question itself lives in the main window; re-showing
+          it here would just be a second, out-of-sync copy of the same text. */}
 
       {/* ── Mode tabs ── */}
       <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
@@ -270,8 +305,9 @@ export default function NotepadWindow() {
         ))}
       </div>
 
-      {/* ── Input area ── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 14px', gap: 10, minHeight: 0, overflow: 'hidden' }}>
+      {/* ── Input area — expanded to fill essentially the whole popup, since
+          there's no question block above it anymore ── */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px', gap: 8, minHeight: 0, overflow: 'hidden' }}>
         {masteryResult ? (
           <div style={{ border: `1px solid ${masteryResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(251,191,36,0.4)'}`, padding: 12, background: masteryResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(251,191,36,0.06)', borderRadius: 3 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 6, color: masteryResult.passed ? '#4A7C59' : '#C5A059' }}>
@@ -291,7 +327,7 @@ export default function NotepadWindow() {
             placeholder="Write your solution here…"
             style={{
               flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#F5F0E8', padding: '12px 14px', fontSize: 13, lineHeight: 1.65,
+              color: '#F5F0E8', padding: '14px 16px', fontSize: 14, lineHeight: 1.7,
               resize: 'none', outline: 'none', borderRadius: 3,
               animation: tearing ? 'tearOff 0.35s ease-in both' : 'none',
               fontFamily: 'Georgia, serif',
@@ -300,8 +336,8 @@ export default function NotepadWindow() {
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
             <div style={{ flex: 1, border: '1px solid rgba(255,255,255,0.1)', background: '#fff', borderRadius: 3, overflow: 'hidden', animation: tearing ? 'tearOff 0.35s ease-in both' : 'none', minHeight: 0 }}>
-              <canvas ref={canvasRef} width={900} height={500}
-                style={{ width: '100%', height: '100%', cursor: 'crosshair', touchAction: 'none', display: 'block' }}
+              <canvas ref={canvasRef} width={1400} height={900}
+                style={{ width: '100%', height: '100%', cursor: drawTool === 'eraser' ? 'cell' : 'crosshair', touchAction: 'none', display: 'block' }}
                 onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                 onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
             </div>
@@ -357,19 +393,44 @@ export default function NotepadWindow() {
         {/* Canvas controls */}
         {mode === 'canvas' && (
           <>
+            {/* Tools: pen, eraser, ruler (straight line), basic shapes */}
+            <div style={{ display: 'flex', gap: 2 }}>
+              {([
+                { id: 'pen',      label: '✎', title: 'Pen' },
+                { id: 'eraser',   label: '⌫', title: 'Eraser' },
+                { id: 'line',     label: '📏', title: 'Ruler — straight line' },
+                { id: 'rect',     label: '▭', title: 'Square / rectangle' },
+                { id: 'circle',   label: '◯', title: 'Circle' },
+                { id: 'triangle', label: '△', title: 'Triangle' },
+              ] as const).map(t => (
+                <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
+                  width: 26, height: 26, border: `1px solid ${drawTool === t.id ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)'}`,
+                  background: drawTool === t.id ? 'rgba(255,255,255,0.12)' : 'none', color: '#F5F0E8',
+                  fontSize: 13, cursor: 'pointer', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                }}>{t.label}</button>
+              ))}
+            </div>
+
+            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+            {/* Color presets + a real color wheel via the native picker */}
             {['#F5F0E8','#C5A059','#4A7C59','#2563EB','#DC2626'].map(c => (
               <button key={c} onClick={() => setBrushColor(c)} style={{
-                width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer',
+                width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer', padding: 0,
               }} />
             ))}
-            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 2px' }} />
-            {[2, 4, 7].map(s => (
-              <button key={s} onClick={() => setBrushSize(s)} style={{
-                padding: '2px 7px', border: `1px solid ${brushSize === s ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)'}`,
-                background: brushSize === s ? 'rgba(255,255,255,0.1)' : 'none', color: '#F5F0E8',
-                fontFamily: 'sans-serif', fontSize: 9, cursor: 'pointer', borderRadius: 2,
-              }}>{s}</button>
-            ))}
+            <input type="color" value={brushColor} onChange={e => setBrushColor(e.target.value)} title="Custom color"
+              style={{ width: 22, height: 22, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 3 }} />
+
+            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
+            {/* Pen/shape thickness */}
+            <input type="range" min={1} max={24} value={brushSize} onChange={e => setBrushSize(Number(e.target.value))}
+              title={`Size: ${brushSize}px`} style={{ width: 56, cursor: 'pointer' }} />
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(255,255,255,0.4)', minWidth: 14, textAlign: 'right' }}>{brushSize}</span>
+
+            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+
             <button onClick={clearCanvas} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>Clear</button>
             <button onClick={transcribeCanvas} disabled={busy} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer' }}>Read</button>
           </>

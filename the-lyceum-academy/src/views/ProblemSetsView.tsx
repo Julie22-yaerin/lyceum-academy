@@ -329,6 +329,7 @@ function LensView({
   const [brushSize, setBrushSize] = useState(3);
   const [canvasTranscript, setCanvasTranscript] = useState('');
   const [showQuestion, setShowQuestion] = useState(false);
+  const [showLibrary, setShowLibrary] = useState(true);
   const [, setKatexTick] = useState(0);
 
   // ── Detachable notepad popup ──
@@ -696,6 +697,17 @@ function LensView({
             {popupOpen ? 'Notepad ●' : 'Pop out'}
           </button>
 
+          {/* Answer Library toggle */}
+          <button
+            onClick={() => setShowLibrary(v => !v)}
+            title={showLibrary ? 'Hide Answer Library' : 'Show Answer Library'}
+            className={`flex items-center gap-1.5 px-3 py-1.5 border font-sans text-[10px] uppercase tracking-[2px] transition-all ${
+              showLibrary ? 'border-white/40 text-white/90 bg-white/10' : 'border-white/20 text-white/50 hover:text-white/90 hover:border-white/40'
+            }`}>
+            <span className="material-symbols-outlined text-[14px]">library_books</span>
+            Library
+          </button>
+
           {/* Submit button — lights up only when ALL pages are analyzed */}
           <button onClick={handleSubmit} disabled={grading || !allPagesLoaded}
             className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[2px] transition-all flex items-center gap-1.5 ml-2 ${
@@ -735,7 +747,8 @@ function LensView({
         </div>
       )}
 
-      {/* ── PDF area (top, scrollable) ── */}
+      {/* ── PDF area + Answer Library, side by side ── */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto bg-neutral-800 min-h-0">
         <div className="flex flex-col gap-1 py-2 px-2" style={{ maxWidth: 860, margin: '0 auto' }}>
           {pages.map(page => {
@@ -887,145 +900,112 @@ function LensView({
                   );
                 })}
 
-                {/* ── Pasted answer notes ── */}
-                {questions.map((oq, oi) => {
-                  const noteText = pastedNotes[oq.id];
-                  const noteImg = pastedImages[oq.id];
-                  if ((!noteText && !noteImg) || (oq.page ?? 0) !== page.index) return null;
-                  const nTop = oq.yStart ?? 0;
-                  const nH = Math.max(8, (oq.yEnd ?? 100) - nTop);
-                  const grade = gradeResults[oq.id];
-                  const isWrong = grade && !grade.passed;
-                  const isRight = grade && grade.passed;
-                  const showingExp = showExplanation === oq.id;
-                  return (
-                    <div key={`pasted-${oi}`} className="absolute inset-x-0 select-none"
-                      style={{ top: `${nTop}%`, height: `${nH}%`, zIndex: 14,
-                        animation: 'pasteOn 0.48s cubic-bezier(0.23,1,0.32,1) both',
-                        cursor: isWrong ? 'pointer' : 'default',
-                        pointerEvents: isWrong ? 'auto' : 'none' }}
-                      onClick={isWrong ? () => setShowExplanation(showingExp ? null : oq.id) : undefined}>
-                      <div style={{
-                        background: isRight ? 'rgba(220,252,231,0.94)' : isWrong ? 'rgba(254,226,226,0.94)' : 'rgba(254,249,195,0.94)',
-                        borderTop: `3px solid ${isRight ? 'rgba(22,163,74,0.6)' : isWrong ? 'rgba(220,38,38,0.6)' : 'rgba(202,138,4,0.55)'}`,
-                        boxShadow: `2px 4px 14px rgba(0,0,0,0.32)${isWrong ? ', inset 0 0 0 1.5px rgba(220,38,38,0.25)' : ''}`,
-                        padding: '7px 12px 7px 14px',
-                        height: '100%', overflow: 'hidden',
-                        transform: 'rotate(-0.35deg)',
-                        position: 'relative',
-                        transition: 'background 0.4s, border-color 0.4s',
-                      }}>
-                        <div style={{ position:'absolute', top:0, left:0, right:0, height:3,
-                          background:'repeating-linear-gradient(90deg,transparent,transparent 4px,rgba(0,0,0,0.06) 4px,rgba(0,0,0,0.06) 5px)' }} />
-                        {noteText && (
-                          <p style={{ margin:0, fontFamily:'Georgia, serif', fontSize:11, lineHeight:1.55,
-                            color:'#1a1a1a', whiteSpace:'pre-wrap', wordBreak:'break-word' }}>{noteText}</p>
-                        )}
-                        {noteImg && <img src={noteImg} style={{ width:'100%', height:'calc(100% - 8px)', objectFit:'contain', display:'block' }} />}
-                        <span style={{ position:'absolute', bottom:4, right:8, fontFamily:'sans-serif',
-                          fontSize:10, fontWeight:700, letterSpacing:'1px',
-                          color: isRight ? 'rgba(22,163,74,0.7)' : isWrong ? 'rgba(220,38,38,0.7)' : 'rgba(0,0,0,0.22)' }}>
-                          {isRight ? '✓' : isWrong ? '✗' : `Q${oi+1}`}
-                        </span>
-                        {isWrong && !showingExp && (
-                          <span style={{ position:'absolute', bottom:4, left:10, fontFamily:'sans-serif',
-                            fontSize:9, color:'rgba(220,38,38,0.55)', letterSpacing:'0.5px' }}>tap for explanation</span>
-                        )}
-                      </div>
-                      {/* Explanation + suggestions popup */}
-                      {showingExp && grade && (
-                        <div style={{
-                          position:'absolute', left:'4%', right:'4%', top:'calc(100% + 6px)', zIndex:20,
-                          background:'#1a1a1a', border:'1px solid rgba(220,38,38,0.4)',
-                          boxShadow:'0 8px 24px rgba(0,0,0,0.6)',
-                          padding:'14px 16px', borderRadius:4,
-                          fontFamily:'Georgia, serif', fontSize:12, lineHeight:1.6,
-                          color:'rgba(255,255,255,0.88)',
-                        }}
-                          onClick={e => e.stopPropagation()}>
-                          <span style={{ fontFamily:'sans-serif', fontSize:9, letterSpacing:'2px',
-                            textTransform:'uppercase', color:'rgba(220,38,38,0.8)', display:'block', marginBottom:6 }}>
-                            Q{oi+1} — Why wrong
-                          </span>
-                          <p style={{ margin:'0 0 10px 0' }} dangerouslySetInnerHTML={{ __html: renderMath(grade.feedback) }} />
-
-                          {/* Suggestions from Gemma */}
-                          {grade.suggestions && (
-                            <div style={{ borderTop:'1px solid rgba(255,255,255,0.1)', paddingTop:10, marginTop:2 }}>
-                              <span style={{ fontFamily:'sans-serif', fontSize:8, letterSpacing:'2px',
-                                textTransform:'uppercase', color:'rgba(255,255,255,0.35)', display:'block', marginBottom:8 }}>
-                                What to do
-                              </span>
-                              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                                {/* View Notes */}
-                                {grade.suggestions.concept && (
-                                  <button
-                                    style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.06)',
-                                      border:'1px solid rgba(255,255,255,0.12)', borderRadius:3, padding:'5px 10px',
-                                      cursor:'pointer', textAlign:'left', color:'rgba(255,255,255,0.75)',
-                                      fontFamily:'sans-serif', fontSize:10 }}
-                                    onClick={() => {
-                                      setShowExplanation(null);
-                                      onExit(idx);
-                                      onNavigate?.('notes');
-                                    }}>
-                                    <span style={{ fontSize:13 }}>📝</span>
-                                    <span>Review in Notes: <strong style={{ color:'rgba(251,191,36,0.9)' }}>{grade.suggestions.concept}</strong></span>
-                                  </button>
-                                )}
-                                {/* Ask Lyceum AI */}
-                                {grade.suggestions.ask_lyceum && (
-                                  <button
-                                    style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.06)',
-                                      border:'1px solid rgba(255,255,255,0.12)', borderRadius:3, padding:'5px 10px',
-                                      cursor:'pointer', textAlign:'left', color:'rgba(255,255,255,0.75)',
-                                      fontFamily:'sans-serif', fontSize:10 }}
-                                    onClick={() => {
-                                      try { sessionStorage.setItem('lyceum_dialogue_prefill', grade.suggestions!.ask_lyceum); } catch {}
-                                      setShowExplanation(null);
-                                      onExit(idx);
-                                      onNavigate?.('dialogue');
-                                    }}>
-                                    <span style={{ fontSize:13 }}>🤖</span>
-                                    <span>Ask Lyceum AI</span>
-                                  </button>
-                                )}
-                                {/* Google search links */}
-                                {(grade.suggestions.google_links || []).map((link, li) => (
-                                  <a key={li} href={link.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.06)',
-                                      border:'1px solid rgba(255,255,255,0.12)', borderRadius:3, padding:'5px 10px',
-                                      textDecoration:'none', color:'rgba(255,255,255,0.75)',
-                                      fontFamily:'sans-serif', fontSize:10 }}>
-                                    <span style={{ fontSize:13 }}>🔍</span>
-                                    <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{link.title}</span>
-                                  </a>
-                                ))}
-                                {/* Community placeholder */}
-                                <div style={{ display:'flex', alignItems:'center', gap:6,
-                                  padding:'5px 10px', color:'rgba(255,255,255,0.3)',
-                                  fontFamily:'sans-serif', fontSize:10 }}>
-                                  <span style={{ fontSize:13 }}>💬</span>
-                                  <span>Discuss with community — coming soon</span>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-
-                          <button style={{ marginTop:10, fontFamily:'sans-serif', fontSize:9, letterSpacing:'2px',
-                            textTransform:'uppercase', color:'rgba(255,255,255,0.3)', cursor:'pointer', background:'none', border:'none' }}
-                            onClick={() => setShowExplanation(null)}>Close ×</button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                {/* Answers are NEVER overlaid on the PDF page — they live only in the
+                    Answer Library panel (exact user input, untouched by AI). */}
 
                 <div className="absolute bottom-1 right-2 font-sans text-[9px] text-white/30 pointer-events-none select-none" style={{ zIndex: 10 }}>p.{page.index + 1}</div>
               </div>
             );
           })}
         </div>
+      </div>
+
+      {/* ── Answer Library — every stored answer, exact user input, in its own
+          box, ordered by question number, editable, scrollable. Replaces the
+          old yellow-sticky-note overlay on the PDF entirely. ── */}
+      {showLibrary && (
+        <div className="w-80 flex-shrink-0 border-l border-white/10 bg-neutral-900 flex flex-col min-h-0">
+          <div className="px-4 py-2.5 border-b border-white/10 flex items-center justify-between flex-shrink-0">
+            <span className="font-sans text-[10px] uppercase tracking-[2px] text-white/50">Answer Library</span>
+            <span className="font-sans text-[9px] text-white/30">
+              {questions.filter(oq => pastedNotes[oq.id] !== undefined || pastedImages[oq.id] !== undefined).length}/{questions.length} answered
+            </span>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 py-3 flex flex-col gap-2.5 min-h-0">
+            {questions.map((oq, oi) => {
+              const noteText = pastedNotes[oq.id];
+              const noteImg = pastedImages[oq.id];
+              const grade = gradeResults[oq.id];
+              const isWrong = grade && !grade.passed;
+              const isRight = grade && grade.passed;
+              const showingExp = showExplanation === oq.id;
+              const isCurrent = oi === idx;
+              return (
+                <div key={oq.id} className={`border rounded-sm ${isCurrent ? 'border-amber-400/50' : 'border-white/10'} bg-white/[0.03]`}>
+                  <div className="flex items-center justify-between px-3 py-2 cursor-pointer" onClick={() => setIdx(oi)}>
+                    <div className="flex items-center gap-2">
+                      <span className="font-sans text-[10px] uppercase tracking-[1px] text-white/70 font-bold">Q{oi + 1}</span>
+                      <span className="font-sans text-[9px] text-white/30">Page {(oq.page ?? 0) + 1}</span>
+                    </div>
+                    {isRight && <span className="text-emerald-400 text-xs">✓</span>}
+                    {isWrong && <span className="text-red-400 text-xs">✗</span>}
+                  </div>
+                  <div className="px-3 pb-3">
+                    {noteImg ? (
+                      <div className="flex flex-col gap-1.5">
+                        <img src={noteImg} alt={`Q${oi + 1} handwritten answer`}
+                          className="w-full border border-white/10 bg-white" style={{ maxHeight: 120, objectFit: 'contain' }} />
+                        <button onClick={() => { setIdx(oi); setMode('canvas'); }}
+                          className="self-start font-sans text-[9px] uppercase tracking-[1px] text-white/40 hover:text-white/80 transition-colors">
+                          Redraw
+                        </button>
+                      </div>
+                    ) : noteText !== undefined ? (
+                      <textarea
+                        value={noteText}
+                        onChange={e => setPastedNotes(prev => ({ ...prev, [oq.id]: e.target.value }))}
+                        rows={3}
+                        placeholder="Your answer…"
+                        className="w-full bg-black/30 border border-white/10 text-white/85 font-sans text-xs p-2 resize-none outline-none focus:border-white/30 transition-colors"
+                      />
+                    ) : (
+                      <button onClick={() => setIdx(oi)}
+                        className="w-full text-center py-2 border border-dashed border-white/15 font-sans text-[9px] uppercase tracking-[1px] text-white/30 hover:text-white/60 hover:border-white/30 transition-colors">
+                        Not answered — jump to Q{oi + 1}
+                      </button>
+                    )}
+                    {isWrong && (
+                      <button onClick={() => setShowExplanation(showingExp ? null : oq.id)}
+                        className="mt-2 font-sans text-[9px] uppercase tracking-[1px] text-red-400/70 hover:text-red-400 transition-colors">
+                        {showingExp ? 'Hide explanation' : 'Why wrong?'}
+                      </button>
+                    )}
+                    {showingExp && grade && (
+                      <div className="mt-2 bg-black/40 border border-red-400/30 p-2.5 rounded-sm">
+                        <p className="font-serif text-[11px] leading-relaxed text-white/80" dangerouslySetInnerHTML={{ __html: renderMath(grade.feedback) }} />
+                        {grade.suggestions && (
+                          <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-white/10">
+                            {grade.suggestions.concept && (
+                              <button onClick={() => { setShowExplanation(null); onExit(idx); onNavigate?.('notes'); }}
+                                className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 transition-colors">
+                                📝 Review in Notes: {grade.suggestions.concept}
+                              </button>
+                            )}
+                            {grade.suggestions.ask_lyceum && (
+                              <button onClick={() => {
+                                try { sessionStorage.setItem('lyceum_dialogue_prefill', grade.suggestions!.ask_lyceum); } catch {}
+                                setShowExplanation(null); onExit(idx); onNavigate?.('dialogue');
+                              }} className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 transition-colors">
+                                🤖 Ask Lyceum AI
+                              </button>
+                            )}
+                            {(grade.suggestions.google_links || []).map((link, li) => (
+                              <a key={li} href={link.url} target="_blank" rel="noopener noreferrer"
+                                className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 truncate transition-colors">
+                                🔍 {link.title}
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
       </div>
 
       {/* ── Floating notepad ── */}

@@ -226,7 +226,11 @@ async def media_proxy(request: Request, url: str):
     if not _image_proxy_host_ok(url):
         raise HTTPException(status_code=400, detail="URL host not allowed.")
     import httpx
-    headers = {"User-Agent": "Pclick/1.0 (educational app)"}
+    # Wikimedia's User-Agent policy (meta.wikimedia.org/wiki/User-Agent_policy)
+    # 403s requests without a contact URL, especially from cloud/datacenter
+    # IPs — confirmed live: a generic "Pclick/1.0 (educational app)" UA got
+    # 403'd from Railway's IP while working fine from a residential IP.
+    headers = {"User-Agent": "LyceumAcademy/1.0 (https://lyceum-academy.vercel.app) httpx"}
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
             current = url
