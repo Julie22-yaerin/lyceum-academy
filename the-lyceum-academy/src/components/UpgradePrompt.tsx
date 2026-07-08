@@ -4,7 +4,6 @@
  */
 
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
 
 interface UpgradePromptProps {
   feature: 'voice' | 'mindmap' | 'reference' | 'roadmap';
@@ -43,12 +42,11 @@ const RECOMMENDED_TIERS = {
 };
 
 export default function UpgradePrompt({ feature, currentTier = 'compass', onClose }: UpgradePromptProps) {
-  const navigate = useNavigate();
   const message = FEATURE_MESSAGES[feature];
   const recommendedTiers = RECOMMENDED_TIERS[feature];
 
   const handleUpgrade = () => {
-    navigate('/pricing');
+    window.location.href = '/pricing';
   };
 
   return (
