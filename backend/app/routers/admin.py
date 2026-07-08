@@ -189,6 +189,24 @@ def ft_export(_: None = Depends(_auth)):
     return ft_svc.export_jsonl()
 
 
+# ── Per-model Role & Characteristic — the Training AI board's system-prompt/
+# persona field, persisted here so it survives across browsers/devices and
+# so export_jsonl_filtered() can fall back to it during a training push.
+
+class RoleIn(BaseModel):
+    role: str = ""
+
+
+@router.get("/models/roles")
+def list_model_roles(_: None = Depends(_auth)):
+    return {"roles": ft_svc.list_roles()}
+
+
+@router.put("/models/{model_id}/role")
+def set_model_role(model_id: str, body: RoleIn, _: None = Depends(_auth)):
+    return ft_svc.set_role(model_id, body.role)
+
+
 # ── Personalization profiles — the shared per-user, per-concept store every
 # AI feature reads (see app/services/mastery_profile.py). Admin-only, read-only.
 
@@ -258,7 +276,7 @@ def ft_submit_job(body: SubmitJobIn, _: None = Depends(_auth)):
     and kick off a fine-tuning job.  Returns the OpenAI job object.
     """
     subject_prefix = f"train__{body.model_id}__"
-    jsonl = ft_svc.export_jsonl_filtered(subject_prefix)
+    jsonl = ft_svc.export_jsonl_filtered(subject_prefix, model_id=body.model_id)
     if not jsonl.strip():
         raise HTTPException(400, "No training examples found for this model — add some first.")
     try:

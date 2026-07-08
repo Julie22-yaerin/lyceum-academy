@@ -227,6 +227,7 @@ let _shown       = false;
 let _pingTimer   = null;
 let _retryTimer  = null;
 let _retryS      = 0;
+let _modelRoles  = {}; // model_id -> role, hydrated from backend (see hydrateRoles())
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 auth.onIdTokenChanged(async user => {
@@ -335,8 +336,25 @@ function toast(msg, type='ok') {
 async function postLoginInit() {
   setDot('yellow','connecting…');
   const ok = await pingApi();
-  if (ok) { toast('✓ Backend connected'); startPing(); }
+  if (ok) { toast('✓ Backend connected'); startPing(); await hydrateRoles(); }
   else { startRetry(10); }
+}
+
+// Pull every model's persisted Role & Characteristic from the backend, and
+// push up any role that so far only exists in this browser's localStorage
+// (e.g. set before this backend endpoint existed) so it becomes part of
+// the model's real training config instead of being stuck on one device.
+async function hydrateRoles() {
+  try {
+    const r = await api('/admin/models/roles');
+    _modelRoles = (await r.json()).roles || {};
+  } catch { _modelRoles = {}; }
+
+  for (const m of loadModels()) {
+    if (_modelRoles[m.id]) continue;
+    const local = localStorage.getItem(`pclick:training:role:${m.id}`) || '';
+    if (local) await saveRole(m.id, local);
+  }
 }
 
 async function pingApi() {
@@ -381,7 +399,9 @@ async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){t
 // DATA STORE
 // Models + tasks: localStorage
 // Few-shot examples: backend finetune API (subject = modelId__taskId)
-// Role per model: localStorage (pclick:training:role:{modelId})
+// Role per model: backend (GET/PUT /admin/models/{id}/role), cached in
+//   _modelRoles + mirrored to localStorage (pclick:training:role:{modelId})
+//   as an offline fallback — see hydrateRoles()/loadRole()/saveRole().
 // Tasks per model: localStorage (pclick:training:tasks:{modelId})
 // ════════════════════════════════════════════════════════════════
 
@@ -426,10 +446,17 @@ function loadModels() {
 function saveModels(m) { localStorage.setItem('pclick:training:models', JSON.stringify(m)); }
 
 function loadRole(modelId) {
+  if (modelId in _modelRoles) return _modelRoles[modelId];
   return localStorage.getItem(`pclick:training:role:${modelId}`) || '';
 }
-function saveRole(modelId, role) {
+async function saveRole(modelId, role) {
+  _modelRoles[modelId] = role;
   localStorage.setItem(`pclick:training:role:${modelId}`, role);
+  try {
+    await api(`/admin/models/${encodeURIComponent(modelId)}/role`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role}),
+    });
+  } catch { toast('⚠ Role saved locally only — backend unreachable'); }
 }
 
 function loadTasks(modelId) {
@@ -1206,9 +1233,9 @@ async function loadTaskExamples(modelId, taskId) {
 }
 
 // ── Role save ─────────────────────────────────────────────────────────────────
-function saveRoleUI() {
+async function saveRoleUI() {
   const role = document.getElementById('role-textarea')?.value || '';
-  saveRole(_currentModelId, role);
+  await saveRole(_currentModelId, role);
   toast('✓ Role saved');
 }
 
