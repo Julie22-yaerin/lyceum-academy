@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     google_api_key:       str = ""
     google_primary_model: str = "gemini-2.5-flash"
     google_fast_model:    str = "gemma-3-27b-it"
+    # Same GOOGLE_API_KEY as above — one Google AI Studio key covers every
+    # Gemini model tier (Flash, Flash-Lite, Pro), no separate key needed.
+    # Used for the grading role: grade_all / grade_dual / check_mastery.
+    google_pro_model:     str = "gemini-2.5-pro"
 
     # ── NVIDIA NIM (fallback) ─────────────────────────────────────
     nvidia_api_key: str = ""

@@ -2636,11 +2636,13 @@ async def clean_question(prompt: str, context: str = "") -> str:
 @_tag_task
 async def grade_all(items: list[dict]) -> dict:
     """
-    Grade a batch of answered questions using Groq (fast).
+    Grade a batch of answered questions.
+    Prefers Google Gemini Pro (same GOOGLE_API_KEY as the rest of the Gemini
+    calls in this file), falling back to the Groq/Ollama chat() cascade if
+    Gemini is unavailable or fails.
     items: [{id, prompt, answer}]
     Returns { grades: [{id, passed, feedback}] }
     """
-    import json as _json
     numbered = "\n\n".join(
         f"[{it['id']}]\nQuestion: {it['prompt']}\nAnswer: {it['answer']}"
         for it in items
@@ -2654,6 +2656,24 @@ async def grade_all(items: list[dict]) -> dict:
         "- feedback: 1-2 sentences max. For wrong answers explain the key error and correct approach.\n"
         "- Keep one grade object per question id, in the same order."
     )
+
+    if _use_google():
+        try:
+            resp = await _google_call(
+                [{"role": "system", "content": system},
+                 {"role": "user",   "content": numbered}],
+                model=settings.google_pro_model,
+                temperature=0.1,
+                max_tokens=2048,
+            )
+            raw = extract_text(resp)
+            data = _parse_json_robust(raw)
+            if data and "grades" in data:
+                return data
+        except Exception:
+            import logging
+            logging.getLogger("pclick").warning("grade_all: Gemini Pro failed, falling back", exc_info=True)
+
     resp = await chat(
         [{"role": "system", "content": system},
          {"role": "user",   "content": numbered}],
@@ -2696,23 +2716,35 @@ async def get_hint(problem_text: str, hint_level: int = 1) -> str:
 @_tag_task
 async def check_mastery(problem: str, student_solution: str) -> dict:
     """
-    Evaluate a student's solution.
+    Evaluate a student's solution and drive their mastery/progress update.
+    Prefers Google Gemini Pro (same GOOGLE_API_KEY as the rest of the Gemini
+    calls in this file), falling back to the Groq/Ollama chat() cascade.
     Returns { correct: bool, mastery_delta: int (-10 to +20), feedback: str }
     """
+    import json, re
     system = (
         "You are a rigorous math grader. Evaluate the student's solution. "
         "Return ONLY JSON with: correct (bool), mastery_delta (int from -10 to 20), "
         "feedback (string). In the feedback string, use LaTeX for all math: $...$ for inline, $$...$$ for display."
     )
-    resp = await chat(
-        [{"role": "system", "content": system},
-         {"role": "user",   "content": f"Problem:\n{problem}\n\nStudent solution:\n{student_solution}"}],
-        temperature=0.2,
-        max_tokens=512,
-        prefer_fast=True,
-    )
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user",   "content": f"Problem:\n{problem}\n\nStudent solution:\n{student_solution}"},
+    ]
+
+    if _use_google():
+        try:
+            resp = await _google_call(messages, model=settings.google_pro_model, temperature=0.2, max_tokens=512)
+            raw = extract_text(resp)
+            cleaned = re.sub(r"^```(?:json)?\n?", "", raw.strip())
+            cleaned = re.sub(r"\n?```$", "", cleaned)
+            return json.loads(cleaned)
+        except Exception:
+            import logging
+            logging.getLogger("pclick").warning("check_mastery: Gemini Pro failed, falling back", exc_info=True)
+
+    resp = await chat(messages, temperature=0.2, max_tokens=512, prefer_fast=True)
     raw = extract_text(resp)
-    import json, re
     cleaned = re.sub(r"^```(?:json)?\n?", "", raw.strip())
     cleaned = re.sub(r"\n?```$", "", cleaned)
     try:
@@ -3487,7 +3519,10 @@ async def _transcribe_handwriting(image_b64: str) -> str:
 async def grade_dual(items: list[dict]) -> dict:
     """
     Dual-AI grading:
-      - Meta Llama (Groq llama-3.3-70b): grades answers, transcribes handwriting
+      - Meta Llama vision (Groq): transcribes handwriting
+      - Google Gemini Pro (same GOOGLE_API_KEY as the rest of this file):
+        grades answers, falling back to Meta Llama (Groq llama-3.3-70b) then
+        the general chat() cascade if Gemini is unavailable or fails
       - Gemma (NVIDIA google/gemma-2-2b-it): generates study suggestions for wrong answers
 
     items: [{id, prompt, answer, image_b64?: str}]
@@ -3531,13 +3566,13 @@ async def grade_dual(items: list[dict]) -> dict:
     )
 
     grades_data: dict = {"grades": []}
-    # Try Meta Llama via Groq first
-    try:
-        if _use_groq():
-            resp = await _groq_call(
+    # Try Google Gemini Pro first (same GOOGLE_API_KEY as the rest of this file)
+    if _use_google():
+        try:
+            resp = await _google_call(
                 [{"role": "system", "content": grade_system},
                  {"role": "user", "content": numbered}],
-                model="llama-3.3-70b-versatile",
+                model=settings.google_pro_model,
                 temperature=0.1,
                 max_tokens=2048,
             )
@@ -3545,11 +3580,30 @@ async def grade_dual(items: list[dict]) -> dict:
             parsed = _parse_json_robust(raw)
             if parsed and "grades" in parsed:
                 grades_data = parsed
-                log.info("grade_dual: Meta Llama grading OK (%d grades)", len(parsed["grades"]))
-    except Exception as e:
-        log.warning("grade_dual: Meta Llama grading failed: %s — falling back", e)
+                log.info("grade_dual: Gemini Pro grading OK (%d grades)", len(parsed["grades"]))
+        except Exception as e:
+            log.warning("grade_dual: Gemini Pro grading failed: %s — falling back", e)
 
-    # Fallback: regular chat() cascade
+    # Fallback: Meta Llama via Groq
+    if not grades_data["grades"]:
+        try:
+            if _use_groq():
+                resp = await _groq_call(
+                    [{"role": "system", "content": grade_system},
+                     {"role": "user", "content": numbered}],
+                    model="llama-3.3-70b-versatile",
+                    temperature=0.1,
+                    max_tokens=2048,
+                )
+                raw = extract_text(resp)
+                parsed = _parse_json_robust(raw)
+                if parsed and "grades" in parsed:
+                    grades_data = parsed
+                    log.info("grade_dual: Meta Llama grading OK (%d grades)", len(parsed["grades"]))
+        except Exception as e:
+            log.warning("grade_dual: Meta Llama grading failed: %s — falling back", e)
+
+    # Final fallback: regular chat() cascade
     if not grades_data["grades"]:
         try:
             resp = await chat(
