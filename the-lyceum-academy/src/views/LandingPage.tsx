@@ -1,163 +1,414 @@
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import {
+  ArrowDown,
+  AudioLines,
+  Brain,
+  HelpCircle,
+  MessageCircle,
+  Sparkles,
+  Share2,
+  AlertCircle,
+  BookOpen,
+  type LucideIcon,
+} from 'lucide-react';
 import { NavigationProps } from '../types';
+
+// ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
+const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
+  { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
+  { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
+  { role: 'student', text: 'I guess... gravity? It never really stops acting on it.' },
+  { role: 'lyceum', text: 'Exactly — so what does that tell you about the ball’s velocity over time?' },
+  { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
+  { role: 'lyceum', text: 'You found it yourself. What would change if we did this on the Moon?' },
+];
+
+const QUOTES = [
+  { text: 'The unexamined life is not worth living.', by: 'Socrates' },
+  { text: 'I cannot teach anybody anything. I can only make them think.', by: 'Socrates' },
+  { text: 'Wonder is the feeling of the philosopher, and philosophy begins in wonder.', by: 'Plato, Theaetetus' },
+  { text: 'Education is the kindling of a flame, not the filling of a vessel.', by: 'after Plutarch' },
+];
+
+const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
+  {
+    icon: HelpCircle,
+    title: 'You bring a question',
+    body: 'Not a topic to memorize — a real question you’re stuck on, from any of ten subjects.',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Lyceum asks in return',
+    body: 'Instead of the answer, you get the next question — the one that exposes what you actually understand.',
+  },
+  {
+    icon: Sparkles,
+    title: 'You arrive at it yourself',
+    body: 'The insight lands because you built it. That’s what makes it stick past the exam.',
+  },
+];
+
+const FEATURES: { span: 'lg' | 'sm'; icon: LucideIcon; accent: string; title: string; body: string; list?: string[] }[] = [
+  {
+    span: 'lg',
+    icon: Brain,
+    accent: 'text-purple-300',
+    title: 'Feynman Technique Simulator',
+    body: 'Teach a concept back in plain language. Lyceum AI probes every explanation for gaps, forcing true understanding instead of memorization — instantly surfacing what you don’t actually know.',
+  },
+  {
+    span: 'sm',
+    icon: Share2,
+    accent: 'text-blue-300',
+    title: 'Knowledge Map',
+    body: 'Every concept you learn joins a living graph of prerequisites, sub-topics, and applications — so you always see how the pieces connect.',
+  },
+  {
+    span: 'sm',
+    icon: AlertCircle,
+    accent: 'text-amber-300',
+    title: 'Mistake Vault',
+    body: 'Errors get logged, categorized, and resurfaced with spaced repetition until the blind spot is actually closed.',
+    list: ['Sign error · Calc II', 'Unit mismatch · Physics', 'Off-by-one · Recursion'],
+  },
+  {
+    span: 'sm',
+    icon: BookOpen,
+    accent: 'text-cyan-300',
+    title: 'Reference Bank',
+    body: 'Every source you cite, every proof you verify, organized and searchable — your own private library of vetted answers.',
+  },
+];
+
+function DialogueDemo() {
+  const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStep((s) => (s >= DIALOGUE_SCRIPT.length ? 1 : s + 1));
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
+
+  const visible = DIALOGUE_SCRIPT.slice(0, step);
+
+  return (
+    <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
+      <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Live Socratic dialogue</span>
+      </div>
+      <div className="flex flex-col gap-3">
+        <AnimatePresence initial={false}>
+          {visible.map((m, i) => (
+            <motion.div
+              key={`${step >= i ? 'a' : 'b'}-${i}`}
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className={
+                m.role === 'student'
+                  ? 'self-end max-w-[85%] rounded-2xl rounded-br-sm bg-white/10 px-4 py-2.5 text-[13px] leading-relaxed text-white/90'
+                  : 'self-start max-w-[85%] rounded-2xl rounded-bl-sm bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-400/20 px-4 py-2.5 text-[13px] leading-relaxed text-purple-100'
+              }
+            >
+              {m.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
+
+function RotatingQuote() {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((n) => (n + 1) % QUOTES.length), 5000);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="relative h-28 flex items-center justify-center text-center">
+      <AnimatePresence mode="wait">
+        <motion.figure
+          key={i}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -8 }}
+          transition={{ duration: 0.5 }}
+          className="max-w-2xl"
+        >
+          <blockquote className="font-garamond text-xl md:text-2xl text-white/90 italic leading-snug">
+            &ldquo;{QUOTES[i].text}&rdquo;
+          </blockquote>
+          <figcaption className="mt-3 text-xs uppercase tracking-[0.2em] text-white/40">
+            {QUOTES[i].by}
+          </figcaption>
+        </motion.figure>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  show: { opacity: 1, y: 0 },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12 } },
+};
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
   return (
     <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen">
-      {/* Background ambient blobs */}
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[45%] h-[45%] bg-indigo-600/15 rounded-full blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[50%] h-[50%] bg-blue-600/15 rounded-full blur-[120px]" />
-        <div className="absolute top-[40%] left-[55%] w-[35%] h-[35%] bg-violet-500/10 rounded-full blur-[120px]" />
+      {/* Ambient background orbs */}
+      <div className="ambient-orbs">
+        <div className="orb-1" />
+        <div className="orb-2" />
+        <div className="orb-3" />
       </div>
 
       {/* Nav */}
-      <nav className="fixed w-full z-50 top-0 px-6 py-4">
+      <motion.nav
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="fixed w-full z-50 top-0 px-6 py-4"
+      >
         <div className="max-w-7xl mx-auto rounded-full px-6 py-3 flex justify-between items-center glass-strong">
-          <div className="text-xl font-bold tracking-wider text-white">Lyceum</div>
-          <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
-            <a href="#features" className="hover:text-white transition-colors">Features</a>
-            <a href="#tree" className="hover:text-white transition-colors">Tree</a>
-            <a href="#cohort" className="hover:text-white transition-colors">Cohort</a>
+          <div className="flex items-center gap-2 text-xl font-bold tracking-wider text-white">
+            <span className="text-metallic">Lyceum</span>
           </div>
-          <button
+          <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
+            <a href="#method" className="nav-link">The Method</a>
+            <a href="#features" className="nav-link">Features</a>
+            <a href="#voices" className="nav-link">Wisdom</a>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => onNavigate('auth')}
             className="px-6 py-2 rounded-full text-sm font-medium text-white glass-btn"
           >
             Launch Workspace
-          </button>
+          </motion.button>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* Hero */}
-      <main className="relative max-w-7xl mx-auto px-6 pt-32 pb-20 min-h-screen flex items-center">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+      <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-24 min-h-screen flex items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
           {/* Left: headline + CTA */}
-          <div className="space-y-8 z-10">
-            <h1 className="text-5xl md:text-7xl font-extrabold leading-[1.1] tracking-tight">
-              <span className="text-metallic">READY TO</span>
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={stagger}
+            className="space-y-7 z-10"
+          >
+            <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse-glow" />
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">AI Socratic Tutor</span>
+            </motion.div>
+
+            <motion.h1
+              variants={fadeUp}
+              transition={{ duration: 0.6 }}
+              className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic"
+            >
+              Great minds aren&rsquo;t filled.
               <br />
-              <span className="text-metallic">CONQUER YOUR</span>
-              <br />
-              <span className="text-metallic">STUDIES?</span>
-            </h1>
-            <p className="text-lg text-slate-400 max-w-lg leading-relaxed">
-              An elite ecosystem designed for autonomous researchers, independent thinkers, and top-tier student scientists.
-            </p>
-            <div className="pt-4 flex items-center gap-4">
-              <button
+              They&rsquo;re kindled.
+            </motion.h1>
+
+            <motion.p
+              variants={fadeUp}
+              transition={{ duration: 0.6 }}
+              className="text-lg text-slate-400 max-w-lg leading-relaxed"
+            >
+              Lyceum never hands you the answer. It asks the next question — the one Socrates would have asked — until you find the answer yourself, and keep it.
+            </motion.p>
+
+            <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
+              <motion.button
+                whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(167,139,250,0.35)' }}
+                whileTap={{ scale: 0.97 }}
                 onClick={() => onNavigate('auth')}
                 className="inline-block px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
               >
-                Join the Cohort
-              </button>
-            </div>
-          </div>
+                Enter the Agora
+              </motion.button>
+              <a
+                href="#method"
+                className="text-sm font-medium text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                See how it teaches
+                <ArrowDown className="w-4 h-4" />
+              </a>
+            </motion.div>
+          </motion.div>
 
-          {/* Right: decorative globe + caduceus */}
-          <div className="relative w-full flex justify-center lg:justify-end z-10">
+          {/* Right: live dialogue demo */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="relative w-full flex justify-center lg:justify-end z-10"
+          >
             <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 to-purple-500/20 rounded-full blur-3xl transform scale-75" />
-            <div
-              className="absolute w-72 h-72 rounded-full glass-strong opacity-60"
-              style={{ boxShadow: '0 0 80px rgba(59,130,246,0.25), inset 0 0 60px rgba(139,92,246,0.15)' }}
-            />
-            {/* Globe lines */}
-            <svg viewBox="0 0 200 200" className="absolute w-72 h-72 opacity-30">
-              <defs>
-                <linearGradient id="globeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#60A5FA" />
-                  <stop offset="100%" stopColor="#A78BFA" />
-                </linearGradient>
-              </defs>
-              <circle cx="100" cy="100" r="90" fill="none" stroke="url(#globeGrad)" strokeWidth="0.5" />
-              <ellipse cx="100" cy="100" rx="90" ry="35" fill="none" stroke="url(#globeGrad)" strokeWidth="0.5" />
-              <ellipse cx="100" cy="100" rx="90" ry="60" fill="none" stroke="url(#globeGrad)" strokeWidth="0.5" />
-              <line x1="10" y1="100" x2="190" y2="100" stroke="url(#globeGrad)" strokeWidth="0.5" />
-            </svg>
-            {/* Inner caduceus-style SVG */}
-            <div className="relative z-10 w-full max-w-lg aspect-square drop-shadow-2xl flex items-center justify-center">
-              <svg viewBox="0 0 200 200" className="w-64 h-64 opacity-90">
-                <defs>
-                  <linearGradient id="snakeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#60A5FA" />
-                    <stop offset="100%" stopColor="#A78BFA" />
-                  </linearGradient>
-                </defs>
-                <path d="M100 10 C140 10 180 50 180 90 C180 130 140 170 100 170 C60 170 20 130 20 90 C20 50 60 10 100 10Z" fill="none" stroke="url(#snakeGrad)" strokeWidth="2" opacity="0.3" />
-                <path d="M100 30 C130 30 160 60 160 90 C160 120 130 150 100 150 C70 150 40 120 40 90 C40 60 70 30 100 30Z" fill="none" stroke="url(#snakeGrad)" strokeWidth="1.5" opacity="0.5" />
-                <path d="M60 90 Q80 60 100 90 Q120 120 140 90" fill="none" stroke="url(#snakeGrad)" strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
-                <circle cx="60" cy="90" r="4" fill="#60A5FA" opacity="0.8" />
-                <circle cx="140" cy="90" r="4" fill="#A78BFA" opacity="0.8" />
-                <text x="100" y="105" textAnchor="middle" fill="url(#snakeGrad)" fontSize="11" fontWeight="300" letterSpacing="4" opacity="0.6">LYCEUM</text>
-              </svg>
-            </div>
-          </div>
+            <DialogueDemo />
+          </motion.div>
         </div>
       </main>
 
-      {/* Features section */}
-      <section id="features" className="max-w-7xl mx-auto px-6 py-20">
-        <div className="mb-12 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-metallic mb-3">Built for how you actually learn</h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Three core methodologies, fused into a single research workspace.</p>
-        </div>
+      {/* The Method */}
+      <section id="method" className="max-w-7xl mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="mb-14 text-center"
+        >
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Elenchus, not lecture</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">The dialectic, automated</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">Every Lyceum session runs the same three-beat rhythm Socrates used in the agora.</p>
+        </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-6">
-          {/* Large card: Feynman */}
-          <div className="md:col-span-2 md:row-span-2 p-8 rounded-3xl hover:-translate-y-0.5 transition-all duration-300 glass flex flex-col justify-between min-h-[280px]">
-            <div>
-              <span className="material-symbols-outlined text-3xl text-purple-300 mb-4 block">psychology</span>
-              <h3 className="text-2xl font-bold text-white mb-3">Feynman Technique Simulator</h3>
-              <p className="text-sm text-slate-400 max-w-md leading-relaxed">
-                Master complex concepts by teaching them back in plain language. Our Socratic AI probes every explanation for gaps, forcing true understanding rather than memorization — instantly surfacing what you don't actually know.
-              </p>
-            </div>
-            <div className="mt-6 rounded-2xl glass-strong p-4 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="h-2 w-3/4 bg-white/15 rounded-full mb-1.5" />
-                <div className="h-2 w-1/2 bg-white/8 rounded-full" />
-              </div>
-              <span className="material-symbols-outlined text-white/30 text-lg">graphic_eq</span>
-            </div>
-          </div>
-
-          {/* Mistake Bank */}
-          <div className="p-8 rounded-3xl hover:-translate-y-0.5 transition-all duration-300 glass flex flex-col">
-            <span className="material-symbols-outlined text-2xl text-amber-300 mb-3 block">error_outline</span>
-            <h3 className="text-lg font-bold text-white mb-2">Mistake Bank Tracker</h3>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">Log errors, categorize conceptual blind spots, and systematically clear them.</p>
-            <div className="mt-auto space-y-2">
-              {['Sign error · Calc II', 'Unit mismatch · Physics', 'Off-by-one · Recursion'].map((item, i) => (
-                <div key={i} className="flex items-center gap-2 rounded-lg glass-strong px-3 py-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                  <span className="text-[10px] text-white/60 truncate">{item}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Peer Review */}
-          <div className="p-8 rounded-3xl hover:-translate-y-0.5 transition-all duration-300 glass flex flex-col">
-            <span className="material-symbols-outlined text-2xl text-cyan-300 mb-3 block">diversity_3</span>
-            <h3 className="text-lg font-bold text-white mb-2">Peer-Review Hub</h3>
-            <p className="text-xs text-slate-400 mb-4 leading-relaxed">High-level verification of problem sets by fellow independent researchers.</p>
-            <div className="mt-auto flex items-center">
-              <div className="flex -space-x-3">
-                {(['#60A5FA', '#A78BFA', '#34D399', '#F59E0B'] as const).map((color, i) => (
-                  <div
-                    key={i}
-                    className="w-8 h-8 rounded-full border-2 border-[#0a0a0c] flex items-center justify-center text-[9px] font-semibold text-white/80"
-                    style={{ background: color + '55' }}
-                  >
-                    {['A', 'K', 'M', 'S'][i]}
-                  </div>
-                ))}
-              </div>
-              <span className="ml-3 text-[10px] text-white/40">4 reviewing now</span>
-            </div>
-          </div>
-        </div>
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-80px' }}
+          variants={stagger}
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
+          {METHOD_STEPS.map((step, i) => (
+            <motion.div
+              key={step.title}
+              variants={fadeUp}
+              transition={{ duration: 0.5 }}
+              whileHover={{ y: -6 }}
+              className="relative p-8 rounded-3xl glass flex flex-col gap-4"
+            >
+              <span className="text-xs font-mono text-white/25">{String(i + 1).padStart(2, '0')}</span>
+              <step.icon className="w-7 h-7 text-purple-300" strokeWidth={1.5} />
+              <h3 className="text-lg font-bold text-white">{step.title}</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">{step.body}</p>
+            </motion.div>
+          ))}
+        </motion.div>
       </section>
+
+      {/* Features */}
+      <section id="features" className="max-w-7xl mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="mb-12 text-center"
+        >
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">Built for how you actually learn</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">Four tools, fused into a single research workspace.</p>
+        </motion.div>
+
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-80px' }}
+          variants={stagger}
+          className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-6"
+        >
+          {FEATURES.map((f) => (
+            <motion.div
+              key={f.title}
+              variants={fadeUp}
+              transition={{ duration: 0.5 }}
+              whileHover={{ y: -6 }}
+              className={
+                (f.span === 'lg' ? 'md:col-span-2 md:row-span-2 min-h-[280px] ' : '') +
+                'p-8 rounded-3xl transition-shadow duration-300 glass flex flex-col justify-between hover:shadow-[0_0_40px_rgba(139,92,246,0.12)]'
+              }
+            >
+              <div>
+                <f.icon className={`w-7 h-7 mb-4 ${f.accent}`} strokeWidth={1.5} />
+                <h3 className={f.span === 'lg' ? 'text-2xl font-bold text-white mb-3' : 'text-lg font-bold text-white mb-2'}>
+                  {f.title}
+                </h3>
+                <p className={f.span === 'lg' ? 'text-sm text-slate-400 max-w-md leading-relaxed' : 'text-xs text-slate-400 mb-4 leading-relaxed'}>
+                  {f.body}
+                </p>
+              </div>
+              {f.list && (
+                <div className="mt-auto space-y-2">
+                  {f.list.map((item) => (
+                    <div key={item} className="flex items-center gap-2 rounded-lg glass-strong px-3 py-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                      <span className="text-[10px] text-white/60 truncate">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {f.span === 'lg' && (
+                <div className="mt-6 rounded-2xl glass-strong p-4 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="h-2 w-3/4 bg-white/15 rounded-full mb-1.5" />
+                    <div className="h-2 w-1/2 bg-white/8 rounded-full" />
+                  </div>
+                  <AudioLines className="w-5 h-5 text-white/30" strokeWidth={1.5} />
+                </div>
+              )}
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* Wisdom / rotating quotes band */}
+      <section id="voices" className="relative max-w-5xl mx-auto px-6 py-16">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="rounded-3xl glass-strong px-8 py-14"
+        >
+          <RotatingQuote />
+        </motion.div>
+      </section>
+
+      {/* Final CTA */}
+      <section className="max-w-4xl mx-auto px-6 pb-28 text-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="rounded-3xl glass p-12 flex flex-col items-center gap-6"
+        >
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">Begin your inquiry.</h2>
+          <p className="text-slate-400 max-w-md">Ten subjects. One method. No lectures — just the right question, at the right time.</p>
+          <motion.button
+            whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(167,139,250,0.35)' }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => onNavigate('auth')}
+            className="px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
+          >
+            Join the Cohort
+          </motion.button>
+        </motion.div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-white/10 py-10">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <span className="text-sm font-semibold tracking-wider text-white/60">LYCEUM</span>
+          <span className="text-xs text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; after Aristotle&rsquo;s school of the same name</span>
+        </div>
+      </footer>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..600;1,500&display=swap');
 
 @theme {
   --color-surface: #050508;
@@ -211,6 +212,12 @@ body {
 }
 
 /* ── Text utilities ───────────────────────────────────────────────────── */
+
+/* Classical serif reserved for landing/marketing surfaces — see Design.md
+   "Socratic Archetype" reference direction (EB Garamond, Hellenistic weight). */
+.font-garamond {
+  font-family: 'EB Garamond', Georgia, serif;
+}
 
 .text-gradient {
   background: linear-gradient(135deg, #a78bfa, #818cf8, #22d3ee);
