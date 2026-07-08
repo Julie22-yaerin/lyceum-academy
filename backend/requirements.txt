@@ -14,13 +14,6 @@ pymupdf>=1.24.0          # replaces PyPDF2 — faster, better layout, can render
 python-multipart>=0.0.9
 Pillow>=10.0.0
 pytesseract>=0.3.10
-# YouTube transcript extraction (3-tier: captions → auto-subs → audio+Whisper)
-youtube-transcript-api>=0.6.0
-# Pinned to a recent floor (not just >=2024.1.0) so Railway's build cache
-# doesn't keep reusing a stale yt-dlp — YouTube's bot-detection changes
-# often enough that an old yt-dlp is a common cause of extraction failures
-# that have nothing to do with the video itself. Bump this periodically.
-yt-dlp>=2026.6.9
 # OpenAI fine-tuning pipeline
 openai>=1.0.0
 # Rate limiting

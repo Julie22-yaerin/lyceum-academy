@@ -71,10 +71,10 @@ export function recordProfileBaseline(concept: string, subject: string, score: n
   void post('/profile/baseline', { concept: concept.trim().toLowerCase(), subject: subject || 'other', score });
 }
 
-/** kind: 'study' (time spent on the subject) or 'community' (peer interaction). */
-export function recordSubjectActivity(subject: string, kind: 'study' | 'community'): void {
+/** Records a study session on this subject — feeds the love/fear bars. */
+export function recordSubjectActivity(subject: string): void {
   if (!subject?.trim()) return;
-  void post('/profile/subject-activity', { subject, kind });
+  void post('/profile/subject-activity', { subject, kind: 'study' });
 }
 
 export async function getFullProfile(): Promise<FullProfile | null> {

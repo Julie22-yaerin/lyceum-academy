@@ -13,9 +13,7 @@ const DOCK_ITEMS: { view: View; label: string; icon: string }[] = [
   { view: 'notes',         label: 'Feynman Notes',  icon: 'edit_note' },
   { view: 'mistake-bank',  label: 'Mistake Vault',  icon: 'error_outline' },
   { view: 'reference-bank', label: 'Reference Bank', icon: 'auto_stories' },
-  { view: 'community',     label: 'Peer Terminal',  icon: 'diversity_3' },
   { view: 'progress',      label: 'Progress',       icon: 'bar_chart' },
-  { view: 'goal-setting',  label: 'Goals',          icon: 'flag' },
 ];
 
 const PROVIDERS: { key: string; label: string; color: string }[] = [

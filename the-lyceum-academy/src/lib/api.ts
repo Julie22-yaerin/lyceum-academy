@@ -266,33 +266,6 @@ export interface NoteResult {
   overall_map_svg?: string;
 }
 
-export async function synthesizeNoteFromUrl(url: string): Promise<NoteResult> {
-  const res = await authFetch(`${API_BASE}/ai/note`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
-  }
-  return res.json();
-}
-
-/** Synthesize a note from text the browser extracted itself (YouTube fallback path). */
-export async function synthesizeNoteFromText(content: string, title: string, sourceType = 'YouTube video'): Promise<NoteResult> {
-  const res = await authFetch(`${API_BASE}/ai/note-text`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, title, source_type: sourceType }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
-  }
-  return res.json();
-}
-
 export async function synthesizeNoteFromFile(file: File): Promise<NoteResult> {
   const form = new FormData();
   form.append('file', file);
@@ -551,40 +524,6 @@ export async function feynmanChat(
   };
 
   return chatMessage([systemMsg, ...messages]);
-}
-
-export interface CommunityBio {
-  user_id: string;
-  display_name: string;
-  major?: string;
-  school?: string;
-  goal?: string;
-  problems?: string[];
-}
-
-export interface CommunityMatchResult {
-  matches: { user_id: string; compatibility_score: number; reason: string }[];
-  summary: string;
-}
-
-// AI study-buddy matcher — ranks candidates by compatibility with the requester's
-// bio (major/school/goals/pain points) for a focused, time-limited 1:1 chat.
-export async function matchCommunityUsers(
-  requester: CommunityBio, candidates: CommunityBio[]
-): Promise<CommunityMatchResult> {
-  const res = await authFetch(`${API_BASE}/ai/community/match`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requester: { problems: [], major: '', school: '', goal: '', ...requester },
-      candidates: candidates.map(c => ({ problems: [], major: '', school: '', goal: '', ...c })),
-    }),
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
-  }
-  return res.json();
 }
 
 export async function classifySubject(title: string, content: string = ''): Promise<{ subject: string; confidence: number }> {

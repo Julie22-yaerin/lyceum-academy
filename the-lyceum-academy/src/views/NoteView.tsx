@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { synthesizeNoteFromUrl, synthesizeNoteFromFile, synthesizeNoteFromText, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
-import { extractYouTubeInBrowser, parseYouTubeId } from '../lib/youtubeClient';
+import { synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
 
@@ -554,8 +553,6 @@ export default function NoteView() {
   const [note, setNote] = useState<NoteResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [ytUrl, setYtUrl] = useState('');
-  const [showYt, setShowYt] = useState(false);
   const [saved, setSaved] = useState(false);         // saved state for current note
   const [sourceType, setSourceType] = useState('');  // track source for save label
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
@@ -573,33 +570,6 @@ export default function NoteView() {
       if (result.error) { setError(result.summary || 'Synthesis failed.'); }
       else { setNote(result); }
     } catch (e: any) {
-      setError(e.message || String(e));
-    } finally { setLoading(false); }
-  }
-
-  async function handleYoutube() {
-    if (!ytUrl.trim()) return;
-    setError(''); setNote(null); setLoading(true); setSaved(false);
-    setSourceType('youtube');
-    const url = ytUrl.trim();
-    try {
-      const result = await synthesizeNoteFromUrl(url);
-      if (result.error) { setError(result.summary || 'Synthesis failed.'); }
-      else { setNote(result); setShowYt(false); }
-    } catch (e: any) {
-      // Server-side extraction failed (usually YouTube blocking the server's
-      // IP). Fall back to extracting from THIS browser — the user's own IP
-      // isn't blocked — then submit the transcript for synthesis.
-      try {
-        const extracted = await extractYouTubeInBrowser(url);
-        if (extracted) {
-          const result = await synthesizeNoteFromText(extracted.content, extracted.title);
-          const vidId = parseYouTubeId(url);
-          if (vidId) result.video_id = vidId;
-          setNote(result); setShowYt(false);
-          return;
-        }
-      } catch { /* fall through to the original server error */ }
       setError(e.message || String(e));
     } finally { setLoading(false); }
   }
@@ -672,47 +642,6 @@ export default function NoteView() {
         </div>
         <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden"
           onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-
-        {/* Divider */}
-        <div className="flex items-center gap-4">
-          <div className="h-[1px] flex-grow bg-outline/10" />
-          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">or</span>
-          <div className="h-[1px] flex-grow bg-outline/10" />
-        </div>
-
-        {/* YouTube input */}
-        <div>
-          <button
-            onClick={() => setShowYt(v => !v)}
-            className="w-full border border-outline/20 py-4 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-3"
-          >
-            <span className="text-base">▶</span>
-            YouTube Video
-          </button>
-          {showYt && (
-            <div className="flex gap-3 mt-3">
-              <input
-                type="url"
-                value={ytUrl}
-                onChange={e => setYtUrl(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleYoutube()}
-                placeholder="https://youtube.com/watch?v=..."
-                className="flex-1 border border-outline-variant/30 px-4 py-3 font-sans text-sm bg-surface-container-lowest outline-none focus:border-on-surface/50 transition-colors"
-              />
-              <button
-                onClick={handleYoutube}
-                disabled={loading || !ytUrl.trim()}
-                className="bg-on-surface text-surface px-6 py-3 font-sans text-[10px] uppercase tracking-[2px] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center gap-2"
-              >
-                {loading
-                  ? <div className="w-3 h-3 border border-surface/40 border-t-surface rounded-full animate-spin" />
-                  : <span className="material-symbols-outlined text-[14px]">auto_stories</span>
-                }
-                Synthesise
-              </button>
-            </div>
-          )}
-        </div>
       </div>}
 
       {/* Error */}
@@ -734,7 +663,7 @@ export default function NoteView() {
           {/* Actions bar */}
           <div className="w-full flex items-center justify-between px-2">
             <button
-              onClick={() => { setNote(null); setYtUrl(''); setSaved(false); }}
+              onClick={() => { setNote(null); setSaved(false); }}
               className="flex items-center gap-1.5 font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[13px]">arrow_back</span>
@@ -777,7 +706,7 @@ export default function NoteView() {
       {/* Empty state hint */}
       {!note && !loading && !savedNotes.length && (
         <div className="w-full max-w-3xl opacity-40 text-center py-4">
-          <p className="font-sans text-sm italic">Upload a document or paste a YouTube link to generate a study note.</p>
+          <p className="font-sans text-sm italic">Upload a PDF or image to generate a study note.</p>
         </div>
       )}
 
@@ -791,7 +720,7 @@ export default function NoteView() {
           </div>
           <div className="flex flex-col gap-2">
             {savedNotes.map(sn => {
-              const srcIcon = sn.sourceType === 'youtube' ? '▶' : sn.sourceType === 'pdf' ? '📄' : '🖼';
+              const srcIcon = sn.sourceType === 'pdf' ? '📄' : '🖼';
               return (
                 <div key={sn.id} className="flex items-center justify-between border border-outline/15 px-5 py-3.5 hover:bg-surface-container-lowest transition-colors group">
                   <div className="min-w-0 flex items-start gap-3">

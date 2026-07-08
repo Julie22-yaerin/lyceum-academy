@@ -72,7 +72,6 @@ ROLE_LABELS: dict[str, str] = {
     "transcribe_audio":           "Audio Transcription (Whisper)",
     "feynman_evaluate":           "Feynman Explanation Evaluation",
     "generate_note_diagrams":     "Note Diagram Generation",
-    "moderate_community":         "Community Moderation",
     "analyze_onboarding":         "Onboarding Answer Analysis",
 }
 

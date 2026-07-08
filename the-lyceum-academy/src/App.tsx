@@ -12,12 +12,9 @@ import NoteView from './views/NoteView';
 import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
 import OnboardingModal from './components/OnboardingModal';
-import CommunityView from './views/CommunityView';
 import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
 import ReferenceBankView from './views/ReferenceBankView';
-import GoalSettingView from './views/GoalSettingView';
-import TaskSetupModal from './components/TaskSetupModal';
 import TermsModal from './components/TermsModal';
 
 
@@ -26,7 +23,6 @@ function AppInner() {
   const { user, loading, devMode, emailVerified } = useAuth();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showTaskSetup, setShowTaskSetup] = useState(false);
 
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
@@ -63,11 +59,6 @@ function AppInner() {
 
   function handleOnboardingClose() {
     setShowOnboarding(false);
-    try {
-      if (!localStorage.getItem('lyceum_task_config')) {
-        setShowTaskSetup(true);
-      }
-    } catch { /* ignore */ }
   }
 
   if (loading) {
@@ -93,9 +84,6 @@ function AppInner() {
       {showOnboarding && (
         <OnboardingModal onClose={handleOnboardingClose} />
       )}
-      {showTaskSetup && (
-        <TaskSetupModal onClose={() => setShowTaskSetup(false)} />
-      )}
       <MainLayout currentView={view} onNavigate={setView}>
         {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
         {view === 'dialogue' && <DialogueView />}
@@ -106,8 +94,6 @@ function AppInner() {
         {view === 'mistake-bank' && <MistakeBankView />}
         {view === 'reference-bank' && <ReferenceBankView />}
         {view === 'progress' && <ProgressView />}
-        {view === 'community' && <CommunityView />}
-        {view === 'goal-setting' && <GoalSettingView />}
       </MainLayout>
     </>
   );

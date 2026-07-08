@@ -102,28 +102,9 @@ class UserProfile(Base, TimestampMixin):
     headline: Mapped[str | None] = mapped_column(String(255))
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    community_profile: Mapped["CommunityProfile | None"] = relationship(
-        back_populates="user", uselist=False
-    )
     psets: Mapped[list["Pset"]] = relationship(back_populates="owner")
 
     __table_args__ = (UniqueConstraint("auth_provider", "auth_subject", name="uq_user_auth_identity"),)
-
-
-class CommunityProfile(Base, TimestampMixin):
-    __tablename__ = "community_profiles"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), unique=True, nullable=False
-    )
-    bio: Mapped[str | None] = mapped_column(Text)
-    public_handle: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
-    study_consistency_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
-    concepts_mastered_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    psets_shared_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-
-    user: Mapped["UserProfile"] = relationship(back_populates="community_profile")
 
 
 class StoredAsset(Base, TimestampMixin):

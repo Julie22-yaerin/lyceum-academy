@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavigationProps } from '../types';
-import { loadTaskConfig, loadTodayMinutes } from '../components/TaskSetupModal';
 import { loadProgress } from '../lib/progress';
 import { loadMistakes } from '../lib/mistakes';
-import { loadOnboardingAnswers } from '../lib/persist';
+import { loadOnboardingAnswers, loadTodayStudySubject, SUBJECT_META } from '../lib/persist';
 import { generateRoadmap, type RoadmapResult } from '../lib/api';
 
 function streakDays(): number {
@@ -182,8 +181,7 @@ function RoadmapWidget() {
 }
 
 export default function NexusView({ onNavigate }: NavigationProps) {
-  const [taskConfig] = useState(() => loadTaskConfig());
-  const [todayMinutes] = useState(() => loadTodayMinutes() ?? 0);
+  const [todaySubject] = useState(() => loadTodayStudySubject());
   const [streak, setStreak] = useState(0);
   const [weeklyActivity, setWeeklyActivity] = useState<number[]>([]);
   const [mistakeCount, setMistakeCount] = useState(0);
@@ -217,41 +215,21 @@ export default function NexusView({ onNavigate }: NavigationProps) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        {/* Active assignment manager */}
+        {/* Problem Sets shortcut */}
         <div className="lg:col-span-2 glass-card rounded-3xl p-6">
           <div className="flex items-center justify-between mb-5">
-            <p className="text-[10px] uppercase tracking-[2px] text-white/40">Active Assignments</p>
+            <p className="text-[10px] uppercase tracking-[2px] text-white/40">Problem Sets</p>
             <button onClick={() => onNavigate('problem-sets')} className="text-[10px] uppercase tracking-[2px] text-purple-300 hover:text-purple-200 transition-colors">
-              View all
+              Open
             </button>
           </div>
-
-          {taskConfig && taskConfig.tasks.length > 0 ? (
-            <div className="flex flex-col gap-3">
-              {taskConfig.tasks.map(t => (
-                <button
-                  key={t.view}
-                  onClick={() => onNavigate(t.view)}
-                  className="flex items-center gap-4 rounded-2xl glass-strong px-4 py-3 hover:bg-white/10 hover:-translate-y-0.5 transition-all text-left"
-                >
-                  <span className="text-xl flex-shrink-0">{t.emoji}</span>
-                  <span className="flex-1 min-w-0 text-sm text-white/85 truncate">{t.label}</span>
-                  <div className="w-24 h-1.5 rounded-full bg-white/10 overflow-hidden hidden sm:block">
-                    <div className="h-full bg-gradient-to-r from-purple-400 to-blue-400" style={{ width: `${t.percent}%` }} />
-                  </div>
-                  <span className="text-[10px] text-white/40 w-8 text-right flex-shrink-0">{t.percent}%</span>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <span className="material-symbols-outlined text-4xl text-white/15 mb-3">assignment</span>
-              <p className="text-sm text-white/30 mb-4">No task plan configured yet.</p>
-              <button onClick={() => onNavigate('problem-sets')} className="glass-btn rounded-full px-5 py-2 text-[10px] uppercase tracking-[2px]">
-                Browse Problem Sets
-              </button>
-            </div>
-          )}
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <span className="material-symbols-outlined text-4xl text-white/15 mb-3">assignment</span>
+            <p className="text-sm text-white/30 mb-4">Pick up where you left off, or upload a new set.</p>
+            <button onClick={() => onNavigate('problem-sets')} className="glass-btn rounded-full px-5 py-2 text-[10px] uppercase tracking-[2px]">
+              Browse Problem Sets
+            </button>
+          </div>
         </div>
 
         {/* Weekly streak — neon SVG */}
@@ -263,7 +241,7 @@ export default function NexusView({ onNavigate }: NavigationProps) {
           </div>
           <StreakPath values={weeklyActivity.length ? weeklyActivity : [0, 0, 0, 0, 0, 0, 0]} />
           <div className="mt-2 flex items-center justify-between">
-            <span className="text-[10px] text-white/30">{todayMinutes} min planned today</span>
+            <span className="text-[10px] text-white/30">{todaySubject ? `Focus: ${SUBJECT_META[todaySubject]?.label ?? todaySubject}` : 'No focus set today'}</span>
             <span className="text-[10px] text-amber-300/80">{mistakeCount} logged mistakes</span>
           </div>
         </div>
@@ -303,7 +281,7 @@ export default function NexusView({ onNavigate }: NavigationProps) {
         <div className="glass-card rounded-3xl p-6 flex flex-col gap-4 justify-center">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[2px] text-white/40">Focus Today</span>
-            <span className="text-sm font-semibold text-white">{todayMinutes}m</span>
+            <span className="text-sm font-semibold text-white">{todaySubject ? (SUBJECT_META[todaySubject]?.icon ?? '') + ' ' + (SUBJECT_META[todaySubject]?.label ?? todaySubject) : '—'}</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[2px] text-white/40">Mistake Bank</span>

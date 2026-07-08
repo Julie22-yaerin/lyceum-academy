@@ -153,7 +153,9 @@ def record_attempt(user_id: str, concept: str, subject: str, passed: bool) -> No
 
 
 def record_subject_activity(user_id: str, subject: str, kind: str) -> None:
-    """kind: 'study' or 'community'."""
+    """kind: 'study' (the only producer left — the Community feature that
+    used to record 'community' events has been removed; the column/branch
+    stays harmlessly in place rather than a risky schema migration)."""
     column = "study_events" if kind == "study" else "community_events" if kind == "community" else None
     if not column or not user_id or not subject:
         return

@@ -10,11 +10,9 @@ const VIEW_LABELS: Record<string, string> = {
   'knowledge-map': 'Knowledge Tree (concept map)',
   'problem-sets': 'Problem Sets (assignment sets)',
   exercise: 'Current Thesis (active exercise)',
-  'goal-setting': 'Goal Setting',
   notes: 'Feynman Notes',
   progress: 'Progress (study progress)',
   'mistake-bank': 'Mistake Bank',
-  community: 'Peer Terminal (community)',
 };
 
 const MAIN_CONTENT_SELECTOR = '#lyceum-workspace-content';

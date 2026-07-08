@@ -496,22 +496,6 @@ async def ai_grade_dual(request: Request, req: GradeDualRequest, auth: dict = De
         raise HTTPException(status_code=502, detail=str(e))
 
 
-class ModerateCommunityRequest(BaseModel):
-    rooms: list[dict] = []
-    messages: list[dict] = []
-
-@app.post("/ai/moderate-community")
-@limiter.limit("5/minute")
-async def ai_moderate_community(request: Request, req: ModerateCommunityRequest, _: dict = Depends(require_auth)):
-    """
-    Weekly AI moderation — Meta Llama 70B reviews rooms and messages.
-    Archives low-engagement/off-topic rooms, flags inappropriate messages.
-    """
-    try:
-        result = await ai_svc.moderate_community(req.rooms, req.messages)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/ai/grade-all")
@@ -671,88 +655,6 @@ async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict
         raise HTTPException(status_code=502, detail=str(e))
 
 
-class NoteRequest(BaseModel):
-    url: str          # YouTube URL
-    title: str = ""   # optional override
-
-class NoteTextRequest(BaseModel):
-    content: str
-    source_type: str = "text"
-    title: str = ""
-
-
-@app.post("/ai/note")
-@limiter.limit("10/minute")
-async def ai_note_from_url(request: Request, req: NoteRequest, _: dict = Depends(require_auth)):
-    """
-    Synthesize a YouTube video into a structured study note.
-    Returns { title, tldr, summary, key_concepts, socratic_questions, key_insight }
-    """
-    check_prompt(req.url, "url")
-    check_prompt(req.title, "title")
-    try:
-        yt = await ai_svc.get_youtube_content(req.url)
-        content = yt["content"]
-        title   = yt.get("title") or req.url
-        vid_id  = yt.get("video_id", "")
-
-        result = await ai_svc.synthesize_note(content, source_type="YouTube video", source_title=title)
-
-        # If AI synthesis failed, return raw transcript as a basic note instead of an error
-        if result.get("error"):
-            snippet = content[:600].strip()
-            result = {
-                "title": f"📝 {title}",
-                "tldr": "Transcript extracted — AI synthesis unavailable.",
-                "summary": content[:4000],
-                "key_concepts": [],
-                "socratic_questions": [],
-                "key_insight": snippet + ("…" if len(content) > 600 else ""),
-                "source_type": "YouTube video",
-                "video_id": vid_id,
-                "diagrams": [],
-            }
-        else:
-            result["video_id"] = vid_id
-            # Skip diagrams for YouTube — no visual source content
-            result["diagrams"] = []
-
-        return result
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
-
-
-@app.post("/ai/note-text")
-@limiter.limit("10/minute")
-async def ai_note_from_text(request: Request, req: NoteTextRequest, _: dict = Depends(require_auth)):
-    """
-    Synthesize a study note from raw text the CLIENT extracted itself.
-    Used as the browser-side YouTube fallback: when this server's IP is
-    blocked by YouTube, the user's own browser (residential IP — not
-    blocked) fetches the transcript and submits it here.
-    """
-    # Transcripts run 30-100KB — far past check_prompt's 20K cap, which is
-    # sized for user-typed prompts. Enforce a transcript-sized cap here and
-    # run the injection/spam scan on a window (same treatment /ai/note gives
-    # server-extracted transcripts, which skip check_prompt entirely).
-    if len(req.content) > 400_000:
-        raise HTTPException(status_code=400, detail="Content too long — max 400,000 characters.")
-    check_prompt(req.content[:20_000], "content")
-    check_prompt(req.title, "title")
-    try:
-        result = await ai_svc.synthesize_note(
-            req.content, source_type=req.source_type or "text", source_title=req.title,
-        )
-        if result.get("error"):
-            raise HTTPException(status_code=502, detail=result.get("summary", "Synthesis failed."))
-        result["diagrams"] = []
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
 
 
 @app.post("/ai/note-upload")
@@ -936,7 +838,7 @@ class ProfileEventRequest(BaseModel):
 
 class ProfileSubjectActivityRequest(BaseModel):
     subject: str
-    kind: str   # 'study' | 'community'
+    kind: str = "study"   # 'community' kind retired along with the Community feature
 
 
 class ProfileBaselineRequest(BaseModel):
@@ -977,10 +879,10 @@ async def profile_record_baseline(request: Request, req: ProfileBaselineRequest,
 @app.post("/profile/subject-activity")
 @limiter.limit("60/minute")
 async def profile_subject_activity(request: Request, req: ProfileSubjectActivityRequest, auth: dict = Depends(require_auth)):
-    """Record a study or community-interaction event for a subject — feeds
-    the love/fear bars (see mastery_profile.get_subject_affinity)."""
-    if req.kind not in ("study", "community"):
-        raise HTTPException(status_code=400, detail="kind must be 'study' or 'community'")
+    """Record a study event for a subject — feeds the love/fear bars (see
+    mastery_profile.get_subject_affinity)."""
+    if req.kind != "study":
+        raise HTTPException(status_code=400, detail="kind must be 'study'")
     uid = _uid(auth)
     if not uid:
         raise HTTPException(status_code=401, detail="Unauthorized")
