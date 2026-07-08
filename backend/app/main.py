@@ -3,7 +3,7 @@ import asyncio
 import base64
 import json as _json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,29 +84,31 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
         pass
 
 
-def _utc_day_start(dt: datetime | None = None) -> datetime:
-    now = dt or datetime.now(timezone.utc)
-    return now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
 def _mind_map_ai_limit(tier: str | None) -> int | None:
-    if tier == "free":
-        return 2
+    """Per-document (per-PDF) "Let AI see" quota — SOC-13: the vision call is
+    the expensive escalation path, only meant to be reached after the free
+    structural check has failed a few times, so the cap is scoped to a single
+    problem-set document rather than a calendar day."""
     if tier == "compass":
-        return 6
-    if tier in {"scholar", "mentor", "researcher"}:
-        return None
-    return 2
+        return 12
+    if tier in {"scholar", "mentor"}:
+        return 20
+    if tier == "researcher":
+        return 30
+    return 3  # free
 
 
-def _mind_map_ai_usage(db: Session, user_id: str, day_start: datetime) -> int:
-    result = db.execute(
+def _mind_map_ai_usage(db: Session, user_id: str, document_id: str) -> int:
+    query = (
         select(func.count(FeatureUsageLog.id))
         .where(FeatureUsageLog.user_id == user_id)
         .where(FeatureUsageLog.feature_name == "mindmap_ai_see")
-        .where(FeatureUsageLog.created_at >= day_start)
     )
-    return int(result.scalar() or 0)
+    if document_id:
+        query = query.where(FeatureUsageLog.feature_metadata["document_id"].astext == document_id)
+    else:
+        query = query.where(FeatureUsageLog.feature_metadata["document_id"].astext.is_(None))
+    return int(db.execute(query).scalar() or 0)
 
 
 # ── Security headers middleware ───────────────────────────────────────────────
@@ -666,37 +668,37 @@ async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = D
 
 class MindMapStatusResponse(BaseModel):
     tier: str
-    daily_limit: int | None
-    used_today: int
+    document_limit: int | None
+    used_in_document: int
     remaining: int | None
     can_use: bool
-    reset_at: datetime
 
 
 @app.get("/ai/mind-map/status", response_model=MindMapStatusResponse)
 def ai_mind_map_status(
+    document_id: str = "",
     current_user = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     uid = str(current_user.id)
     subscription, plan = subscriptions_router.get_user_subscription(db, uid)
     tier = plan.tier.value if plan else "free"
-    daily_limit = _mind_map_ai_limit(tier)
-    used_today = _mind_map_ai_usage(db, uid, _utc_day_start())
-    remaining = None if daily_limit is None else max(0, daily_limit - used_today)
+    document_limit = _mind_map_ai_limit(tier)
+    used_in_document = _mind_map_ai_usage(db, uid, document_id)
+    remaining = None if document_limit is None else max(0, document_limit - used_in_document)
     return MindMapStatusResponse(
         tier=tier,
-        daily_limit=daily_limit,
-        used_today=used_today,
+        document_limit=document_limit,
+        used_in_document=used_in_document,
         remaining=remaining,
-        can_use=daily_limit is None or used_today < daily_limit,
-        reset_at=_utc_day_start() + timedelta(days=1),
+        can_use=document_limit is None or used_in_document < document_limit,
     )
 
 
 class MindMapInspectRequest(BaseModel):
     image: str
     context: str = ""
+    document_id: str = ""
 
 
 @app.post("/ai/mind-map/inspect")
@@ -710,12 +712,12 @@ async def ai_mind_map_inspect(
     uid = str(current_user.id)
     subscription, plan = subscriptions_router.get_user_subscription(db, uid)
     tier = plan.tier.value if plan else "free"
-    daily_limit = _mind_map_ai_limit(tier)
-    used_today = _mind_map_ai_usage(db, uid, _utc_day_start())
-    if daily_limit is not None and used_today >= daily_limit:
+    document_limit = _mind_map_ai_limit(tier)
+    used_in_document = _mind_map_ai_usage(db, uid, req.document_id)
+    if document_limit is not None and used_in_document >= document_limit:
         raise HTTPException(
             status_code=429,
-            detail=f"Daily mind map AI limit reached for {tier} tier.",
+            detail=f"Mind map AI limit reached for this document on the {tier} tier.",
         )
 
     image_b64 = req.image
@@ -728,7 +730,8 @@ async def ai_mind_map_inspect(
         feature_name="mindmap_ai_see",
         feature_metadata={
             "tier": tier,
-            "daily_limit": daily_limit,
+            "document_limit": document_limit,
+            "document_id": req.document_id or None,
             "model": "meta/llama-3.2-11b-vision-instruct",
         },
         created_at=datetime.now(timezone.utc),
@@ -738,11 +741,10 @@ async def ai_mind_map_inspect(
 
     status = {
         "tier": tier,
-        "daily_limit": daily_limit,
-        "used_today": used_today + 1,
-        "remaining": None if daily_limit is None else max(0, daily_limit - used_today - 1),
-        "can_use": daily_limit is None or used_today + 1 < daily_limit,
-        "reset_at": _utc_day_start() + timedelta(days=1),
+        "document_limit": document_limit,
+        "used_in_document": used_in_document + 1,
+        "remaining": None if document_limit is None else max(0, document_limit - used_in_document - 1),
+        "can_use": document_limit is None or used_in_document + 1 < document_limit,
     }
     return {**result, **status}
 

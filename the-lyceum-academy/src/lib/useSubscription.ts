@@ -113,21 +113,20 @@ export function useReferenceLibraryGate() {
   return { canUse, remaining, limit, used };
 }
 
-export function useMindMapGate() {
+export function useMindMapGate(documentId = '') {
   const [status, setStatus] = useState<{
     tier: string;
-    daily_limit: number | null;
-    used_today: number;
+    document_limit: number | null;
+    used_in_document: number;
     remaining: number | null;
     can_use: boolean;
-    reset_at: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchStatus = async () => {
     setLoading(true);
     try {
-      const next = await getMindMapStatus();
+      const next = await getMindMapStatus(documentId);
       setStatus(next);
     } catch {
       setStatus(null);
@@ -138,15 +137,15 @@ export function useMindMapGate() {
 
   useEffect(() => {
     fetchStatus();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [documentId]);
 
   return {
     canUse: status?.can_use ?? false,
     tier: status?.tier || 'free',
-    used: status?.used_today ?? 0,
-    limit: status?.daily_limit ?? null,
+    used: status?.used_in_document ?? 0,
+    limit: status?.document_limit ?? null,
     remaining: status?.remaining ?? null,
-    resetAt: status?.reset_at ?? null,
     loading,
     refetch: fetchStatus,
   };

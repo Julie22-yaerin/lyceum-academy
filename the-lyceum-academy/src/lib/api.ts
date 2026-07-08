@@ -206,11 +206,10 @@ export async function validateToolMap(columns: object) {
 
 export interface MindMapStatus {
   tier: string;
-  daily_limit: number | null;
-  used_today: number;
+  document_limit: number | null;
+  used_in_document: number;
   remaining: number | null;
   can_use: boolean;
-  reset_at: string;
 }
 
 export interface MindMapFinding {
@@ -227,8 +226,9 @@ export interface MindMapInspectionResult extends MindMapStatus {
   suggestions: string[];
 }
 
-export async function getMindMapStatus(): Promise<MindMapStatus> {
-  const res = await authFetch(`${API_BASE}/ai/mind-map/status`, { method: 'GET' });
+export async function getMindMapStatus(documentId = ''): Promise<MindMapStatus> {
+  const qs = documentId ? `?document_id=${encodeURIComponent(documentId)}` : '';
+  const res = await authFetch(`${API_BASE}/ai/mind-map/status${qs}`, { method: 'GET' });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
     throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
@@ -236,11 +236,11 @@ export async function getMindMapStatus(): Promise<MindMapStatus> {
   return res.json() as Promise<MindMapStatus>;
 }
 
-export async function inspectMindMap(image: string, context = ''): Promise<MindMapInspectionResult> {
+export async function inspectMindMap(image: string, context = '', documentId = ''): Promise<MindMapInspectionResult> {
   const res = await authFetch(`${API_BASE}/ai/mind-map/inspect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ image, context }),
+    body: JSON.stringify({ image, context, document_id: documentId }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

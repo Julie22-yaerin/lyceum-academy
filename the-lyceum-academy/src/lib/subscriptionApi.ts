@@ -14,7 +14,7 @@ export interface SubscriptionPlan {
   price_usd: number;
   voice_minutes_monthly: number | null;
   mind_map_enabled: boolean;
-  mind_map_ai_see_daily_limit: number | null;
+  mind_map_ai_see_document_limit: number | null;
   reference_library_limit: number | null;
   roadmap_regen_daily_limit: number | null;
 }
@@ -144,7 +144,7 @@ export function canUseVoice(usage: UsageStats): boolean {
 }
 
 export function canUseMindMap(plan: SubscriptionPlan): boolean {
-  return plan.mind_map_ai_see_daily_limit === null || plan.mind_map_ai_see_daily_limit > 0;
+  return plan.mind_map_ai_see_document_limit === null || plan.mind_map_ai_see_document_limit > 0;
 }
 
 export function canAddReferenceLibraryItem(usage: UsageStats): boolean {

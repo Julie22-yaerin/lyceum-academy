@@ -55,6 +55,76 @@ function Toast({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   );
 }
 
+const PLACEHOLDER_LABELS: Partial<Record<MindMapNode['role'], string>> = {
+  input_a: 'Input 1',
+  input_b: 'Input 2',
+  systems: 'Systems',
+  output: 'Output',
+};
+
+const WRONG_STREAK_BEFORE_AI_SUGGESTION = 3;
+
+function tokenize(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .normalize('NFD').replace(/[̀-ͯ]/g, '') // strip accents
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2)
+  );
+}
+
+interface StructuralCheckResult {
+  pass: boolean;
+  location?: 'input' | 'systems' | 'output';
+  detail: string;
+}
+
+/**
+ * The "normal algorithm" pass, run entirely client-side before the paid
+ * vision model is ever called (SOC-13): it can only judge what's mechanically
+ * checkable — a placeholder block never renamed, or a map whose labels share
+ * zero words with the problem prompt. Anything past that is a semantic
+ * judgment call the algorithm can't make, so it just reports "wrong" with no
+ * location, matching what happens 3 times in a row before "Let AI see" is
+ * suggested.
+ */
+function checkFreeMapStructure(nodes: MindMapNode[], context: string): StructuralCheckResult {
+  const requiredRoles: ('input_a' | 'input_b' | 'systems' | 'output')[] = ['input_a', 'input_b', 'systems', 'output'];
+  for (const role of requiredRoles) {
+    const node = nodes.find(n => n.role === role);
+    const location: 'input' | 'systems' | 'output' = role === 'input_a' || role === 'input_b' ? 'input' : role;
+    if (!node) {
+      return { pass: false, location, detail: `Missing the ${role.replace('_', ' ')} block.` };
+    }
+    if (node.label.trim() === PLACEHOLDER_LABELS[role]) {
+      return {
+        pass: false,
+        location,
+        detail: location === 'input'
+          ? `"${node.label}" is still a placeholder — fill in what this problem actually gives you.`
+          : location === 'systems'
+            ? '"Systems" is still a placeholder — name the tool or method you will apply.'
+            : '"Output" is still a placeholder — state what the problem is asking you to find.',
+      };
+    }
+  }
+
+  if (context.trim()) {
+    const promptWords = tokenize(context);
+    const mapWords = new Set<string>();
+    for (const n of nodes) tokenize(n.label).forEach(w => mapWords.add(w));
+    let overlap = 0;
+    mapWords.forEach(w => { if (promptWords.has(w)) overlap++; });
+    if (overlap === 0) {
+      return { pass: false, detail: "This doesn't look related to the problem — check your map again." };
+    }
+  }
+
+  return { pass: true, detail: 'Structure looks complete.' };
+}
+
 function formatFindings(result: { summary?: string; findings?: { location: string; issue: string; detail: string }[]; missing?: string[]; suggestions?: string[] }) {
   const lines: string[] = [];
   if (result.summary) lines.push(result.summary);
@@ -117,8 +187,8 @@ async function svgToPngDataUrl(svgEl: SVGSVGElement): Promise<string> {
  * and allows custom nodes. The "Let AI see" action sends a screenshot to
  * the vision model for structural feedback.
  */
-export default function MindMapTool({ context = '' }: { context?: string }) {
-  const { canUse, tier, used, limit, remaining, loading, refetch } = useMindMapGate();
+export default function MindMapTool({ context = '', documentId = '' }: { context?: string; documentId?: string }) {
+  const { canUse, tier, used, limit, remaining, loading, refetch } = useMindMapGate(documentId);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'tool' | 'free'>('free');
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
@@ -132,7 +202,9 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
   const [mmDragging, setMmDragging] = useState<string | null>(null);
   const [mmDragOffset, setMmDragOffset] = useState({ x: 0, y: 0 });
   const [inspecting, setInspecting] = useState(false);
+  const [wrongStreak, setWrongStreak] = useState(0);
   const mmSvgRef = useRef<SVGSVGElement>(null);
+  const suggestAiSee = wrongStreak >= WRONG_STREAK_BEFORE_AI_SUGGESTION;
 
   function addItem(colId: string) {
     const val = (toolInput[colId] || '').trim();
@@ -164,6 +236,23 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
 
   function resetMmNodes() {
     setMmNodes(createDefaultFreeNodes());
+    setWrongStreak(0);
+  }
+
+  function handleOk() {
+    const result = checkFreeMapStructure(mmNodes, context);
+    if (result.pass) {
+      setWrongStreak(0);
+      setToastMsg('✓ Looks right — structure checks out.');
+      return;
+    }
+    const next = wrongStreak + 1;
+    setWrongStreak(next);
+    const lines = [`✗ Not quite right${result.location ? ` (${result.location})` : ''}: ${result.detail}`];
+    if (next >= WRONG_STREAK_BEFORE_AI_SUGGESTION) {
+      lines.push('', `Wrong ${next} times in a row — try "Let AI see" for a closer look.`);
+    }
+    setToastMsg(lines.join('\n'));
   }
 
   function startMmDrag(id: string, e: MouseEvent) {
@@ -191,7 +280,7 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
 
   async function handleAiSee() {
     if (loading) {
-      setToastMsg('Checking daily quota...');
+      setToastMsg('Checking quota...');
       return;
     }
     if (!canUse) {
@@ -207,10 +296,11 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
     setInspecting(true);
     try {
       const image = await svgToPngDataUrl(svg);
-      const result = await inspectMindMap(image, context);
+      const result = await inspectMindMap(image, context, documentId);
       await refetch();
-      const remainingText = result.remaining === null ? 'unlimited' : `${result.remaining} left today`;
-      const lines = [formatFindings(result), '', `Quota: ${result.used_today}/${result.daily_limit ?? '∞'} · ${remainingText}`];
+      setWrongStreak(0);
+      const remainingText = result.remaining === null ? 'unlimited' : `${result.remaining} left in this PDF`;
+      const lines = [formatFindings(result), '', `Quota: ${result.used_in_document}/${result.document_limit ?? '∞'} · ${remainingText}`];
       setToastMsg(lines.filter(Boolean).join('\n'));
     } catch (e: any) {
       setToastMsg(e?.message || 'AI inspection failed.');
@@ -226,7 +316,7 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
     ? 'Checking quota...'
     : limit === null
       ? `AI see: unlimited (${tier})`
-      : `AI see: ${used}/${limit} today · ${remaining ?? 0} left`;
+      : `AI see: ${used}/${limit} this PDF · ${remaining ?? 0} left`;
 
   if (!open) {
     return (
@@ -410,9 +500,16 @@ export default function MindMapTool({ context = '' }: { context?: string }) {
                   Reset Default
                 </button>
                 <button
+                  onClick={handleOk}
+                  className="rounded-xl bg-on-surface text-surface px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 hover:opacity-90 transition-opacity"
+                  title="Check the map's structure — free, instant, no AI call"
+                >
+                  <span className="material-symbols-outlined text-[14px]">check</span> OK
+                </button>
+                <button
                   onClick={handleAiSee}
                   disabled={inspecting}
-                  className="glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 disabled:opacity-40"
+                  className={`glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 disabled:opacity-40 ${suggestAiSee ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}
                   title={aiQuotaLabel}
                 >
                   {inspecting

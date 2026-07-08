@@ -55,7 +55,7 @@ class PlanResponse(BaseModel):
     price_usd: float
     voice_minutes_monthly: int | None
     mind_map_enabled: bool
-    mind_map_ai_see_daily_limit: int | None
+    mind_map_ai_see_document_limit: int | None
     reference_library_limit: int | None
     roadmap_regen_daily_limit: int | None
 
@@ -159,11 +159,15 @@ def get_reference_library_count(
 
 
 def get_mind_map_ai_limit(tier: str) -> int | None:
+    """Per-document "Let AI see" quota — keep in sync with
+    app.main._mind_map_ai_limit (SOC-13)."""
     if tier == "compass":
-        return 6
-    if tier in {"scholar", "mentor", "researcher"}:
-        return None
-    return 2
+        return 12
+    if tier in {"scholar", "mentor"}:
+        return 20
+    if tier == "researcher":
+        return 30
+    return 3
 
 
 # ============================================================================
@@ -185,7 +189,7 @@ def list_plans(db: Session = Depends(get_db)):
             price_usd=plan.price_usd_cents / 100.0,
             voice_minutes_monthly=plan.voice_minutes_monthly,
             mind_map_enabled=plan.mind_map_enabled,
-            mind_map_ai_see_daily_limit=get_mind_map_ai_limit(plan.tier.value),
+            mind_map_ai_see_document_limit=get_mind_map_ai_limit(plan.tier.value),
             reference_library_limit=plan.reference_library_limit,
             roadmap_regen_daily_limit=plan.roadmap_regen_daily_limit,
         )

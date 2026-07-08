@@ -658,7 +658,7 @@ function LensView({
         }
       `}</style>
 
-      <MindMapTool context={q.prompt} />
+      <MindMapTool context={q.prompt} documentId={docKey} />
 
       {/* ── Header bar ── */}
       <div className="flex items-center justify-between px-5 py-2.5 border-b border-white/10 flex-shrink-0 bg-neutral-900">
