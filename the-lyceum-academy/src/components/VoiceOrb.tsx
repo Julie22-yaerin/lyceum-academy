@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import S2SVoiceOverlay from './S2SVoiceOverlay';
+import UpgradePrompt from './UpgradePrompt';
 import { buildAssistantContext } from '../lib/assistantContext';
+import { canUseVoice, getUsageStats, type UsageStats } from '../lib/subscriptionApi';
 import type { View } from '../types';
 
 const BASE_INSTRUCTION =
@@ -43,6 +45,8 @@ export default function VoiceOrb({ currentView }: VoiceOrbProps) {
   const [ready, setReady] = useState(false);
   const [listenMode, setListenMode] = useState<ListenMode>(() => getSavedMode() ?? 'always');
   const [systemInstruction, setSystemInstruction] = useState(BASE_INSTRUCTION);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
 
   // Decide immediately on mount — this is the only gate, and only ever once.
   // `ready` (which mounts S2SVoiceOverlay, starting the Gemini Live
@@ -53,10 +57,29 @@ export default function VoiceOrb({ currentView }: VoiceOrbProps) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const context = await buildAssistantContext(currentView);
-      if (!active) return;
-      setSystemInstruction(`${BASE_INSTRUCTION}\n\n=== CURRENT CONTEXT ===\n${context}`);
-      if (getSavedMode() !== null) setReady(true);
+      try {
+        // Check voice usage limit before connecting
+        const stats = await getUsageStats();
+        if (!active) return;
+        setUsage(stats);
+
+        if (!canUseVoice(stats)) {
+          setShowUpgradePrompt(true);
+          return;
+        }
+
+        const context = await buildAssistantContext(currentView);
+        if (!active) return;
+        setSystemInstruction(`${BASE_INSTRUCTION}\n\n=== CURRENT CONTEXT ===\n${context}`);
+        if (getSavedMode() !== null) setReady(true);
+      } catch (err) {
+        console.error('Failed to check voice usage:', err);
+        // Continue anyway if backend is unavailable
+        const context = await buildAssistantContext(currentView);
+        if (!active) return;
+        setSystemInstruction(`${BASE_INSTRUCTION}\n\n=== CURRENT CONTEXT ===\n${context}`);
+        if (getSavedMode() !== null) setReady(true);
+      }
     })();
     if (getSavedMode() === null) setShowPrefDialog(true);
     return () => { active = false; };
@@ -72,6 +95,14 @@ export default function VoiceOrb({ currentView }: VoiceOrbProps) {
 
   return (
     <>
+      {/* Upgrade prompt for voice limit */}
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature="voice"
+          onClose={() => setShowUpgradePrompt(false)}
+        />
+      )}
+
       {/* First-time preference dialog — only decision ARI ever asks for */}
       {showPrefDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">

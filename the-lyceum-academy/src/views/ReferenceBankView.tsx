@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { loadReferences, deleteReference, SUBJECT_META, type ReferenceEntry } from '../lib/persist';
 import SmartImage from '../components/SmartImage';
+import { useReferenceLibraryGate } from '../lib/useSubscription';
+import UpgradePrompt from '../components/UpgradePrompt';
 
 function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry; onDelete: () => void; onOpenImage: (url: string) => void }) {
   const date = new Date(entry.savedAt);
@@ -59,6 +61,8 @@ export default function ReferenceBankView() {
   const [refs, setRefs] = useState<ReferenceEntry[]>(() => loadReferences());
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const { canUse, limit, used } = useReferenceLibraryGate();
 
   function handleDelete(id: string) {
     deleteReference(id);
@@ -72,12 +76,38 @@ export default function ReferenceBankView() {
   const categories = Object.keys(byCategory).sort((a, b) => byCategory[b].length - byCategory[a].length);
   const visibleCategories = activeCategory ? categories.filter(c => c === activeCategory) : categories;
 
+  const limitText = limit === Infinity ? 'Unlimited' : `${used} / ${limit}`;
+  const nearLimit = limit !== Infinity && used >= limit * 0.8;
+  const atLimit = !canUse;
+
   return (
     <div className="w-full max-w-4xl mx-auto py-4">
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature="reference"
+          onClose={() => setShowUpgradePrompt(false)}
+        />
+      )}
+
       <div className="mb-6">
-        <h1 className="font-serif text-2xl text-white/90 mb-1">Reference Bank</h1>
+        <div className="flex items-center justify-between mb-1">
+          <h1 className="font-serif text-2xl text-white/90">Reference Bank</h1>
+          <div className="flex items-center gap-2">
+            <span className={`font-sans text-xs ${atLimit ? 'text-red-400' : nearLimit ? 'text-yellow-400' : 'text-white/50'}`}>
+              {limitText}
+            </span>
+            {atLimit && (
+              <button
+                onClick={() => setShowUpgradePrompt(true)}
+                className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-sans uppercase tracking-wider"
+              >
+                Upgrade
+              </button>
+            )}
+          </div>
+        </div>
         <p className="font-sans text-xs text-white/40">
-          Everything Gemma has researched for you, sorted by topic — {refs.length} saved.
+          Everything Gemma has researched for you, sorted by topic{atLimit ? ' — limit reached' : ''}.
         </p>
       </div>
 

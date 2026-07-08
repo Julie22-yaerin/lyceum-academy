@@ -4,6 +4,9 @@ import { loadProgress } from '../lib/progress';
 import { loadMistakes } from '../lib/mistakes';
 import { loadOnboardingAnswers, loadTodayStudySubject, SUBJECT_META } from '../lib/persist';
 import { generateRoadmap, type RoadmapResult } from '../lib/api';
+import { useRoadmapRegenGate } from '../lib/useSubscription';
+import { logFeatureUsage } from '../lib/subscriptionApi';
+import UpgradePrompt from '../components/UpgradePrompt';
 
 function streakDays(): number {
   const records = loadProgress();
@@ -75,15 +78,32 @@ function RoadmapWidget() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<RoadmapResult | null>(null);
   const [error, setError] = useState('');
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+  const { canUse, limit, used } = useRoadmapRegenGate();
 
   async function handleGenerate() {
     if (!topic.trim() || loading) return;
+
+    // Check roadmap regen limit
+    if (!canUse) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+
     setLoading(true); setError(''); setResult(null);
     try {
       const answers = loadOnboardingAnswers();
       const r = await generateRoadmap(topic.trim(), answers);
       if (r.error) setError('Could not generate a roadmap — try a more specific topic.');
-      else setResult(r);
+      else {
+        setResult(r);
+        // Log roadmap regeneration
+        try {
+          await logFeatureUsage('roadmap_regen', { topic: topic.trim() });
+        } catch (err) {
+          console.error('Failed to log roadmap usage:', err);
+        }
+      }
     } catch (e: any) {
       setError(e.message || 'Something went wrong.');
     } finally {
@@ -91,13 +111,33 @@ function RoadmapWidget() {
     }
   }
 
+  const limitText = limit === Infinity ? '' : ` (${used}/${limit} today)`;
+  const atLimit = !canUse;
+
   return (
     <div className="lg:col-span-3 glass-card rounded-3xl p-6">
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature="roadmap"
+          onClose={() => setShowUpgradePrompt(false)}
+        />
+      )}
+
       <div className="flex items-center justify-between mb-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Learning Roadmap</p>
+          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">
+            Learning Roadmap{limitText}
+          </p>
           <p className="text-xs text-white/30">What to shore up first, and in what order — blended to how you actually learn.</p>
         </div>
+        {atLimit && (
+          <button
+            onClick={() => setShowUpgradePrompt(true)}
+            className="px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-sans uppercase tracking-wider"
+          >
+            Upgrade
+          </button>
+        )}
       </div>
 
       <div className="flex gap-2 mb-5">

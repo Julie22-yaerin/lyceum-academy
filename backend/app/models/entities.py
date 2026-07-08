@@ -103,6 +103,7 @@ class UserProfile(Base, TimestampMixin):
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     psets: Mapped[list["Pset"]] = relationship(back_populates="owner")
+    subscription: Mapped["UserSubscription | None"] = relationship(uselist=False)
 
     __table_args__ = (UniqueConstraint("auth_provider", "auth_subject", name="uq_user_auth_identity"),)
 
@@ -386,3 +387,94 @@ class AIAnalysisJob(Base, TimestampMixin):
     input_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     output_snapshot: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+
+
+# ============================================================================
+# Billing & Subscription Models (SOC-6)
+# ============================================================================
+
+
+class SubscriptionTierEnum(str, enum.Enum):
+    compass = "compass"
+    scholar = "scholar"
+    mentor = "mentor"
+    researcher = "researcher"
+
+
+class BillingCycleEnum(str, enum.Enum):
+    monthly = "monthly"
+    annual = "annual"
+
+
+class SubscriptionStatusEnum(str, enum.Enum):
+    active = "active"
+    past_due = "past_due"
+    canceled = "canceled"
+    trialing = "trialing"
+
+
+class SubscriptionPlan(Base, TimestampMixin):
+    """Plan definitions (seeded data, not user-editable)"""
+
+    __tablename__ = "subscription_plans"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tier: Mapped[SubscriptionTierEnum] = mapped_column(Enum(SubscriptionTierEnum), nullable=False)
+    billing_cycle: Mapped[BillingCycleEnum] = mapped_column(Enum(BillingCycleEnum), nullable=False)
+    price_usd_cents: Mapped[int] = mapped_column(Integer, nullable=False)
+    voice_minutes_monthly: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    mind_map_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    reference_library_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    roadmap_regen_daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    stripe_price_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tier", "billing_cycle", name="uq_plan_tier_cycle"),
+    )
+
+
+class UserSubscription(Base, TimestampMixin):
+    """Active user subscriptions"""
+
+    __tablename__ = "user_subscriptions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscription_plans.id"), nullable=False
+    )
+    status: Mapped[SubscriptionStatusEnum] = mapped_column(
+        Enum(SubscriptionStatusEnum), default=SubscriptionStatusEnum.trialing, nullable=False
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    current_period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    current_period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    user: Mapped["UserProfile"] = relationship()
+    plan: Mapped["SubscriptionPlan"] = relationship()
+
+
+class VoiceUsageRecord(Base, TimestampMixin):
+    """Track S2S voice ARI usage per user per billing period"""
+
+    __tablename__ = "voice_usage_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    duration_seconds: Mapped[float | None] = mapped_column(Float, nullable=True)
+    billing_period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class FeatureUsageLog(Base, TimestampMixin):
+    """Track gated feature usage (mind maps, roadmap regeneration)"""
+
+    __tablename__ = "feature_usage_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    feature_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    feature_metadata: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)

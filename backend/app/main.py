@@ -152,6 +152,7 @@ from app.services import ai         as ai_svc
 from app.services import finetune_db as ft_svc
 from app.routers  import admin      as admin_router
 from app.routers  import auth       as auth_router
+from app.routers  import subscriptions as subscriptions_router
 
 
 @asynccontextmanager
@@ -196,6 +197,8 @@ app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(GZipMiddleware, minimum_size=1024)
 app.include_router(admin_router.router)
 app.include_router(auth_router.router)
+app.include_router(subscriptions_router.router)
+app.include_router(subscriptions_router.webhook_router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port

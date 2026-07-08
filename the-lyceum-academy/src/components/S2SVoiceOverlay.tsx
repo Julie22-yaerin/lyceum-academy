@@ -3,6 +3,7 @@ import { saveNote, attachToNote, attachToGraphNode, saveReference } from '../lib
 import SmartImage from './SmartImage';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
 import { getNodeSummary, voiceFallbackChat } from '../lib/api';
+import { startVoiceSession, endVoiceSession, logFeatureUsage } from '../lib/subscriptionApi';
 
 // Gemini 2.0 Flash + v1alpha BidiGenerateContent were shut down 2026-06-01.
 // Live voice now runs on the native-audio Live model over v1beta (see backend/app/main.py).
@@ -43,6 +44,7 @@ export default function S2SVoiceOverlay({
   const [errorMessage, setErrorMessage] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'note' | 'mistake' | 'research'; images?: string[] } | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -145,6 +147,13 @@ export default function S2SVoiceOverlay({
       lastResearchRef.current = { topic, imageUrl: imageUrls[0], imageUrls, sourceUrl };
       showToastMsg(text, 'research', imageUrls);
       saveReference({ topic, summary: text, imageUrl: imageUrls[0], imageUrls, sourceUrl });
+
+      // Log reference library usage
+      try {
+        await logFeatureUsage('reference_library_item', { topic });
+      } catch (err) {
+        console.error('Failed to log reference library usage:', err);
+      }
     }
     return { text, imageUrls, sourceUrl };
   }
@@ -482,11 +491,19 @@ export default function S2SVoiceOverlay({
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
-        ws.onopen = () => {
+        ws.onopen = async () => {
           if (!active) return;
           setStatus('idle');
           armSilenceTimer();
           playConnectedChime(audioCtx);
+
+          // Start voice session tracking
+          try {
+            const session = await startVoiceSession();
+            setVoiceSessionId(session.session_id);
+          } catch (err) {
+            console.error('Failed to start voice session tracking:', err);
+          }
 
           const setupMsg = {
             setup: {
@@ -749,6 +766,14 @@ export default function S2SVoiceOverlay({
     return () => {
       active = false;
       clearSilenceTimer();
+
+      // End voice session tracking
+      if (voiceSessionId) {
+        endVoiceSession(voiceSessionId).catch(err =>
+          console.error('Failed to end voice session:', err)
+        );
+      }
+
       try { recognitionRef.current?.stop(); } catch {}
       try { micStreamRef.current?.getTracks().forEach(t => t.stop()); } catch {}
       try { processorNodeRef.current?.disconnect(); } catch {}

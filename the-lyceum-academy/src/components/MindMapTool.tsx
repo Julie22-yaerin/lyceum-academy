@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { validateToolMap } from '../lib/api';
+import { useMindMapGate } from '../lib/useSubscription';
+import UpgradePrompt from './UpgradePrompt';
 
 interface MindMapNode {
   id: string;
@@ -35,8 +37,10 @@ function Toast({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
  * (currently used from the Problem Sets PDF viewer).
  */
 export default function MindMapTool() {
+  const { canUse, tier } = useMindMapGate();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'tool' | 'free'>('tool');
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   const [columns, setColumns] = useState(DEFAULT_COLUMNS.map(c => ({ ...c, items: [] as string[] })));
   const [toolInput, setToolInput] = useState<Record<string, string>>({});
@@ -99,19 +103,37 @@ export default function MindMapTool() {
     setMmNodes(prev => prev.map(n => n.id === mmDragging ? { ...n, x: nx, y: ny } : n));
   }
 
+  const handleOpen = () => {
+    if (!canUse) {
+      setShowUpgradePrompt(true);
+      return;
+    }
+    setOpen(true);
+  };
+
   let mmSvgEl: SVGSVGElement | null = null;
   let mmContainerEl: HTMLDivElement | null = null;
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform"
-        style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
-        title="Mind Map"
-      >
-        <span className="material-symbols-outlined text-[22px] text-on-surface opacity-80">psychology</span>
-      </button>
+      <>
+        {showUpgradePrompt && (
+          <UpgradePrompt
+            feature="mindmap"
+            currentTier={tier}
+            onClose={() => setShowUpgradePrompt(false)}
+          />
+        )}
+        <button
+          onClick={handleOpen}
+          className={`fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform ${!canUse ? 'opacity-60' : ''}`}
+          style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+          title={canUse ? "Mind Map" : "Mind Map (Upgrade to unlock)"}
+        >
+          <span className="material-symbols-outlined text-[22px] text-on-surface opacity-80">psychology</span>
+          {!canUse && <span className="absolute -top-1 -right-1 text-xs">🔒</span>}
+        </button>
+      </>
     );
   }
 

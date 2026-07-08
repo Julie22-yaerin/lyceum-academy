@@ -7,12 +7,17 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from typing import Annotated
 
 import jwt
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, Depends, Header
 from jwt import PyJWKClient
+from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app.core.config import settings
+from app.db.session import get_db
+from app.models.entities import UserProfile
 
 # ── JWKS client cho RS256 ────────────────────────────────────
 _sb_jwks_client: PyJWKClient | None = None
@@ -79,3 +84,40 @@ async def verify_access_token(token: str) -> Mapping[str, object]:
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not verify Supabase token — check SUPABASE_JWT_SECRET",
     )
+
+
+async def get_current_user(
+    authorization: Annotated[str | None, Header()] = None,
+    db: Session = Depends(get_db),
+) -> UserProfile:
+    """FastAPI dependency to get the current authenticated user."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid Authorization header",
+        )
+
+    token = authorization[7:].strip()
+    payload = await verify_access_token(token)
+
+    # Get user_id or sub from token
+    user_id = payload.get("sub") or payload.get("user_id")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload",
+        )
+
+    # Look up user in database
+    result = db.execute(
+        select(UserProfile).where(UserProfile.auth_subject == user_id)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+
+    return user
