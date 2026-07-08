@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
+import BookTreeIntro from '../components/BookTreeIntro';
 
 // ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
 const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
@@ -163,8 +164,21 @@ const stagger = {
 };
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
+  const [showIntro, setShowIntro] = useState(
+    () => typeof window === 'undefined' || sessionStorage.getItem('lyceum-intro-seen') !== '1'
+  );
+
+  const dismissIntro = () => {
+    sessionStorage.setItem('lyceum-intro-seen', '1');
+    setShowIntro(false);
+  };
+
   return (
     <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen">
+      <AnimatePresence>
+        {showIntro && <BookTreeIntro onEnter={dismissIntro} />}
+      </AnimatePresence>
+
       {/* Ambient background orbs */}
       <div className="ambient-orbs">
         <div className="orb-1" />
