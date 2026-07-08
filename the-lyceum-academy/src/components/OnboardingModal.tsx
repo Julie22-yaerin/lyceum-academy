@@ -1,87 +1,47 @@
 /**
  * OnboardingModal — shown once after first login.
- * 8 questions → Meta Llama 3.1 70B analysis → pricing recommendation → PayPal sandbox.
+ * A live AI advisor chat gathers the same 8 signals a form used to,
+ * conversationally → Meta Llama 3.1 70B analysis → pricing recommendation → PayPal sandbox.
  *
  * Persistence:
  *   localStorage 'lyceum_onboarding_done'  — boolean, hides modal on next visit
  *   localStorage 'lyceum_plan'             — chosen plan id
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { analyzeOnboarding } from '../lib/api';
+import { useState, useEffect, useRef } from 'react';
+import { analyzeOnboarding, chatMessage, type ChatMsg } from '../lib/api';
 import { saveOnboardingAnswers } from '../lib/persist';
 
-// ── Question config ─────────────────────────────────────────────────────────
+// ── Chat-driven interview config ────────────────────────────────────────────
+// The advisor gathers the same 8 signals the old multiple-choice form did
+// (q1..q8, same keys downstream code already reads — see lib/api.ts
+// generateRoadmap and lib/persist.ts loadOnboardingAnswers) but through
+// natural conversation instead of buttons/checkboxes.
 
-type QType = 'single' | 'multi' | 'text';
-interface OQ { id: string; text: string; type: QType; options?: string[]; max?: number; hint?: string; }
+const ONBOARDING_SYSTEM_PROMPT = `You are the Lyceum's admissions advisor — warm, curious, and Socratic: you ask one thoughtful question at a time and let the student's answer shape your next question, rather than reading off a script.
 
-const QUESTIONS: OQ[] = [
-  {
-    id: 'q1', type: 'single',
-    text: 'What is your main learning goal?',
-    options: ['Pass the class', 'High GPA', 'Research', 'Self-study beyond the curriculum'],
-  },
-  {
-    id: 'q2', type: 'text',
-    text: 'What are you studying?',
-    hint: 'e.g. Computer Science, Medicine, Economics, Physics…',
-  },
-  {
-    id: 'q3', type: 'single',
-    text: 'How many hours do you study per week?',
-    options: ['< 5 hours', '5 – 10 hours', '10 – 20 hours', '20+ hours'],
-  },
-  {
-    id: 'q4', type: 'single',
-    text: 'How many subjects do you usually study at once?',
-    options: ['1–2 subjects', '3–4 subjects', '5+ subjects'],
-  },
-  {
-    id: 'q5', type: 'multi', max: 3,
-    text: 'What frustrates you most right now? (pick up to 3)',
-    options: [
-      "Don't understand lectures/notes/PDFs after reading them",
-      'Too much material, no idea how to allocate time',
-      'No study roadmap',
-      'Unclear on how to self-assess progress',
-      'No one to study with / ask questions to',
-      'Ask AI but get overwhelmed or confused by the answer',
-      "Many subjects, don't know how to split time",
-      "Lots of deadlines, can't manage time",
-      'Other',
-    ],
-  },
-  {
-    id: 'q6', type: 'multi', max: 3,
-    text: 'How much material do you usually upload per week? (pick up to 3)',
-    options: [
-      '3+ subjects/week',
-      '1–3 subjects/week',
-      'A few YouTube lectures ≤7 videos/week',
-      'Many YouTube lectures >7 videos/week',
-      'A few PDFs/notes — under 10 pages total',
-      'A few PDFs/notes — around/over 10 pages total',
-    ],
-  },
-  {
-    id: 'q7', type: 'multi', max: 3,
-    text: 'How do you like to learn? (pick up to 3)',
-    options: [
-      'Exploring (broader context, real-world applications)',
-      'Being guided step by step',
-      'Having my thinking challenged',
-      'Given a framework to boost my grades',
-      'Discussion with multiple perspectives',
-      'Other',
-    ],
-  },
-  {
-    id: 'q8', type: 'multi', max: 3,
-    text: 'What do you spend most of your study time on? (pick up to 3)',
-    options: ['Reading theory', 'Doing exercises', 'Working on projects', 'Reading papers', 'Exam review'],
-  },
-];
+Your job in this conversation is to get to know a new student well enough to recommend a study plan. Weave these eight things into the conversation naturally, in whatever order fits the dialogue (don't announce them as a checklist, don't number your questions):
+  1. Their main learning goal (e.g. passing the class, a high GPA, research, self-study beyond the curriculum)
+  2. What they're studying (their field/subject)
+  3. Roughly how many hours a week they study
+  4. How many subjects they juggle at once
+  5. What frustrates them most about studying right now
+  6. Roughly how much material they upload/review per week (readings, PDFs, lecture videos)
+  7. How they like to learn (exploring broadly, being guided step by step, having their thinking challenged, wanting a framework to boost grades, discussion with multiple perspectives, etc.)
+  8. What they spend most of their study time on (theory, exercises, projects, papers, exam review)
+
+Keep replies short — 2-4 sentences, at most one question per turn. Mirror the student's language (reply in Vietnamese if they write in Vietnamese, English if they write in English). Be genuinely curious, not a form with a chat skin.
+
+Once — and only once — you have a confident picture of all eight points, write ONE warm closing sentence thanking them, then on a new line output ONLY this machine-readable block and nothing after it:
+[[ONBOARDING_JSON]]
+{"q1": "<their main goal, your words>", "q2": "<field of study>", "q3": "<hours/week, e.g. '5-10 hours'>", "q4": "<how many subjects at once>", "q5": ["<frustration>", "..."], "q6": ["<material volume note>", "..."], "q7": ["<learning-style tag>", "..."], "q8": ["<time-spend note>", "..."]}
+[[/ONBOARDING_JSON]]
+Do not emit that block until you're actually done — keep the conversation going (at least 4-5 of your turns) until you genuinely have all eight signals.`;
+
+const OPENING_MESSAGE = "Hi — I'm your Lyceum advisor. Before we set up your workspace, I'd love to understand how you study, so let's just talk it through instead of a quiz. To start: what's pulling you to study right now — chasing a high GPA, prepping for research, just trying to pass the class, or something more self-driven?";
+
+const JSON_START = '[[ONBOARDING_JSON]]';
+const JSON_END = '[[/ONBOARDING_JSON]]';
 
 // ── Pricing plans (client-side display config) ──────────────────────────────
 
@@ -265,8 +225,14 @@ function PlanCard({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState(0);         // 0-7 = questions, 8 = pricing
-  const [answers, setAnswers] = useState<Record<string, string | string[]>>({});
+  const [phase, setPhase] = useState<'chat' | 'pricing'>('chat');
+  const [turns, setTurns] = useState<ChatMsg[]>([
+    { role: 'system', content: ONBOARDING_SYSTEM_PROMPT },
+    { role: 'assistant', content: OPENING_MESSAGE },
+  ]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [chatError, setChatError] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<{
     recommended_plan_id?: string;
@@ -275,46 +241,55 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
-  const [entering, setEntering] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  const q = QUESTIONS[step];
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns, sending]);
 
-  // ── Answer helpers ──────────────────────────────────────────────────────────
-  const isSingleDone = q?.type === 'single' && typeof answers[q.id] === 'string' && (answers[q.id] as string).length > 0;
-  const isTextDone   = q?.type === 'text'   && typeof answers[q.id] === 'string' && (answers[q.id] as string).trim().length > 0;
-  const isMultiDone  = q?.type === 'multi'  && Array.isArray(answers[q.id]) && (answers[q.id] as string[]).length > 0;
-  const canAdvance = isSingleDone || isTextDone || isMultiDone;
-
-  function toggleMulti(opt: string) {
-    const cur = (answers[q.id] as string[] | undefined) || [];
-    if (cur.includes(opt)) {
-      setAnswers(a => ({ ...a, [q.id]: cur.filter(x => x !== opt) }));
-    } else if (cur.length < (q.max ?? 99)) {
-      setAnswers(a => ({ ...a, [q.id]: [...cur, opt] }));
+  async function finishChat(parsedAnswers: Record<string, string | string[]>) {
+    setPhase('pricing');
+    setAnalyzing(true);
+    // Persist raw answers — the roadmap generator and personalization
+    // profile read these later (learning-style q7, study-intensity q1/q3).
+    saveOnboardingAnswers(parsedAnswers);
+    try {
+      const result = await analyzeOnboarding(parsedAnswers);
+      setAiResult(result);
+      if (result.recommended_plan_id) setSelectedPlan(result.recommended_plan_id);
+    } catch {
+      setAiResult({});
+    } finally {
+      setAnalyzing(false);
     }
   }
 
-  async function advance() {
-    if (step < QUESTIONS.length - 1) {
-      setEntering(true);
-      setTimeout(() => { setStep(s => s + 1); setEntering(false); }, 120);
-    } else {
-      // Last question done → analyze
-      setStep(QUESTIONS.length); // pricing screen
-      setAnalyzing(true);
-      // Persist raw answers — previously only sent once to the pricing
-      // analyzer then discarded; the roadmap generator and personalization
-      // profile read these later (learning-style q7, study-intensity q1/q3).
-      saveOnboardingAnswers(answers);
-      try {
-        const result = await analyzeOnboarding(answers);
-        setAiResult(result);
-        if (result.recommended_plan_id) setSelectedPlan(result.recommended_plan_id);
-      } catch {
-        setAiResult({});
-      } finally {
-        setAnalyzing(false);
+  async function sendMessage() {
+    const text = input.trim();
+    if (!text || sending) return;
+    setInput('');
+    setChatError('');
+    const nextTurns: ChatMsg[] = [...turns, { role: 'user', content: text }];
+    setTurns(nextTurns);
+    setSending(true);
+    try {
+      const { reply } = await chatMessage(nextTurns);
+      const startIdx = reply.indexOf(JSON_START);
+      if (startIdx === -1) {
+        setTurns(t => [...t, { role: 'assistant', content: reply }]);
+        return;
       }
+      const visible = reply.slice(0, startIdx).trim();
+      const endIdx = reply.indexOf(JSON_END);
+      const jsonStr = reply.slice(startIdx + JSON_START.length, endIdx !== -1 ? endIdx : undefined).trim();
+      setTurns(t => [...t, { role: 'assistant', content: visible || "Thank you — let's find your plan." }]);
+      let parsed: Record<string, string | string[]> = {};
+      try { parsed = JSON.parse(jsonStr); } catch { /* malformed — treat as not-yet-done */ }
+      if (Object.keys(parsed).length > 0) {
+        await finishChat(parsed);
+      }
+    } catch (e: any) {
+      setChatError(e?.message || 'Something went wrong — please try again.');
+    } finally {
+      setSending(false);
     }
   }
 
@@ -333,7 +308,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const recPlan = PLANS.find(p => p.id === aiResult?.recommended_plan_id);
   const altIds  = (aiResult?.alternatives || []).map(a => a.plan_id);
 
-  const progress = step >= QUESTIONS.length ? 1 : step / QUESTIONS.length;
+  const userTurnCount = turns.filter(t => t.role === 'user').length;
+  const progress = phase === 'pricing' ? 1 : Math.min(userTurnCount / 6, 0.92);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -348,12 +324,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         @keyframes scaleIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
         .ob-enter { animation: fadeSlideIn 0.22s ease-out; }
         .ob-scale { animation: scaleIn 0.28s cubic-bezier(0.23,1,0.32,1); }
+        @keyframes obDotBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
+        .ob-dot { width: 6px; height: 6px; border-radius: 50%; background: #C5A059; display: inline-block; animation: obDotBounce 1s infinite ease-in-out; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #ccc; }
       `}</style>
 
       {/* Modal panel */}
       <div className="ob-scale" style={{
-        background: '#FAFAF8', borderRadius: 8, width: '92vw', maxWidth: step >= QUESTIONS.length ? 1060 : 560,
+        background: '#FAFAF8', borderRadius: 8, width: '92vw', maxWidth: phase === 'pricing' ? 1060 : 600,
         maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
         transition: 'max-width 0.4s cubic-bezier(0.23,1,0.32,1)',
@@ -362,7 +340,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
-              {step < QUESTIONS.length ? `The Lyceum — Setup  ${step + 1} / ${QUESTIONS.length}` : 'The Lyceum — Plans for you'}
+              {phase === 'chat' ? 'The Lyceum — Talk to your advisor' : 'The Lyceum — Plans for you'}
             </span>
             <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.28)' }}>
               Skip
@@ -386,7 +364,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           )}
 
           {/* ── Pricing screen ── */}
-          {!paid && step >= QUESTIONS.length && (
+          {!paid && phase === 'pricing' && (
             <div>
               {analyzing ? (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
@@ -444,102 +422,82 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          {/* ── Question steps ── */}
-          {!paid && step < QUESTIONS.length && (
-            <div key={step} className="ob-enter" style={{ opacity: entering ? 0 : 1, transition: 'opacity 0.1s' }}>
-              <h2 style={{ fontSize: 22, fontWeight: 400, lineHeight: 1.4, marginBottom: 28, color: 'rgba(0,0,0,0.85)' }}>
-                {q.text}
-              </h2>
-
-              {/* Single choice */}
-              {q.type === 'single' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {q.options!.map(opt => {
-                    const active = answers[q.id] === opt;
-                    return (
-                      <button key={opt} onClick={() => setAnswers(a => ({ ...a, [q.id]: opt }))}
-                        style={{
-                          padding: '14px 20px', textAlign: 'left', border: `1.5px solid ${active ? '#C5A059' : 'rgba(0,0,0,0.14)'}`,
-                          borderRadius: 5, background: active ? 'rgba(197,160,89,0.08)' : 'white',
-                          cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 14, color: active ? '#8B6914' : 'rgba(0,0,0,0.75)',
-                          transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 12,
-                        }}>
-                        <span style={{ width: 18, height: 18, borderRadius: '50%', border: `2px solid ${active ? '#C5A059' : 'rgba(0,0,0,0.2)'}`, background: active ? '#C5A059' : 'transparent', flexShrink: 0, transition: 'all 0.15s' }} />
-                        {opt}
-                      </button>
-                    );
-                  })}
+          {/* ── Advisor chat ── */}
+          {!paid && phase === 'chat' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {turns.filter(t => t.role !== 'system').map((t, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: t.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                  <div className="ob-enter" style={{
+                    maxWidth: '82%',
+                    padding: '12px 16px',
+                    borderRadius: t.role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
+                    background: t.role === 'user' ? 'rgba(197,160,89,0.16)' : 'rgba(255,255,255,0.55)',
+                    backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    border: t.role === 'user' ? '1px solid rgba(197,160,89,0.4)' : '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                    fontFamily: 'sans-serif', fontSize: 13.5, lineHeight: 1.6,
+                    color: t.role === 'user' ? '#6b5215' : 'rgba(0,0,0,0.78)',
+                    whiteSpace: 'pre-wrap',
+                  }}>
+                    {t.content}
+                  </div>
+                </div>
+              ))}
+              {sending && (
+                <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+                  <div style={{
+                    padding: '12px 16px', borderRadius: '14px 14px 14px 3px',
+                    background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    border: '1px solid rgba(0,0,0,0.08)', display: 'flex', gap: 4, alignItems: 'center',
+                  }}>
+                    <span className="ob-dot" style={{ animationDelay: '0s' }} />
+                    <span className="ob-dot" style={{ animationDelay: '0.15s' }} />
+                    <span className="ob-dot" style={{ animationDelay: '0.3s' }} />
+                  </div>
                 </div>
               )}
-
-              {/* Free text */}
-              {q.type === 'text' && (
-                <input
-                  type="text"
-                  value={(answers[q.id] as string) || ''}
-                  onChange={e => setAnswers(a => ({ ...a, [q.id]: e.target.value }))}
-                  placeholder={q.hint}
-                  autoFocus
-                  onKeyDown={e => { if (e.key === 'Enter' && canAdvance) advance(); }}
-                  style={{
-                    width: '100%', padding: '14px 18px', border: '1.5px solid rgba(0,0,0,0.2)',
-                    borderRadius: 5, fontFamily: 'Georgia, serif', fontSize: 15, color: 'rgba(0,0,0,0.85)',
-                    outline: 'none', background: 'white', boxSizing: 'border-box',
-                  }}
-                />
-              )}
-
-              {/* Multi choice */}
-              {q.type === 'multi' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {q.options!.map(opt => {
-                    const sel = ((answers[q.id] as string[] | undefined) || []).includes(opt);
-                    const atMax = ((answers[q.id] as string[] | undefined) || []).length >= (q.max ?? 99);
-                    return (
-                      <button key={opt} onClick={() => toggleMulti(opt)}
-                        disabled={!sel && atMax}
-                        style={{
-                          padding: '11px 18px', textAlign: 'left', border: `1.5px solid ${sel ? '#C5A059' : 'rgba(0,0,0,0.12)'}`,
-                          borderRadius: 5, background: sel ? 'rgba(197,160,89,0.08)' : 'white',
-                          cursor: (!sel && atMax) ? 'not-allowed' : 'pointer',
-                          fontFamily: 'sans-serif', fontSize: 13,
-                          color: sel ? '#8B6914' : (!sel && atMax) ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0.72)',
-                          transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: 10,
-                          opacity: (!sel && atMax) ? 0.5 : 1,
-                        }}>
-                        <span style={{
-                          width: 16, height: 16, border: `2px solid ${sel ? '#C5A059' : 'rgba(0,0,0,0.2)'}`,
-                          background: sel ? '#C5A059' : 'transparent', flexShrink: 0,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          transition: 'all 0.15s', borderRadius: 2,
-                        }}>
-                          {sel && <span style={{ color: 'white', fontSize: 9, fontWeight: 700 }}>✓</span>}
-                        </span>
-                        {opt}
-                      </button>
-                    );
-                  })}
-                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.35)', margin: '4px 0 0 0' }}>
-                    Selected {((answers[q.id] as string[] | undefined) || []).length} / {q.max}
-                  </p>
-                </div>
-              )}
-
-              {/* Next button */}
-              <button
-                onClick={advance}
-                disabled={!canAdvance}
-                style={{
-                  marginTop: 28, padding: '13px 36px', background: canAdvance ? '#C5A059' : 'rgba(0,0,0,0.08)',
-                  border: 'none', borderRadius: 5, cursor: canAdvance ? 'pointer' : 'not-allowed',
-                  fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase',
-                  color: canAdvance ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700, transition: 'all 0.15s',
-                }}>
-                {step === QUESTIONS.length - 1 ? 'See results →' : 'Next →'}
-              </button>
+              <div ref={bottomRef} />
             </div>
           )}
         </div>
+
+        {/* Chat input — the only way to answer during onboarding */}
+        {!paid && phase === 'chat' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+            {chatError && (
+              <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(220,38,38,0.8)', margin: '0 0 8px' }}>{chatError}</p>
+            )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <input
+                type="text"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+                placeholder="Type your reply…"
+                disabled={sending}
+                autoFocus
+                style={{
+                  flex: 1, padding: '13px 16px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
+                  fontFamily: 'sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.85)', outline: 'none',
+                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={sending || !input.trim()}
+                style={{
+                  padding: '13px 22px', background: (!sending && input.trim()) ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                  border: 'none', borderRadius: 8, cursor: (!sending && input.trim()) ? 'pointer' : 'not-allowed',
+                  fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                  color: (!sending && input.trim()) ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700, flexShrink: 0,
+                  transition: 'all 0.15s',
+                }}>
+                Send
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
