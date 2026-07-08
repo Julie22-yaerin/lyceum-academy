@@ -8,9 +8,10 @@
  *   localStorage 'lyceum_plan'             — chosen plan id
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { analyzeOnboarding, chatMessage, type ChatMsg } from '../lib/api';
 import { saveOnboardingAnswers } from '../lib/persist';
+import { startStreakGoal } from '../lib/streak';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
 // The advisor gathers the same 8 signals the old multiple-choice form did
@@ -222,10 +223,87 @@ function PlanCard({
   );
 }
 
+// ── Goal-date calendar (shown once the advisor interview is done) ──────────
+// Lets the student mark a deadline or upcoming exam as their study target;
+// this date is what the streak feature (lib/streak.ts) counts toward — a
+// glass pawn per day, a glass king once the streak reaches this date.
+
+const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+function toISODate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelect: (iso: string) => void }) {
+  const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
+  const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+
+  const weeks = useMemo(() => {
+    const firstOfMonth = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const startOffset = (firstOfMonth.getDay() + 6) % 7; // Monday-first
+    const daysInMonth = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate();
+    const cells: (Date | null)[] = [...Array(startOffset).fill(null)];
+    for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(cursor.getFullYear(), cursor.getMonth(), d));
+    while (cells.length % 7 !== 0) cells.push(null);
+    const rows: (Date | null)[][] = [];
+    for (let i = 0; i < cells.length; i += 7) rows.push(cells.slice(i, i + 7));
+    return rows;
+  }, [cursor]);
+
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '16px 18px', boxShadow: '0 4px 18px rgba(0,0,0,0.06)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(0,0,0,0.4)', padding: '4px 8px' }}>‹</button>
+        <span style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.6)' }}>
+          {cursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
+        </span>
+        <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(0,0,0,0.4)', padding: '4px 8px' }}>›</button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
+        {WEEKDAY_LABELS.map((w, i) => (
+          <div key={i} style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)' }}>{w}</div>
+        ))}
+      </div>
+
+      {weeks.map((row, ri) => (
+        <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
+          {row.map((date, ci) => {
+            if (!date) return <div key={ci} />;
+            const iso = toISODate(date);
+            const isPast = date < today;
+            const isToday = iso === toISODate(today);
+            const isSelected = iso === selected;
+            return (
+              <button
+                key={ci}
+                disabled={isPast}
+                onClick={() => onSelect(iso)}
+                style={{
+                  aspectRatio: '1', border: isSelected ? '1.5px solid #C5A059' : isToday ? '1px solid rgba(197,160,89,0.5)' : '1px solid transparent',
+                  borderRadius: 8, cursor: isPast ? 'default' : 'pointer',
+                  background: isSelected ? '#C5A059' : 'transparent',
+                  color: isPast ? 'rgba(0,0,0,0.2)' : isSelected ? 'white' : 'rgba(0,0,0,0.75)',
+                  fontFamily: 'sans-serif', fontSize: 12, fontWeight: isSelected ? 700 : 400,
+                  transition: 'all 0.15s',
+                }}
+              >
+                {date.getDate()}
+              </button>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
-  const [phase, setPhase] = useState<'chat' | 'pricing'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'goal' | 'pricing'>('chat');
   const [turns, setTurns] = useState<ChatMsg[]>([
     { role: 'system', content: ONBOARDING_SYSTEM_PROMPT },
     { role: 'assistant', content: OPENING_MESSAGE },
@@ -233,6 +311,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [chatError, setChatError] = useState('');
+  const [pendingAnswers, setPendingAnswers] = useState<Record<string, string | string[]> | null>(null);
+  const [goalDate, setGoalDate] = useState<string | null>(null);
+  const [goalLabel, setGoalLabel] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [aiResult, setAiResult] = useState<{
     recommended_plan_id?: string;
@@ -284,13 +365,20 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
       let parsed: Record<string, string | string[]> = {};
       try { parsed = JSON.parse(jsonStr); } catch { /* malformed — treat as not-yet-done */ }
       if (Object.keys(parsed).length > 0) {
-        await finishChat(parsed);
+        setPendingAnswers(parsed);
+        setPhase('goal');
       }
     } catch (e: any) {
       setChatError(e?.message || 'Something went wrong — please try again.');
     } finally {
       setSending(false);
     }
+  }
+
+  function confirmGoal() {
+    if (!goalDate || !pendingAnswers) return;
+    startStreakGoal(goalDate, goalLabel.trim());
+    finishChat(pendingAnswers);
   }
 
   function handlePaySuccess(planId: string) {
@@ -309,7 +397,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const altIds  = (aiResult?.alternatives || []).map(a => a.plan_id);
 
   const userTurnCount = turns.filter(t => t.role === 'user').length;
-  const progress = phase === 'pricing' ? 1 : Math.min(userTurnCount / 6, 0.92);
+  const progress = phase === 'pricing' ? 1 : phase === 'goal' ? 0.95 : Math.min(userTurnCount / 6, 0.92);
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -331,7 +419,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
       {/* Modal panel */}
       <div className="ob-scale" style={{
-        background: '#FAFAF8', borderRadius: 8, width: '92vw', maxWidth: phase === 'pricing' ? 1060 : 600,
+        background: '#FAFAF8', borderRadius: 8, width: '92vw', maxWidth: phase === 'pricing' ? 1060 : phase === 'goal' ? 460 : 600,
         maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
         transition: 'max-width 0.4s cubic-bezier(0.23,1,0.32,1)',
@@ -340,7 +428,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
-              {phase === 'chat' ? 'The Lyceum — Talk to your advisor' : 'The Lyceum — Plans for you'}
+              {phase === 'chat' ? 'The Lyceum — Talk to your advisor' : phase === 'goal' ? 'The Lyceum — Set your target' : 'The Lyceum — Plans for you'}
             </span>
             <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.28)' }}>
               Skip
@@ -360,6 +448,32 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
               <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
               <p style={{ fontSize: 22, marginBottom: 8 }}>Welcome to The Lyceum</p>
               <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
+            </div>
+          )}
+
+          {/* ── Goal-date screen ── */}
+          {!paid && phase === 'goal' && (
+            <div className="ob-enter">
+              <span style={{ fontSize: 40, display: 'block', textAlign: 'center', marginBottom: 8 }}>♟</span>
+              <p style={{ fontSize: 18, textAlign: 'center', margin: '0 0 6px' }}>Pick a target day</p>
+              <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', textAlign: 'center', margin: '0 0 22px', lineHeight: 1.6 }}>
+                A deadline, an upcoming exam — anything that gives your studying a finish line. From today, every day you show up earns a glass pawn; reach this day and it becomes a glass king.
+              </p>
+
+              <GoalCalendar selected={goalDate} onSelect={setGoalDate} />
+
+              <input
+                type="text"
+                value={goalLabel}
+                onChange={e => setGoalLabel(e.target.value)}
+                placeholder="What's this day for? (e.g. Calculus midterm)"
+                style={{
+                  width: '100%', marginTop: 16, padding: '12px 14px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
+                  fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.85)', outline: 'none',
+                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
           )}
 
@@ -460,6 +574,24 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
+
+        {/* Goal-date confirm footer */}
+        {!paid && phase === 'goal' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              onClick={confirmGoal}
+              disabled={!goalDate}
+              style={{
+                padding: '13px 26px', background: goalDate ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                border: 'none', borderRadius: 8, cursor: goalDate ? 'pointer' : 'not-allowed',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: goalDate ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700,
+                transition: 'all 0.15s',
+              }}>
+              Start my streak
+            </button>
+          </div>
+        )}
 
         {/* Chat input — the only way to answer during onboarding */}
         {!paid && phase === 'chat' && (

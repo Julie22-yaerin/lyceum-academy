@@ -3,6 +3,7 @@ import { View, NavigationProps } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { auth, signOut } from '../lib/firebase';
 import { getUsage, UsageData } from '../lib/api';
+import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; label: string; icon: string }[] = [
@@ -111,10 +112,57 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
   );
 }
 
+/** Glassy chess-piece streak badge: pawn while chasing the goal date, king once reached. */
+function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const remaining = daysUntilGoal(state);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full right-0 mb-2 w-64 glass-strong rounded-2xl z-[200] overflow-hidden"
+      style={{ animation: 'fadeDown 0.18s ease-out' }}
+    >
+      <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[28px] leading-none" style={{ filter: 'drop-shadow(0 0 6px rgba(216,204,255,0.5))' }}>
+            {state.goalAchieved ? '♚' : '♟'}
+          </span>
+          <div>
+            <div className="text-lg font-semibold text-white/90">{state.streakCount}-day streak</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/40">Longest: {state.longestStreak}</div>
+          </div>
+        </div>
+        <div className="border-t border-white/10 pt-3">
+          <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
+            {state.goalAchieved ? 'Goal reached' : 'Target'}
+          </div>
+          <div className="text-xs text-white/70">{state.goalLabel || 'Study goal'}</div>
+          <div className="text-[10px] text-white/40 mt-0.5">
+            {state.goalDate}{!state.goalAchieved && (remaining >= 0 ? ` — ${remaining}d left` : ' — passed')}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Top-right corner utility capsule: brand mark + usage stats + auth */
 function CornerMenu({ onNavigate }: NavigationProps) {
   const { user, devMode } = useAuth();
   const [showStats, setShowStats] = useState(false);
+  const [showStreak, setShowStreak] = useState(false);
+  const [streak, setStreak] = useState<StreakState | null>(null);
+
+  useEffect(() => { setStreak(recordDailyVisit()); }, []);
 
   async function handleSignOut() {
     try { await signOut(auth); } catch {}
@@ -129,6 +177,20 @@ function CornerMenu({ onNavigate }: NavigationProps) {
       >
         Lyceum
       </div>
+
+      {streak && (
+        <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
+          <button
+            onClick={() => setShowStreak(v => !v)}
+            className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
+            title={`${streak.streakCount}-day streak`}
+          >
+            <span className="text-[16px] leading-none">{streak.goalAchieved ? '♚' : '♟'}</span>
+            <span className="text-[11px] font-semibold text-white/80">{streak.streakCount}</span>
+          </button>
+          {showStreak && <StreakPanel state={streak} onClose={() => setShowStreak(false)} />}
+        </div>
+      )}
 
       <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
         <button
