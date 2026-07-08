@@ -10,6 +10,8 @@ import {
   Share2,
   AlertCircle,
   BookOpen,
+  Moon,
+  Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
@@ -168,15 +170,29 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
     () => typeof window === 'undefined' || sessionStorage.getItem('lyceum-intro-seen') !== '1'
   );
 
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    return localStorage.getItem('lyceum-theme') === 'light' ? 'light' : 'dark';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('lyceum-theme', theme);
+  }, [theme]);
+
   const dismissIntro = () => {
     sessionStorage.setItem('lyceum-intro-seen', '1');
     setShowIntro(false);
   };
 
   return (
-    <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen">
+    <div
+      className={
+        (theme === 'light' ? 'theme-light ' : '') +
+        'bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500'
+      }
+    >
       <AnimatePresence>
-        {showIntro && <BookTreeIntro onEnter={dismissIntro} />}
+        {showIntro && <BookTreeIntro onEnter={dismissIntro} theme={theme} />}
       </AnimatePresence>
 
       {/* Ambient background orbs */}
@@ -202,14 +218,36 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             <a href="#features" className="nav-link">Features</a>
             <a href="#voices" className="nav-link">Wisdom</a>
           </div>
-          <motion.button
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            onClick={() => onNavigate('auth')}
-            className="px-6 py-2 rounded-full text-sm font-medium text-white glass-btn"
-          >
-            Launch Workspace
-          </motion.button>
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              aria-label="Toggle light / dark mode"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-white glass-btn"
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={theme}
+                  initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
+                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex items-center justify-center"
+                >
+                  {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => onNavigate('auth')}
+              className="px-6 py-2 rounded-full text-sm font-medium text-white glass-btn"
+            >
+              Launch Workspace
+            </motion.button>
+          </div>
         </div>
       </motion.nav>
 

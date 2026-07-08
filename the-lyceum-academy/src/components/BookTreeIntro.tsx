@@ -20,8 +20,15 @@ const SPARKLES = [
   { x: 48, y: 118 }, { x: 172, y: 118 }, { x: 110, y: 86 }, { x: 110, y: 60 },
 ];
 
-export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
+export default function BookTreeIntro({
+  onEnter,
+  theme = 'dark',
+}: {
+  onEnter: () => void;
+  theme?: 'dark' | 'light';
+}) {
   const [phase, setPhase] = useState<Phase>('closed');
+  const isLight = theme === 'light';
 
   useEffect(() => {
     const timers = [
@@ -41,9 +48,19 @@ export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
     <motion.div
       exit={{ opacity: 0 }}
       transition={{ duration: 0.8, ease: 'easeInOut' }}
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#050508] overflow-hidden"
+      className={
+        'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden ' +
+        (isLight ? 'bg-white' : 'bg-[#050508]')
+      }
     >
-      <div className="absolute w-[520px] h-[520px] rounded-full bg-gradient-to-br from-cyan-500/10 to-purple-500/10 blur-[100px] pointer-events-none" />
+      <div
+        className={
+          'absolute w-[520px] h-[520px] rounded-full blur-[100px] pointer-events-none ' +
+          (isLight
+            ? 'bg-gradient-to-br from-sky-300/30 to-blue-400/25'
+            : 'bg-gradient-to-br from-cyan-500/10 to-purple-500/10')
+        }
+      />
 
       <div className="relative flex flex-col items-center">
         <svg width="240" height="300" viewBox="0 0 240 300" className="overflow-visible">
@@ -52,6 +69,11 @@ export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
               <stop offset="0%" stopColor="#67e8f9" stopOpacity="0.5" />
               <stop offset="60%" stopColor="#c4b5fd" stopOpacity="0.9" />
               <stop offset="100%" stopColor="#ffffff" />
+            </linearGradient>
+            <linearGradient id="glassBranchLight" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stopColor="#0ea5e9" stopOpacity="0.55" />
+              <stop offset="60%" stopColor="#4f46e5" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#1e293b" />
             </linearGradient>
             <radialGradient id="fruitGlow">
               <stop offset="0%" stopColor="#fef08a" />
@@ -65,10 +87,14 @@ export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
               key={b.d}
               d={b.d}
               fill="none"
-              stroke="url(#glassBranch)"
+              stroke={isLight ? 'url(#glassBranchLight)' : 'url(#glassBranch)'}
               strokeWidth={b.width}
               strokeLinecap="round"
-              style={{ filter: 'drop-shadow(0 0 6px rgba(196,181,253,0.65))' }}
+              style={{
+                filter: isLight
+                  ? 'drop-shadow(0 0 6px rgba(79,70,229,0.35))'
+                  : 'drop-shadow(0 0 6px rgba(196,181,253,0.65))',
+              }}
               initial={{ pathLength: 0, opacity: 0 }}
               animate={{ pathLength: 1, opacity: 1 }}
               transition={{ duration: 0.7, delay: b.delay, ease: 'easeOut' }}
@@ -81,8 +107,12 @@ export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
               cx={s.x}
               cy={s.y}
               r={2.4}
-              fill="#e0f2fe"
-              style={{ filter: 'drop-shadow(0 0 4px rgba(224,242,254,0.9))' }}
+              fill={isLight ? '#0284c7' : '#e0f2fe'}
+              style={{
+                filter: isLight
+                  ? 'drop-shadow(0 0 4px rgba(2,132,199,0.7))'
+                  : 'drop-shadow(0 0 4px rgba(224,242,254,0.9))',
+              }}
               initial={{ opacity: 0, scale: 0 }}
               animate={{ opacity: [0, 1, 0.5, 1], scale: [0, 1.2, 1, 1.15] }}
               transition={{ duration: 1.8, delay: 1.6 + i * 0.12, repeat: Infinity, repeatType: 'mirror' }}
@@ -119,7 +149,10 @@ export default function BookTreeIntro({ onEnter }: { onEnter: () => void }) {
             transition={{ duration: 0.9, ease: 'easeInOut' }}
           />
           <motion.div
-            className="absolute top-0 bottom-0 left-1/2 w-1 -translate-x-1/2 rounded-full bg-gradient-to-b from-white via-cyan-200/70 to-purple-300/30 blur-[1px]"
+            className={
+              'absolute top-0 bottom-0 left-1/2 w-1 -translate-x-1/2 rounded-full blur-[1px] bg-gradient-to-b ' +
+              (isLight ? 'from-indigo-500 via-sky-500/80 to-purple-500/40' : 'from-white via-cyan-200/70 to-purple-300/30')
+            }
             initial={{ opacity: 0 }}
             animate={{ opacity: open ? 1 : 0 }}
             transition={{ duration: 1 }}
