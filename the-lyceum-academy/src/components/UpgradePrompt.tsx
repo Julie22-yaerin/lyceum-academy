@@ -18,8 +18,8 @@ const FEATURE_MESSAGES = {
     icon: '🎙️',
   },
   mindmap: {
-    title: 'Mind Maps Unavailable',
-    description: 'Mind maps are available on Scholar tier and above. Upgrade to unlock this feature!',
+    title: 'Daily Mind Map Limit Reached',
+    description: 'Your daily AI mind map checks are used up for today. Free users get 2/day, Compass users get 6/day, and higher tiers get unlimited checks.',
     icon: '🧠',
   },
   reference: {

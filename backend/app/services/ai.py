@@ -828,6 +828,96 @@ async def validate_tool_map(
 
 
 @_tag_task
+async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
+    """
+    Inspect a student's mind map screenshot with vision and return only
+    structural feedback about where the map is missing or wrong.
+
+    The expected default structure is:
+      - 2 input blocks
+      - 1 systems / machine block
+      - 1 output block
+
+    Custom nodes may exist, but they should not replace the default structure.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+
+    prompt = (
+        "You are inspecting a student's problem-set mind map.\n\n"
+        "The default map structure is:\n"
+        "1) INPUT 1\n"
+        "2) INPUT 2\n"
+        "3) SYSTEMS / MACHINE\n"
+        "4) OUTPUT\n\n"
+        "Custom nodes may be added, but the default structure must still be present.\n"
+        "Only report structural problems and only use these locations:\n"
+        "- input\n"
+        "- systems\n"
+        "- output\n"
+        "- connection\n"
+        "- custom\n\n"
+        "Do NOT evaluate the student's content knowledge. Do NOT explain the solution.\n"
+        "Only say what is missing, misplaced, or connected wrongly.\n"
+        "Be concise and specific about the location.\n\n"
+        "Return ONLY valid JSON (no markdown):\n"
+        "{\n"
+        '  "verdict": "ok|partial|wrong",\n'
+        '  "summary": "<very short overall diagnosis>",\n'
+        '  "findings": [\n'
+        '    {"location": "input|systems|output|connection|custom", "issue": "<short label>", "detail": "<1 short sentence>" }\n'
+        "  ],\n"
+        '  "missing": ["<short missing item>", ...],\n'
+        '  "suggestions": ["<short fix>", ...]\n'
+        "}\n\n"
+        "If the map is missing one of the default blocks, name that block in `missing` "
+        "and set the corresponding finding location.\n"
+    )
+
+    messages = [{
+        "role": "user",
+        "content": [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{image_b64}"},
+            },
+            {
+                "type": "text",
+                "text": prompt + (f"\nContext: {context}" if context.strip() else ""),
+            },
+        ],
+    }]
+
+    if settings.nvidia_vision_key:
+        try:
+            resp = await _nvidia_vision_call(messages, temperature=0.1, max_tokens=1024)
+            raw = extract_text(resp)
+            parsed = _parse_json_robust(raw)
+            if parsed and parsed.get("summary"):
+                return parsed
+        except Exception as e:
+            log.warning("analyze_mind_map_vision NVIDIA failed: %s", e)
+
+    if _use_google():
+        try:
+            resp = await _gemini_vision_call(messages, temperature=0.1, max_tokens=1024)
+            raw = extract_text(resp)
+            parsed = _parse_json_robust(raw)
+            if parsed and parsed.get("summary"):
+                return parsed
+        except Exception as e:
+            log.warning("analyze_mind_map_vision Gemini fallback failed: %s", e)
+
+    return {
+        "verdict": "unknown",
+        "summary": "Could not analyze the mind map.",
+        "findings": [],
+        "missing": [],
+        "suggestions": [],
+    }
+
+
+@_tag_task
 async def generate_roadmap(
     topic: str,
     learning_style: dict,
@@ -3536,4 +3626,3 @@ async def grade_dual(items: list[dict]) -> dict:
             log.warning("grade_dual: Gemma suggestions failed: %s", e)
 
     return {"grades": grades}
-

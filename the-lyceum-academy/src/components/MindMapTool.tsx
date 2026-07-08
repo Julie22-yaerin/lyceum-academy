@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { validateToolMap } from '../lib/api';
+import { useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
+import { inspectMindMap, validateToolMap } from '../lib/api';
 import { useMindMapGate } from '../lib/useSubscription';
 import UpgradePrompt from './UpgradePrompt';
 
@@ -9,6 +10,8 @@ interface MindMapNode {
   x: number;
   y: number;
   color: string;
+  role: 'input_a' | 'input_b' | 'systems' | 'output' | 'custom';
+  fixed?: boolean;
 }
 
 const DEFAULT_COLUMNS = [
@@ -20,26 +23,104 @@ const DEFAULT_COLUMNS = [
 ];
 
 const NODE_COLORS = ['#FF3D57', '#7C4DFF', '#00B0FF', '#00C875', '#FFAB40', '#9E9E9E'];
+const FREE_VIEWBOX = { width: 1000, height: 520 };
+
+function createDefaultFreeNodes(): MindMapNode[] {
+  return [
+    { id: 'input-a', label: 'Input 1', x: 150, y: 160, color: '#CFE8FF', role: 'input_a', fixed: true },
+    { id: 'input-b', label: 'Input 2', x: 150, y: 360, color: '#D7F7E7', role: 'input_b', fixed: true },
+    { id: 'systems', label: 'Systems', x: 500, y: 260, color: '#FFE7B8', role: 'systems', fixed: true },
+    { id: 'output', label: 'Output', x: 850, y: 260, color: '#E5D5FF', role: 'output', fixed: true },
+  ];
+}
+
+function makeCustomNode(index: number): MindMapNode {
+  const offset = Math.max(0, index - 4);
+  return {
+    id: `${Date.now()}-${index}`,
+    label: 'Custom node',
+    x: 250 + Math.random() * 420,
+    y: 80 + ((offset % 4) * 90) + Math.random() * 40,
+    color: NODE_COLORS[index % NODE_COLORS.length],
+    role: 'custom',
+  };
+}
 
 function Toast({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
-    <div className="fixed bottom-8 right-8 z-[210] max-w-sm glass-strong rounded-2xl p-4 shadow-xl font-sans text-xs leading-relaxed text-on-surface">
+    <div className="fixed bottom-8 right-8 z-[210] max-w-sm glass-strong rounded-2xl p-4 shadow-xl font-sans text-xs leading-relaxed text-on-surface whitespace-pre-line">
       <button onClick={onDismiss} className="float-right ml-4 opacity-50 hover:opacity-100">✕</button>
       {msg}
     </div>
   );
 }
 
+function formatFindings(result: { summary?: string; findings?: { location: string; issue: string; detail: string }[]; missing?: string[]; suggestions?: string[] }) {
+  const lines: string[] = [];
+  if (result.summary) lines.push(result.summary);
+  if (result.findings?.length) {
+    lines.push('');
+    lines.push('Findings:');
+    for (const item of result.findings.slice(0, 5)) {
+      lines.push(`- ${item.location}: ${item.issue} — ${item.detail}`);
+    }
+  }
+  if (result.missing?.length) {
+    lines.push('');
+    lines.push(`Missing: ${result.missing.join(', ')}`);
+  }
+  if (result.suggestions?.length) {
+    lines.push('');
+    lines.push(`Fix: ${result.suggestions[0]}`);
+  }
+  return lines.join('\n');
+}
+
+async function svgToPngDataUrl(svgEl: SVGSVGElement): Promise<string> {
+  const serializer = new XMLSerializer();
+  const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
+  svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+  const width = Math.max(1, svgEl.clientWidth || FREE_VIEWBOX.width);
+  const height = Math.max(1, svgEl.clientHeight || FREE_VIEWBOX.height);
+  const svgText = serializer.serializeToString(svgClone);
+  const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
+
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+
+    img.onload = () => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas unavailable'));
+        return;
+      }
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = '#0b1020';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error('Could not render mind map image'));
+    img.src = svgUrl;
+  });
+}
+
 /**
  * Mind Map — Tool Map (Given/Find/Tools/Steps/Check scaffold) + Free Map
- * (draggable idea nodes). Collapses to a small round node; expands into a
- * full panel on click. Self-contained so it can be dropped into any view
- * (currently used from the Problem Sets PDF viewer).
+ * The free map starts with a standard 2-input -> systems -> output layout
+ * and allows custom nodes. The "Let AI see" action sends a screenshot to
+ * the vision model for structural feedback.
  */
-export default function MindMapTool() {
-  const { canUse, tier } = useMindMapGate();
+export default function MindMapTool({ context = '' }: { context?: string }) {
+  const { canUse, tier, used, limit, remaining, loading, refetch } = useMindMapGate();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'tool' | 'free'>('tool');
+  const [tab, setTab] = useState<'tool' | 'free'>('free');
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
   const [columns, setColumns] = useState(DEFAULT_COLUMNS.map(c => ({ ...c, items: [] as string[] })));
@@ -47,9 +128,11 @@ export default function MindMapTool() {
   const [toastMsg, setToastMsg] = useState('');
   const [validating, setValidating] = useState(false);
 
-  const [mmNodes, setMmNodes] = useState<MindMapNode[]>([]);
+  const [mmNodes, setMmNodes] = useState<MindMapNode[]>(() => createDefaultFreeNodes());
   const [mmDragging, setMmDragging] = useState<string | null>(null);
   const [mmDragOffset, setMmDragOffset] = useState({ x: 0, y: 0 });
+  const [inspecting, setInspecting] = useState(false);
+  const mmSvgRef = useRef<SVGSVGElement>(null);
 
   function addItem(colId: string) {
     const val = (toolInput[colId] || '').trim();
@@ -75,44 +158,75 @@ export default function MindMapTool() {
     }
   }
 
-  function addMmNode(container: HTMLElement | null) {
-    const W = container?.clientWidth || 600;
-    const H = container?.clientHeight || 300;
-    setMmNodes(prev => [...prev, {
-      id: Date.now().toString(),
-      label: 'New Idea',
-      x: 80 + Math.random() * Math.max(1, W - 200),
-      y: 60 + Math.random() * Math.max(1, H - 120),
-      color: NODE_COLORS[prev.length % NODE_COLORS.length],
-    }]);
+  function addMmNode() {
+    setMmNodes(prev => [...prev, makeCustomNode(prev.length)]);
   }
 
-  function startMmDrag(id: string, e: React.MouseEvent, svgEl: SVGSVGElement | null) {
+  function resetMmNodes() {
+    setMmNodes(createDefaultFreeNodes());
+  }
+
+  function startMmDrag(id: string, e: MouseEvent) {
     const node = mmNodes.find(n => n.id === id);
-    if (!node || !svgEl) return;
-    const rect = svgEl.getBoundingClientRect();
+    if (!node || node.fixed || !mmSvgRef.current) return;
+    const rect = mmSvgRef.current.getBoundingClientRect();
     setMmDragging(id);
     setMmDragOffset({ x: e.clientX - rect.left - node.x, y: e.clientY - rect.top - node.y });
   }
 
-  function onMmMouseMove(e: React.MouseEvent, svgEl: SVGSVGElement | null) {
-    if (!mmDragging || !svgEl) return;
-    const rect = svgEl.getBoundingClientRect();
-    const nx = e.clientX - rect.left - mmDragOffset.x;
-    const ny = e.clientY - rect.top - mmDragOffset.y;
+  function onMmMouseMove(e: MouseEvent) {
+    if (!mmDragging || !mmSvgRef.current) return;
+    const rect = mmSvgRef.current.getBoundingClientRect();
+    const nx = Math.min(FREE_VIEWBOX.width - 60, Math.max(60, e.clientX - rect.left - mmDragOffset.x));
+    const ny = Math.min(FREE_VIEWBOX.height - 30, Math.max(30, e.clientY - rect.top - mmDragOffset.y));
     setMmNodes(prev => prev.map(n => n.id === mmDragging ? { ...n, x: nx, y: ny } : n));
   }
 
-  const handleOpen = () => {
+  function updateNodeLabel(id: string) {
+    const node = mmNodes.find(n => n.id === id);
+    const lbl = window.prompt('Rename node:', node?.label || '');
+    if (!lbl) return;
+    setMmNodes(prev => prev.map(n => n.id === id ? { ...n, label: lbl } : n));
+  }
+
+  async function handleAiSee() {
+    if (loading) {
+      setToastMsg('Checking daily quota...');
+      return;
+    }
     if (!canUse) {
       setShowUpgradePrompt(true);
       return;
     }
-    setOpen(true);
-  };
+    const svg = mmSvgRef.current;
+    if (!svg) {
+      setToastMsg('Mind map canvas is not ready yet.');
+      return;
+    }
 
-  let mmSvgEl: SVGSVGElement | null = null;
-  let mmContainerEl: HTMLDivElement | null = null;
+    setInspecting(true);
+    try {
+      const image = await svgToPngDataUrl(svg);
+      const result = await inspectMindMap(image, context);
+      await refetch();
+      const remainingText = result.remaining === null ? 'unlimited' : `${result.remaining} left today`;
+      const lines = [formatFindings(result), '', `Quota: ${result.used_today}/${result.daily_limit ?? '∞'} · ${remainingText}`];
+      setToastMsg(lines.filter(Boolean).join('\n'));
+    } catch (e: any) {
+      setToastMsg(e?.message || 'AI inspection failed.');
+    } finally {
+      setInspecting(false);
+    }
+  }
+
+  const defaultNodes = mmNodes.filter(n => n.role !== 'custom');
+  const customNodes = mmNodes.filter(n => n.role === 'custom');
+
+  const aiQuotaLabel = loading
+    ? 'Checking quota...'
+    : limit === null
+      ? `AI see: unlimited (${tier})`
+      : `AI see: ${used}/${limit} today · ${remaining ?? 0} left`;
 
   if (!open) {
     return (
@@ -125,13 +239,12 @@ export default function MindMapTool() {
           />
         )}
         <button
-          onClick={handleOpen}
-          className={`fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform ${!canUse ? 'opacity-60' : ''}`}
+          onClick={() => setOpen(true)}
+          className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform"
           style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
-          title={canUse ? "Mind Map" : "Mind Map (Upgrade to unlock)"}
+          title="Mind Map"
         >
           <span className="material-symbols-outlined text-[22px] text-on-surface opacity-80">psychology</span>
-          {!canUse && <span className="absolute -top-1 -right-1 text-xs">🔒</span>}
         </button>
       </>
     );
@@ -139,20 +252,21 @@ export default function MindMapTool() {
 
   return (
     <>
-      <div className="fixed bottom-6 left-6 z-40 w-[min(680px,calc(100vw-3rem))] h-[440px] glass-strong rounded-3xl flex flex-col overflow-hidden"
-        style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}>
-        {/* Header */}
+      <div
+        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[480px] glass-strong rounded-3xl flex flex-col overflow-hidden"
+        style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
+      >
         <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant/20 flex-shrink-0">
           <span className="font-serif text-lg text-on-surface tracking-wide">Mind Map</span>
           <div className="flex items-center gap-3">
             <div className="flex gap-0 rounded-xl overflow-hidden border border-outline-variant/30">
-              {(['tool', 'free'] as const).map(t => (
+              {(['free', 'tool'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1.5px] transition-colors ${tab === t ? 'bg-on-surface text-surface' : 'text-on-surface opacity-60 hover:opacity-100'}`}
                 >
-                  {t === 'tool' ? '🔧 Tool' : '🧠 Free'}
+                  {t === 'free' ? 'Map' : 'Tool'}
                 </button>
               ))}
             </div>
@@ -162,7 +276,6 @@ export default function MindMapTool() {
           </div>
         </div>
 
-        {/* Content */}
         <div className="flex-1 overflow-hidden">
           {tab === 'tool' && (
             <div className="h-full flex flex-col">
@@ -188,7 +301,7 @@ export default function MindMapTool() {
                             value={toolInput[col.id] || ''}
                             onChange={e => setToolInput(ti => ({ ...ti, [col.id]: e.target.value }))}
                             onKeyDown={e => e.key === 'Enter' && addItem(col.id)}
-                            placeholder="Add…"
+                            placeholder="Add..."
                             className="flex-1 glass-input rounded-lg px-2 py-1.5 font-sans text-[11px] min-w-0"
                           />
                           <button onClick={() => addItem(col.id)} className="px-2 py-1.5 rounded-lg glass-btn font-sans text-xs">+</button>
@@ -215,30 +328,66 @@ export default function MindMapTool() {
 
           {tab === 'free' && (
             <div className="h-full flex flex-col">
-              <div className="flex-1 relative overflow-hidden" ref={el => { mmContainerEl = el; }}>
+              <div className="flex-1 relative overflow-hidden">
                 <svg
-                  ref={el => { mmSvgEl = el; }}
+                  ref={mmSvgRef}
                   className="w-full h-full"
-                  onMouseMove={e => onMmMouseMove(e, mmSvgEl)}
+                  viewBox={`0 0 ${FREE_VIEWBOX.width} ${FREE_VIEWBOX.height}`}
+                  onMouseMove={onMmMouseMove}
                   onMouseUp={() => setMmDragging(null)}
                   onMouseLeave={() => setMmDragging(null)}
                 >
-                  {mmNodes.length > 1 && mmNodes.slice(1).map((node, i) => (
-                    <line key={`e${i}`} x1={mmNodes[0].x} y1={mmNodes[0].y} x2={node.x} y2={node.y} stroke="rgba(160,165,184,0.3)" strokeWidth={1} />
+                  <defs>
+                    <marker id="mindmap-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+                      <path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.25)" />
+                    </marker>
+                  </defs>
+
+                  <rect x={0} y={0} width={FREE_VIEWBOX.width} height={FREE_VIEWBOX.height} fill="#0b1020" />
+
+                  <line x1={230} y1={160} x2={420} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
+                  <line x1={230} y1={360} x2={420} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
+                  <line x1={580} y1={260} x2={790} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
+
+                  {defaultNodes.map(node => (
+                    <g
+                      key={node.id}
+                      transform={`translate(${node.x},${node.y})`}
+                      onMouseDown={e => startMmDrag(node.id, e)}
+                      onDoubleClick={e => { e.stopPropagation(); updateNodeLabel(node.id); }}
+                      style={{ cursor: node.fixed ? 'default' : 'move' }}
+                    >
+                      <rect x={-72} y={-24} width={144} height={48} rx={14} ry={14} fill={node.color} opacity={0.96} />
+                      <text
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fontSize={12}
+                        fontFamily="Helvetica Neue, sans-serif"
+                        fontWeight="700"
+                        fill="#101320"
+                        style={{ userSelect: 'none', pointerEvents: 'none' }}
+                      >
+                        {node.label}
+                      </text>
+                    </g>
                   ))}
-                  {mmNodes.map(node => (
-                    <g key={node.id} transform={`translate(${node.x},${node.y})`}
-                      onMouseDown={e => startMmDrag(node.id, e, mmSvgEl)}
-                      onDoubleClick={e => { e.stopPropagation(); const lbl = prompt('Rename node:', node.label); if (lbl) setMmNodes(prev => prev.map(n => n.id === node.id ? { ...n, label: lbl } : n)); }}
-                      style={{ cursor: 'move' }}>
-                      <rect x={-60} y={-20} width={120} height={40} rx={10} ry={10} fill={node.color} opacity={0.9} />
+
+                  {customNodes.map(node => (
+                    <g
+                      key={node.id}
+                      transform={`translate(${node.x},${node.y})`}
+                      onMouseDown={e => startMmDrag(node.id, e)}
+                      onDoubleClick={e => { e.stopPropagation(); updateNodeLabel(node.id); }}
+                      style={{ cursor: 'move' }}
+                    >
+                      <rect x={-64} y={-22} width={128} height={44} rx={12} ry={12} fill={node.color} opacity={0.92} />
                       <text
                         textAnchor="middle"
                         dominantBaseline="middle"
                         fontSize={11}
                         fontFamily="Helvetica Neue, sans-serif"
                         fontWeight="600"
-                        fill="#1A1A1A"
+                        fill="#101320"
                         style={{ userSelect: 'none', pointerEvents: 'none' }}
                       >
                         {node.label}
@@ -248,23 +397,43 @@ export default function MindMapTool() {
                 </svg>
                 {mmNodes.length === 0 && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">Click "Add Node" to begin</p>
+                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">Reset the default map to begin</p>
                   </div>
                 )}
               </div>
-              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center gap-3">
-                <button onClick={() => addMmNode(mmContainerEl)} className="glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2">
+
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center gap-3 flex-wrap">
+                <button onClick={addMmNode} className="glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2">
                   <span className="material-symbols-outlined text-[14px]">add</span> Add Node
                 </button>
-                <button onClick={() => setMmNodes([])} className="rounded-xl border border-outline-variant/30 px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-70 hover:opacity-100 hover:bg-on-surface/5 transition-colors">
-                  Clear
+                <button onClick={resetMmNodes} className="rounded-xl border border-outline-variant/30 px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-70 hover:opacity-100 hover:bg-on-surface/5 transition-colors">
+                  Reset Default
                 </button>
-                <span className="font-sans text-[10px] text-on-surface opacity-30 ml-auto">{mmNodes.length} nodes</span>
+                <button
+                  onClick={handleAiSee}
+                  disabled={inspecting}
+                  className="glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 disabled:opacity-40"
+                  title={aiQuotaLabel}
+                >
+                  {inspecting
+                    ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
+                    : <span className="material-symbols-outlined text-[14px]">visibility</span>}
+                  Let AI see
+                </button>
+                <span className="font-sans text-[10px] text-on-surface opacity-40 ml-auto">{aiQuotaLabel}</span>
               </div>
             </div>
           )}
         </div>
       </div>
+
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature="mindmap"
+          currentTier={tier}
+          onClose={() => setShowUpgradePrompt(false)}
+        />
+      )}
 
       {toastMsg && <Toast msg={toastMsg} onDismiss={() => setToastMsg('')} />}
     </>

@@ -66,6 +66,7 @@ ROLE_LABELS: dict[str, str] = {
     "grade_dual":                 "Dual-Model Auto-Grading",
     "get_hint":                   "Hint Generation",
     "check_mastery":              "Mastery Check",
+    "analyze_mind_map_vision":    "Mind Map Vision Review",
     "analyze_image_pset_direct":  "Image Problem Set Analysis",
     "analyze_file_pset":          "File Problem Set Analysis",
     "extract_pdf_text":           "PDF Text Extraction",

@@ -204,6 +204,51 @@ export async function validateToolMap(columns: object) {
   return res.json() as Promise<{ feedback: string }>;
 }
 
+export interface MindMapStatus {
+  tier: string;
+  daily_limit: number | null;
+  used_today: number;
+  remaining: number | null;
+  can_use: boolean;
+  reset_at: string;
+}
+
+export interface MindMapFinding {
+  location: 'input' | 'systems' | 'output' | 'connection' | 'custom' | string;
+  issue: string;
+  detail: string;
+}
+
+export interface MindMapInspectionResult extends MindMapStatus {
+  verdict: string;
+  summary: string;
+  findings: MindMapFinding[];
+  missing: string[];
+  suggestions: string[];
+}
+
+export async function getMindMapStatus(): Promise<MindMapStatus> {
+  const res = await authFetch(`${API_BASE}/ai/mind-map/status`, { method: 'GET' });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<MindMapStatus>;
+}
+
+export async function inspectMindMap(image: string, context = ''): Promise<MindMapInspectionResult> {
+  const res = await authFetch(`${API_BASE}/ai/mind-map/inspect`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image, context }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<MindMapInspectionResult>;
+}
+
 export interface ProviderUsage {
   prompt: number;
   completion: number;

@@ -3,6 +3,7 @@ import asyncio
 import base64
 import json as _json
 import logging
+from datetime import datetime, timedelta, timezone
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Depends, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,10 +14,14 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 import websockets as _ws
 
 from app.core.config import settings
-from app.api.deps import require_auth
+from app.db.session import get_db
+from app.api.deps import get_current_user, require_auth
+from app.models.entities import FeatureUsageLog
 from app.services.content_safety import check_prompt, check_messages, check_upload
 
 _s2s_logger = logging.getLogger("pclick.s2s")
@@ -77,6 +82,31 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
                     mp_svc.record_event(uid, concept, item.subject or "other", "confusion")
     except Exception:
         pass
+
+
+def _utc_day_start(dt: datetime | None = None) -> datetime:
+    now = dt or datetime.now(timezone.utc)
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _mind_map_ai_limit(tier: str | None) -> int | None:
+    if tier == "free":
+        return 2
+    if tier == "compass":
+        return 6
+    if tier in {"scholar", "mentor", "researcher"}:
+        return None
+    return 2
+
+
+def _mind_map_ai_usage(db: Session, user_id: str, day_start: datetime) -> int:
+    result = db.execute(
+        select(func.count(FeatureUsageLog.id))
+        .where(FeatureUsageLog.user_id == user_id)
+        .where(FeatureUsageLog.feature_name == "mindmap_ai_see")
+        .where(FeatureUsageLog.created_at >= day_start)
+    )
+    return int(result.scalar() or 0)
 
 
 # ── Security headers middleware ───────────────────────────────────────────────
@@ -632,6 +662,89 @@ async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = D
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+class MindMapStatusResponse(BaseModel):
+    tier: str
+    daily_limit: int | None
+    used_today: int
+    remaining: int | None
+    can_use: bool
+    reset_at: datetime
+
+
+@app.get("/ai/mind-map/status", response_model=MindMapStatusResponse)
+def ai_mind_map_status(
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    uid = str(current_user.id)
+    subscription, plan = subscriptions_router.get_user_subscription(db, uid)
+    tier = plan.tier.value if plan else "free"
+    daily_limit = _mind_map_ai_limit(tier)
+    used_today = _mind_map_ai_usage(db, uid, _utc_day_start())
+    remaining = None if daily_limit is None else max(0, daily_limit - used_today)
+    return MindMapStatusResponse(
+        tier=tier,
+        daily_limit=daily_limit,
+        used_today=used_today,
+        remaining=remaining,
+        can_use=daily_limit is None or used_today < daily_limit,
+        reset_at=_utc_day_start() + timedelta(days=1),
+    )
+
+
+class MindMapInspectRequest(BaseModel):
+    image: str
+    context: str = ""
+
+
+@app.post("/ai/mind-map/inspect")
+@limiter.limit("10/minute")
+async def ai_mind_map_inspect(
+    request: Request,
+    req: MindMapInspectRequest,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    uid = str(current_user.id)
+    subscription, plan = subscriptions_router.get_user_subscription(db, uid)
+    tier = plan.tier.value if plan else "free"
+    daily_limit = _mind_map_ai_limit(tier)
+    used_today = _mind_map_ai_usage(db, uid, _utc_day_start())
+    if daily_limit is not None and used_today >= daily_limit:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily mind map AI limit reached for {tier} tier.",
+        )
+
+    image_b64 = req.image
+    if image_b64.startswith("data:"):
+        image_b64 = image_b64.split(",", 1)[-1]
+    result = await ai_svc.analyze_mind_map_vision(image_b64, req.context)
+
+    log_entry = FeatureUsageLog(
+        user_id=current_user.id,
+        feature_name="mindmap_ai_see",
+        feature_metadata={
+            "tier": tier,
+            "daily_limit": daily_limit,
+            "model": "meta/llama-3.2-11b-vision-instruct",
+        },
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(log_entry)
+    db.commit()
+
+    status = {
+        "tier": tier,
+        "daily_limit": daily_limit,
+        "used_today": used_today + 1,
+        "remaining": None if daily_limit is None else max(0, daily_limit - used_today - 1),
+        "can_use": daily_limit is None or used_today + 1 < daily_limit,
+        "reset_at": _utc_day_start() + timedelta(days=1),
+    }
+    return {**result, **status}
 
 
 class CleanQuestionRequest(BaseModel):

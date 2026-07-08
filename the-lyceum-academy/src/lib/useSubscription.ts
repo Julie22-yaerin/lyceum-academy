@@ -4,13 +4,12 @@
  */
 
 import { useState, useEffect } from 'react';
+import { getMindMapStatus } from './api';
 import {
   getCurrentSubscription,
   getUsageStats,
-  getSubscriptionPlans,
   type CurrentSubscription,
   type UsageStats,
-  type SubscriptionPlan,
 } from './subscriptionApi';
 
 interface SubscriptionState {
@@ -115,26 +114,40 @@ export function useReferenceLibraryGate() {
 }
 
 export function useMindMapGate() {
-  const { subscription } = useSubscription();
-  const [plan, setPlan] = useState<SubscriptionPlan | null>(null);
+  const [status, setStatus] = useState<{
+    tier: string;
+    daily_limit: number | null;
+    used_today: number;
+    remaining: number | null;
+    can_use: boolean;
+    reset_at: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const fetchStatus = async () => {
+    setLoading(true);
+    try {
+      const next = await getMindMapStatus();
+      setStatus(next);
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    if (!subscription) {
-      setPlan(null);
-      return;
-    }
+    fetchStatus();
+  }, []);
 
-    // Fetch the user's current plan to check mind_map_enabled
-    getSubscriptionPlans()
-      .then((plans) => {
-        const userPlan = plans.find(
-          (p) => p.tier === subscription.tier && p.billing_cycle === subscription.billing_cycle
-        );
-        setPlan(userPlan || null);
-      })
-      .catch(() => setPlan(null));
-  }, [subscription]);
-
-  const canUse = plan?.mind_map_enabled ?? false;
-  return { canUse, tier: subscription?.tier || 'compass' };
+  return {
+    canUse: status?.can_use ?? false,
+    tier: status?.tier || 'free',
+    used: status?.used_today ?? 0,
+    limit: status?.daily_limit ?? null,
+    remaining: status?.remaining ?? null,
+    resetAt: status?.reset_at ?? null,
+    loading,
+    refetch: fetchStatus,
+  };
 }
