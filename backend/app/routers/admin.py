@@ -12,12 +12,16 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
 
-from app.services import rag             as rag_svc
-from app.services import finetune_db     as ft_svc
-from app.services import openai_finetune as ft_openai
-from app.services import activity_log    as activity_svc
+from app.services import rag              as rag_svc
+from app.services import finetune_db      as ft_svc
+from app.services import openai_finetune  as ft_openai
+from app.services import activity_log     as activity_svc
+from app.services import mastery_profile  as profile_svc
 from app.services.firebase_auth import verify_firebase_id_token
+from app.db.session import get_db
+from app.models.entities import UserProfile, AuthProviderEnum
 
 router      = APIRouter(prefix="/admin", tags=["admin"])
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "pclick-admin-dev")
@@ -183,6 +187,60 @@ def activity_model_totals(_: None = Depends(_auth)):
 def ft_export(_: None = Depends(_auth)):
     """Download all examples as OpenAI-format JSONL for fine-tuning."""
     return ft_svc.export_jsonl()
+
+
+# ── Personalization profiles — the shared per-user, per-concept store every
+# AI feature reads (see app/services/mastery_profile.py). Admin-only, read-only.
+
+def _resolve_identities(db: Session, user_ids: list[str]) -> dict[str, dict]:
+    """Best-effort Firebase UID -> {email, full_name} lookup against the
+    Postgres `users` table. Many personalization user_ids will have no match
+    here — mastery_profile is written from require_auth (JWT-only, no DB
+    row), while `users` rows are only provisioned by get_current_user
+    (subscriptions flow). Missing identities just fall back to the raw UID
+    in the admin UI rather than failing the whole request."""
+    if not user_ids:
+        return {}
+    try:
+        rows = (
+            db.query(UserProfile)
+            .filter(UserProfile.auth_provider == AuthProviderEnum.firebase, UserProfile.auth_subject.in_(user_ids))
+            .all()
+        )
+        return {r.auth_subject: {"email": r.email, "full_name": r.full_name} for r in rows}
+    except Exception:
+        return {}
+
+
+@router.get("/profiles")
+def list_profiles(db: Session = Depends(get_db), _: None = Depends(_auth)):
+    """All users with a personalization profile, for the admin board list."""
+    user_ids = profile_svc.get_all_user_ids()
+    identities = _resolve_identities(db, user_ids)
+    items = []
+    for uid in user_ids:
+        identity = identities.get(uid, {})
+        items.append({
+            "user_id": uid,
+            "email": identity.get("email"),
+            "full_name": identity.get("full_name"),
+            **profile_svc.get_user_activity_summary(uid),
+        })
+    items.sort(key=lambda r: r["last_active"] or "", reverse=True)
+    return {"items": items}
+
+
+@router.get("/profiles/{user_id}")
+def get_profile(user_id: str, db: Session = Depends(get_db), _: None = Depends(_auth)):
+    """Full personalization profile for one user — every measured bar plus
+    the AI teaching-style mix derived from them, for the admin detail panel."""
+    identity = _resolve_identities(db, [user_id]).get(user_id, {})
+    return {
+        "user_id": user_id,
+        "email": identity.get("email"),
+        "full_name": identity.get("full_name"),
+        **profile_svc.get_full_profile(user_id),
+    }
 
 
 # ── Fine-tuning — OpenAI job pipeline ────────────────────────────────────────

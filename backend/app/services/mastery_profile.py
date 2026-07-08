@@ -348,6 +348,34 @@ def get_all_subject_affinity(user_id: str) -> list[dict]:
     return [get_subject_affinity(user_id, s) for s in sorted(subjects)]
 
 
+def get_all_user_ids() -> list[str]:
+    """Every user_id with at least one recorded signal — feeds the admin board."""
+    with _conn() as c:
+        rows = c.execute(
+            "SELECT user_id FROM concept_mastery UNION SELECT user_id FROM subject_affinity"
+        ).fetchall()
+    return sorted({r[0] for r in rows})
+
+
+def get_user_activity_summary(user_id: str) -> dict:
+    """Lightweight per-user rollup for the admin board list (avoids computing
+    full derived bars for every user just to render one row)."""
+    with _conn() as c:
+        row = c.execute(
+            """SELECT COUNT(*) AS concept_count, MAX(updated_at) AS last_active,
+                      COALESCE(SUM(confusion_count + not_understood_count + questions_asked_count
+                                   + self_discovered_gap_count + voiced_uncertainty_count + attempts_count), 0)
+                        AS total_events
+               FROM concept_mastery WHERE user_id = ?""",
+            (user_id,),
+        ).fetchone()
+    return {
+        "concept_count": row["concept_count"] or 0,
+        "total_events": row["total_events"] or 0,
+        "last_active": row["last_active"],
+    }
+
+
 def get_full_profile(user_id: str) -> dict:
     """
     The complete shared personalization store for one user — every AI

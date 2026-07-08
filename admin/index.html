@@ -114,6 +114,7 @@
     <nav class="flex items-center gap-1 ml-4">
       <button id="nav-models" onclick="viewModels()" class="nav-btn text-xs">Training AI</button>
       <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
+      <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
     </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" />
@@ -136,6 +137,8 @@
     <div id="view-models" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-model-detail" class="hidden p-6 max-w-3xl mx-auto fade-in"></div>
     <div id="view-activity" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-profiles" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
   </main>
 </div>
 
@@ -479,6 +482,8 @@ function setActiveNav(id) {
 async function viewModels() {
   hide('view-model-detail');
   hide('view-activity');
+  hide('view-profiles');
+  hide('view-profile-detail');
   setActiveNav('nav-models');
   const el = document.getElementById('view-models');
   show('view-models');
@@ -564,6 +569,8 @@ const PROVIDER_COLORS = {
 async function viewActivity() {
   hide('view-models');
   hide('view-model-detail');
+  hide('view-profiles');
+  hide('view-profile-detail');
   setActiveNav('nav-activity');
   show('view-activity');
   _activityOffset = 0;
@@ -668,6 +675,209 @@ function activityPage(dir) {
   renderActivity();
 }
 
+// ════════════════════════════════════════════════════════════════
+// VIEW: PERSONALIZATION — the shared per-user, per-concept profile every
+// AI feature reads from (backend: app/services/mastery_profile.py). Lists
+// every user with a recorded signal; clicking one shows every bar plus how
+// the AI has decided to adapt (teaching-style mix, question frequency,
+// subject love/fear, discovery interests).
+// ════════════════════════════════════════════════════════════════
+
+function displayName(p) {
+  return p.full_name || p.email || `${p.user_id.slice(0, 12)}…`;
+}
+
+async function viewProfiles() {
+  hide('view-models');
+  hide('view-model-detail');
+  hide('view-activity');
+  hide('view-profile-detail');
+  setActiveNav('nav-profiles');
+  const el = document.getElementById('view-profiles');
+  show('view-profiles');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  let items = [];
+  try {
+    const r = await api('/admin/profiles');
+    items = (await r.json()).items || [];
+  } catch (e) {
+    el.innerHTML = `<div class="text-sm" style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Personalization</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Every user with a measured learning profile — the shared bars every AI feature reads before it responds. Click a user to see their full profile and how the AI is adapting to them.</p>
+      </div>
+
+      ${items.length === 0 ? `
+        <div style="border:1px dashed var(--border);border-radius:12px" class="p-8 text-center text-sm">
+          <p style="color:var(--muted)">No profiles recorded yet — bars appear here as students study, get confused, ask questions, and self-correct.</p>
+        </div>` : `
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden">
+          <table class="w-full text-xs">
+            <thead>
+              <tr style="border-bottom:1px solid var(--border)">
+                <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">User</th>
+                <th class="text-right px-4 py-2.5 font-medium" style="color:var(--muted)">Concepts tracked</th>
+                <th class="text-right px-4 py-2.5 font-medium" style="color:var(--muted)">Signals recorded</th>
+                <th class="text-right px-4 py-2.5 font-medium" style="color:var(--muted)">Last active</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map(p => `
+                <tr style="border-bottom:1px solid var(--border);cursor:pointer" onmouseover="this.style.background='rgba(255,255,255,.03)'" onmouseout="this.style.background=''" onclick="viewProfileDetail('${esc(p.user_id)}')">
+                  <td class="px-4 py-3">
+                    <div class="font-medium" style="color:var(--text)">${esc(displayName(p))}</div>
+                    ${p.email && p.full_name ? `<div class="mt-0.5" style="color:var(--muted)">${esc(p.email)}</div>` : ''}
+                  </td>
+                  <td class="px-4 py-3 text-right">${p.concept_count}</td>
+                  <td class="px-4 py-3 text-right">${p.total_events}</td>
+                  <td class="px-4 py-3 text-right" style="color:var(--muted)">${p.last_active ? timeAgo(p.last_active) : '—'}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>`}
+    </div>`;
+}
+
+// 1-20 bar, rendered as a filled horizontal track.
+function bar(label, value, opts = {}) {
+  const pct = Math.max(0, Math.min(100, (value / 20) * 100));
+  const color = opts.color || 'var(--em)';
+  return `
+    <div>
+      <div class="flex items-center justify-between text-xs mb-1">
+        <span style="color:var(--muted)">${esc(label)}</span>
+        <span class="font-mono" style="color:var(--text)">${value}<span style="color:var(--muted)">/20</span></span>
+      </div>
+      <div style="height:6px;border-radius:3px;background:rgba(255,255,255,.06);overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:3px"></div>
+      </div>
+    </div>`;
+}
+
+// Stacked 100%-wide bar for the teaching-style mix (3 segments).
+function stackedBar(segments) {
+  return `
+    <div style="height:10px;border-radius:5px;overflow:hidden;display:flex" class="w-full">
+      ${segments.map(s => `<div style="width:${s.pct}%;background:${s.color}" title="${esc(s.label)}: ${s.pct}%"></div>`).join('')}
+    </div>
+    <div class="flex items-center gap-3 mt-1.5 flex-wrap text-xs" style="color:var(--muted)">
+      ${segments.map(s => `<span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full inline-block" style="background:${s.color}"></span>${esc(s.label)} ${s.pct}%</span>`).join('')}
+    </div>`;
+}
+
+function renderConceptCard(c) {
+  return `
+    <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface)" class="p-4 space-y-4">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <div class="font-semibold text-sm">${esc(c.concept)}</div>
+          <div class="text-xs mt-0.5" style="color:var(--muted)">${esc(c.subject)}</div>
+        </div>
+        ${c.raw.attempts_count ? `<span class="pill text-xs" style="${c.raw.gap_percent >= 50 ? 'background:rgba(248,81,73,.1);color:#f85149;border:1px solid rgba(248,81,73,.25)' : 'background:rgba(210,153,34,.1);color:var(--amber);border:1px solid rgba(210,153,34,.25)'}">${c.raw.gap_percent}% gap · ${c.raw.attempts_count} attempts</span>` : ''}
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+        ${bar('Baseline proficiency', c.baseline_proficiency_bar, { color: 'var(--blue)' })}
+        ${bar('Confusion frequency', c.confusion_frequency_bar)}
+        ${bar('Knowledge gap', c.knowledge_gap_bar)}
+        ${bar('Said "not understood"', c.not_understood_bar)}
+        ${bar('Questions asked', c.questions_asked_bar, { color: 'var(--blue)' })}
+        ${bar('Self-discovered gaps', c.self_discovered_gap_bar)}
+        ${bar('Voiced uncertainty', c.voiced_uncertainty_bar)}
+        ${bar('AI question frequency', c.question_frequency_bar, { color: 'var(--blue)' })}
+      </div>
+
+      <div style="border-top:1px solid var(--border);padding-top:12px">
+        <div class="text-xs font-medium mb-2" style="color:var(--text)">How the AI is teaching this concept</div>
+        ${stackedBar([
+          { label: '5-year-old mode', pct: c.teaching_style.baby_mode_pct, color: 'var(--em)' },
+          { label: 'Cross-subject links', pct: c.teaching_style.cross_subject_link_pct, color: 'var(--blue)' },
+          { label: 'Reverse hypothesis', pct: c.teaching_style.reverse_hypothesis_pct, color: 'var(--amber)' },
+        ])}
+      </div>
+    </div>`;
+}
+
+function renderSubjectCard(s) {
+  return `
+    <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface)" class="p-4 space-y-3">
+      <div class="font-semibold text-sm">${esc(s.subject)}</div>
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))">
+        ${bar('Loves it', s.love_bar, { color: 'var(--em)' })}
+        ${bar('Fears it', s.fear_bar, { color: '#f85149' })}
+      </div>
+      <div class="text-xs" style="color:var(--muted)">${s.study_events} study session${s.study_events !== 1 ? 's' : ''} · ${s.community_events} community interaction${s.community_events !== 1 ? 's' : ''}</div>
+    </div>`;
+}
+
+async function viewProfileDetail(userId) {
+  hide('view-models');
+  hide('view-model-detail');
+  hide('view-activity');
+  hide('view-profiles');
+  const el = document.getElementById('view-profile-detail');
+  show('view-profile-detail');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  let p;
+  try {
+    p = await api(`/admin/profiles/${encodeURIComponent(userId)}`).then(r => r.json());
+  } catch (e) {
+    el.innerHTML = `<div class="text-sm" style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  const concepts = p.concepts || [];
+  const subjects = p.subjects || [];
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center gap-3">
+        <button onclick="viewProfiles()" class="btn btn-ghost text-xs">← All users</button>
+        <div>
+          <div class="font-semibold">${esc(displayName(p))}</div>
+          ${p.email && p.full_name ? `<div class="text-xs" style="color:var(--muted)">${esc(p.email)}</div>` : ''}
+        </div>
+      </div>
+
+      ${p.needs_attention?.length ? `
+        <div style="border:1px solid rgba(248,81,73,.25);background:rgba(248,81,73,.06);border-radius:12px" class="p-4">
+          <div class="text-xs font-semibold mb-1.5" style="color:#f85149">Needs attention</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${p.needs_attention.map(n => `<span class="pill text-xs" style="background:rgba(248,81,73,.1);color:#f85149;border:1px solid rgba(248,81,73,.25)">${esc(n.concept)} <span style="opacity:.7">· ${esc(n.subject)}</span></span>`).join('')}
+          </div>
+        </div>` : ''}
+
+      ${p.discovery_interest_subjects?.length ? `
+        <div style="border:1px solid rgba(63,185,80,.25);background:rgba(63,185,80,.06);border-radius:12px" class="p-4">
+          <div class="text-xs font-semibold mb-1.5" style="color:var(--em)">Discovery interest</div>
+          <div class="flex flex-wrap gap-1.5">
+            ${p.discovery_interest_subjects.map(s => `<span class="pill pill-green text-xs">${esc(s)}</span>`).join('')}
+          </div>
+        </div>` : ''}
+
+      <div class="space-y-3">
+        <div class="font-semibold text-sm">Subjects (${subjects.length})</div>
+        ${subjects.length === 0
+          ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No subject activity yet.</p></div>`
+          : `<div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">${subjects.map(renderSubjectCard).join('')}</div>`}
+      </div>
+
+      <div class="space-y-3">
+        <div class="font-semibold text-sm">Concepts (${concepts.length})</div>
+        ${concepts.length === 0
+          ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No concepts tracked yet.</p></div>`
+          : `<div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">${concepts.map(renderConceptCard).join('')}</div>`}
+      </div>
+    </div>`;
+}
+
 // Add model
 let _addingModel = false;
 function openAddModel() {
@@ -706,6 +916,8 @@ async function fetchModelTotals() {
 async function viewModelDetail(modelId) {
   _currentModelId = modelId;
   hide('view-models');
+  hide('view-profiles');
+  hide('view-profile-detail');
   const el = document.getElementById('view-model-detail');
   show('view-model-detail');
   await fetchModelTotals();
