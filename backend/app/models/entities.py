@@ -478,3 +478,46 @@ class FeatureUsageLog(Base, TimestampMixin):
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     feature_name: Mapped[str] = mapped_column(String(64), nullable=False)
     feature_metadata: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+
+
+# ============================================================================
+# UX Metrics (SOC-16+ — theo dõi chỉ số UX theo cohort)
+# ============================================================================
+
+
+class UXMetricsSnapshot(Base, TimestampMixin):
+    """
+    Aggregated UX metrics per cohort of N students (default: 50).
+    
+    Each row represents one cohort's performance over a time window.
+    Used for generating charts: completion time, dependency rate,
+    accuracy rate, return rate per 50-student group.
+    
+    Cohorts are sequential: cohort_0 = users 0-49, cohort_1 = users 50-99, etc.
+    """
+
+    __tablename__ = "ux_metrics_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cohort_index: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    cohort_size: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    window_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    # ── Core metrics ─────────────────────────────────────────────────────────
+    avg_completion_time_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    median_completion_time_seconds: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    dependency_rate: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    """% của attempts dùng hint (0.0 - 1.0)"""
+    avg_accuracy: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    """Điểm accuracy trung bình (0.0 - 1.0)"""
+    return_rate_7d: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    """Tỉ lệ quay lại trong 7 ngày (0.0 - 1.0)"""
+    return_rate_30d: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    """Tỉ lệ quay lại trong 30 ngày (0.0 - 1.0)"""
+
+    # ── Counts for validation / drill-down ───────────────────────────────────
+    total_users_in_cohort: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    active_users_in_window: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    total_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed_psets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

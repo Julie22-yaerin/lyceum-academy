@@ -23,9 +23,13 @@ from app.db.session import get_db
 from app.api.deps import get_current_user, require_auth
 from app.models.entities import FeatureUsageLog
 from app.services.content_safety import check_prompt, check_messages, check_upload
+from app.services import pii_filter as pii_svc
 from app.services import critique as critique_svc
 from app.services import rag as rag_svc
 from app.services import wolfram as wolfram_svc
+from app.services import safety_guard as safety_guard_svc
+from app.services import data_retention as data_retention_svc
+from app.services import personas as personas_svc
 
 _s2s_logger = logging.getLogger("pclick.s2s")
 
@@ -63,6 +67,47 @@ def _uid(payload: dict) -> str:
     """Firebase UID from a require_auth-verified token payload, for scoping
     the personalization profile (app/services/mastery_profile.py)."""
     return payload.get("user_id") or payload.get("sub") or ""
+
+
+def _uid_from_request(request: Request) -> str:
+    """Extract user ID from request for logging purposes (best-effort)."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        try:
+            token = auth[7:].strip()
+            parts = token.split(".")
+            if len(parts) == 3:
+                padding = (4 - len(parts[1]) % 4) % 4
+                payload_bytes = base64.urlsafe_b64decode(parts[1] + "=" * padding)
+                payload_data = _json.loads(payload_bytes)
+                return str(payload_data.get("user_id") or payload_data.get("sub") or "anonymous")
+        except Exception:
+            pass
+    return "anonymous"
+
+
+async def _with_safety_check(
+    text: str,
+    user_message: str = "",
+    *,
+    endpoint: str = "unknown",
+    request: Request | None = None,
+    auth: dict | None = None,
+) -> str:
+    """
+    Run Nemotron Safety Guard on AI response text BEFORE delivering to user.
+    If blocked, returns a safe fallback message instead.
+    """
+    uid = _uid(auth) if auth else (_uid_from_request(request) if request else "anonymous")
+    result = await safety_guard_svc.check_response_safety(
+        user_message=user_message or "[no user message available]",
+        ai_response=text,
+        endpoint=endpoint,
+        user_id=uid,
+    )
+    if not result["safe"]:
+        return result["fallback"]
+    return result["response"]
 
 
 def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
@@ -181,6 +226,66 @@ class BodySizeLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+# ── Data Access Audit Middleware ─────────────────────────────────────────────
+# Logs EVERY AI data-processing request for compliance transparency.
+# Uses the existing activity_log service which stores to SQLite.
+class DataAccessAuditMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware that logs all data-accessing requests for audit trail compliance.
+    
+    Every request to an endpoint that processes user data (upload, grade, chat,
+    analyze, etc.) is logged with: user, endpoint, timestamp.
+    
+    This provides an immutable record for answering:
+      - "Which AI model accessed which user's data, when?"
+      - "Was this access authorized and for what purpose?"
+    """
+
+    # Endpoints that DO process user data → need audit logging
+    _DATA_ENDPOINTS: set[str] = {
+        "/ai/chat",
+        "/ai/dual",
+        "/ai/upload-pset",
+        "/ai/note-upload",
+        "/ai/grade-all",
+        "/ai/grade-dual",
+        "/ai/analyze-page",
+        "/ai/hint",
+        "/ai/mastery",
+        "/ai/decompose",
+        "/ai/feynman",
+        "/ai/reverse-build-eval",
+        "/ai/voice-fallback",
+        "/ai/clean-question",
+        "/ai/onboarding-analyze",
+        "/profile/event",
+        "/profile/baseline",
+        "/profile/subject-activity",
+    }
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+
+        # Only log configured data-processing endpoints
+        if request.url.path in self._DATA_ENDPOINTS:
+            try:
+                from app.services import activity_log as _al
+                # Extract user info from Authorization header (best-effort, no blocking)
+                auth = request.headers.get("authorization", "")
+                user_hint = auth[:20] + "..." if len(auth) > 20 else "anonymous"
+                _al.record(
+                    provider="audit_middleware",
+                    task=f"data_access:{request.method}:{request.url.path}",
+                    model=user_hint,
+                    prompt_tokens=1,
+                    completion_tokens=0,
+                )
+            except Exception:
+                pass  # audit logging must never break the actual request
+
+        return response
+
+
 # ── Rate limiter ─────────────────────────────────────────────────────────────
 limiter = Limiter(key_func=get_user_key)
 from app.services import ai         as ai_svc
@@ -188,6 +293,8 @@ from app.services import finetune_db as ft_svc
 from app.routers  import admin      as admin_router
 from app.routers  import auth       as auth_router
 from app.routers  import subscriptions as subscriptions_router
+from app.routers  import ux_metrics   as ux_metrics_router
+from app.routers  import personas    as personas_router
 
 
 @asynccontextmanager
@@ -225,6 +332,7 @@ async def lifespan(_app: FastAPI):
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(DataAccessAuditMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(BodySizeLimitMiddleware)
 # Compress JSON responses >1KB — note/pset analysis payloads are often 50-200KB
@@ -234,6 +342,8 @@ app.include_router(admin_router.router)
 app.include_router(auth_router.router)
 app.include_router(subscriptions_router.router)
 app.include_router(subscriptions_router.webhook_router)
+app.include_router(ux_metrics_router.router)
+app.include_router(personas_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
@@ -247,6 +357,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Health ────────────────────────────────────────────────────────────────────
+
+# ── Data Retention Endpoint ─────────────────────────────────────────────────
+
+class RetentionRunRequest(BaseModel):
+    dry_run: bool = True
+
+
+@app.post("/admin/retention/run")
+@limiter.limit("2/minute")
+async def admin_retention_run(
+    request: Request,
+    req: RetentionRunRequest,
+    _: dict = Depends(require_auth),
+):
+    """
+    Trigger a data retention sweep.
+    
+    By default runs in dry-run mode (reports what WOULD be deleted without
+    actually deleting). Set dry_run=false to execute actual deletion.
+    
+    Accessible only to authenticated users with admin privileges.
+    Designed to be called by an external cron scheduler (Railway Cron).
+    
+    Returns a detailed report of what was processed.
+    """
+    results = data_retention_svc.run_all_purges(dry_run=req.dry_run)
+    return {
+        "status": "dry_run" if req.dry_run else "executed",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "results": results,
+    }
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -333,6 +477,124 @@ async def media_proxy(request: Request, url: str):
         raise HTTPException(status_code=502, detail=f"Image fetch failed: {e}")
 
 
+# ── Persona endpoints ─────────────────────────────────────────────────────────
+# Expose the Firestore-backed scientist personas so the frontend and AI layer
+# can query them.  All persona endpoints require authentication.
+
+class PersonaChatRequest(BaseModel):
+    persona_id: str
+    messages: list[dict]
+    temperature: float = 0.7
+    max_tokens: int = 2048
+
+
+@app.get("/personas")
+@limiter.limit("60/minute")
+async def list_personas(request: Request, _: dict = Depends(require_auth)):
+    """Return the list of all available scientist personas."""
+    if not settings.has_firestore:
+        raise HTTPException(status_code=503, detail="Firestore not configured")
+    personas = await asyncio.get_running_loop().run_in_executor(
+        None, personas_svc.list_personas
+    )
+    return {"personas": personas}
+
+
+@app.get("/personas/{persona_id}")
+@limiter.limit("60/minute")
+async def get_persona(
+    request: Request,
+    persona_id: str,
+    _: dict = Depends(require_auth),
+):
+    """Return a single persona's full profile including cognitive indices."""
+    if not settings.has_firestore:
+        raise HTTPException(status_code=503, detail="Firestore not configured")
+    persona = await asyncio.get_running_loop().run_in_executor(
+        None, personas_svc.get_persona, persona_id
+    )
+    if persona is None:
+        raise HTTPException(status_code=404, detail=f"Persona '{persona_id}' not found")
+    return persona
+
+
+@app.get("/personas/{persona_id}/prompt")
+@limiter.limit("60/minute")
+async def get_persona_prompt(
+    request: Request,
+    persona_id: str,
+    _: dict = Depends(require_auth),
+):
+    """Return the system prompt for a persona (used to configure the AI)."""
+    if not settings.has_firestore:
+        raise HTTPException(status_code=503, detail="Firestore not configured")
+    prompt = await asyncio.get_running_loop().run_in_executor(
+        None, personas_svc.get_system_prompt, persona_id
+    )
+    if not prompt:
+        raise HTTPException(status_code=404, detail=f"Persona '{persona_id}' not found")
+    return {"persona_id": persona_id, "system_prompt": prompt}
+
+
+@app.post("/ai/persona/chat")
+@limiter.limit("10/minute")
+async def persona_chat(
+    request: Request,
+    req: PersonaChatRequest,
+    auth: dict = Depends(require_auth),
+):
+    """
+    Chat with the AI while it embodies a specific scientist persona.
+
+    The persona's system prompt is prepended as the first system message,
+    followed by any persona context block, then the user's messages.
+    Safety checks and privacy guards apply as usual.
+    """
+    if not settings.has_firestore:
+        raise HTTPException(status_code=503, detail="Firestore not configured")
+
+    # Safety check on the last user message
+    last_user = next(
+        (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
+        "",
+    )
+    safety_result = await check_prompt(last_user)
+    if safety_result.get("blocked"):
+        raise HTTPException(status_code=400, detail=safety_result.get("reason", "Blocked"))
+
+    loop = asyncio.get_running_loop()
+
+    # Fetch persona context from Firestore (non-blocking via executor)
+    system_prompt = await loop.run_in_executor(
+        None, personas_svc.get_system_prompt, req.persona_id
+    )
+    if not system_prompt:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Persona '{req.persona_id}' not found in Firestore. Run the seed script first.",
+        )
+
+    persona_ctx = await loop.run_in_executor(
+        None, personas_svc.persona_context_for_chat, req.persona_id, last_user
+    )
+
+    # Build the full message list: [system] + [persona context as system] + user messages
+    full_messages: list[dict] = [{"role": "system", "content": system_prompt}]
+    if persona_ctx:
+        full_messages.append({"role": "system", "content": persona_ctx})
+    full_messages.extend(req.messages)
+
+    response = await ai_svc.chat(
+        full_messages,
+        temperature=req.temperature,
+        max_tokens=req.max_tokens,
+    )
+    text = ai_svc.extract_text(response)
+    text = await _with_safety_check(text, last_user, endpoint="/ai/persona/chat",
+                                     request=request, auth=auth)
+    return {"reply": text, "persona_id": req.persona_id}
+
+
 # ── AI endpoints ──────────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
@@ -340,6 +602,9 @@ class ChatRequest(BaseModel):
     model: str | None = None
     temperature: float = 0.7
     max_tokens: int = 2048
+    # Optional: set to a persona_id (e.g. "einstein") to have the AI
+    # respond in the style and epistemological voice of that scientist.
+    persona_id: str | None = None
 
 
 class VoiceFallbackRequest(BaseModel):
@@ -408,6 +673,26 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
                 *messages,
             ]
 
+        # ── Persona (optional): inject scientist persona as system context ─
+        if req.persona_id and settings.has_firestore:
+            loop = asyncio.get_running_loop()
+            try:
+                persona_prompt = await loop.run_in_executor(
+                    None, personas_svc.get_system_prompt, req.persona_id
+                )
+                persona_ctx = await loop.run_in_executor(
+                    None, personas_svc.persona_context_for_chat, req.persona_id, last_user
+                )
+                persona_messages: list[dict] = []
+                if persona_prompt:
+                    persona_messages.append({"role": "system", "content": persona_prompt})
+                if persona_ctx:
+                    persona_messages.append({"role": "system", "content": persona_ctx})
+                if persona_messages:
+                    messages = persona_messages + messages
+            except Exception as _pe:
+                pass  # persona injection failure must never break the main chat path
+
         resp = await ai_svc.chat(
             messages,
             model=req.model,
@@ -421,11 +706,77 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
         )[-800:]  # last 800 chars of user context
         text = await critique_svc.review(text, context=context)
         # ──────────────────────────────────────────────────────────────────
+        # ── Safety Guard: final gate before user ──────────────────────────
+        last_user = next(
+            (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
+            "",
+        )
+        text = await _with_safety_check(
+            text,
+            user_message=last_user,
+            endpoint="/ai/chat",
+            request=request,
+        )
+        # ──────────────────────────────────────────────────────────────────
         return {
             "text": text,
             "model": resp.get("model"),
             "usage": resp.get("usage"),
         }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class DualChatRequest(BaseModel):
+    messages: list[dict]
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    prefer_fast: bool = False
+
+
+@app.post("/ai/dual")
+@limiter.limit("10/minute")
+async def ai_dual_chat(request: Request, req: DualChatRequest, auth: dict = Depends(require_auth)):
+    """
+    Dual-role AI pipeline:
+
+    Stage 1 — PRIMARY (thinker): Groq → Google → NVIDIA → OpenRouter → Ollama
+      drafts a full answer (reasoning, calculation, explanation).
+
+    Stage 2 — REVIEWER (editor): google/diffusiongemma-26b-a4b-it on NVIDIA NIM
+      refines the draft for clarity and accuracy before delivery to the student.
+      Retried up to nvidia_gemma_reviewer_max_retries times on 4xx/5xx/timeout.
+      Falls back to the draft if all reviewer attempts fail (fail-open).
+
+    WolframAlpha: used as a last resort if the primary also fails and the
+      query looks computational.
+
+    Returns:
+      { text, draft, model, primary_model?, reviewer_used, wolfram_fallback? }
+    """
+    check_messages(req.messages)
+    last_user = next(
+        (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
+        "",
+    )
+    try:
+        result = await ai_svc.dual_role_chat(
+            req.messages,
+            temperature=req.temperature,
+            max_tokens=req.max_tokens,
+            prefer_fast=req.prefer_fast,
+        )
+        text = result["text"]
+        # ── Safety Guard ──────────────────────────────────────────────────
+        text = await _with_safety_check(
+            text,
+            user_message=last_user,
+            endpoint="/ai/dual",
+            auth=auth,
+        )
+        # ──────────────────────────────────────────────────────────────────
+        result["text"] = text
+        return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -437,6 +788,18 @@ async def ai_voice_fallback(request: Request, req: VoiceFallbackRequest, _: dict
     check_messages(req.messages)
     try:
         text = await ai_svc.voice_fallback_chat(req.messages, req.system_instruction)
+        # ── Safety Guard ──────────────────────────────────────────────────
+        last_user = next(
+            (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
+            "",
+        )
+        text = await _with_safety_check(
+            text,
+            user_message=last_user,
+            endpoint="/ai/voice-fallback",
+            request=request,
+        )
+        # ──────────────────────────────────────────────────────────────────
         return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -451,6 +814,14 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
         hint = await ai_svc.get_hint(req.problem, req.level)
         # ── Team Phản Biện ─────────────────────────────────────────────────
         hint = await critique_svc.review(hint, context=req.problem)
+        # ──────────────────────────────────────────────────────────────────
+        # ── Safety Guard ──────────────────────────────────────────────────
+        hint = await _with_safety_check(
+            hint,
+            user_message=req.problem,
+            endpoint="/ai/hint",
+            request=request,
+        )
         # ──────────────────────────────────────────────────────────────────
         return {"hint": hint}
     except Exception as e:
@@ -492,6 +863,15 @@ async def ai_reverse_build_eval(
             required_tools=req.required_tools,
             subject_area=req.subject_area,
         )
+        # ── Safety Guard ──────────────────────────────────────────────────
+        if result.get("feedback"):
+            result["feedback"] = await _with_safety_check(
+                result["feedback"],
+                user_message=req.student_explanation,
+                endpoint="/ai/reverse-build-eval",
+                request=request,
+            )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -504,6 +884,15 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
     check_prompt(req.pset_text, "pset_text")
     try:
         result = await ai_svc.decompose_pset(req.pset_text)
+        # ── Safety Guard ──────────────────────────────────────────────────
+        if result.get("summary"):
+            result["summary"] = await _with_safety_check(
+                result["summary"],
+                user_message=req.pset_text[:800],
+                endpoint="/ai/decompose",
+                request=request,
+            )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -529,6 +918,16 @@ async def ai_mastery(request: Request, req: MasteryRequest, auth: dict = Depends
                         mp_svc.record_event(uid, concept, req.subject or "other", "confusion")
         except Exception:
             pass
+        # ── Safety Guard ──────────────────────────────────────────────────
+        feedback_text = result.get("feedback", "")
+        if feedback_text:
+            result["feedback"] = await _with_safety_check(
+                feedback_text,
+                user_message=req.problem,
+                endpoint="/ai/mastery",
+                request=request,
+            )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -562,6 +961,15 @@ async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dic
         check_prompt(v, "answer")
     try:
         result = await ai_svc.analyze_onboarding(req.answers)
+        # ── Safety Guard ──────────────────────────────────────────────────
+        if result.get("reasoning"):
+            result["reasoning"] = await _with_safety_check(
+                result["reasoning"],
+                user_message="[onboarding answers]",
+                endpoint="/ai/onboarding-analyze",
+                request=request,
+            )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -614,6 +1022,25 @@ async def ai_grade_dual(request: Request, req: GradeDualRequest, auth: dict = De
         ]
         result = await ai_svc.grade_dual(items)
         _record_grade_results(_uid(auth), req.questions, result.get("grades", []))
+        # ── Safety Guard: check feedback text ─────────────────────────────
+        for g in result.get("grades", []):
+            fb = g.get("feedback", "")
+            if fb:
+                g["feedback"] = await _with_safety_check(
+                    fb,
+                    user_message=g.get("prompt", ""),
+                    endpoint="/ai/grade-dual",
+                    request=request,
+                )
+            sg = g.get("suggestions", "")
+            if isinstance(sg, str) and sg:
+                g["suggestions"] = await _with_safety_check(
+                    sg,
+                    user_message=g.get("prompt", ""),
+                    endpoint="/ai/grade-dual",
+                    request=request,
+                )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -632,6 +1059,17 @@ async def ai_grade_all(request: Request, req: GradeAllRequest, auth: dict = Depe
         items = [{"id": q.id, "prompt": q.prompt, "answer": q.answer} for q in req.questions]
         result = await ai_svc.grade_all(items)
         _record_grade_results(_uid(auth), req.questions, result.get("grades", []))
+        # ── Safety Guard: check feedback text ─────────────────────────────
+        for g in result.get("grades", []):
+            fb = g.get("feedback", "")
+            if fb:
+                g["feedback"] = await _with_safety_check(
+                    fb,
+                    user_message=g.get("prompt", ""),
+                    endpoint="/ai/grade-all",
+                    request=request,
+                )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -703,6 +1141,8 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
         difficulty = difficulty_info.get("difficulty", "medium")
 
         # ── Step 2: Full analysis ──────────────────────────────────────────
+        # PII filter is applied INSIDE ai.py after text extraction —
+        # do NOT strip raw bytes here; that would corrupt binary PDF/image data.
         result = await ai_svc.analyze_file_pset(content, fname, mime)
 
         # ── Step 3: Route critique based on difficulty ─────────────────────
@@ -768,6 +1208,13 @@ async def ai_describe_drawing(request: Request, req: DrawingRequest, _: dict = D
     """Use Gemini vision to transcribe a student's whiteboard drawing."""
     try:
         text = await ai_svc.describe_drawing(req.image)
+        # ── Safety Guard ──────────────────────────────────────────────────
+        text = await _with_safety_check(
+            text,
+            endpoint="/ai/describe-drawing",
+            request=request,
+        )
+        # ──────────────────────────────────────────────────────────────────
         return {"text": text}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -796,6 +1243,15 @@ async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = D
             description=req.description,
             connections=req.connections,
         )
+        # ── Safety Guard ──────────────────────────────────────────────────
+        if result.get("definition"):
+            result["definition"] = await _with_safety_check(
+                result["definition"],
+                user_message=req.label,
+                endpoint="/ai/node-summary",
+                request=request,
+            )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -903,7 +1359,15 @@ async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict
     check_prompt(req.context, "context")
     try:
         result = await ai_svc.clean_question(req.prompt, req.context)
-        return {"clean": result}
+        # ── Safety Guard ──────────────────────────────────────────────────
+        safe_clean = await _with_safety_check(
+            result,
+            user_message=req.prompt,
+            endpoint="/ai/clean-question",
+            request=request,
+        )
+        # ──────────────────────────────────────────────────────────────────
+        return {"clean": safe_clean}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -937,7 +1401,10 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
         if not raw_text.strip():
             raise HTTPException(status_code=422, detail="Could not extract text from file.")
 
-        result = await ai_svc.synthesize_note(raw_text, source_type=source_type, source_title=fname)
+        # ── PII Filter: strip personal info before sending to AI provider ──
+        safe_text = pii_svc.strip_pii(raw_text)
+        # ─────────────────────────────────────────────────────────────────
+        result = await ai_svc.synthesize_note(safe_text, source_type=source_type, source_title=fname)
         # Generate diagrams (best-effort)
         try:
             result["diagrams"] = await ai_svc.generate_note_diagrams(result)
@@ -993,6 +1460,30 @@ async def ai_feynman(
                 result["reaction"], context=f"Feynman evaluation of: {note_title}"
             )
         # ──────────────────────────────────────────────────────────────────
+        # ── Safety Guard ──────────────────────────────────────────────────
+        if result.get("reaction"):
+            result["reaction"] = await _with_safety_check(
+                result["reaction"],
+                user_message=note_title,
+                endpoint="/ai/feynman",
+                auth=auth,
+            )
+        # questions is a list[str] — check each question individually
+        if result.get("questions") and isinstance(result["questions"], list):
+            checked_questions = []
+            for q_text in result["questions"]:
+                if isinstance(q_text, str):
+                    checked = await _with_safety_check(
+                        q_text,
+                        user_message=note_title,
+                        endpoint="/ai/feynman",
+                        auth=auth,
+                    )
+                    checked_questions.append(checked)
+                else:
+                    checked_questions.append(q_text)
+            result["questions"] = checked_questions
+        # ──────────────────────────────────────────────────────────────────
 
         # Feed the personalization profile: gaps the 5-year-old persona
         # flagged are exactly "lỗ hổng tự phát hiện khi giảng lại" — the
@@ -1031,6 +1522,17 @@ async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends
         raise HTTPException(status_code=400, detail="topic cannot be empty")
     try:
         result = await ai_svc.topic_to_nodemap(req.topic.strip())
+        # ── Safety Guard: check summary/definition fields ─────────────────
+        for node in result.get("nodes", []):
+            desc = node.get("description", "")
+            if desc:
+                node["description"] = await _with_safety_check(
+                    desc,
+                    user_message=req.topic,
+                    endpoint="/ai/topic-map",
+                    request=request,
+                )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -1071,6 +1573,17 @@ async def ai_roadmap(request: Request, req: RoadmapRequest, auth: dict = Depends
         result = await ai_svc.generate_roadmap(req.topic.strip(), learning_style, study_mode, needs_attention)
         result["learning_style"] = learning_style
         result["study_mode"] = study_mode
+        # ── Safety Guard ──────────────────────────────────────────────────
+        for step in result.get("roadmap_steps", []):
+            desc = step.get("description", "")
+            if desc:
+                step["description"] = await _with_safety_check(
+                    desc,
+                    user_message=req.topic,
+                    endpoint="/ai/roadmap",
+                    request=request,
+                )
+        # ──────────────────────────────────────────────────────────────────
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))

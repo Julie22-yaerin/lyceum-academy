@@ -276,27 +276,51 @@ Deletion Log Entry:
 
 ### 8.1 Automated Deletion Jobs
 
-**Daily Cron Jobs:**
-```python
-# backend/app/services/data_retention.py
+Implemented in `backend/app/services/data_retention.py` — callable via:
+- `POST /admin/retention/run` (with `dry_run=true/false`)
+- Designed for external cron schedulers (Railway Cron, systemd timer)
 
-@scheduled("0 2 * * *")  # 2 AM daily
-def purge_expired_ai_logs():
-    """Delete AI interaction logs older than 90 days."""
-    cutoff = datetime.now(UTC) - timedelta(days=90)
-    delete_ai_logs(before=cutoff)
+**Available Tasks:**
 
-@scheduled("0 3 * * 0")  # 3 AM Sunday
-def archive_old_problem_sets():
-    """Archive problem sets not viewed in 2 years."""
-    cutoff = datetime.now(UTC) - timedelta(days=730)
-    archive_psets(last_viewed_before=cutoff)
+| Task | What It Does | Schedule |
+|------|-------------|----------|
+| `purge_ai_interaction_logs` | Deletes AI activity logs older than 90 days | Daily |
+| `hard_delete_stale_assets` | Deletes orphaned + archived pset PDFs after 30 days | Weekly |
+| `anonymize_dormant_profiles` | Anonymizes user identities for accounts inactive 3+ years | Monthly |
+| `anonymize_feature_usage_logs` | Anonymizes feature usage logs older than 1 year | Monthly |
+| `purge_voice_usage_records` | Deletes voice usage records from billing periods >1 year ago | Monthly |
+| `run_all_purges` | Runs ALL tasks in sequence (main entry point) | As scheduled |
 
-@scheduled("0 4 1 * *")  # 4 AM, 1st of month
-def purge_deleted_accounts():
-    """Hard delete accounts marked deleted >30 days ago."""
-    cutoff = datetime.now(UTC) - timedelta(days=30)
-    hard_delete_accounts(deleted_before=cutoff)
+**Cron Integration (Railway Cron):**
+```bash
+# Schedule: every day at 2 AM
+curl -X POST https://api.pclick.app/admin/retention/run \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run": false}'
+```
+
+**Dry-Run Mode:**
+Always run with `dry_run=true` first to see what would be deleted:
+```bash
+curl -X POST https://api.pclick.app/admin/retention/run \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run": true}'
+```
+
+**Return Value:**
+```json
+{
+  "status": "dry_run|executed",
+  "timestamp": "2026-07-10T12:00:00Z",
+  "results": {
+    "purge_ai_interaction_logs": {"deleted_rows": 152, "table": "ai_activity_log"},
+    "hard_delete_stale_assets": {"deleted_assets": 0, "freed_bytes": 0},
+    "anonymize_dormant_profiles": {"anonymized_count": 3},
+    ...
+  }
+}
 ```
 
 ### 8.2 Monitoring & Alerts

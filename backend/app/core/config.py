@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     openai_model_analysis: str = "gpt-4o"
     openai_model_hints: str = "gpt-4o-mini"
 
+    # ── Persona Mind (GPT-4.1) — multi-agent persona brain ───────
+    # The single "brain" that reads the user's question + Firebase persona
+    # library and spawns 3 independent character responses in parallel.
+    # Falls back to openai_api_key if persona_mind_key is not set.
+    persona_mind_key: str = ""          # PERSONA_MIND_KEY in .env
+    persona_mind_model: str = "gpt-4.1" # PERSONA_MIND_MODEL in .env
+
     # ── Team Phản Biện (Debate Team) ─────────────────────────────
     # Pos 1 (OpenAI GPT-4o)  — phân tích 100% nội dung gốc
     critique_openai_key: str = ""
@@ -90,10 +97,26 @@ class Settings(BaseSettings):
     nvidia_orchestrator_key: str = ""
     nvidia_orchestrator_model: str = "meta/llama-3.1-70b-instruct"
 
+    # ── NVIDIA NIM Safety Guard (security police, SOC-16+) ─────────
+    # Nemotron Safety Guard 8B — scans every AI response for security policy
+    # violations, prompt injection, and unsafe content BEFORE delivery to user.
+    # Falls back to nvidia_api_key if no dedicated key is set.
+    nvidia_safety_key: str = ""
+    nvidia_safety_model: str = "nvidia/llama-3.1-nemotron-safety-guard-8b-v3"
+
     # ── NVIDIA NIM DeepSeek (learning roadmap generator) ───────────
     # Falls back to nvidia_api_key if no dedicated key is set.
     nvidia_deepseek_key: str = ""
     nvidia_deepseek_model: str = "deepseek-ai/deepseek-v4-flash"
+
+    # ── NVIDIA NIM DiffusionGemma (dual-role reviewer) ──────────────
+    # google/diffusiongemma-26b-a4b-it acts as the "reviewer" model:
+    # the primary model reasons/drafts, then this model refines before
+    # the answer is delivered to the student.
+    # Uses the same nvidia_api_key unless a dedicated key is provided.
+    nvidia_gemma_reviewer_key: str = ""    # set in .env to override; falls back to nvidia_api_key
+    nvidia_gemma_reviewer_model: str = "google/diffusiongemma-26b-a4b-it"
+    nvidia_gemma_reviewer_max_retries: int = 2  # retries before WolframAlpha fallback
 
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""
@@ -112,6 +135,16 @@ class Settings(BaseSettings):
 
     # ── Firebase ─────────────────────────────────────────────
     firebase_project_id: str = ""
+    # Path to a Firebase service account JSON key file (downloaded from
+    # Firebase Console → Project Settings → Service Accounts → Generate new key).
+    # Required for Firestore write access (admin SDK).
+    # Leave empty when running in a GCP environment — ADC is used instead.
+    firebase_service_account_path: str = ""
+
+    @property
+    def has_firestore(self) -> bool:
+        """True when the Firebase project ID is set (enough for Firestore)."""
+        return bool(self.firebase_project_id)
 
     # ── Admin ────────────────────────────────────────────────
     # Comma-separated list of Firebase emails allowed to call /admin/* endpoints.

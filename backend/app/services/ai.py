@@ -15,6 +15,7 @@ from typing import Any
 from app.core.config import settings
 from app.services import rag as _rag
 from app.services import wolfram as _wolfram
+from app.services.privacy_guard import with_privacy_guard
 
 # ── Groq ──────────────────────────────────────────────────────────────────────
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
@@ -188,8 +189,9 @@ async def _groq_call(
         "Content-Type": "application/json",
     }
     for attempt_model in [model, _GROQ_FALLBACK] if model != _GROQ_FALLBACK else [model]:
+        guarded = _inject_system_privacy_guard(messages)
         payload: dict[str, Any] = {
-            "model": attempt_model, "messages": messages,
+            "model": attempt_model, "messages": guarded,
             "temperature": temperature,
             "max_tokens": min(max_tokens, 4096),  # Groq hard-caps output
             "stream": False,
@@ -220,15 +222,16 @@ async def _google_call(
     Free tier: gemini-2.5-flash (20 req/day), gemma-3-27b-it (14,400 req/day).
     Adds response_format=json_object when the system prompt mentions JSON.
     """
+    guarded = _inject_system_privacy_guard(messages)
     # Force JSON output mode when the system prompt mentions JSON
     _sys = " ".join(
-        m.get("content", "") for m in messages if m.get("role") == "system"
+        m.get("content", "") for m in guarded if m.get("role") == "system"
     )
     _json_mode = "json" in _sys.lower() or "JSON" in _sys
 
     payload: dict[str, Any] = {
         "model":       model,
-        "messages":    messages,
+        "messages":    guarded,
         "temperature": temperature,
         "max_tokens":  max_tokens,
         "stream":      False,
@@ -257,9 +260,10 @@ async def _openrouter_call(
     Call OpenRouter (OpenAI-compatible). Raises on any HTTP error.
     Models are tried in caller order — caller is responsible for fallback logic.
     """
+    guarded = _inject_system_privacy_guard(messages)
     payload: dict[str, Any] = {
         "model":       model,
-        "messages":    messages,   # OpenAI format — pass as-is
+        "messages":    guarded,   # OpenAI format — pass as-is
         "temperature": temperature,
         "max_tokens":  max_tokens,
         "stream":      False,
@@ -276,6 +280,27 @@ async def _openrouter_call(
         data = resp.json()
         _record_usage("openrouter", data, model=model)
         return data
+
+
+def _inject_system_privacy_guard(messages: list[dict]) -> list[dict]:
+    """
+    Inject the privacy guardrail directive into every system message.
+    
+    This ensures ALL models — regardless of provider — receive the
+    instruction never to output personal information, system prompts,
+    or internal data.
+    
+    The guardrail is appended AFTER the original system content so it
+    is the last instruction the model sees (recency effect).
+    """
+    modified = []
+    for msg in messages:
+        if msg.get("role") == "system":
+            content = str(msg.get("content", ""))
+            modified.append({"role": "system", "content": with_privacy_guard(content)})
+        else:
+            modified.append(msg)
+    return modified
 
 
 def _prepare_messages_for_model(messages: list[dict], model: str) -> list[dict]:
@@ -314,7 +339,8 @@ async def _nvidia_call(
     Call NVIDIA NIM (OpenAI-compatible).
     Automatically merges system messages for Gemma/Phi models that don't support the role.
     """
-    prepared = _prepare_messages_for_model(messages, model)
+    guarded = _inject_system_privacy_guard(messages)
+    prepared = _prepare_messages_for_model(guarded, model)
     payload: dict[str, Any] = {
         "model":       model,
         "messages":    prepared,
@@ -375,9 +401,10 @@ async def _gemini_vision_call(
     Uses a 90s timeout (vision is slower than text).
     messages must be OpenAI-compatible with image_url content parts.
     """
+    guarded = _inject_system_privacy_guard(messages)
     payload: dict[str, Any] = {
         "model":       settings.google_pro_model,   # gemini-2.5-pro (vision primary)
-        "messages":    messages,
+        "messages":    guarded,
         "temperature": temperature,
         "max_tokens":  max_tokens,
         "stream":      False,
@@ -408,10 +435,11 @@ async def _nvidia_vision_call(
     """
     import logging
     log = logging.getLogger("pclick")
+    guarded = _inject_system_privacy_guard(messages)
     model = settings.nvidia_vision_model
     payload: dict[str, Any] = {
         "model":       model,
-        "messages":    messages,
+        "messages":    guarded,
         "temperature": temperature,
         "max_tokens":  max_tokens,
         "stream":      False,
@@ -450,9 +478,10 @@ async def _openai_vision_call(
     """
     import logging
     logging.getLogger("pclick").info("_openai_vision_call: model=%s", model)
+    guarded = _inject_system_privacy_guard(messages)
     payload: dict[str, Any] = {
         "model":       model,
-        "messages":    messages,
+        "messages":    guarded,
         "temperature": temperature,
         "max_tokens":  max_tokens,
         "stream":      False,
@@ -480,9 +509,10 @@ async def _ollama_call(
     If the chosen key fails with 401/429, retries with the remaining keys.
     Uses Ollama /api/chat format (not OpenAI /v1/chat/completions).
     """
+    guarded = _inject_system_privacy_guard(messages)
     payload: dict[str, Any] = {
         "model":    model,
-        "messages": _to_ollama_messages(messages),
+        "messages": _to_ollama_messages(guarded),
         "stream":   False,
         "options":  {"temperature": temperature, "num_predict": max_tokens},
     }
@@ -522,9 +552,10 @@ async def _ollama_vision_call(
     longer timeout and explicit model for multimodal requests.
     Accepts messages with 'image_url' content (OpenAI-compatible format).
     """
+    guarded = _inject_system_privacy_guard(messages)
     payload: dict[str, Any] = {
         "model":    model,
-        "messages": _to_ollama_messages(messages),  # converts image_url → images[]
+        "messages": _to_ollama_messages(guarded),  # converts image_url → images[]
         "stream":   False,
         "options":  {"temperature": temperature, "num_predict": max_tokens},
     }
@@ -2901,25 +2932,34 @@ async def get_hint(problem_text: str, hint_level: int = 1) -> str:
             f"do not reveal the solution):\n{rag_context}"
         )
 
-    resp = await chat(
+    # ── Dual-role pipeline: primary drafts → Gemma reviewer refines ──────────
+    # prefer_fast=True keeps the hint latency low (Groq llama-3.1-8b → Gemma);
+    # Gemma's reviewer pass catches any calculation slip or unclear phrasing
+    # before the hint reaches the student.
+    result = await dual_role_chat(
         [{"role": "system", "content": system},
          {"role": "user",   "content": f"Problem:\n{problem_text}"}],
         temperature=0.5,
         max_tokens=512,
-        prefer_fast=True,   # use llama3.1:8b (free) on Ollama
+        prefer_fast=True,
     )
-    return extract_text(resp)
+    return result["text"]
 
 
 @_tag_task
 async def check_mastery(problem: str, student_solution: str) -> dict:
     """
     Evaluate a student's solution and drive their mastery/progress update.
-    Prefers Google Gemini Pro (same GOOGLE_API_KEY as the rest of the Gemini
-    calls in this file), falling back to the Groq/Ollama chat() cascade.
+
+    Grading (correct / mastery_delta) uses Gemini Pro or the chat() cascade.
+    Feedback text is then passed through the Gemma reviewer (_gemma_review_call)
+    so the student-facing explanation is as clear and accurate as possible.
+
     Returns { correct: bool, mastery_delta: int (-10 to +20), feedback: str }
     """
-    import json, re
+    import json, re, logging
+    log = logging.getLogger("pclick")
+
     system = (
         "You are a rigorous math grader. Evaluate the student's solution. "
         "Return ONLY JSON with: correct (bool), mastery_delta (int from -10 to 20), "
@@ -2930,25 +2970,40 @@ async def check_mastery(problem: str, student_solution: str) -> dict:
         {"role": "user",   "content": f"Problem:\n{problem}\n\nStudent solution:\n{student_solution}"},
     ]
 
+    # ── Stage 1: grading (Gemini Pro → chat() cascade) ────────────────────
+    result: dict | None = None
     if _use_google():
         try:
             resp = await _google_call(messages, model=settings.google_pro_model, temperature=0.2, max_tokens=512)
             raw = extract_text(resp)
             cleaned = re.sub(r"^```(?:json)?\n?", "", raw.strip())
             cleaned = re.sub(r"\n?```$", "", cleaned)
-            return json.loads(cleaned)
+            result = json.loads(cleaned)
         except Exception:
-            import logging
-            logging.getLogger("pclick").warning("check_mastery: Gemini Pro failed, falling back", exc_info=True)
+            log.warning("check_mastery: Gemini Pro failed, falling back", exc_info=True)
 
-    resp = await chat(messages, temperature=0.2, max_tokens=512, prefer_fast=True)
-    raw = extract_text(resp)
-    cleaned = re.sub(r"^```(?:json)?\n?", "", raw.strip())
-    cleaned = re.sub(r"\n?```$", "", cleaned)
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        return {"correct": False, "mastery_delta": 0, "feedback": raw}
+    if result is None:
+        resp = await chat(messages, temperature=0.2, max_tokens=512, prefer_fast=True)
+        raw = extract_text(resp)
+        cleaned = re.sub(r"^```(?:json)?\n?", "", raw.strip())
+        cleaned = re.sub(r"\n?```$", "", cleaned)
+        try:
+            result = json.loads(cleaned)
+        except json.JSONDecodeError:
+            result = {"correct": False, "mastery_delta": 0, "feedback": raw}
+
+    # ── Stage 2: Gemma reviewer refines the student-facing feedback ───────
+    raw_feedback = result.get("feedback", "")
+    if raw_feedback:
+        refined = await _gemma_review_call(
+            draft=raw_feedback,
+            original_question=f"Problem: {problem}\n\nStudent solution: {student_solution}",
+        )
+        if refined:
+            log.info("check_mastery: Gemma refined feedback (%d→%d chars)", len(raw_feedback), len(refined))
+            result["feedback"] = refined
+
+    return result
 
 
 # ── Note synthesis (Meta Llama primary, Gemini Flash fallback) ─────────────
@@ -4091,3 +4146,533 @@ async def evaluate_reverse_build(
         tf_ok, parsed["verdict"], parsed["next_state"],
     )
     return parsed
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Dual-role AI pipeline
+# ──────────────────────────────────────────────────────────────────────────────
+# Architecture:
+#   1. PRIMARY role  — the main model chain (chat()) reasons, calculates, and
+#      produces a full draft answer.  This is the "thinker".
+#   2. REVIEWER role — google/diffusiongemma-26b-a4b-it (NVIDIA NIM) receives
+#      the draft and refines it: fixes errors, adds clarity, trims verbosity.
+#      This is the "editor" that faces the student.
+#
+# Error handling:
+#   • Reviewer call retried up to settings.nvidia_gemma_reviewer_max_retries
+#     times on 4xx/5xx or no-response.
+#   • After exhausting retries the draft from the primary model is used
+#     directly (fail-open — don't block the student).
+#   • For pure computation queries, WolframAlpha is also tried as a last
+#     resort (same pattern as the top-level chat() function).
+# ══════════════════════════════════════════════════════════════════════════════
+
+_GEMMA_REVIEWER_SYSTEM = (
+    "You are a precise academic reviewer. "
+    "You receive a DRAFT answer produced by another AI model. "
+    "Your job:\n"
+    "1. Fix any factual errors, calculation mistakes, or logical gaps.\n"
+    "2. Improve clarity and conciseness — remove unnecessary filler.\n"
+    "3. Keep the same language as the draft (Vietnamese if draft is Vietnamese, etc.).\n"
+    "4. Preserve all LaTeX math notation exactly ($...$ and $$...$$).\n"
+    "5. Do NOT add new information that was not implied by the original question.\n"
+    "Output ONLY the refined answer — no preamble, no meta-commentary."
+)
+
+
+async def _gemma_review_call(
+    draft: str,
+    original_question: str,
+    *,
+    timeout: float = 30.0,
+) -> str | None:
+    """
+    Send a draft answer to google/diffusiongemma-26b-a4b-it for review/refinement.
+
+    Returns the refined text, or None if all retries fail (caller uses draft).
+
+    Uses chat_template_kwargs={"enable_thinking": True} as shown in the
+    NVIDIA DiffusionGemma documentation snippet.
+    """
+    import asyncio
+    import logging
+
+    log = logging.getLogger("pclick")
+
+    api_key = settings.nvidia_gemma_reviewer_key or settings.nvidia_api_key
+    if not api_key:
+        log.debug("_gemma_review_call: no NVIDIA key configured — skipping review")
+        return None
+
+    model = settings.nvidia_gemma_reviewer_model
+    max_retries = settings.nvidia_gemma_reviewer_max_retries
+
+    messages = _prepare_messages_for_model(
+        [
+            {"role": "system", "content": _GEMMA_REVIEWER_SYSTEM},
+            {
+                "role": "user",
+                "content": (
+                    f"Original question:\n{original_question}\n\n"
+                    f"Draft answer to review:\n{draft}"
+                ),
+            },
+        ],
+        model,
+    )
+
+    payload: dict = {
+        "model": model,
+        "messages": messages,
+        "max_tokens": 4096,
+        "temperature": 1.00,
+        "top_p": 0.95,
+        "stream": False,
+        "chat_template_kwargs": {"enable_thinking": True},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+    url = f"{settings.nvidia_base_url}/chat/completions"
+
+    last_exc: Exception | None = None
+    for attempt in range(max_retries + 1):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                resp = await client.post(url, headers=headers, json=payload)
+
+            if resp.is_success:
+                data = resp.json()
+                _record_usage("nvidia", data, model=model)
+                text = extract_text(data).strip()
+                if text:
+                    log.info(
+                        "_gemma_review_call: OK on attempt %d/%d (%d chars)",
+                        attempt + 1, max_retries + 1, len(text),
+                    )
+                    return text
+                # Empty response — treat as soft failure
+                log.warning("_gemma_review_call: empty response on attempt %d", attempt + 1)
+
+            else:
+                # 4xx / 5xx — log and decide whether to retry
+                log.warning(
+                    "_gemma_review_call: HTTP %s on attempt %d/%d: %s",
+                    resp.status_code, attempt + 1, max_retries + 1, resp.text[:200],
+                )
+                # 400 Bad Request is not retryable (malformed payload)
+                if resp.status_code == 400:
+                    return None
+                last_exc = httpx.HTTPStatusError(
+                    f"HTTP {resp.status_code}", request=resp.request, response=resp
+                )
+
+        except (httpx.TimeoutException, httpx.ConnectError) as exc:
+            last_exc = exc
+            log.warning(
+                "_gemma_review_call: %s on attempt %d/%d",
+                type(exc).__name__, attempt + 1, max_retries + 1,
+            )
+        except Exception as exc:
+            last_exc = exc
+            log.warning("_gemma_review_call: unexpected error: %s", exc)
+            return None  # non-retryable unknown error
+
+        if attempt < max_retries:
+            backoff = 0.5 * (attempt + 1)
+            await asyncio.sleep(backoff)
+
+    log.error(
+        "_gemma_review_call: all %d attempts failed. last_exc=%s",
+        max_retries + 1, last_exc,
+    )
+    return None
+
+
+@_tag_task
+async def dual_role_chat(
+    messages: list[dict],
+    *,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    prefer_fast: bool = False,
+    wolfram_fallback: bool = True,
+) -> dict:
+    """
+    Two-stage AI pipeline exposed to all student-facing endpoints:
+
+    Stage 1 — PRIMARY (thinker):
+        The normal chat() cascade (Groq → Google → NVIDIA → OpenRouter → Ollama)
+        produces a full draft: reasoning, calculation, explanation.
+
+    Stage 2 — REVIEWER (editor):
+        google/diffusiongemma-26b-a4b-it on NVIDIA NIM receives the draft and
+        the original question, then returns a refined, student-ready answer.
+        Retried up to settings.nvidia_gemma_reviewer_max_retries times on
+        4xx / 5xx / timeout.  If all retries fail the draft is used as-is
+        (fail-open — never block the student).
+
+    WolframAlpha fallback:
+        If the primary model also fails AND the query looks computational,
+        WolframAlpha is tried as a last resort (wolfram_fallback=True by default).
+
+    Returns the same dict shape as chat():
+        {"text": str, "model": str, "draft": str, "reviewer_used": bool}
+    """
+    import logging
+
+    log = logging.getLogger("pclick")
+
+    last_user = next(
+        (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
+
+    # ── Stage 1: Primary model drafts ─────────────────────────────────────────
+    draft_text: str = ""
+    primary_model: str = "unknown"
+    primary_error: Exception | None = None
+
+    try:
+        resp = await chat(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            prefer_fast=prefer_fast,
+        )
+        draft_text = extract_text(resp)
+        primary_model = str(resp.get("model") or "primary")
+        log.info("dual_role_chat: primary OK, model=%s, draft_len=%d", primary_model, len(draft_text))
+    except Exception as exc:
+        primary_error = exc
+        log.warning("dual_role_chat: primary model failed: %s", exc)
+
+    # ── WolframAlpha fast-path if primary failed ───────────────────────────────
+    if not draft_text and wolfram_fallback and _wolfram.is_configured():
+        if _wolfram.looks_computational(last_user):
+            wolfram_answer = await _wolfram.compute(last_user)
+            if wolfram_answer:
+                log.info("dual_role_chat: WolframAlpha used after primary failure")
+                return {
+                    "text": wolfram_answer,
+                    "draft": wolfram_answer,
+                    "model": "wolframalpha",
+                    "reviewer_used": False,
+                    "wolfram_fallback": True,
+                }
+
+    # If primary completely failed and Wolfram didn't help, surface the error
+    if not draft_text:
+        raise primary_error or RuntimeError(
+            "All AI providers failed and WolframAlpha could not answer this query."
+        )
+
+    # ── Stage 2: Gemma reviewer refines the draft ──────────────────────────────
+    refined = await _gemma_review_call(draft_text, original_question=last_user)
+
+    if refined:
+        log.info(
+            "dual_role_chat: reviewer refined draft (%d→%d chars)",
+            len(draft_text), len(refined),
+        )
+        return {
+            "text": refined,
+            "draft": draft_text,
+            "model": settings.nvidia_gemma_reviewer_model,
+            "primary_model": primary_model,
+            "reviewer_used": True,
+        }
+
+    # Reviewer failed — use draft directly (fail-open)
+    log.warning(
+        "dual_role_chat: reviewer failed after %d retries — using draft",
+        settings.nvidia_gemma_reviewer_max_retries,
+    )
+    return {
+        "text": draft_text,
+        "draft": draft_text,
+        "model": primary_model,
+        "reviewer_used": False,
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Multi-Agent Persona Brain (GPT-4.1)
+# ──────────────────────────────────────────────────────────────────────────────
+# Architecture:
+#   "The brain" = GPT-4.1 (persona_mind_key / PERSONA_MIND_KEY).
+#   It reads the user's question + 3 persona character sheets loaded from
+#   Firebase, then "splits" into each character and produces an independent
+#   response per persona — all in a single structured API call.
+#
+# Flow:
+#   1. Caller provides: user_message, list of 3 persona dicts (from Firestore)
+#   2. Brain assembles a multi-character prompt where each persona has its own
+#      section with full cognitive profile + system prompt
+#   3. GPT-4.1 returns JSON: {responses: [{persona_id, name, response}]}
+#   4. Caller gets back the 3 independent character voices
+#
+# Fallback:
+#   If GPT-4.1 is unavailable / key not set → falls back to calling each
+#   persona sequentially through the standard chat() cascade (slower but safe).
+# ══════════════════════════════════════════════════════════════════════════════
+
+_MIND_SYSTEM_PROMPT = """\
+You are the master orchestrator of a multi-agent educational AI system.
+You embody multiple great scientists simultaneously, each with their own
+distinct voice, thinking style, and cognitive signature.
+
+You will receive:
+1. A student's question or problem
+2. Three character sheets describing three different scientists
+
+Your task: respond AS EACH scientist independently, staying 100% in character.
+Each response must reflect that scientist's specific:
+  - Epistemological style (how they build knowledge)
+  - Cognitive signature (Visual/Guidance/Experiment/Pace etc.)
+  - Vocabulary and metaphors they actually used
+  - Teaching approach unique to them
+
+Return ONLY valid JSON in this exact structure (no markdown, no preamble):
+{
+  "responses": [
+    {
+      "persona_id": "<id>",
+      "name": "<Full Name>",
+      "voice_tag": "<one-word character descriptor e.g. Visionary/Empiricist/Poet>",
+      "response": "<full in-character response, 3-6 sentences, use their authentic language>"
+    },
+    { ... },
+    { ... }
+  ]
+}
+"""
+
+
+def _build_character_sheet(persona: dict) -> str:
+    """Format a persona dict into a character sheet block for the brain prompt."""
+    name = persona.get("name", persona.get("id", "Unknown"))
+    field = persona.get("field", "")
+    style = persona.get("epistemological_style", "")
+    trait = persona.get("special_trait", "")
+    trait_val = persona.get("special_trait_value", "")
+    bio = persona.get("bio_highlights", "")
+    indices = persona.get("cognitive_indices", {})
+    system_prompt = persona.get("system_prompt", "")
+
+    idx_str = ", ".join(f"{k}={v}%" for k, v in indices.items()) if indices else ""
+
+    lines = [
+        f"=== CHARACTER: {name} (id: {persona.get('id', '')}) ===",
+        f"Field: {field}",
+    ]
+    if bio:
+        lines.append(f"Bio: {bio}")
+    if style:
+        lines.append(f"Thinking style: {style}")
+    if trait and trait_val:
+        lines.append(f"Signature trait — {trait}: {trait_val}%")
+    if idx_str:
+        lines.append(f"Cognitive profile: {idx_str}")
+    if system_prompt:
+        lines.append(f"Voice instruction: {system_prompt}")
+    return "\n".join(lines)
+
+
+async def _persona_mind_call(
+    user_message: str,
+    personas: list[dict],
+    *,
+    temperature: float = 0.85,
+    max_tokens: int = 2048,
+    timeout: float = 45.0,
+) -> dict:
+    """
+    Single GPT-4.1 call that produces 3 independent character responses.
+
+    personas: list of exactly 3 persona dicts (each with id, name, cognitive_indices,
+              epistemological_style, system_prompt etc.)
+
+    Returns raw API response dict — caller uses extract_text() + json.loads().
+    Raises RuntimeError if the key is not configured.
+    """
+    api_key = settings.persona_mind_key or settings.openai_api_key
+    if not api_key:
+        raise RuntimeError(
+            "No PERSONA_MIND_KEY or OPENAI_API_KEY configured — cannot run persona brain."
+        )
+
+    model = settings.persona_mind_model  # gpt-4.1
+
+    # Build the user content: character sheets + question
+    character_blocks = "\n\n".join(_build_character_sheet(p) for p in personas[:3])
+    user_content = (
+        f"{character_blocks}\n\n"
+        f"{'─' * 60}\n"
+        f"STUDENT QUESTION:\n{user_message}"
+    )
+
+    messages = [
+        {"role": "system", "content": _MIND_SYSTEM_PROMPT},
+        {"role": "user",   "content": user_content},
+    ]
+
+    payload: dict = {
+        "model":       model,
+        "messages":    messages,
+        "temperature": temperature,
+        "max_tokens":  max_tokens,
+        "stream":      False,
+        # Ask for structured JSON output
+        "response_format": {"type": "json_object"},
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type":  "application/json",
+    }
+
+    import logging
+    log = logging.getLogger("pclick")
+    log.info("_persona_mind_call: model=%s personas=%s", model, [p.get("id") for p in personas[:3]])
+
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        resp = await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        _record_usage("openai", data, model=model)
+        return data
+
+
+async def multi_agent_split(
+    user_message: str,
+    personas: list[dict],
+    *,
+    user_learning_style: dict | None = None,
+    fallback_to_cascade: bool = True,
+) -> dict:
+    """
+    Public entry point for the multi-agent persona brain.
+
+    Takes a user message + up to 3 persona dicts (loaded from Firebase by the
+    caller) and returns 3 distinct character responses.
+
+    If personas has < 3 entries, the list is padded with the best available
+    personas from the in-process canonical data.
+
+    Args:
+        user_message:         The student's question / problem text.
+        personas:             1–3 persona dicts from Firestore.
+        user_learning_style:  Optional slider dict — used to re-rank if < 3 given.
+        fallback_to_cascade:  If True and the GPT-4.1 call fails, fall back to
+                              calling each persona via the normal chat() cascade.
+
+    Returns:
+        {
+            "responses": [
+                {"persona_id": str, "name": str, "voice_tag": str, "response": str},
+                ...
+            ],
+            "model": str,
+            "brain": "gpt-4.1" | "cascade_fallback",
+        }
+    """
+    import json as _json
+    import logging
+    from app.services import personas as persona_svc
+
+    log = logging.getLogger("pclick")
+
+    # ── Ensure we have exactly 3 personas ────────────────────────────────────
+    selected = list(personas[:3])
+    if len(selected) < 3:
+        # Pad from canonical data (or Firestore) using cosine similarity if style given
+        all_personas = persona_svc.list_personas()
+        if not all_personas:
+            all_personas = [{"id": pid, **data} for pid, data in persona_svc.PERSONAS_DATA.items()]
+
+        existing_ids = {p.get("id") for p in selected}
+        candidates = [p for p in all_personas if p.get("id") not in existing_ids]
+
+        if user_learning_style and candidates:
+            ranked = persona_svc.match_personas(user_learning_style, personas=candidates,
+                                                top_n=3 - len(selected))
+            # match_personas returns dicts without system_prompt — enrich from canonical
+            for m in ranked:
+                pid = m["persona_id"]
+                full = persona_svc.get_persona(pid) or \
+                       {"id": pid, **persona_svc.PERSONAS_DATA.get(pid, {})}
+                full["system_prompt"] = persona_svc.get_system_prompt(pid) or \
+                                        persona_svc.PERSONAS_PROMPTS.get(pid, "")
+                selected.append(full)
+        else:
+            for p in candidates[:3 - len(selected)]:
+                p["system_prompt"] = persona_svc.get_system_prompt(p.get("id", "")) or \
+                                     persona_svc.PERSONAS_PROMPTS.get(p.get("id", ""), "")
+                selected.append(p)
+
+    # Enrich system_prompt on all 3 (may be missing if loaded from Firestore without subcollection)
+    for p in selected:
+        if not p.get("system_prompt"):
+            pid = p.get("id", "")
+            p["system_prompt"] = persona_svc.get_system_prompt(pid) or \
+                                 persona_svc.PERSONAS_PROMPTS.get(pid, "")
+
+    # ── Stage 1: Try GPT-4.1 brain ────────────────────────────────────────────
+    try:
+        raw_resp = await _persona_mind_call(user_message, selected)
+        raw_text = extract_text(raw_resp).strip()
+        parsed = _parse_json_robust(raw_text)
+
+        if parsed and isinstance(parsed.get("responses"), list) and len(parsed["responses"]) >= 1:
+            log.info("multi_agent_split: GPT-4.1 OK — %d responses", len(parsed["responses"]))
+            return {
+                "responses": parsed["responses"],
+                "model":     settings.persona_mind_model,
+                "brain":     "gpt-4.1",
+            }
+        log.warning("multi_agent_split: GPT-4.1 returned unparseable JSON — falling back")
+
+    except Exception as exc:
+        log.warning("multi_agent_split: GPT-4.1 failed (%s) — falling back", exc)
+        if not fallback_to_cascade:
+            raise
+
+    # ── Stage 2: Cascade fallback — call each persona via chat() separately ──
+    if not fallback_to_cascade:
+        raise RuntimeError("GPT-4.1 persona brain failed and fallback is disabled.")
+
+    log.info("multi_agent_split: using cascade fallback for %d personas", len(selected))
+    responses = []
+    for p in selected:
+        pid   = p.get("id", "")
+        pname = p.get("name", pid)
+        sys_p = p.get("system_prompt") or persona_svc.PERSONAS_PROMPTS.get(pid, "")
+        ctx   = persona_svc.persona_context_for_chat(pid, question=user_message)
+
+        messages = []
+        if ctx:
+            messages.append({"role": "system", "content": ctx})
+        elif sys_p:
+            messages.append({"role": "system", "content": sys_p})
+        messages.append({"role": "user", "content": user_message})
+
+        try:
+            resp = await chat(messages, temperature=0.85, max_tokens=512, prefer_fast=False)
+            text = extract_text(resp).strip()
+        except Exception as e:
+            text = f"[{pname} could not respond: {e}]"
+
+        responses.append({
+            "persona_id": pid,
+            "name":       pname,
+            "voice_tag":  p.get("epistemological_style", "")[:30] or "Scholar",
+            "response":   text,
+        })
+
+    return {
+        "responses": responses,
+        "model":     "cascade_fallback",
+        "brain":     "cascade_fallback",
+    }

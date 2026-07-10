@@ -44,6 +44,24 @@ CREATE TABLE IF NOT EXISTS ai_model_totals (
     first_used                TEXT    NOT NULL,
     last_used                 TEXT    NOT NULL
 );
+
+-- Safety guard violations log — every Nemotron Safety Guard check result.
+-- Never pruned (kept for compliance audit). Tracks data density
+-- (chars processed per request) for monitoring access patterns.
+CREATE TABLE IF NOT EXISTS safety_violations (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at        TEXT    NOT NULL,
+    user_id           TEXT    NOT NULL DEFAULT '',
+    endpoint          TEXT    NOT NULL DEFAULT '',
+    safe              INTEGER NOT NULL DEFAULT 1,
+    total_flagged     INTEGER NOT NULL DEFAULT 0,
+    flagged_categories TEXT   NOT NULL DEFAULT '{}',
+    response_length   INTEGER NOT NULL DEFAULT 0,
+    data_density_chars INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_safety_created_at ON safety_violations(created_at);
+CREATE INDEX IF NOT EXISTS idx_safety_user_id  ON safety_violations(user_id);
+CREATE INDEX IF NOT EXISTS idx_safety_safe     ON safety_violations(safe);
 """
 
 # Maps the Python function name that triggered the call (captured
@@ -167,6 +185,40 @@ def summary() -> dict:
                FROM ai_activity_log GROUP BY role, provider ORDER BY calls DESC"""
         ).fetchall()
     return {"total_calls": total, "by_role": [dict(r) for r in by_role]}
+
+
+def record_safety_violation(
+    user_id: str,
+    endpoint: str,
+    safe: bool,
+    total_flagged: int = 0,
+    flagged_categories: str = "{}",
+    response_length: int = 0,
+) -> None:
+    """
+    Record a safety guard check result with data density tracking.
+    
+    Tracks:
+      - How many flagged categories were detected
+      - Response length (chars) = data density metric per access
+      - Whether the response was blocked or passed
+    
+    Best-effort — never breaks the main request flow.
+    """
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        data_density = response_length  # chars processed = data density
+        with _conn() as c:
+            c.execute(
+                """INSERT INTO safety_violations
+                   (created_at, user_id, endpoint, safe, total_flagged,
+                    flagged_categories, response_length, data_density_chars)
+                   VALUES (?,?,?,?,?,?,?,?)""",
+                (now, user_id[:32], endpoint, 1 if safe else 0,
+                 total_flagged, flagged_categories, response_length, data_density),
+            )
+    except Exception:
+        pass
 
 
 def model_totals() -> list[dict]:
