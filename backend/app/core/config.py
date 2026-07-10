@@ -29,6 +29,17 @@ class Settings(BaseSettings):
     openai_model_analysis: str = "gpt-4o"
     openai_model_hints: str = "gpt-4o-mini"
 
+    # ── Team Phản Biện (Debate Team) ─────────────────────────────
+    # Pos 1 (OpenAI GPT-4o)  — phân tích 100% nội dung gốc
+    critique_openai_key: str = ""
+    critique_openai_model: str = "gpt-4o"
+    # Pos 2 (Groq)           — tập trung 50% cốt lõi nhất
+    critique_groq_key: str = ""
+    critique_groq_model: str = "qwen/qwen3-32b"
+    # Pos 3 (Ollama Cloud)   — 20% cốt, chắt lọc + điều phối tranh luận
+    critique_ollama_key: str = ""
+    critique_ollama_model: str = "qwen3.5:9b"
+
     # ── Ollama Cloud (multi-key rotation) ────────────────────
     ollama_api_key:   str = ""   # key 1 (primary)
     ollama_api_key_2: str = ""   # key 2
@@ -89,6 +100,12 @@ class Settings(BaseSettings):
     openrouter_primary_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
     openrouter_fallback_model: str = "qwen/qwen3-coder:free"
 
+    # ── WolframAlpha (computation plugin, SOC-17) ─────────────────
+    # Free AppID at https://developer.wolframalpha.com/access — used for exact
+    # arithmetic/equation-solving instead of burning an LLM call, and as a
+    # last-resort answer when every chat provider above is down or errors out.
+    wolfram_app_id: str = ""
+
     # ── API ──────────────────────────────────────────────────
     api_cors_origins: str = "http://localhost:3000"
     api_allow_dev_auth: bool = False
@@ -104,6 +121,21 @@ class Settings(BaseSettings):
     @property
     def admin_email_set(self) -> set[str]:
         return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    # ── Encryption (SOC-16) ──────────────────────────────────
+    # Primary encryption key (current) — used for new encryptions
+    # Generate with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'
+    encryption_key_primary: str = ""
+    # Secondary keys (for rotation) — comma-separated, used only for decryption
+    encryption_keys_secondary: str = ""
+
+    @property
+    def encryption_keys(self) -> list[str]:
+        """All encryption keys (primary + secondary) for key rotation support."""
+        keys = [self.encryption_key_primary] if self.encryption_key_primary else []
+        if self.encryption_keys_secondary:
+            keys.extend([k.strip() for k in self.encryption_keys_secondary.split(",") if k.strip()])
+        return keys
 
     # ── Derived ──────────────────────────────────────────────
     @property

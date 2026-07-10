@@ -23,6 +23,9 @@ from app.db.session import get_db
 from app.api.deps import get_current_user, require_auth
 from app.models.entities import FeatureUsageLog
 from app.services.content_safety import check_prompt, check_messages, check_upload
+from app.services import critique as critique_svc
+from app.services import rag as rag_svc
+from app.services import wolfram as wolfram_svc
 
 _s2s_logger = logging.getLogger("pclick.s2s")
 
@@ -356,6 +359,13 @@ class MasteryRequest(BaseModel):
     subject: str = ""
 
 
+class ReverseBuildRequest(BaseModel):
+    student_explanation: str
+    original_problem: str
+    required_tools: list[str] = []
+    subject_area: str = "math"
+
+
 class DecomposeRequest(BaseModel):
     pset_text: str
 
@@ -370,14 +380,49 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
     check_messages(req.messages)
     try:
+        last_user = next(
+            (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
+            "",
+        )
+
+        # ── WolframAlpha fast-path (SOC-17): pure computation queries don't
+        # need a full LLM call — exact, faster, and cheaper than an LLM
+        # doing arithmetic in its head.
+        if req.model is None and wolfram_svc.looks_computational(last_user):
+            wolfram_answer = await wolfram_svc.compute(last_user)
+            if wolfram_answer:
+                return {"text": wolfram_answer, "model": "wolframalpha", "usage": None}
+
+        # ── RAG (SOC-17): ground the answer in the indexed knowledge base
+        # to reduce hallucination. No-op until documents are indexed via
+        # /admin/rag/upload, and degrades silently if the embedding model
+        # isn't installed.
+        messages = req.messages
+        try:
+            rag_context = rag_svc.context_for(last_user) if last_user else ""
+        except Exception:
+            rag_context = ""
+        if rag_context:
+            messages = [
+                {"role": "system", "content": f"Reference material from the knowledge base (use if relevant, otherwise ignore):\n{rag_context}"},
+                *messages,
+            ]
+
         resp = await ai_svc.chat(
-            req.messages,
+            messages,
             model=req.model,
             temperature=req.temperature,
             max_tokens=req.max_tokens,
         )
+        text = ai_svc.extract_text(resp)
+        # ── Team Phản Biện: review before delivery ─────────────────────────
+        context = " ".join(
+            m.get("content", "") for m in req.messages if m.get("role") == "user"
+        )[-800:]  # last 800 chars of user context
+        text = await critique_svc.review(text, context=context)
+        # ──────────────────────────────────────────────────────────────────
         return {
-            "text": ai_svc.extract_text(resp),
+            "text": text,
             "model": resp.get("model"),
             "usage": resp.get("usage"),
         }
@@ -404,7 +449,50 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
     check_prompt(req.problem, "problem")
     try:
         hint = await ai_svc.get_hint(req.problem, req.level)
+        # ── Team Phản Biện ─────────────────────────────────────────────────
+        hint = await critique_svc.review(hint, context=req.problem)
+        # ──────────────────────────────────────────────────────────────────
         return {"hint": hint}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/ai/reverse-build-eval")
+@limiter.limit("15/minute")
+async def ai_reverse_build_eval(
+    request: Request,
+    req: ReverseBuildRequest,
+    _: dict = Depends(require_auth),
+):
+    """
+    Evaluate a student's REVERSE_BUILD explanation.
+
+    HARD GATE — tool_fidelity:
+      If the student used a lower-level method instead of required_tools
+      (e.g. algebra for a calculus problem), tool_fidelity.ok=False
+      and next_state="HINTING" is returned regardless of other scores.
+
+    Returns ReverseBuildEval:
+      {
+        tool_fidelity: { required_tools, used_tools, ok, mismatch_note },
+        conceptual_accuracy: "pass"|"partial"|"fail",
+        logical_flow:        "pass"|"partial"|"fail",
+        completeness:        "pass"|"partial"|"fail",
+        verdict:             "pass"|"partial"|"fail",
+        next_state:          "TRANSFER_TEST"|"REVERSE_BUILD_RETRY"|"HINTING",
+        feedback:            str  (shown to student)
+      }
+    """
+    check_prompt(req.student_explanation, "student_explanation")
+    check_prompt(req.original_problem, "original_problem")
+    try:
+        result = await ai_svc.evaluate_reverse_build(
+            student_explanation=req.student_explanation,
+            original_problem=req.original_problem,
+            required_tools=req.required_tools,
+            subject_area=req.subject_area,
+        )
+        return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -573,15 +661,62 @@ async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(requir
 async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
     """
     Upload a PDF or PNG/JPG image containing a problem set.
-    Extracts text (PDF) or uses vision OCR (images), then decomposes into question cards.
-    Returns { summary, problems: [{id, title, prompt, difficulty, concepts}], source_file }
+    1. Quick difficulty scan (title + overview only, Gemini Flash)
+    2. Full analysis via vision + decompose
+    3. Critique routing based on difficulty:
+       easy        → Pos1 + Pos3 package (fast)
+       medium      → Pos1 + Pos2 + Pos3 (standard)
+       hard/v_hard → Full 3-critic debate (thorough)
+    Returns { summary, problems, source_file, difficulty_assessment }
     """
+    import base64
     try:
         content  = await check_upload(file, max_bytes=10 * 1024 * 1024)
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
-        result   = await ai_svc.analyze_file_pset(content, fname, mime)
+
+        # ── Step 1: Quick difficulty scan ─────────────────────────────────
+        difficulty_info = {"difficulty": "medium", "rationale": "skipped", "subject_area": "other"}
+        try:
+            if mime.startswith("image/"):
+                scan_b64 = base64.b64encode(content).decode()
+            elif mime == "application/pdf" or fname.lower().endswith(".pdf"):
+                # Render first page to PNG for quick scan
+                try:
+                    import fitz
+                    doc = fitz.open(stream=content, filetype="pdf")
+                    page = doc[0]
+                    pix = page.get_pixmap(matrix=fitz.Matrix(1.5, 1.5))
+                    scan_b64 = base64.b64encode(pix.tobytes("png")).decode()
+                    doc.close()
+                except Exception:
+                    scan_b64 = ""
+            else:
+                scan_b64 = ""
+
+            if scan_b64:
+                difficulty_info = await ai_svc.quick_difficulty_scan(scan_b64, fname)
+        except Exception as e:
+            import logging
+            logging.getLogger("pclick").warning("quick_difficulty_scan failed: %s", e)
+
+        difficulty = difficulty_info.get("difficulty", "medium")
+
+        # ── Step 2: Full analysis ──────────────────────────────────────────
+        result = await ai_svc.analyze_file_pset(content, fname, mime)
+
+        # ── Step 3: Route critique based on difficulty ─────────────────────
+        if result.get("summary"):
+            pset_context = f"Problem set: {fname} | Subject: {difficulty_info.get('subject_area','')}"
+            result["summary"] = await critique_svc.routed_review(
+                result["summary"],
+                context=pset_context,
+                difficulty=difficulty,
+            )
+
+        result["difficulty_assessment"] = difficulty_info
         return result
+
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -852,6 +987,12 @@ async def ai_feynman(
 
         result = await ai_svc.feynman_evaluate(transcript, note_title, concepts)
         result["transcript"] = transcript
+        # ── Team Phản Biện: review reaction + questions before delivery ────
+        if result.get("reaction"):
+            result["reaction"] = await critique_svc.review(
+                result["reaction"], context=f"Feynman evaluation of: {note_title}"
+            )
+        # ──────────────────────────────────────────────────────────────────
 
         # Feed the personalization profile: gaps the 5-year-old persona
         # flagged are exactly "lỗ hổng tự phát hiện khi giảng lại" — the

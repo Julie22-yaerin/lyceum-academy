@@ -13,9 +13,14 @@ import re as _re
 from typing import Any
 
 from app.core.config import settings
+from app.services import rag as _rag
+from app.services import wolfram as _wolfram
 
 # ── Groq ──────────────────────────────────────────────────────────────────────
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
+
+# ── OpenAI ────────────────────────────────────────────────────────────────────
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 
 # ── Google AI Studio (OpenAI-compatible endpoint) ─────────────────────────────
 GOOGLE_CHAT_URL = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -28,6 +33,9 @@ OPENROUTER_CHAT_URL = "https://openrouter.ai/api/v1/chat/completions"
 OLLAMA_CHAT_URL = f"{settings.ollama_cloud_url}/api/chat"
 
 # ── Provider selection ────────────────────────────────────────────────────────
+
+def _use_openai() -> bool:
+    return bool(settings.openai_api_key)
 
 def _use_groq() -> bool:
     return bool(settings.groq_api_key)
@@ -56,6 +64,7 @@ _session_usage: dict[str, dict[str, int]] = {
     "groq":       {"prompt": 0, "completion": 0, "requests": 0},
     "google":     {"prompt": 0, "completion": 0, "requests": 0},
     "nvidia":     {"prompt": 0, "completion": 0, "requests": 0},
+    "openai":     {"prompt": 0, "completion": 0, "requests": 0},
     "openrouter": {"prompt": 0, "completion": 0, "requests": 0},
     "ollama":     {"prompt": 0, "completion": 0, "requests": 0},
 }
@@ -367,7 +376,7 @@ async def _gemini_vision_call(
     messages must be OpenAI-compatible with image_url content parts.
     """
     payload: dict[str, Any] = {
-        "model":       settings.google_primary_model,   # gemini-2.5-flash
+        "model":       settings.google_pro_model,   # gemini-2.5-pro (vision primary)
         "messages":    messages,
         "temperature": temperature,
         "max_tokens":  max_tokens,
@@ -378,12 +387,12 @@ async def _gemini_vision_call(
         "Content-Type":  "application/json",
     }
     import logging
-    logging.getLogger("pclick").info("_gemini_vision_call: model=%s", settings.google_primary_model)
+    logging.getLogger("pclick").info("_gemini_vision_call: model=%s", settings.google_pro_model)
     async with httpx.AsyncClient(timeout=90) as client:
         resp = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
         resp.raise_for_status()
         data = resp.json()
-        _record_usage("google", data, model=settings.google_primary_model)
+        _record_usage("google", data, model=settings.google_pro_model)
         return data
 
 
@@ -426,6 +435,38 @@ async def _nvidia_vision_call(
             log.warning("NVIDIA vision %s → %s: %s", model, resp.status_code, resp.text[:200])
         resp.raise_for_status()
         return resp.json()
+
+
+async def _openai_vision_call(
+    messages: list[dict],
+    temperature: float = 0.1,
+    max_tokens: int = 4096,
+    model: str = "gpt-4o",
+) -> dict:
+    """
+    Call OpenAI GPT-4o for multimodal (vision) tasks.
+    messages must be OpenAI-compatible with image_url content parts.
+    Uses a 90s timeout (vision can be slow for large images).
+    """
+    import logging
+    logging.getLogger("pclick").info("_openai_vision_call: model=%s", model)
+    payload: dict[str, Any] = {
+        "model":       model,
+        "messages":    messages,
+        "temperature": temperature,
+        "max_tokens":  max_tokens,
+        "stream":      False,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.openai_api_key}",
+        "Content-Type":  "application/json",
+    }
+    async with httpx.AsyncClient(timeout=90) as client:
+        resp = await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+        _record_usage("openai", data, model=model)
+        return data
 
 
 async def _ollama_call(
@@ -594,6 +635,20 @@ async def chat(
     if _use_ollama():
         ollama_model = settings.ollama_fast_model if prefer_fast else settings.ollama_primary_model
         return await _ollama_call(messages, ollama_model, temperature, max_tokens)
+
+    # ── WolframAlpha (last resort, SOC-17) ────────────────────────────────────
+    # Every chat provider above is down or errored — for a computational
+    # query, an exact WolframAlpha answer beats surfacing a bare failure.
+    if _wolfram.is_configured():
+        last_user = next(
+            (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
+            "",
+        )
+        if _wolfram.looks_computational(last_user):
+            answer = await _wolfram.compute(last_user)
+            if answer:
+                log.info("WolframAlpha fallback used — all chat providers failed")
+                return {"model": "wolframalpha", "message": {"content": answer}}
 
     tried = []
     if _use_groq():   tried.append("Groq")
@@ -888,16 +943,7 @@ async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
         ],
     }]
 
-    if settings.nvidia_vision_key:
-        try:
-            resp = await _nvidia_vision_call(messages, temperature=0.1, max_tokens=1024)
-            raw = extract_text(resp)
-            parsed = _parse_json_robust(raw)
-            if parsed and parsed.get("summary"):
-                return parsed
-        except Exception as e:
-            log.warning("analyze_mind_map_vision NVIDIA failed: %s", e)
-
+    # ── Primary: Gemini Pro 2.5 Vision ───────────────────────────────────────
     if _use_google():
         try:
             resp = await _gemini_vision_call(messages, temperature=0.1, max_tokens=1024)
@@ -906,7 +952,29 @@ async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
             if parsed and parsed.get("summary"):
                 return parsed
         except Exception as e:
-            log.warning("analyze_mind_map_vision Gemini fallback failed: %s", e)
+            log.warning("analyze_mind_map_vision Gemini Pro failed: %s", e)
+
+    # ── Secondary: OpenAI GPT-4o Vision ──────────────────────────────────────
+    if _use_openai():
+        try:
+            resp = await _openai_vision_call(messages, temperature=0.1, max_tokens=1024)
+            raw = extract_text(resp)
+            parsed = _parse_json_robust(raw)
+            if parsed and parsed.get("summary"):
+                return parsed
+        except Exception as e:
+            log.warning("analyze_mind_map_vision OpenAI failed: %s", e)
+
+    # ── Fallback: NVIDIA Llama 3.2 11B Vision (NIM) ──────────────────────────
+    if settings.nvidia_vision_key:
+        try:
+            resp = await _nvidia_vision_call(messages, temperature=0.1, max_tokens=1024)
+            raw = extract_text(resp)
+            parsed = _parse_json_robust(raw)
+            if parsed and parsed.get("summary"):
+                return parsed
+        except Exception as e:
+            log.warning("analyze_mind_map_vision NVIDIA Llama fallback failed: %s", e)
 
     return {
         "verdict": "unknown",
@@ -1693,9 +1761,9 @@ async def _vision_ocr_page(img_b64: str) -> str:
     """
     OCR a single rendered PDF page (base64 PNG).
     Priority:
-      1. Ollama vision model  (llama3.2-vision — free)
-      2. OpenRouter Gemini    (paid fallback, only if Ollama missing/fails)
-      3. pytesseract          (fully local, no API)
+      1. Ollama vision model   (free, if OLLAMA_VISION_MODEL set in .env)
+      2. Gemini Pro 2.5        (fallback if Ollama unavailable)
+      3. pytesseract           (fully local, no API)
     """
     import base64 as b64lib
 
@@ -1723,7 +1791,17 @@ async def _vision_ocr_page(img_b64: str) -> str:
         except Exception:
             pass
 
-    # 2. pytesseract (local, no API)
+    # 2. Gemini Pro 2.5 vision (fallback if Ollama unavailable/unconfigured)
+    if _use_google():
+        try:
+            resp = await _gemini_vision_call(ocr_prompt, temperature=0.0, max_tokens=2048)
+            text = extract_text(resp).strip()
+            if len(text) >= 30:
+                return text
+        except Exception:
+            pass
+
+    # 3. pytesseract (local, no API)
     img_bytes = b64lib.b64decode(img_b64)
     return _tesseract_ocr(img_bytes)
 
@@ -1759,6 +1837,86 @@ def _tesseract_ocr(image_bytes: bytes) -> str:
     except Exception as exc:
         log.warning("tesseract failed: %s", exc)
         return ""
+
+
+@_tag_task
+async def quick_difficulty_scan(image_b64: str, filename: str = "") -> dict:
+    """
+    Quick visual difficulty assessment — glances at title + first few problems
+    WITHOUT doing full extraction. Used to route PDF processing intensity.
+
+    Returns:
+      {
+        "difficulty": "easy" | "medium" | "hard" | "very_hard",
+        "rationale":  "<1 sentence>",
+        "subject_area": "<math|physics|chemistry|biology|other>",
+        "estimated_problems": <int | null>
+      }
+
+    Uses Gemini Flash (fast, cheap) — accuracy not critical here.
+    Falls back to Groq text-only heuristic on vision failure.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+
+    prompt_text = (
+        "Quick scan ONLY — no detailed analysis, no problem solving.\n\n"
+        "Look at:\n"
+        "1. Title / header\n"
+        "2. First 2-3 problems (just the surface — don't solve)\n\n"
+        "Estimate difficulty and return ONLY valid JSON (no markdown):\n"
+        '{"difficulty":"easy"|"medium"|"hard"|"very_hard",'
+        '"rationale":"<1 sentence>","subject_area":"math|physics|chemistry|biology|other",'
+        '"estimated_problems":<int or null>}\n\n'
+        "Difficulty scale:\n"
+        "- easy:      direct substitution, single formula, basic arithmetic\n"
+        "- medium:    multi-step, requires combining 2-3 concepts\n"
+        "- hard:      proof-required, deep conceptual understanding, complex algebra\n"
+        "- very_hard: olympiad-level, research-level, highly abstract"
+    )
+
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+            {"type": "text", "text": prompt_text},
+        ],
+    }]
+
+    # Use Gemini Flash (fast, low cost) for quick scan
+    if _use_google():
+        try:
+            payload: dict[str, Any] = {
+                "model":       settings.google_primary_model,  # gemini-2.5-flash
+                "messages":    messages,
+                "temperature": 0.1,
+                "max_tokens":  256,
+                "stream":      False,
+            }
+            headers = {
+                "Authorization": f"Bearer {settings.google_api_key}",
+                "Content-Type":  "application/json",
+            }
+            async with httpx.AsyncClient(timeout=20) as client:
+                resp = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                raw = extract_text(data)
+                parsed = _parse_json_robust(raw)
+                if parsed and parsed.get("difficulty"):
+                    log.info("quick_difficulty_scan: %s (%s)", parsed["difficulty"], filename)
+                    return parsed
+        except Exception as e:
+            log.warning("quick_difficulty_scan Gemini failed: %s", e)
+
+    # Fallback: default to medium so the standard 2-critic path runs
+    log.warning("quick_difficulty_scan: fallback → medium (filename=%s)", filename)
+    return {
+        "difficulty": "medium",
+        "rationale": "Could not assess — defaulting to medium",
+        "subject_area": "other",
+        "estimated_problems": None,
+    }
 
 
 def _crop_question_image(image_bytes: bytes, y_start: float, y_end: float) -> str:
@@ -1854,23 +2012,39 @@ async def analyze_image_pset_direct(
                     pass
         return parsed
 
-    # ── Attempt 1: Gemini Flash vision (primary — best for scientific images) ──
+    # ── Attempt 1: Gemini Pro 2.5 Vision (primary) ───────────────────────────
     if _use_google():
         try:
-            log.info("analyze_image_pset_direct: trying Gemini Flash vision")
+            log.info("analyze_image_pset_direct: trying Gemini Pro 2.5 vision")
             resp = await _gemini_vision_call(messages, temperature=0.1, max_tokens=4096)
             raw = extract_text(resp)
             parsed = _parse_json_robust(raw)
             if parsed and "problems" in parsed and len(parsed["problems"]) > 0:
                 _apply_crops(parsed)
                 parsed["source_file"] = filename
-                log.info("analyze_image_pset_direct: Gemini Flash vision succeeded (%d problems)", len(parsed["problems"]))
+                log.info("analyze_image_pset_direct: Gemini Pro vision succeeded (%d problems)", len(parsed["problems"]))
                 return parsed
-            log.warning("analyze_image_pset_direct: Gemini Flash returned no problems, trying NVIDIA")
+            log.warning("analyze_image_pset_direct: Gemini Pro returned no problems, trying OpenAI")
         except Exception as e:
-            log.warning("analyze_image_pset_direct: Gemini Flash vision failed (%s)", e)
+            log.warning("analyze_image_pset_direct: Gemini Pro vision failed (%s)", e)
 
-    # ── Attempt 2: NVIDIA Llama 3.2 11B Vision (fallback) ────────────────────
+    # ── Attempt 2: OpenAI GPT-4o Vision (secondary) ──────────────────────────
+    if _use_openai():
+        try:
+            log.info("analyze_image_pset_direct: trying OpenAI GPT-4o vision")
+            resp = await _openai_vision_call(messages, temperature=0.1, max_tokens=4096)
+            raw = extract_text(resp)
+            parsed = _parse_json_robust(raw)
+            if parsed and "problems" in parsed and len(parsed["problems"]) > 0:
+                _apply_crops(parsed)
+                parsed["source_file"] = filename
+                log.info("analyze_image_pset_direct: OpenAI GPT-4o succeeded (%d problems)", len(parsed["problems"]))
+                return parsed
+            log.warning("analyze_image_pset_direct: OpenAI returned no problems, trying NVIDIA NIM")
+        except Exception as e:
+            log.warning("analyze_image_pset_direct: OpenAI vision failed (%s)", e)
+
+    # ── Attempt 3: NVIDIA Llama 3.2 11B Vision (NIM fallback) ────────────────
     if settings.nvidia_vision_key:
         try:
             log.info("analyze_image_pset_direct: trying NVIDIA Llama 3.2 11B Vision")
@@ -1959,10 +2133,12 @@ async def analyze_image_pset_direct(
 
     # Nothing worked — return an informative error the frontend can display
     hints: list[str] = []
+    if not settings.openai_api_key:
+        hints.append("add OPENAI_API_KEY to .env for GPT-4o vision (primary)")
     if not settings.google_api_key:
-        hints.append("add GOOGLE_API_KEY to .env for Gemini Flash vision")
+        hints.append("add GOOGLE_API_KEY to .env for Gemini Pro 2.5 vision (secondary)")
     if not settings.nvidia_vision_key:
-        hints.append("add NVIDIA_VISION_KEY to .env for Llama 3.2 11B vision fallback")
+        hints.append("add NVIDIA_VISION_KEY to .env for Llama 3.2 11B vision (NIM fallback)")
     hints.append("brew install tesseract  (if not installed)")
     hints.append("try pasting the text manually instead")
 
@@ -2472,9 +2648,14 @@ async def decompose_pset(pset_text: str) -> dict:
         f"- {_MATH_NOTATION_RULE}\n"
         "- prompt: copy the full problem text on ONE LINE. Wrap math expressions in LaTeX delimiters: $x^2$ for inline, $$\\frac{a}{b}$$ for display. Example: 'Find $\\frac{d}{dx}[x^2 + 3x]$ at $x=2$.'\n"
         "- difficulty: easy | medium | hard | extreme\n"
+        "- concepts: broad topic tags (e.g. ['calculus', 'derivatives'])\n"
+        "- required_tools: SPECIFIC methods/algorithms the student MUST use to solve this — not topic names, but actual techniques. "
+        "Example: calculus problem → ['power rule', 'chain rule'], NOT ['calculus']. "
+        "Integration problem → ['substitution', 'integration by parts']. "
+        "This list is used to enforce that students explain using the correct tools, not lower-level shortcuts.\n"
         "- If text looks like a problem set, return EVERY task as a separate problem.\n\n"
         'Return ONLY valid JSON (no markdown, no extra text, no backslash commands in strings):\n'
-        '{"summary":"...","problems":[{"id":"1","title":"...","prompt":"...","difficulty":"medium","concepts":["..."]}]}'
+        '{"summary":"...","problems":[{"id":"1","title":"...","prompt":"...","difficulty":"medium","concepts":["..."],"required_tools":["..."]}]}'
     )
 
     raw1 = ""
@@ -2703,8 +2884,25 @@ async def get_hint(problem_text: str, hint_level: int = 1) -> str:
         3: "Walk through the first concrete step. Still don't give the answer.",
     }.get(hint_level, "Give a helpful hint.")
 
+    system = (
+        f"You are a Socratic math tutor. {guidance} "
+        "Use LaTeX for all math expressions: $...$ for inline, $$...$$ for display math."
+    )
+    # ── RAG (SOC-17): ground hints in the indexed knowledge base to cut
+    # down on factual/notational drift. Reference only — never quote the
+    # final answer, that would defeat the Socratic method above.
+    try:
+        rag_context = _rag.context_for(problem_text)
+    except Exception:
+        rag_context = ""   # embedding model unavailable / KB not ready — degrade silently
+    if rag_context:
+        system += (
+            "\n\nReference material from the knowledge base (for your own accuracy only — "
+            f"do not reveal the solution):\n{rag_context}"
+        )
+
     resp = await chat(
-        [{"role": "system", "content": f"You are a Socratic math tutor. {guidance} Use LaTeX for all math expressions: $...$ for inline, $$...$$ for display math."},
+        [{"role": "system", "content": system},
          {"role": "user",   "content": f"Problem:\n{problem_text}"}],
         temperature=0.5,
         max_tokens=512,
@@ -3680,3 +3878,216 @@ async def grade_dual(items: list[dict]) -> dict:
             log.warning("grade_dual: Gemma suggestions failed: %s", e)
 
     return {"grades": grades}
+
+
+# ── REVERSE_BUILD Evaluator ───────────────────────────────────────────────────
+#
+# Schema: ReverseBuildEval
+# {
+#   "tool_fidelity": {
+#     "required_tools": [...],     # từ problem.required_tools
+#     "used_tools":     [...],     # AI detect từ lời giải thích của hs
+#     "ok":             bool,      # HARD GATE — false → HINTING ngay
+#     "mismatch_note":  str        # VD: "Bài calculus nhưng chỉ dùng algebra"
+#   },
+#   "conceptual_accuracy": "pass"|"partial"|"fail",
+#   "logical_flow":        "pass"|"partial"|"fail",
+#   "completeness":        "pass"|"partial"|"fail",
+#   "verdict":             "pass"|"partial"|"fail",
+#   "next_state":          "TRANSFER_TEST"|"REVERSE_BUILD_RETRY"|"HINTING",
+#   "feedback":            str   # hiển thị cho học sinh
+# }
+#
+# Transition rules (enforce ở đây, không để CoreTutor tự tính lại):
+#   tool_fidelity.ok = false          → HINTING  (hard gate)
+#   all 3 criteria = "pass"           → TRANSFER_TEST
+#   any "partial", no "fail"          → REVERSE_BUILD_RETRY
+#   any "fail" (tool_fidelity ok)     → HINTING
+# ─────────────────────────────────────────────────────────────────────────────
+
+_REVERSE_BUILD_SYSTEM = """\
+Bạn đánh giá bài giải thích lại (REVERSE_BUILD) của học sinh trong hệ thống dạy học Socratic.
+
+━━━ QUY TẮC CỨNG — TOOL FIDELITY ━━━
+Học sinh PHẢI sử dụng đúng công cụ/phương pháp đang được học trong bài.
+KHÔNG CHẤP NHẬN thay thế bằng phương pháp cấp thấp hơn — dù kết quả đúng.
+
+Ví dụ vi phạm:
+  • Bài yêu cầu đạo hàm (derivatives) → học sinh chỉ dùng algebra thuần (KHÔNG ĐẠT)
+  • Bài yêu cầu tích phân → học sinh đếm diện tích hình chữ nhật (KHÔNG ĐẠT)
+  • Bài yêu cầu quy nạp toán học → học sinh chứng minh thủ công cho n=1,2,3 (KHÔNG ĐẠT)
+  • Bài xác suất Bayes → học sinh liệt kê tất cả trường hợp thay vì dùng công thức (KHÔNG ĐẠT)
+
+Mục tiêu: buộc học sinh rèn luyện đúng công cụ đang học, không để họ "phá cách" bằng cách
+dùng kiến thức cũ để né tránh công cụ mới.
+
+Nếu tool_fidelity.ok = false → next_state = "HINTING" bất kể điểm khác.
+
+━━━ CÁC TIÊU CHÍ ĐÁNH GIÁ (chỉ khi tool_fidelity.ok = true) ━━━
+1. conceptual_accuracy — học sinh hiểu đúng BẢN CHẤT tại sao phương pháp hoạt động không
+2. logical_flow        — các bước diễn giải có theo trình tự logic không
+3. completeness        — có đề cập đủ các điểm quan trọng của lời giải không
+
+━━━ QUY TẮC CHUYỂN STATE ━━━
+  tool_fidelity.ok = false                     → next_state = "HINTING"
+  tất cả 3 tiêu chí = "pass"                  → next_state = "TRANSFER_TEST"
+  có "partial", không có "fail"                → next_state = "REVERSE_BUILD_RETRY"
+  có "fail" bất kỳ (dù tool_fidelity ok)      → next_state = "HINTING"
+
+━━━ FEEDBACK ━━━
+Viết feedback bằng ngôn ngữ giống ngôn ngữ học sinh dùng (tiếng Việt hoặc tiếng Anh).
+Nếu tool_fidelity.ok = false: giải thích rõ tại sao cần dùng công cụ đang học,
+  KHÔNG nói "sai" mà nói "em cần luyện thêm cách dùng [công cụ]".
+Nếu REVERSE_BUILD_RETRY: gợi ý nhỏ về điểm thiếu, không cho đáp án.
+
+Return ONLY valid JSON (no markdown, no extra text):
+{
+  "tool_fidelity": {
+    "required_tools": ["..."],
+    "used_tools": ["..."],
+    "ok": true,
+    "mismatch_note": ""
+  },
+  "conceptual_accuracy": "pass",
+  "logical_flow": "pass",
+  "completeness": "pass",
+  "verdict": "pass",
+  "next_state": "TRANSFER_TEST",
+  "feedback": "..."
+}"""
+
+
+@_tag_task
+async def evaluate_reverse_build(
+    student_explanation: str,
+    original_problem: str,
+    required_tools: list[str],
+    subject_area: str = "math",
+) -> dict:
+    """
+    Evaluate a student's REVERSE_BUILD explanation.
+
+    HARD GATE: if the student used a lower-level method instead of the
+    required tools (e.g. algebra instead of calculus), tool_fidelity.ok=False
+    → next_state="HINTING" regardless of all other scores.
+
+    Parameters
+    ----------
+    student_explanation : str  — học sinh tự giải thích lời giải bằng lời của mình
+    original_problem    : str  — đề bài gốc
+    required_tools      : list — từ problem.required_tools (extract lúc phân tích pset)
+    subject_area        : str  — "math"|"physics"|"chemistry"|"biology"|"other"
+
+    Returns ReverseBuildEval dict (never raises — returns safe fallback on error).
+    """
+    import logging, json
+    log = logging.getLogger("pclick")
+
+    # Fallback result (safe — không block học sinh nếu evaluator crash)
+    _fallback: dict = {
+        "tool_fidelity": {
+            "required_tools": required_tools,
+            "used_tools": [],
+            "ok": True,
+            "mismatch_note": "",
+        },
+        "conceptual_accuracy": "partial",
+        "logical_flow": "partial",
+        "completeness": "partial",
+        "verdict": "partial",
+        "next_state": "REVERSE_BUILD_RETRY",
+        "feedback": "Hãy thử giải thích lại rõ hơn về các bước bạn đã làm.",
+    }
+
+    if not student_explanation.strip():
+        return {**_fallback, "next_state": "HINTING",
+                "feedback": "Bạn chưa giải thích gì. Hãy thử diễn đạt bằng lời của mình."}
+
+    tools_str = ", ".join(required_tools) if required_tools else "(not specified)"
+    user_content = (
+        f"CHỦ ĐỀ: {subject_area}\n"
+        f"CÔNG CỤ BẮT BUỘC: {tools_str}\n\n"
+        f"ĐỀ BÀI GỐC:\n{original_problem}\n\n"
+        f"GIẢI THÍCH CỦA HỌC SINH:\n{student_explanation}"
+    )
+    messages = [
+        {"role": "system", "content": _REVERSE_BUILD_SYSTEM},
+        {"role": "user",   "content": user_content},
+    ]
+
+    raw = ""
+
+    # Primary: Gemini Pro 2.5 (same vision key as the rest of the file)
+    if _use_google():
+        try:
+            resp = await _google_call(
+                messages,
+                model=settings.google_pro_model,
+                temperature=0.1,
+                max_tokens=1024,
+            )
+            raw = extract_text(resp).strip()
+            log.info("evaluate_reverse_build: Gemini Pro OK (%d chars)", len(raw))
+        except Exception as e:
+            log.warning("evaluate_reverse_build: Gemini Pro failed: %s", e)
+            raw = ""
+
+    # Fallback: OpenAI GPT-4o
+    if not raw and _use_openai():
+        try:
+            payload: dict[str, Any] = {
+                "model":       "gpt-4o",
+                "messages":    messages,
+                "temperature": 0.1,
+                "max_tokens":  1024,
+                "stream":      False,
+            }
+            headers = {
+                "Authorization": f"Bearer {settings.openai_api_key}",
+                "Content-Type":  "application/json",
+            }
+            async with httpx.AsyncClient(timeout=30) as client:
+                resp_http = await client.post(OPENAI_CHAT_URL, headers=headers, json=payload)
+                resp_http.raise_for_status()
+                raw = extract_text(resp_http.json()).strip()
+            log.info("evaluate_reverse_build: GPT-4o fallback OK (%d chars)", len(raw))
+        except Exception as e:
+            log.warning("evaluate_reverse_build: GPT-4o failed: %s", e)
+            raw = ""
+
+    if not raw:
+        log.error("evaluate_reverse_build: all providers failed — returning safe fallback")
+        return _fallback
+
+    parsed = _parse_json_robust(raw)
+    if not parsed or "tool_fidelity" not in parsed:
+        log.warning("evaluate_reverse_build: JSON parse failed. raw=%s", raw[:300])
+        return _fallback
+
+    # Enforce transition rules (belt-and-suspenders — AI should follow them too)
+    tf = parsed.get("tool_fidelity", {})
+    tf_ok = tf.get("ok", True)
+
+    ca = parsed.get("conceptual_accuracy", "partial")
+    lf = parsed.get("logical_flow", "partial")
+    co = parsed.get("completeness", "partial")
+
+    if not tf_ok:
+        parsed["next_state"] = "HINTING"
+        parsed["verdict"] = "fail"
+    elif ca == "fail" or lf == "fail" or co == "fail":
+        parsed["next_state"] = "HINTING"
+        parsed["verdict"] = "fail"
+    elif ca == "pass" and lf == "pass" and co == "pass":
+        parsed["next_state"] = "TRANSFER_TEST"
+        parsed["verdict"] = "pass"
+    else:
+        parsed["next_state"] = "REVERSE_BUILD_RETRY"
+        if parsed.get("verdict") not in ("pass", "partial", "fail"):
+            parsed["verdict"] = "partial"
+
+    log.info(
+        "evaluate_reverse_build: tool_fidelity=%s verdict=%s next_state=%s",
+        tf_ok, parsed["verdict"], parsed["next_state"],
+    )
+    return parsed
