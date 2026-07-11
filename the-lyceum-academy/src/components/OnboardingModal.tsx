@@ -185,7 +185,7 @@ function PlanCard({
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 22 }}>{plan.emoji}</span>
-        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400 }}>{plan.name}</span>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: 'rgba(0,0,0,0.85)' }}>{plan.name}</span>
         {plan.flagship && (
           <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>★ Best</span>
         )}
@@ -328,7 +328,7 @@ function LearningStyleSliders({
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧠</span>
-        <p style={{ fontSize: 18, margin: '0 0 6px' }}>What's your brain's fav?</p>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What's your brain's fav?</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
           Drag each bar toward the style you prefer. This helps us pair you with the right AI study partner.
         </p>
@@ -454,7 +454,7 @@ function PersonaSelection({
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧪</span>
-        <p style={{ fontSize: 18, margin: '0 0 6px' }}>Choose your 3 AI study partners</p>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Choose your 3 AI study partners</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
           Ranked by how well they match your style. Drag to reorder, or click to select. Pick exactly 3.
         </p>
@@ -740,8 +740,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Success state ── */}
           {paid && (
             <div className="ob-enter" style={{ textAlign: 'center', padding: '40px 0' }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>✦</div>
-              <p style={{ fontSize: 22, marginBottom: 8 }}>Welcome to The Lyceum</p>
+              <div style={{ fontSize: 48, marginBottom: 16, color: '#C5A059' }}>✦</div>
+              <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(0,0,0,0.85)' }}>Welcome to The Lyceum</p>
               <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
             </div>
           )}
@@ -772,8 +772,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Goal-date screen ── */}
           {!paid && phase === 'goal' && (
             <div className="ob-enter">
-              <span style={{ fontSize: 40, display: 'block', textAlign: 'center', marginBottom: 8 }}>♟</span>
-              <p style={{ fontSize: 18, textAlign: 'center', margin: '0 0 6px' }}>Pick a target day</p>
+              <span style={{ fontSize: 40, display: 'block', textAlign: 'center', marginBottom: 8, color: '#C5A059' }}>♟</span>
+              <p style={{ fontSize: 18, textAlign: 'center', margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Pick a target day</p>
               <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', textAlign: 'center', margin: '0 0 22px', lineHeight: 1.6 }}>
                 A deadline, an upcoming exam — anything that gives your studying a finish line. From today, every day you show up earns a glass pawn; reach this day and it becomes a glass king.
               </p>
