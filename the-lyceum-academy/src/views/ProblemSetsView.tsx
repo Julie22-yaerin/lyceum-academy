@@ -417,10 +417,14 @@ function LensView({
 
   // ── Immediate per-question grading + REVERSE_BUILD rescue ─────────────────
   // Countdown hits zero OR the student presses OK → grade right then, not at
-  // the end. 3 wrong attempts on the same question → reveal the solution and
-  // require the student to rebuild the reasoning from scratch before moving
-  // on. Every question rescued this way is queued for a bonus round of
-  // AI-generated variant questions once the whole set is done.
+  // the end. REVERSE_BUILD (reveal the solution, then rebuild the reasoning
+  // from scratch) is a voluntary lifeline the student can spend on ANY
+  // question the moment they feel stuck — not gated behind a wrong-attempt
+  // count — capped at 3 uses per problem set (persisted per docKey so it
+  // survives resuming a saved set). Every question rescued this way is
+  // queued for a bonus round of AI-generated variant questions once the
+  // whole set is done.
+  const MAX_RESCUES = 3;
   const [checkingAnswer, setCheckingAnswer] = useState(false);
   const [wrongAttempts, setWrongAttempts] = useState<Record<string, number>>({});
   const [reverseBuild, setReverseBuild] = useState<{
@@ -433,8 +437,16 @@ function LensView({
     verdict: 'pass' | 'partial' | 'fail' | null;
     submitting: boolean;
   } | null>(null);
+  const [rescuesUsed, setRescuesUsed] = useState(() => {
+    try { return Number(localStorage.getItem(`lyceum_rescues_${docKey}`)) || 0; } catch { return 0; }
+  });
   const rescuedRef = useRef<Question[]>([]);
   const submittingRef = useRef(false);
+
+  useEffect(() => {
+    if (!docKey) return;
+    try { localStorage.setItem(`lyceum_rescues_${docKey}`, String(rescuesUsed)); } catch { /* ignore */ }
+  }, [rescuesUsed, docKey]);
 
   async function getAnswerTextForGrading(): Promise<string> {
     if (mode === 'text') return answer.trim();
@@ -462,6 +474,15 @@ function LensView({
     }
   }
 
+  // Voluntary lifeline — the student spends one of their 3 rescues the
+  // moment they click it, whatever question they're currently stuck on.
+  function useRescue() {
+    if (rescuesUsed >= MAX_RESCUES || reverseBuild || checkingAnswer) return;
+    const subject = q.concepts[0] ? detectSubject(q.concepts[0]) : detectSubject(q.prompt);
+    setRescuesUsed(n => n + 1);
+    startReverseBuild(subject);
+  }
+
   async function submitAnswer(fromTimeout = false) {
     // submittingRef (not just checkingAnswer/reverseBuild) covers the whole
     // flow including the post-grade advance delay, so a countdown hitting
@@ -476,11 +497,9 @@ function LensView({
       if (!text) {
         if (!fromTimeout) return; // manual OK with nothing written — no-op
         // Timeout with nothing written — counts as a miss, no need to burn an API call
-        const attempts = (wrongAttempts[curQ.id] ?? 0) + 1;
-        setWrongAttempts(prev => ({ ...prev, [curQ.id]: attempts }));
+        setWrongAttempts(prev => ({ ...prev, [curQ.id]: (prev[curQ.id] ?? 0) + 1 }));
         setMasteryResult({ passed: false, feedback: "Time's up — you didn't write an answer." });
-        if (attempts >= 3) await startReverseBuild(subject);
-        else resetTimerForRetry(curQ.id);
+        resetTimerForRetry(curQ.id);
         return;
       }
 
@@ -501,10 +520,8 @@ function LensView({
         return;
       }
 
-      const attempts = (wrongAttempts[curQ.id] ?? 0) + 1;
-      setWrongAttempts(prev => ({ ...prev, [curQ.id]: attempts }));
-      if (attempts >= 3) await startReverseBuild(subject);
-      else resetTimerForRetry(curQ.id);
+      setWrongAttempts(prev => ({ ...prev, [curQ.id]: (prev[curQ.id] ?? 0) + 1 }));
+      resetTimerForRetry(curQ.id);
     } finally {
       submittingRef.current = false;
     }
@@ -1296,7 +1313,7 @@ function LensView({
           {masteryResult ? (
             <div className={`border p-4 ${masteryResult.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <span className={`font-sans text-[10px] uppercase tracking-[2px] font-semibold block mb-1.5 ${masteryResult.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {masteryResult.passed ? '✓ Correct' : `◯ Not quite — attempt ${wrongAttempts[q.id] ?? 1} of 3`}
+                {masteryResult.passed ? '✓ Correct' : `◯ Not quite — attempt ${wrongAttempts[q.id] ?? 1}`}
               </span>
               <p className="font-sans text-sm leading-relaxed opacity-80" dangerouslySetInnerHTML={{ __html: renderMath(masteryResult.feedback) }} />
               {!masteryResult.passed && (
@@ -1435,6 +1452,15 @@ function LensView({
             Distil
           </button>
 
+          {/* Stuck? — voluntary REVERSE_BUILD lifeline, max 3 per problem set */}
+          <button onClick={useRescue}
+            disabled={locked || tearing || rescuesUsed >= MAX_RESCUES}
+            title={rescuesUsed >= MAX_RESCUES ? 'No rescues left for this problem set' : 'Reveal the solution and rebuild the reasoning from scratch'}
+            className="flex items-center gap-1 font-sans text-[9px] uppercase tracking-[2px] text-amber-400/80 hover:text-amber-300 transition-colors disabled:opacity-20 disabled:text-white/40 px-2 py-1.5">
+            <span className="text-[11px]">🆘</span>
+            Stuck? {MAX_RESCUES - rescuesUsed}/{MAX_RESCUES} left
+          </button>
+
           {/* Check mastery (secondary — small text button) */}
           <button onClick={handleMastery}
             disabled={busy || tearing || (locked) || !!masteryResult || (mode === 'text' ? !answer.trim() : !canvasTranscript.trim())}
@@ -1462,12 +1488,12 @@ function LensView({
         </div>}
       </div>
 
-      {/* ── REVERSE_BUILD rescue overlay — 3 wrong attempts on this question ── */}
+      {/* ── REVERSE_BUILD rescue overlay — voluntary lifeline, max 3/pset ── */}
       {reverseBuild && (
         <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6">
           <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-surface-container-lowest border border-outline-variant/30 p-6 flex flex-col gap-4">
             <div>
-              <span className="font-sans text-[9px] uppercase tracking-[2px] text-red-400">Three misses — let's rebuild it</span>
+              <span className="font-sans text-[9px] uppercase tracking-[2px] text-red-400">Rescue used — let's rebuild it</span>
               <p className="font-sans text-xs opacity-50 mt-1">Here's the worked solution. Read it, then explain the method back in your own words — from scratch — to move on.</p>
             </div>
 

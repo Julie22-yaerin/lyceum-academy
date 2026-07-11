@@ -15,7 +15,6 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
-import BookTreeIntro from '../components/BookTreeIntro';
 
 // ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
 const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
@@ -166,10 +165,6 @@ const stagger = {
 };
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
-  const [showIntro, setShowIntro] = useState(
-    () => typeof window === 'undefined' || sessionStorage.getItem('lyceum-intro-seen') !== '1'
-  );
-
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     if (typeof window === 'undefined') return 'dark';
     return localStorage.getItem('lyceum-theme') === 'light' ? 'light' : 'dark';
@@ -179,11 +174,6 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
     localStorage.setItem('lyceum-theme', theme);
   }, [theme]);
 
-  const dismissIntro = () => {
-    sessionStorage.setItem('lyceum-intro-seen', '1');
-    setShowIntro(false);
-  };
-
   return (
     <div
       className={
@@ -191,10 +181,6 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         'bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500'
       }
     >
-      <AnimatePresence>
-        {showIntro && <BookTreeIntro onEnter={dismissIntro} theme={theme} />}
-      </AnimatePresence>
-
       {/* Ambient background orbs */}
       <div className="ambient-orbs">
         <div className="orb-1" />
