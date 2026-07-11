@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage } from '../lib/api';
+import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion } from '../lib/api';
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
@@ -28,6 +28,13 @@ interface Question {
   yStart?: number;   // % from top (lens mode)
   yEnd?: number;     // % from top (lens mode)
   image_url?: string;
+}
+
+interface QuestionTimer {
+  remaining: number;    // seconds remaining
+  total: number;        // total seconds
+  timedOut: boolean;
+  started: boolean;
 }
 
 interface GradeSuggestion {
@@ -308,6 +315,8 @@ function LensView({
   onClean,
   onPageBoundary,
   onNavigate,
+  analysis,
+  onAllQuestionsDone,
 }: {
   questions: Question[];
   pages: PdfPage[];
@@ -319,6 +328,8 @@ function LensView({
   onClean: (idx: number) => Promise<void>;
   onPageBoundary?: (nextPage: number) => void;
   onNavigate?: (view: string) => void;
+  analysis?: PsetAnalysis | null;
+  onAllQuestionsDone?: (rescuedQuestions: Question[]) => void;
 }) {
   const [idx, setIdx] = useState(startIdx);
   const [mode, setMode] = useState<'text' | 'canvas'>('text');
@@ -333,6 +344,200 @@ function LensView({
   const [showQuestion, setShowQuestion] = useState(false);
   const [showLibrary, setShowLibrary] = useState(true);
   const [, setKatexTick] = useState(0);
+
+  // ── Timer state ──
+  const [timers, setTimers] = useState<Record<string, QuestionTimer>>({});
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function getEstimatedSeconds(qId: string): number {
+    if (!analysis?.estimated_time_per_question) return 0;
+    const found = analysis.estimated_time_per_question.find(e => e.id === qId);
+    return found ? found.estimated_minutes * 60 : 0;
+  }
+
+  // Start/reset timer when question changes
+  useEffect(() => {
+    const curQ = questions[idx];
+    if (!analysis || !curQ) return;
+    const secs = getEstimatedSeconds(curQ.id);
+    if (secs <= 0) return;
+    if (timers[curQ.id]?.started && !timers[curQ.id]?.timedOut) {
+      // Timer already running for this question — don't reset
+      return;
+    }
+    setTimers(prev => ({
+      ...prev,
+      [curQ.id]: { remaining: secs, total: secs, timedOut: false, started: true },
+    }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, analysis]);
+
+  // Countdown tick
+  useEffect(() => {
+    const curQ = questions[idx];
+    if (!curQ || !timers[curQ.id]?.started || timers[curQ.id]?.timedOut) return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setTimers(prev => {
+        const cur = prev[curQ.id];
+        if (!cur || cur.timedOut || cur.remaining <= 0) {
+          if (timerRef.current) clearInterval(timerRef.current);
+          return prev;
+        }
+        const newRemaining = cur.remaining - 1;
+        if (newRemaining <= 0) {
+          return { ...prev, [curQ.id]: { ...cur, remaining: 0, timedOut: true } };
+        }
+        return { ...prev, [curQ.id]: { ...cur, remaining: newRemaining } };
+      });
+    }, 1000);
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idx, timers[questions[idx]?.id]?.started, timers[questions[idx]?.id]?.timedOut]);
+
+  function formatTime(seconds: number): string {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  function timerColor(remaining: number, total: number): string {
+    if (remaining <= 0) return 'text-red-400';
+    const ratio = remaining / total;
+    if (ratio <= 0.25) return 'text-red-400 animate-pulse';
+    if (ratio <= 0.5) return 'text-amber-400';
+    return 'text-emerald-400';
+  }
+
+  function resetTimerForRetry(qId: string) {
+    const secs = getEstimatedSeconds(qId);
+    if (secs <= 0) return;
+    setTimers(prev => ({ ...prev, [qId]: { remaining: secs, total: secs, timedOut: false, started: true } }));
+  }
+
+  // ── Immediate per-question grading + REVERSE_BUILD rescue ─────────────────
+  // Countdown hits zero OR the student presses OK → grade right then, not at
+  // the end. 3 wrong attempts on the same question → reveal the solution and
+  // require the student to rebuild the reasoning from scratch before moving
+  // on. Every question rescued this way is queued for a bonus round of
+  // AI-generated variant questions once the whole set is done.
+  const [checkingAnswer, setCheckingAnswer] = useState(false);
+  const [wrongAttempts, setWrongAttempts] = useState<Record<string, number>>({});
+  const [reverseBuild, setReverseBuild] = useState<{
+    qId: string;
+    loadingSolution: boolean;
+    solution: string;
+    requiredTools: string[];
+    explanation: string;
+    feedback: string;
+    verdict: 'pass' | 'partial' | 'fail' | null;
+    submitting: boolean;
+  } | null>(null);
+  const rescuedRef = useRef<Question[]>([]);
+  const submittingRef = useRef(false);
+
+  async function getAnswerTextForGrading(): Promise<string> {
+    if (mode === 'text') return answer.trim();
+    if (canvasTranscript.trim()) return canvasTranscript.trim();
+    if (canvasRef.current) {
+      try {
+        const r = await describeDrawing(canvasRef.current.toDataURL('image/png'));
+        setCanvasTranscript(r.text);
+        return r.text.trim();
+      } catch { /* fall through — nothing to grade */ }
+    }
+    return '';
+  }
+
+  async function startReverseBuild(subject: string) {
+    setReverseBuild({
+      qId: q.id, loadingSolution: true, solution: '', requiredTools: [],
+      explanation: '', feedback: '', verdict: null, submitting: false,
+    });
+    try {
+      const { solution, required_tools } = await revealSolution(q.prompt, q.concepts, subject);
+      setReverseBuild(rb => (rb && rb.qId === q.id) ? { ...rb, loadingSolution: false, solution, requiredTools: required_tools } : rb);
+    } catch (e: any) {
+      setReverseBuild(rb => (rb && rb.qId === q.id) ? { ...rb, loadingSolution: false, solution: e.message || 'Could not load the solution — try again.' } : rb);
+    }
+  }
+
+  async function submitAnswer(fromTimeout = false) {
+    // submittingRef (not just checkingAnswer/reverseBuild) covers the whole
+    // flow including the post-grade advance delay, so a countdown hitting
+    // zero in that brief window can't sneak in a second submission.
+    if (submittingRef.current || checkingAnswer || reverseBuild) return;
+    submittingRef.current = true;
+    try {
+      const curQ = q;
+      const subject = curQ.concepts[0] ? detectSubject(curQ.concepts[0]) : detectSubject(curQ.prompt);
+      const text = await getAnswerTextForGrading();
+
+      if (!text) {
+        if (!fromTimeout) return; // manual OK with nothing written — no-op
+        // Timeout with nothing written — counts as a miss, no need to burn an API call
+        const attempts = (wrongAttempts[curQ.id] ?? 0) + 1;
+        setWrongAttempts(prev => ({ ...prev, [curQ.id]: attempts }));
+        setMasteryResult({ passed: false, feedback: "Time's up — you didn't write an answer." });
+        if (attempts >= 3) await startReverseBuild(subject);
+        else resetTimerForRetry(curQ.id);
+        return;
+      }
+
+      setCheckingAnswer(true);
+      let result: { passed: boolean; feedback: string };
+      try {
+        result = await checkMastery(curQ.prompt, text, curQ.concepts, subject);
+      } catch (e: any) {
+        result = { passed: false, feedback: e.message || 'Could not grade this — please try again.' };
+      }
+      setCheckingAnswer(false);
+      setMasteryResult(result);
+
+      if (result.passed) {
+        setWrongAttempts(prev => ({ ...prev, [curQ.id]: 0 }));
+        await new Promise(r => setTimeout(r, 900)); // let them see the ✓ before advancing
+        await advanceAfterAnswer();
+        return;
+      }
+
+      const attempts = (wrongAttempts[curQ.id] ?? 0) + 1;
+      setWrongAttempts(prev => ({ ...prev, [curQ.id]: attempts }));
+      if (attempts >= 3) await startReverseBuild(subject);
+      else resetTimerForRetry(curQ.id);
+    } finally {
+      submittingRef.current = false;
+    }
+  }
+
+  async function submitRebuild() {
+    if (!reverseBuild || !reverseBuild.explanation.trim() || reverseBuild.submitting) return;
+    const curQ = q;
+    const subject = curQ.concepts[0] ? detectSubject(curQ.concepts[0]) : detectSubject(curQ.prompt);
+    setReverseBuild(rb => rb ? { ...rb, submitting: true, feedback: '' } : rb);
+    try {
+      const ev = await evaluateReverseBuild(reverseBuild.explanation, curQ.prompt, reverseBuild.requiredTools, subject);
+      if (ev.verdict === 'pass' || ev.next_state === 'TRANSFER_TEST') {
+        rescuedRef.current = [...rescuedRef.current, curQ];
+        setReverseBuild(null);
+        setWrongAttempts(prev => ({ ...prev, [curQ.id]: 0 }));
+        setMasteryResult(null);
+        await advanceAfterAnswer();
+      } else {
+        setReverseBuild(rb => rb ? { ...rb, submitting: false, verdict: ev.verdict, feedback: ev.feedback } : rb);
+      }
+    } catch (e: any) {
+      setReverseBuild(rb => rb ? { ...rb, submitting: false, feedback: e.message || 'Could not evaluate — please try again.' } : rb);
+    }
+  }
+
+  // Countdown hitting zero triggers the same grading path as pressing OK
+  useEffect(() => {
+    const curQ = questions[idx];
+    if (!curQ || checkingAnswer || reverseBuild) return;
+    if (timers[curQ.id]?.timedOut) submitAnswer(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timers[questions[idx]?.id]?.timedOut]);
 
   // ── Detachable notepad popup ──
   const notesChannelRef = useRef<BroadcastChannel | null>(null);
@@ -420,7 +625,9 @@ function LensView({
       }
 
       if (type === 'ANSWER') {
-        // Popup sent an answer — mirror the handleOK logic
+        // Popup sent an answer — paste + advance directly, bypassing the
+        // immediate-grading/REVERSE_BUILD flow (the detached popup has no
+        // way to show that UI back to the student).
         if (text) setPastedNotes(prev => ({ ...prev, [qId]: text }));
         if (dataURL) setPastedImages(prev => ({ ...prev, [qId]: dataURL }));
         setIdx(i => Math.min(questions.length - 1, i + 1));
@@ -472,6 +679,7 @@ function LensView({
   const activePage = q.page ?? 0;
   const yStart = q.yStart ?? 0;
   const yEnd = q.yEnd ?? 100;
+  const locked = checkingAnswer || !!reverseBuild;
 
   // Reset per-question state
   useEffect(() => {
@@ -489,7 +697,7 @@ function LensView({
     area.scrollTo({ top: regionTop - (area.clientHeight - regionH) / 2, behavior: 'smooth' });
   }, [idx, activePage, yStart, yEnd]);
 
-  // Progressive loading is triggered in handleOK (not on navigation)
+  // Progressive loading is triggered in advanceAfterAnswer (not on navigation)
 
   function prev() { setIdx(i => Math.max(0, i - 1)); }
   function next() { setIdx(i => Math.min(questions.length - 1, i + 1)); }
@@ -525,10 +733,11 @@ function LensView({
     try { setMasteryResult(await checkMastery(q.prompt, ans, q.concepts, subject)); } catch (e: any) { setMasteryResult({ passed: false, feedback: e.message }); } finally { setBusy(false); }
   }
 
-  async function handleOK() {
-    const hasText = mode === 'text' && answer.trim();
-    const hasCanvas = mode === 'canvas' && canvasRef.current;
-    if (!hasText && !hasCanvas) return;
+  // Called once a question is resolved — correct, or rescued via REVERSE_BUILD.
+  // Pastes the note onto the PDF, advances to the next question, and (on the
+  // very last question) hands the rescued-question list up to the parent so
+  // it can offer a bonus round of AI-generated variants.
+  async function advanceAfterAnswer() {
     setTearing(true);
     await new Promise(r => setTimeout(r, 380));
     if (mode === 'canvas' && canvasRef.current) {
@@ -554,7 +763,11 @@ function LensView({
     }
 
     await new Promise(r => setTimeout(r, 180));
-    if (idx < questions.length - 1) setIdx(i => i + 1);
+    if (idx < questions.length - 1) {
+      setIdx(i => i + 1);
+    } else {
+      onAllQuestionsDone?.(rescuedRef.current);
+    }
   }
 
   async function doGrade() {
@@ -686,6 +899,12 @@ function LensView({
             <span className="material-symbols-outlined text-[15px]">chevron_right</span>
           </button>
           <DiffBadge d={q.difficulty} />
+          {/* ── Timer ── */}
+          {analysis && timers[q.id]?.started && (
+            <span className={`font-mono text-[12px] tracking-wider ${timerColor(timers[q.id].remaining, timers[q.id].total)} ${timers[q.id].timedOut ? 'line-through' : ''}`}>
+              {timers[q.id].timedOut ? 'TIMED OUT' : formatTime(timers[q.id].remaining)}
+            </span>
+          )}
           {/* Pop-out notepad button */}
           <button
             onClick={() => {
@@ -979,30 +1198,6 @@ function LensView({
                     {showingExp && grade && (
                       <div className="mt-2 bg-black/40 border border-red-400/30 p-2.5 rounded-sm">
                         <p className="font-serif text-[11px] leading-relaxed text-white/80" dangerouslySetInnerHTML={{ __html: renderMath(grade.feedback) }} />
-                        {grade.suggestions && (
-                          <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-white/10">
-                            {grade.suggestions.concept && (
-                              <button onClick={() => { setShowExplanation(null); onExit(idx); onNavigate?.('notes'); }}
-                                className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 transition-colors">
-                                📝 Review in Notes: {grade.suggestions.concept}
-                              </button>
-                            )}
-                            {grade.suggestions.ask_lyceum && (
-                              <button onClick={() => {
-                                try { sessionStorage.setItem('lyceum_dialogue_prefill', grade.suggestions!.ask_lyceum); } catch {}
-                                setShowExplanation(null); onExit(idx); onNavigate?.('dialogue');
-                              }} className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 transition-colors">
-                                🤖 Ask Lyceum AI
-                              </button>
-                            )}
-                            {(grade.suggestions.google_links || []).map((link, li) => (
-                              <a key={li} href={link.url} target="_blank" rel="noopener noreferrer"
-                                className="text-left font-sans text-[9px] text-white/60 hover:text-white/90 truncate transition-colors">
-                                🔍 {link.title}
-                              </a>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1101,23 +1296,36 @@ function LensView({
           {masteryResult ? (
             <div className={`border p-4 ${masteryResult.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
               <span className={`font-sans text-[10px] uppercase tracking-[2px] font-semibold block mb-1.5 ${masteryResult.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
-                {masteryResult.passed ? '✓ Mastered' : '◯ Keep Exploring'}
+                {masteryResult.passed ? '✓ Correct' : `◯ Not quite — attempt ${wrongAttempts[q.id] ?? 1} of 3`}
               </span>
               <p className="font-sans text-sm leading-relaxed opacity-80" dangerouslySetInnerHTML={{ __html: renderMath(masteryResult.feedback) }} />
-              <button onClick={() => setMasteryResult(null)} className="mt-2 font-sans text-[10px] uppercase tracking-[2px] opacity-50 hover:opacity-100 transition-opacity">Try Again</button>
+              {!masteryResult.passed && (
+                <button onClick={() => setMasteryResult(null)} className="mt-2 font-sans text-[10px] uppercase tracking-[2px] opacity-50 hover:opacity-100 transition-opacity">Try Again</button>
+              )}
+            </div>
+          ) : checkingAnswer ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 min-h-[80px]">
+              <div className="w-6 h-6 border-2 border-on-surface/20 border-t-on-surface rounded-full animate-spin" />
+              <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">Grading your answer…</span>
             </div>
           ) : mode === 'text' ? (
             <textarea ref={textareaRef} value={answer} onChange={e => setAnswer(e.target.value)}
               placeholder="Write your solution here…"
+              disabled={locked}
               style={tearing ? { animation: 'tearOff 0.38s ease-in both' } : undefined}
-              className="w-full flex-1 min-h-[80px] bg-surface-container-lowest border border-outline-variant/30 p-3 font-sans text-sm resize-none outline-none focus:border-on-surface/50 transition-colors placeholder:text-outline-variant/60" />
+              className="w-full flex-1 min-h-[80px] bg-surface-container-lowest border border-outline-variant/30 p-3 font-sans text-sm resize-none outline-none focus:border-on-surface/50 transition-colors placeholder:text-outline-variant/60 disabled:opacity-30 disabled:cursor-not-allowed" />
           ) : (
             <>
-              <div className="border border-outline-variant/30 bg-white" style={{ aspectRatio: '4/1.5', ...(tearing ? { animation: 'tearOff 0.38s ease-in both' } : {}) }}>
+              <div className="relative border border-outline-variant/30 bg-white" style={{ aspectRatio: '4/1.5', ...(tearing ? { animation: 'tearOff 0.38s ease-in both' } : {}) }}>
                 <canvas ref={canvasRef} width={1200} height={450}
-                  className="w-full h-full cursor-crosshair touch-none"
+                  className={`w-full h-full touch-none ${locked ? 'pointer-events-none opacity-30' : 'cursor-crosshair'}`}
                   onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                   onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
+                {locked && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                    <span className="font-sans text-[10px] uppercase tracking-[2px] text-red-400">Locked</span>
+                  </div>
+                )}
               </div>
               {canvasTranscript && (
                 <div className="border border-outline-variant/30 p-3 bg-surface-container-lowest">
@@ -1150,7 +1358,8 @@ function LensView({
           <div className="flex gap-0 border border-outline-variant/30 mr-2">
             {(['text', 'canvas'] as const).map(m => (
               <button key={m} onClick={() => setMode(m)}
-                className={`px-4 py-1.5 font-sans text-[9px] uppercase tracking-[2px] transition-colors ${mode === m ? 'bg-on-surface text-surface' : 'hover:bg-surface-container-highest'}`}>
+                disabled={locked}
+                className={`px-4 py-1.5 font-sans text-[9px] uppercase tracking-[2px] transition-colors ${locked ? 'opacity-20 cursor-not-allowed' : mode === m ? 'bg-on-surface text-surface' : 'hover:bg-surface-container-highest'}`}>
                 {m === 'text' ? 'Write' : 'Draw'}
               </button>
             ))}
@@ -1159,7 +1368,8 @@ function LensView({
           {/* Math keyboard toggle */}
           {mode === 'text' && (
             <button onClick={() => setShowMathKb(v => !v)}
-              className={`flex items-center gap-1 px-3 py-1.5 border font-sans text-[9px] uppercase tracking-[2px] transition-colors ${showMathKb ? 'border-on-surface bg-on-surface/10' : 'border-outline-variant/30 opacity-50 hover:opacity-100'}`}>
+              disabled={locked}
+              className={`flex items-center gap-1 px-3 py-1.5 border font-sans text-[9px] uppercase tracking-[2px] transition-colors ${locked ? 'opacity-20 cursor-not-allowed' : showMathKb ? 'border-on-surface bg-on-surface/10' : 'border-outline-variant/30 opacity-50 hover:opacity-100'}`}>
               <span className="material-symbols-outlined text-[14px]">functions</span>Math
             </button>
           )}
@@ -1167,7 +1377,8 @@ function LensView({
           {/* ── Highlighter toggle ── */}
           <div className="flex items-center gap-1 ml-1 border-l border-outline-variant/20 pl-2">
             <button onClick={() => setHighlightMode(v => !v)}
-              className={`flex items-center gap-1 px-3 py-1.5 border font-sans text-[9px] uppercase tracking-[2px] transition-colors ${highlightMode ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-outline-variant/30 opacity-50 hover:opacity-100'}`}>
+              disabled={locked}
+              className={`flex items-center gap-1 px-3 py-1.5 border font-sans text-[9px] uppercase tracking-[2px] transition-colors ${locked ? 'opacity-20 cursor-not-allowed' : highlightMode ? 'border-amber-400 bg-amber-50 text-amber-800' : 'border-outline-variant/30 opacity-50 hover:opacity-100'}`}>
               <span className="material-symbols-outlined text-[14px]">ink_highlighter</span>Highlight
             </button>
             {highlightMode && (
@@ -1218,7 +1429,7 @@ function LensView({
 
           {/* Distil */}
           <button onClick={async () => { setDistilling(true); try { await onClean(idx); } finally { setDistilling(false); } }}
-            disabled={busy || distilling}
+            disabled={busy || distilling || (locked)}
             className="flex items-center gap-1 font-sans text-[9px] uppercase tracking-[2px] opacity-50 hover:opacity-100 transition-opacity disabled:opacity-25 px-2 py-1.5">
             {distilling ? <div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" /> : <span className="text-[11px]">✦</span>}
             Distil
@@ -1226,7 +1437,7 @@ function LensView({
 
           {/* Check mastery (secondary — small text button) */}
           <button onClick={handleMastery}
-            disabled={busy || tearing || !!masteryResult || (mode === 'text' ? !answer.trim() : !canvasTranscript.trim())}
+            disabled={busy || tearing || (locked) || !!masteryResult || (mode === 'text' ? !answer.trim() : !canvasTranscript.trim())}
             className="flex items-center gap-1 font-sans text-[9px] uppercase tracking-[2px] opacity-35 hover:opacity-70 transition-opacity disabled:opacity-15 px-2 py-1.5">
             {busy
               ? <><div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" />Checking…</>
@@ -1234,10 +1445,11 @@ function LensView({
             }
           </button>
 
-          {/* OK — PRIMARY: paste note onto PDF then advance */}
-          <button onClick={handleOK}
-            disabled={tearing}
+          {/* OK — PRIMARY: grade the answer now, paste note onto PDF, and advance */}
+          <button onClick={() => submitAnswer()}
+            disabled={tearing || locked || !!masteryResult}
             className={`px-6 py-1.5 font-sans text-[10px] uppercase tracking-[2px] font-bold flex items-center gap-1.5 ml-1 transition-all ${
+              (locked || !!masteryResult) ? 'bg-amber-400/20 text-amber-900/40 cursor-not-allowed' :
               (mode === 'text' ? answer.trim() : canvasTranscript.trim())
                 ? 'bg-amber-400 text-amber-950 hover:bg-amber-300 shadow-sm'
                 : 'bg-amber-400/30 text-amber-900/50 cursor-not-allowed'
@@ -1249,6 +1461,61 @@ function LensView({
           </button>
         </div>}
       </div>
+
+      {/* ── REVERSE_BUILD rescue overlay — 3 wrong attempts on this question ── */}
+      {reverseBuild && (
+        <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-6">
+          <div className="w-full max-w-xl max-h-[85vh] overflow-y-auto bg-surface-container-lowest border border-outline-variant/30 p-6 flex flex-col gap-4">
+            <div>
+              <span className="font-sans text-[9px] uppercase tracking-[2px] text-red-400">Three misses — let's rebuild it</span>
+              <p className="font-sans text-xs opacity-50 mt-1">Here's the worked solution. Read it, then explain the method back in your own words — from scratch — to move on.</p>
+            </div>
+
+            {reverseBuild.loadingSolution ? (
+              <div className="flex items-center gap-2 py-6 justify-center">
+                <div className="w-5 h-5 border-2 border-on-surface/20 border-t-on-surface rounded-full animate-spin" />
+                <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">Loading the solution…</span>
+              </div>
+            ) : (
+              <div className="border border-outline-variant/30 bg-surface-container-highest/20 p-4">
+                <span className="font-sans text-[9px] uppercase tracking-[2px] opacity-40 block mb-2">Solution</span>
+                <p className="font-sans text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: renderMath(reverseBuild.solution) }} />
+                {reverseBuild.requiredTools.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-3">
+                    {reverseBuild.requiredTools.map(t => (
+                      <span key={t} className="border border-outline-variant/40 px-1.5 py-0.5 font-sans text-[9px] uppercase tracking-[1px] opacity-60">{t}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {reverseBuild.feedback && (
+              <div className={`border p-3 ${reverseBuild.verdict === 'partial' ? 'border-amber-200 bg-amber-50' : 'border-red-200 bg-red-50'}`}>
+                <p className="font-sans text-sm leading-relaxed opacity-80 text-black" dangerouslySetInnerHTML={{ __html: renderMath(reverseBuild.feedback) }} />
+              </div>
+            )}
+
+            <textarea
+              value={reverseBuild.explanation}
+              onChange={e => setReverseBuild(rb => rb ? { ...rb, explanation: e.target.value } : rb)}
+              placeholder="Rebuild the solution method here, step by step, in your own words…"
+              disabled={reverseBuild.loadingSolution || reverseBuild.submitting}
+              className="w-full min-h-[120px] bg-surface-container-lowest border border-outline-variant/30 p-3 font-sans text-sm resize-none outline-none focus:border-on-surface/50 transition-colors placeholder:text-outline-variant/60"
+            />
+
+            <button
+              onClick={submitRebuild}
+              disabled={reverseBuild.loadingSolution || reverseBuild.submitting || !reverseBuild.explanation.trim()}
+              className="self-end px-6 py-2 font-sans text-[10px] uppercase tracking-[2px] font-bold bg-amber-400 text-amber-950 hover:bg-amber-300 disabled:bg-amber-400/30 disabled:text-amber-900/50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5">
+              {reverseBuild.submitting
+                ? <><div className="w-3 h-3 border border-amber-950/40 border-t-amber-950 rounded-full animate-spin" />Checking…</>
+                : <>Submit rebuild</>
+              }
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1273,6 +1540,16 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
   const [totalPages, setTotalPages] = useState(0);
   const [analyzedPageCount, setAnalyzedPageCount] = useState(0);
+  const [psetAnalysis, setPsetAnalysis] = useState<PsetAnalysis | null>(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+  const [analyzingQuestions, setAnalyzingQuestions] = useState(false);
+  // ── Bonus round: one AI-generated variant per question that needed the
+  // REVERSE_BUILD rescue, offered once the whole problem set is done ──
+  const [bonusQuestions, setBonusQuestions] = useState<VariantQuestion[]>([]);
+  const [bonusAnswers, setBonusAnswers] = useState<Record<string, string>>({});
+  const [bonusResults, setBonusResults] = useState<Record<string, { passed: boolean; feedback: string }>>({});
+  const [bonusChecking, setBonusChecking] = useState<string | null>(null);
+  const [generatingBonus, setGeneratingBonus] = useState(false);
   const psetIdRef = useRef<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1281,6 +1558,53 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   useEffect(() => { getUsage().then(u => setUsage(u)); }, [questions]);
   useEffect(() => { loadKaTeX(() => setKatexTick(t => t + 1)); }, []);
   useEffect(() => { setSavedSets(loadPSets()); }, []);
+
+  // ── Trigger AI analysis when questions are loaded ──
+  useEffect(() => {
+    if (questions.length === 0) { setPsetAnalysis(null); return; }
+    setAnalyzingQuestions(true);
+    const items = questions.map(q => ({
+      id: q.id, prompt: q.prompt, difficulty: q.difficulty, concepts: q.concepts,
+    }));
+    analyzePSetQuestions(items).then(result => {
+      setPsetAnalysis(result);
+      setShowAnalysis(true);
+    }).catch(() => {
+      // silently fail — analysis is non-critical
+    }).finally(() => setAnalyzingQuestions(false));
+  }, [questions.length]);
+
+  // Fired once by LensView after the last question in the set is resolved.
+  // For every question that needed the REVERSE_BUILD rescue, generate one
+  // fresh variant to practice — proof they've actually got it now.
+  async function handleAllQuestionsDone(rescuedQuestions: Question[]) {
+    if (rescuedQuestions.length === 0) return;
+    setGeneratingBonus(true);
+    try {
+      const sources = rescuedQuestions.map(q => ({ prompt: q.prompt, concepts: q.concepts, difficulty: q.difficulty }));
+      const { questions: variants } = await generateVariantQuestions(sources);
+      setBonusQuestions(variants);
+    } catch {
+      // silently fail — bonus round is non-critical
+    } finally {
+      setGeneratingBonus(false);
+    }
+  }
+
+  async function checkBonusAnswer(vq: VariantQuestion) {
+    const ans = (bonusAnswers[vq.id] || '').trim();
+    if (!ans || bonusChecking) return;
+    setBonusChecking(vq.id);
+    try {
+      const subject = vq.concepts[0] ? detectSubject(vq.concepts[0]) : detectSubject(vq.prompt);
+      const result = await checkMastery(vq.prompt, ans, vq.concepts, subject);
+      setBonusResults(prev => ({ ...prev, [vq.id]: result }));
+    } catch (e: any) {
+      setBonusResults(prev => ({ ...prev, [vq.id]: { passed: false, feedback: e.message || 'Could not grade this — try again.' } }));
+    } finally {
+      setBonusChecking(null);
+    }
+  }
 
   function startPhaseTimer() {
     phaseTimer.current = setTimeout(() => {
@@ -1440,6 +1764,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
           totalPages={totalPages}
           allPagesLoaded={totalPages === 0 || analyzedPageCount >= totalPages}
           startIdx={savedSets.find(s => s.id === psetIdRef.current)?.currentIdx ?? 0}
+          analysis={psetAnalysis}
           onExit={(exitIdx) => {
             setLensOpen(false);
             if (psetIdRef.current) {
@@ -1456,6 +1781,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
           onClean={handleClean}
           onPageBoundary={handlePageBoundary}
           onNavigate={onNavigate}
+          onAllQuestionsDone={handleAllQuestionsDone}
         />
       )}
 
@@ -1570,6 +1896,155 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
           )}
         </div>
       </div>
+
+      {/* ── Overall Analysis Panel ── */}
+      {questions.length > 0 && !lensOpen && psetAnalysis && (
+        <div className="w-full max-w-3xl mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="material-symbols-outlined text-[16px] opacity-40">analytics</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Overall Analysis</span>
+            <button onClick={() => setShowAnalysis(v => !v)}
+              className="font-sans text-[9px] uppercase tracking-[1px] opacity-40 hover:opacity-80 transition-opacity">
+              {showAnalysis ? 'Hide' : 'Show'}
+            </button>
+            {analyzingQuestions && (
+              <div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" />
+            )}
+          </div>
+          {showAnalysis && (
+            <div className="border border-outline/15 p-5 space-y-4 bg-surface-container-lowest/30">
+              {/* Topic & time */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="material-symbols-outlined text-[18px] opacity-40">topic</span>
+                  <span className="font-sans text-sm font-medium">{psetAnalysis.overall_topic || 'Mixed topics'}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[16px] opacity-40">schedule</span>
+                  <span className="font-sans text-[11px] uppercase tracking-[1px] opacity-60">
+                    Total: {psetAnalysis.total_estimated_time} min
+                  </span>
+                </div>
+              </div>
+
+              {/* Difficulty distribution */}
+              {Object.keys(psetAnalysis.difficulty_distribution).length > 0 && (
+                <div>
+                  <span className="font-sans text-[9px] uppercase tracking-[2px] opacity-40 block mb-2">Difficulty</span>
+                  <div className="flex gap-3">
+                    {(['easy', 'medium', 'hard', 'extreme'] as const).map(d => {
+                      const count = (psetAnalysis.difficulty_distribution as Record<string, number>)[d] || 0;
+                      const vals = Object.values(psetAnalysis.difficulty_distribution as Record<string, number>);
+                      const total = vals.reduce((a, b) => a + b, 0);
+                      const pct = total > 0 ? (count / total) * 100 : 0;
+                      const colors: Record<string, string> = {
+                        easy: 'bg-emerald-400/80',
+                        medium: 'bg-amber-400/80',
+                        hard: 'bg-red-400/80',
+                        extreme: 'bg-purple-400/80',
+                      };
+                      if (count === 0) return null;
+                      return (
+                        <div key={d} className="flex items-center gap-1.5">
+                          <div className="h-2" style={{ width: Math.max(16, pct * 0.6) + 'px', background: colors[d] }} />
+                          <span className="font-sans text-[9px] uppercase tracking-[1px] opacity-50">{d} ({count})</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Question types */}
+              {Object.keys(psetAnalysis.question_types).length > 0 && (
+                <div>
+                  <span className="font-sans text-[9px] uppercase tracking-[2px] opacity-40 block mb-2">Question Types</span>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(
+                      (Object.values(psetAnalysis.question_types as Record<string, string>) as string[]).reduce((acc, t) => {
+                        acc[t] = (acc[t] || 0) + 1;
+                        return acc;
+                      }, {} as Record<string, number>)
+                    ).map(([type, count]) => (
+                      <span key={type} className="border border-outline-variant/30 px-2 py-0.5 font-sans text-[9px] uppercase tracking-[1px] opacity-60">
+                        {type.replace(/_/g, ' ')} ×{count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Per-question time estimates */}
+              {psetAnalysis.estimated_time_per_question.length > 0 && (
+                <div>
+                  <span className="font-sans text-[9px] uppercase tracking-[2px] opacity-40 block mb-2">Estimated Time / Question</span>
+                  <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5">
+                    {psetAnalysis.estimated_time_per_question.map(e => (
+                      <div key={e.id} className="border border-outline-variant/20 px-2 py-1 text-center bg-surface-container-highest/20">
+                        <span className="font-sans text-[8px] uppercase tracking-[1px] opacity-40 block">Q{e.id}</span>
+                        <span className="font-sans text-[11px] font-medium">{e.estimated_minutes}m</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Bonus Round — variant practice for every REVERSE_BUILD rescue ── */}
+      {!lensOpen && (generatingBonus || bonusQuestions.length > 0) && (
+        <div className="w-full max-w-3xl mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="material-symbols-outlined text-[16px] opacity-40">refresh</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Bonus Round — prove you've got it now</span>
+            {generatingBonus && <div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" />}
+          </div>
+          {generatingBonus ? (
+            <p className="font-sans text-xs opacity-40">Generating fresh practice for the questions you had to rebuild…</p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {bonusQuestions.map((vq, i) => {
+                const result = bonusResults[vq.id];
+                return (
+                  <div key={vq.id} className="border border-outline-variant/20 p-5">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="font-sans text-[9px] uppercase tracking-[1px] opacity-40">Variant {i + 1}</span>
+                      <DiffBadge d={vq.difficulty} />
+                    </div>
+                    <p className="font-serif text-sm leading-snug mb-3" dangerouslySetInnerHTML={{ __html: renderMath(vq.prompt) }} />
+                    <textarea
+                      value={bonusAnswers[vq.id] || ''}
+                      onChange={e => setBonusAnswers(prev => ({ ...prev, [vq.id]: e.target.value }))}
+                      placeholder="Write your solution here…"
+                      disabled={bonusChecking === vq.id}
+                      className="w-full min-h-[80px] bg-surface-container-lowest border border-outline-variant/30 p-3 font-sans text-sm resize-none outline-none focus:border-on-surface/50 transition-colors placeholder:text-outline-variant/60 mb-2"
+                    />
+                    {result && (
+                      <div className={`border p-3 mb-2 ${result.passed ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+                        <span className={`font-sans text-[10px] uppercase tracking-[2px] font-semibold block mb-1 ${result.passed ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {result.passed ? '✓ Correct' : '◯ Keep Exploring'}
+                        </span>
+                        <p className="font-sans text-sm leading-relaxed opacity-80" dangerouslySetInnerHTML={{ __html: renderMath(result.feedback) }} />
+                      </div>
+                    )}
+                    <button
+                      onClick={() => checkBonusAnswer(vq)}
+                      disabled={bonusChecking === vq.id || !(bonusAnswers[vq.id] || '').trim()}
+                      className="flex items-center gap-1 font-sans text-[9px] uppercase tracking-[2px] opacity-60 hover:opacity-100 transition-opacity disabled:opacity-25">
+                      {bonusChecking === vq.id
+                        ? <><div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" />Checking…</>
+                        : <><span className="material-symbols-outlined text-[13px]">verified</span>Check</>
+                      }
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Uploaded PDFs (24h cache) ── */}
       {savedSets.length > 0 && (

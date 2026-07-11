@@ -79,23 +79,25 @@ function AppInner() {
     return <AuthPage onNavigate={setView} currentView={view} />;
   }
 
+  // First-ever onboarding: don't mount the workspace behind it at all — the
+  // student sees a blank page with the Lyceum advisor, not a blurred
+  // dashboard, until the interview is done.
+  if (showOnboarding) {
+    return <OnboardingModal onClose={handleOnboardingClose} />;
+  }
+
   return (
-    <>
-      {showOnboarding && (
-        <OnboardingModal onClose={handleOnboardingClose} />
-      )}
-      <MainLayout currentView={view} onNavigate={setView}>
-        {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
-        {view === 'dialogue' && <DialogueView />}
-        {view === 'exercise' && <ExerciseView />}
-        {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
-        {view === 'knowledge-map' && <KnowledgeMapView />}
-        {view === 'notes' && <NoteView />}
-        {view === 'mistake-bank' && <MistakeBankView />}
-        {view === 'reference-bank' && <ReferenceBankView />}
-        {view === 'progress' && <ProgressView />}
-      </MainLayout>
-    </>
+    <MainLayout currentView={view} onNavigate={setView}>
+      {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
+      {view === 'dialogue' && <DialogueView />}
+      {view === 'exercise' && <ExerciseView />}
+      {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
+      {view === 'knowledge-map' && <KnowledgeMapView />}
+      {view === 'notes' && <NoteView />}
+      {view === 'mistake-bank' && <MistakeBankView />}
+      {view === 'reference-bank' && <ReferenceBankView />}
+      {view === 'progress' && <ProgressView />}
+    </MainLayout>
   );
 }
 

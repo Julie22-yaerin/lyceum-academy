@@ -255,6 +255,8 @@ class DataAccessAuditMiddleware(BaseHTTPMiddleware):
         "/ai/decompose",
         "/ai/feynman",
         "/ai/reverse-build-eval",
+        "/ai/reveal-solution",
+        "/ai/generate-variants",
         "/ai/voice-fallback",
         "/ai/clean-question",
         "/ai/onboarding-analyze",
@@ -943,8 +945,101 @@ class GradeItem(BaseModel):
 class GradeAllRequest(BaseModel):
     questions: list[GradeItem]
 
+class AnalyzePsetItem(BaseModel):
+    id: str
+    prompt: str
+    difficulty: str = "medium"
+    concepts: list[str] = []
+
+class AnalyzePsetRequest(BaseModel):
+    questions: list[AnalyzePsetItem]
+
+
+@app.post("/ai/analyze-pset-questions")
+@limiter.limit("10/minute")
+async def ai_analyze_pset_questions(request: Request, req: AnalyzePsetRequest, _: dict = Depends(require_auth)):
+    """
+    Analyze all questions in a problem set — topic, question types, difficulty
+    distribution, and estimated time per question.
+    Returns { overall_topic, question_types, difficulty_distribution,
+             estimated_time_per_question, total_estimated_time }
+    """
+    try:
+        items = [{"id": q.id, "prompt": q.prompt, "difficulty": q.difficulty, "concepts": q.concepts} for q in req.questions]
+        result = await ai_svc.analyze_pset_questions(items)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class RevealSolutionRequest(BaseModel):
+    problem: str
+    concepts: list[str] = []
+    subject: str = ""
+
+
+@app.post("/ai/reveal-solution")
+@limiter.limit("15/minute")
+async def ai_reveal_solution(request: Request, req: RevealSolutionRequest, _: dict = Depends(require_auth)):
+    """
+    REVERSE_BUILD rescue (problem sets): after 3 wrong attempts on the same
+    question, reveal the worked solution so the student can rebuild the
+    reasoning from scratch. Returns { solution, required_tools }.
+    """
+    check_prompt(req.problem, "problem")
+    try:
+        result = await ai_svc.reveal_solution(req.problem, req.concepts, req.subject)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class VariantSourceItem(BaseModel):
+    prompt: str
+    concepts: list[str] = []
+    difficulty: str = "medium"
+
+
+class GenerateVariantsRequest(BaseModel):
+    source_questions: list[VariantSourceItem]
+
+
+@app.post("/ai/generate-variants")
+@limiter.limit("10/minute")
+async def ai_generate_variants(request: Request, req: GenerateVariantsRequest, _: dict = Depends(require_auth)):
+    """
+    Bonus round after a problem set: one fresh practice question per source
+    question the student had to REVERSE_BUILD-rescue, same concept/difficulty.
+    Returns { questions: [{id, prompt, difficulty, concepts}] }.
+    """
+    try:
+        sources = [{"prompt": s.prompt, "concepts": s.concepts, "difficulty": s.difficulty} for s in req.source_questions]
+        result = await ai_svc.generate_variant_questions(sources)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 class OnboardingRequest(BaseModel):
     answers: dict[str, str]   # {question_id: answer}
+    learning_style: dict[str, float] | None = None   # 10 slider values 0-100
+    persona_ids: list[str] | None = None              # up to 3 selected persona IDs
+
+
+@app.get("/ai/onboarding/questions")
+async def ai_onboarding_questions():
+    """
+    Return the onboarding question set so the frontend can render them
+    dynamically without hardcoding.  Public — no auth required.
+    """
+    from app.services.ai import _ONBOARDING_QUESTIONS, _PRICING_PLANS
+    return {
+        "questions": _ONBOARDING_QUESTIONS,
+        "plans": [
+            {k: v for k, v in p.items() if k not in ("features", "missing", "best_for")}
+            for p in _PRICING_PLANS
+        ],
+    }
 
 
 @app.post("/ai/onboarding-analyze")
@@ -960,7 +1055,11 @@ async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dic
     for v in req.answers.values():
         check_prompt(v, "answer")
     try:
-        result = await ai_svc.analyze_onboarding(req.answers)
+        result = await ai_svc.analyze_onboarding(
+            req.answers,
+            learning_style=req.learning_style,
+            persona_ids=req.persona_ids,
+        )
         # ── Safety Guard ──────────────────────────────────────────────────
         if result.get("reasoning"):
             result["reasoning"] = await _with_safety_check(

@@ -3655,12 +3655,18 @@ _PRICING_PLANS: list[dict] = [
 
 
 @_tag_task
-async def analyze_onboarding(answers: dict[str, str]) -> dict:
+async def analyze_onboarding(
+    answers: dict[str, str],
+    learning_style: dict[str, float] | None = None,
+    persona_ids: list[str] | None = None,
+) -> dict:
     """
     Orchestrator: analyze user's onboarding answers using Meta Llama 3.1 70B
     and recommend the most suitable pricing plan.
 
-    answers: {question_id: selected_answer_or_free_text}
+    answers:         {question_id: selected_answer_or_free_text}
+    learning_style:  {slider_key: 0-100} — optional, from the onboarding sliders
+    persona_ids:     list of up to 3 persona IDs the user selected
     Returns: {recommended_plan_id, plan_name, reasoning, alternatives: [...]}
     """
     import logging
@@ -3684,20 +3690,56 @@ async def analyze_onboarding(answers: dict[str, str]) -> dict:
         for p in _PRICING_PLANS
     )
 
+    # ── Persona context ────────────────────────────────────────────────────
+    persona_context = ""
+    if persona_ids:
+        from app.services.personas import PERSONAS_DATA, PERSONAS_PROMPTS
+        persona_lines = []
+        for pid in persona_ids[:3]:
+            data = PERSONAS_DATA.get(pid, {})
+            name = data.get("name", pid)
+            field = data.get("field", "")
+            trait = data.get("special_trait", "")
+            style = data.get("epistemological_style", "")
+            persona_lines.append(
+                f"- {name} ({field}): {trait} — {style}"
+            )
+        if persona_lines:
+            persona_context = (
+                "\n\nThe user chose these 3 AI study partners (personas):\n"
+                + "\n".join(persona_lines)
+                + "\nThese choices reveal the user's preferred learning style and cognitive strengths."
+            )
+
+    # ── Learning style summary ──────────────────────────────────────────────
+    style_context = ""
+    if learning_style:
+        top_skills = sorted(learning_style.items(), key=lambda x: x[1], reverse=True)[:3]
+        weak_skills = sorted(learning_style.items(), key=lambda x: x[1])[:2]
+        style_context = (
+            "\n\nLearning style profile (0-100 scale):\n"
+            + ", ".join(f"{k}={v}" for k, v in learning_style.items())
+            + f"\nStrongest: {', '.join(f'{k}={v}' for k, v in top_skills)}"
+            + f"\nWeakest: {', '.join(f'{k}={v}' for k, v in weak_skills)}"
+        )
+
     system = (
         "You are a product advisor for an AI-powered educational platform. "
-        "Based on the user's onboarding answers, recommend the most suitable pricing plan.\n\n"
+        "Based on the user's onboarding answers, recommended persona choices, and learning style, "
+        "recommend the most suitable pricing plan.\n\n"
         f"Available plans:\n{plans_text}\n\n"
         "Return ONLY valid JSON, no markdown:\n"
         '{"recommended_plan_id":"...","plan_name":"...","reasoning":"2-3 sentences explaining why this plan fits","'
         'alternatives":[{"plan_id":"...","reason":"one sentence why this could also work"}]}'
     )
 
+    user_content = f"User's onboarding answers:\n{answers_text}{persona_context}{style_context}"
+
     try:
         resp = await _orchestrator_call(
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user",   "content": f"User's onboarding answers:\n{answers_text}"},
+                {"role": "user",   "content": user_content},
             ],
             temperature=0.2,
             max_tokens=512,
@@ -4676,3 +4718,172 @@ async def multi_agent_split(
         "model":     "cascade_fallback",
         "brain":     "cascade_fallback",
     }
+
+
+@_tag_task
+async def analyze_pset_questions(questions: list[dict]) -> dict:
+    """
+    Analyze all questions in a problem set and return:
+    - overall_topic: the main subject/topic
+    - question_types: per-question classification (calculation, proof, multiple_choice, etc.)
+    - difficulty_distribution: count per difficulty level
+    - estimated_time_per_question: recommended minutes per question
+    - total_estimated_time: sum in minutes
+    """
+    import logging, json as _json
+    log = logging.getLogger("pclick")
+
+    if not questions:
+        return {"overall_topic": "", "question_types": {}, "difficulty_distribution": {}, "estimated_time_per_question": [], "total_estimated_time": 0}
+
+    questions_json = _json.dumps([
+        {"id": q.get("id"), "prompt": q.get("prompt", "")[:500], "difficulty": q.get("difficulty", "medium"), "concepts": q.get("concepts", [])}
+        for q in questions
+    ], ensure_ascii=False)
+
+    system = (
+        "You are Lyceum's problem set analyst. Given a JSON array of questions from a problem set, "
+        "analyze them and return a JSON object with:\n"
+        "- overall_topic: short string describing the main subject (e.g. 'Calculus', 'Linear Algebra', 'Physics: Mechanics')\n"
+        "- question_types: object mapping each question id to its type. Types: 'calculation', 'proof', 'multiple_choice', 'short_answer', 'essay', 'graphing', 'conceptual', 'derivation'\n"
+        "- difficulty_distribution: object with counts of each difficulty level (easy, medium, hard, extreme)\n"
+        "- estimated_time_per_question: array of {id, estimated_minutes: number} — estimate how many minutes an average student needs per question\n"
+        "- total_estimated_time: sum of all estimated_minutes as a number\n\n"
+        "Base time estimates on: question complexity, type (proofs take longer), difficulty, and number of sub-parts.\n"
+        "Return ONLY valid JSON, no markdown, no extra text."
+    )
+
+    try:
+        resp = await chat(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": f"Questions:\n{questions_json}"}],
+            temperature=0.2,
+            max_tokens=2048,
+        )
+        raw = extract_text(resp)
+        parsed = _parse_json_robust(raw)
+        if parsed and isinstance(parsed, dict):
+            return parsed
+        log.warning("analyze_pset_questions JSON parse failed. Raw: %s", raw[:300])
+        return {
+            "overall_topic": "",
+            "question_types": {},
+            "difficulty_distribution": {},
+            "estimated_time_per_question": [],
+            "total_estimated_time": 0,
+            "error": "parse_failed",
+        }
+    except Exception as e:
+        log.error("analyze_pset_questions AI error: %s", e)
+        return {
+            "overall_topic": "",
+            "question_types": {},
+            "difficulty_distribution": {},
+            "estimated_time_per_question": [],
+            "total_estimated_time": 0,
+            "error": str(e),
+        }
+
+
+@_tag_task
+async def reveal_solution(problem: str, concepts: list[str] | None = None, subject: str = "") -> dict:
+    """
+    Used by the REVERSE_BUILD rescue flow (problem sets): after a student
+    misses the same question 3 times, we show them the worked solution so
+    they can rebuild the reasoning from scratch instead of staying stuck.
+
+    Returns { solution: str, required_tools: list[str] }
+    - solution: full worked answer, LaTeX via $...$ / $$...$$
+    - required_tools: the core techniques/methods needed (e.g. "integration
+      by parts") — fed into evaluate_reverse_build's tool_fidelity check so
+      we can tell if the student's rebuilt explanation actually uses them.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+
+    system = (
+        "You are Lyceum's solutions author. Given a problem, write the full worked solution "
+        "a student who is stuck needs to see. Return ONLY JSON: "
+        "{\"solution\": string, \"required_tools\": string[]}. "
+        "solution: the complete step-by-step answer, using $...$ for inline math and $$...$$ for display math. "
+        "required_tools: the core techniques/methods this solution depends on (e.g. 'integration by parts', "
+        "'conservation of momentum'), 1-4 short phrases."
+    )
+    concepts = concepts or []
+    user = f"Problem:\n{problem}\n\nConcepts: {', '.join(concepts) or subject or 'unspecified'}"
+
+    try:
+        resp = await chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.2,
+            max_tokens=1024,
+        )
+        raw = extract_text(resp)
+        parsed = _parse_json_robust(raw)
+        if parsed and isinstance(parsed, dict) and parsed.get("solution"):
+            parsed.setdefault("required_tools", [])
+            return parsed
+        log.warning("reveal_solution: JSON parse failed. Raw: %s", raw[:300])
+        return {"solution": raw.strip() or "Solution unavailable.", "required_tools": []}
+    except Exception as e:
+        log.error("reveal_solution AI error: %s", e)
+        return {"solution": "Solution unavailable right now — please try again.", "required_tools": []}
+
+
+@_tag_task
+async def generate_variant_questions(sources: list[dict]) -> dict:
+    """
+    Used at the end of a problem set: for every question the student had to
+    use the REVERSE_BUILD rescue on, generate one fresh practice question
+    testing the same concept/skill at the same difficulty, so they can prove
+    they've actually got it now.
+
+    sources: [{prompt, concepts, difficulty}]
+    Returns { questions: [{id, prompt, difficulty, concepts}] } — same
+    length and order as `sources`.
+    """
+    import logging, json as _json
+    log = logging.getLogger("pclick")
+
+    if not sources:
+        return {"questions": []}
+
+    sources_json = _json.dumps([
+        {"prompt": s.get("prompt", "")[:500], "concepts": s.get("concepts", []), "difficulty": s.get("difficulty", "medium")}
+        for s in sources
+    ], ensure_ascii=False)
+
+    system = (
+        "You are Lyceum's problem-set author. You'll receive a JSON array of questions a student "
+        "struggled with. For EACH one, write ONE new practice question testing the exact same concept "
+        "and skill, at the same difficulty, but with different numbers/context/phrasing so it isn't a "
+        "memorized repeat. Return ONLY JSON: {\"questions\": [...]}, an array the same length and order "
+        "as the input, of objects: {\"prompt\": string, \"difficulty\": \"easy\"|\"medium\"|\"hard\"|\"extreme\", "
+        "\"concepts\": string[]}. Use $...$ / $$...$$ for math."
+    )
+
+    try:
+        resp = await chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": f"Questions:\n{sources_json}"}],
+            temperature=0.4,
+            max_tokens=2048,
+        )
+        raw = extract_text(resp)
+        parsed = _parse_json_robust(raw)
+        items = parsed.get("questions") if isinstance(parsed, dict) else None
+        if not isinstance(items, list):
+            log.warning("generate_variant_questions: JSON parse failed. Raw: %s", raw[:300])
+            return {"questions": []}
+        questions = [
+            {
+                "id": f"variant-{i}",
+                "prompt": it.get("prompt", ""),
+                "difficulty": it.get("difficulty", "medium"),
+                "concepts": it.get("concepts", []),
+            }
+            for i, it in enumerate(items) if isinstance(it, dict) and it.get("prompt")
+        ]
+        return {"questions": questions}
+    except Exception as e:
+        log.error("generate_variant_questions AI error: %s", e)
+        return {"questions": []}

@@ -384,13 +384,17 @@ export async function gradeAll(questions: { id: string; prompt: string; answer: 
   return res.json() as Promise<{ grades: { id: string; passed: boolean; feedback: string }[] }>;
 }
 
-export async function analyzeOnboarding(answers: Record<string, string | string[]>) {
+export async function analyzeOnboarding(answers: Record<string, string | string[]>, learningStyle?: Record<string, number>, personaIds?: string[]) {
   const res = await authFetch(`${API_BASE}/ai/onboarding-analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ answers: Object.fromEntries(
-      Object.entries(answers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v])
-    )}),
+    body: JSON.stringify({
+      answers: Object.fromEntries(
+        Object.entries(answers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : v])
+      ),
+      learning_style: learningStyle ?? null,
+      persona_ids: personaIds ?? null,
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
@@ -403,6 +407,28 @@ export async function analyzeOnboarding(answers: Record<string, string | string[
     alternatives?: { plan_id: string; reason: string }[];
     error?: string;
   }>;
+}
+
+export interface Persona {
+  id: string;
+  name: string;
+  field: string;
+  era: string;
+  bio_highlights: string;
+  epistemological_style: string;
+  special_trait: string;
+  special_trait_value: number;
+  cognitive_indices: Record<string, number>;
+}
+
+export async function fetchPersonas(): Promise<Persona[]> {
+  const res = await authFetch(`${API_BASE}/personas/`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  const data = await res.json();
+  return (data.personas || []) as Persona[];
 }
 
 export interface RoadmapResult {
@@ -610,4 +636,100 @@ export async function describeDrawing(imageData: string) {
     throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
   }
   return res.json() as Promise<{ text: string }>;
+}
+
+export interface PsetAnalysis {
+  overall_topic: string;
+  question_types: Record<string, string>;
+  difficulty_distribution: Record<string, number>;
+  estimated_time_per_question: { id: string; estimated_minutes: number }[];
+  total_estimated_time: number;
+}
+
+export async function analyzePSetQuestions(questions: { id: string; prompt: string; difficulty: string; concepts: string[] }[]): Promise<PsetAnalysis> {
+  const res = await authFetch(`${API_BASE}/ai/analyze-pset-questions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ questions }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<PsetAnalysis>;
+}
+
+// ── REVERSE_BUILD rescue (3 wrong attempts on the same pset question) ──────
+
+export interface RevealedSolution {
+  solution: string;
+  required_tools: string[];
+}
+
+export async function revealSolution(problem: string, concepts: string[] = [], subject = ''): Promise<RevealedSolution> {
+  const res = await authFetch(`${API_BASE}/ai/reveal-solution`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ problem, concepts, subject }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<RevealedSolution>;
+}
+
+export interface ReverseBuildEval {
+  tool_fidelity: { required_tools: string[]; used_tools: string[]; ok: boolean; mismatch_note?: string };
+  conceptual_accuracy: 'pass' | 'partial' | 'fail';
+  logical_flow: 'pass' | 'partial' | 'fail';
+  completeness: 'pass' | 'partial' | 'fail';
+  verdict: 'pass' | 'partial' | 'fail';
+  next_state: 'TRANSFER_TEST' | 'REVERSE_BUILD_RETRY' | 'HINTING';
+  feedback: string;
+}
+
+export async function evaluateReverseBuild(
+  studentExplanation: string,
+  originalProblem: string,
+  requiredTools: string[] = [],
+  subjectArea = 'math',
+): Promise<ReverseBuildEval> {
+  const res = await authFetch(`${API_BASE}/ai/reverse-build-eval`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      student_explanation: studentExplanation,
+      original_problem: originalProblem,
+      required_tools: requiredTools,
+      subject_area: subjectArea,
+    }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<ReverseBuildEval>;
+}
+
+export interface VariantQuestion {
+  id: string;
+  prompt: string;
+  difficulty: string;
+  concepts: string[];
+}
+
+export async function generateVariantQuestions(
+  sources: { prompt: string; concepts: string[]; difficulty: string }[],
+): Promise<{ questions: VariantQuestion[] }> {
+  const res = await authFetch(`${API_BASE}/ai/generate-variants`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source_questions: sources }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json() as Promise<{ questions: VariantQuestion[] }>;
 }

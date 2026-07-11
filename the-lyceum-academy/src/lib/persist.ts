@@ -282,6 +282,31 @@ export function loadOnboardingAnswers(): Record<string, string | string[]> {
   try { return JSON.parse(localStorage.getItem(ONBOARDING_ANSWERS_KEY) || '{}'); } catch { return {}; }
 }
 
+// ── Learning style sliders (10 values 0-100) ────────────────────────────
+const LEARNING_STYLE_KEY = 'lyceum_learning_style';
+
+export function saveLearningStyle(style: Record<string, number>): void {
+  try { localStorage.setItem(LEARNING_STYLE_KEY, JSON.stringify(style)); } catch { /* quota */ }
+}
+
+export function loadLearningStyle(): Record<string, number> | null {
+  try {
+    const raw = localStorage.getItem(LEARNING_STYLE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+// ── Selected personas (up to 3 persona IDs, in user-chosen order) ───────
+const SELECTED_PERSONAS_KEY = 'lyceum_selected_personas';
+
+export function saveSelectedPersonas(personaIds: string[]): void {
+  try { localStorage.setItem(SELECTED_PERSONAS_KEY, JSON.stringify(personaIds.slice(0, 3))); } catch { /* quota */ }
+}
+
+export function loadSelectedPersonas(): string[] {
+  try { return JSON.parse(localStorage.getItem(SELECTED_PERSONAS_KEY) || '[]'); } catch { return []; }
+}
+
 // ── Reference Bank (Gemma research results, auto-categorized by subject) ──
 const REFERENCES_KEY = 'lyceum_reference_bank_v1';
 

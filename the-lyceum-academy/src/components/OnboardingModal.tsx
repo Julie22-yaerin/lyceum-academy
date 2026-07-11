@@ -1,16 +1,17 @@
 /**
  * OnboardingModal — shown once after first login.
- * A live AI advisor chat gathers the same 8 signals a form used to,
- * conversationally → Meta Llama 3.1 70B analysis → pricing recommendation → PayPal sandbox.
+ * Flow: Chat advisor → Learning style sliders (10) → Persona selection (pick 3) → Goal date → Pricing recommendation.
  *
  * Persistence:
- *   localStorage 'lyceum_onboarding_done'  — boolean, hides modal on next visit
- *   localStorage 'lyceum_plan'             — chosen plan id
+ *   localStorage 'lyceum_onboarding_done'   — boolean, hides modal on next visit
+ *   localStorage 'lyceum_plan'              — chosen plan id
+ *   localStorage 'lyceum_learning_style'    — 10 slider values
+ *   localStorage 'lyceum_selected_personas' — top 3 persona IDs
  */
 
-import { useState, useEffect, useRef, useMemo } from 'react';
-import { analyzeOnboarding, chatMessage, type ChatMsg } from '../lib/api';
-import { saveOnboardingAnswers } from '../lib/persist';
+import { useState, useEffect, useRef, useMemo, type DragEvent } from 'react';
+import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Persona } from '../lib/api';
+import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
@@ -300,10 +301,260 @@ function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelec
   );
 }
 
+// ── Learning Style Sliders ───────────────────────────────────────────────
+// 10 sliders that map to persona cognitive indices.
+
+const SLIDER_CONFIG = [
+  { key: 'visual',       label: 'Hình ảnh & Trực quan',    left: 'Text-based',    right: 'Visual thinker' },
+  { key: 'exploration',  label: 'Khám phá',                 left: 'Guided steps',  right: 'Self-explore' },
+  { key: 'concrete',     label: 'Thực hành',                left: 'Theory first',  right: 'Hands-on' },
+  { key: 'pace',         label: 'Tốc độ',                   left: 'Slow & deep',   right: 'Fast & broad' },
+  { key: 'challenge',    label: 'Thử thách',                left: 'Gentle',        right: 'Push me hard' },
+  { key: 'depth',        label: 'Chiều sâu',                left: 'Overview',      right: 'Deep mastery' },
+  { key: 'structure',    label: 'Cấu trúc',                 left: 'Flexible',      right: 'Structured' },
+  { key: 'practice',     label: 'Luyện tập',                left: 'Conceptual',    right: 'Drill practice' },
+  { key: 'ai_proactive', label: 'AI chủ động',              left: 'AI hands-off',  right: 'AI guides me' },
+  { key: 'critique',     label: 'Phê bình tư duy',          left: 'Supportive',    right: 'Challenge me' },
+];
+
+function LearningStyleSliders({
+  value,
+  onChange,
+}: {
+  value: Record<string, number>;
+  onChange: (v: Record<string, number>) => void;
+}) {
+  return (
+    <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧠</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px' }}>What's your brain's fav?</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
+          Drag each bar toward the style you prefer. This helps us pair you with the right AI study partner.
+        </p>
+      </div>
+
+      {SLIDER_CONFIG.map(s => (
+        <div key={s.key}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.7)', fontWeight: 500 }}>{s.label}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: '#C5A059', fontWeight: 700 }}>{value[s.key] ?? 50}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, textAlign: 'right', flexShrink: 0 }}>{s.left}</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={value[s.key] ?? 50}
+              onChange={e => onChange({ ...value, [s.key]: Number(e.target.value) })}
+              style={{
+                flex: 1, height: 4, appearance: 'none', WebkitAppearance: 'none',
+                background: `linear-gradient(to right, #C5A059 0%, #C5A059 ${value[s.key] ?? 50}%, rgba(0,0,0,0.12) ${value[s.key] ?? 50}%, rgba(0,0,0,0.12) 100%)`,
+                borderRadius: 2, outline: 'none', cursor: 'pointer',
+              }}
+            />
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, flexShrink: 0 }}>{s.right}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Persona Selection (ranked list with drag-to-reorder) ────────────────
+// Shows all 9 personas ranked by match %, user drags to pick top 3.
+
+function PersonaSelection({
+  personas,
+  learningStyle,
+  selected,
+  onReorder,
+}: {
+  personas: Persona[];
+  learningStyle: Record<string, number>;
+  selected: string[];
+  onReorder: (ids: string[]) => void;
+}) {
+  const [dragIdx, setDragIdx] = useState<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
+
+  // Compute match % for each persona using cosine similarity
+  const ranked = useMemo(() => {
+    const SLIDER_TO_INDEX: Record<string, string> = {
+      visual: 'Visual', exploration: 'Guidance', concrete: 'Experiment',
+      pace: 'Pace', challenge: 'Challenge', depth: 'Depth',
+      structure: 'Structure', practice: 'Practice', ai_proactive: 'Support', critique: 'Socratic',
+    };
+    const INVERTED = new Set(['exploration']);
+
+    const userVec = Object.entries(SLIDER_TO_INDEX).map(([key, _]) => {
+      let val = learningStyle[key] ?? 50;
+      if (INVERTED.has(key)) val = 100 - val;
+      return val;
+    });
+
+    return personas.map(p => {
+      const pVec = Object.values(SLIDER_TO_INDEX).map(idx => (p.cognitive_indices?.[idx] ?? 50));
+      const dot = userVec.reduce((s, v, i) => s + v * pVec[i], 0);
+      const magA = Math.sqrt(userVec.reduce((s, v) => s + v * v, 0));
+      const magB = Math.sqrt(pVec.reduce((s, v) => s + v * v, 0));
+      const matchPct = magA && magB ? Math.round((dot / (magA * magB)) * 100) : 50;
+      return { ...p, match_pct: matchPct };
+    }).sort((a, b) => b.match_pct - a.match_pct);
+  }, [personas, learningStyle]);
+
+  // Selected set for quick lookup
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
+
+  // Drag handlers
+  function handleDragStart(e: DragEvent, idx: number) {
+    setDragIdx(idx);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(idx));
+  }
+
+  function handleDragOver(e: DragEvent, idx: number) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setOverIdx(idx);
+  }
+
+  function handleDrop(e: DragEvent, dropIdx: number) {
+    e.preventDefault();
+    if (dragIdx === null || dragIdx === dropIdx) return;
+    const newRanked = [...ranked];
+    const [moved] = newRanked.splice(dragIdx, 1);
+    newRanked.splice(dropIdx, 0, moved);
+    // Rebuild selected from new order: keep top 3 from reordered list
+    const newSelected = newRanked.slice(0, 3).map(p => p.id);
+    onReorder(newSelected);
+    setDragIdx(null);
+    setOverIdx(null);
+  }
+
+  function handleDragEnd() {
+    setDragIdx(null);
+    setOverIdx(null);
+  }
+
+  function handleClick(id: string) {
+    if (selectedSet.has(id)) {
+      // Deselect
+      onReorder(selected.filter(s => s !== id));
+    } else if (selected.length < 3) {
+      onReorder([...selected, id]);
+    } else {
+      // Replace the last selected with this one
+      onReorder([...selected.slice(0, 2), id]);
+    }
+  }
+
+  return (
+    <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧪</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px' }}>Choose your 3 AI study partners</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
+          Ranked by how well they match your style. Drag to reorder, or click to select. Pick exactly 3.
+        </p>
+      </div>
+
+      {/* Selected badges */}
+      {selected.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+          {selected.map((id, i) => {
+            const p = ranked.find(x => x.id === id);
+            return p ? (
+              <span key={id} style={{
+                fontFamily: 'sans-serif', fontSize: 10, padding: '4px 10px', borderRadius: 12,
+                background: 'rgba(197,160,89,0.15)', border: '1px solid rgba(197,160,89,0.4)',
+                color: '#6b5215', display: 'flex', alignItems: 'center', gap: 4,
+              }}>
+                <span style={{ fontWeight: 700 }}>#{i + 1}</span> {p.name.split(' ').pop()}
+              </span>
+            ) : null;
+          })}
+        </div>
+      )}
+
+      {/* Ranked persona list */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 380, overflowY: 'auto', padding: '4px 0' }}>
+        {ranked.map((p, idx) => {
+          const isSelected = selectedSet.has(p.id);
+          const selectedRank = selected.indexOf(p.id);
+          const isDragging = dragIdx === idx;
+          const isOver = overIdx === idx && dragIdx !== idx;
+          return (
+            <div
+              key={p.id}
+              draggable
+              onDragStart={e => handleDragStart(e, idx)}
+              onDragOver={e => handleDragOver(e, idx)}
+              onDrop={e => handleDrop(e, idx)}
+              onDragEnd={handleDragEnd}
+              onClick={() => handleClick(p.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
+                borderRadius: 8, cursor: 'grab', transition: 'all 0.15s',
+                background: isSelected ? 'rgba(197,160,89,0.1)' : 'rgba(255,255,255,0.5)',
+                border: isSelected ? '1.5px solid rgba(197,160,89,0.5)' : isOver ? '1.5px solid rgba(197,160,89,0.3)' : '1.5px solid rgba(0,0,0,0.08)',
+                opacity: isDragging ? 0.5 : 1,
+                transform: isOver ? 'scale(1.01)' : 'scale(1)',
+                boxShadow: isSelected ? '0 2px 12px rgba(197,160,89,0.12)' : 'none',
+              }}
+            >
+              {/* Rank badge */}
+              <div style={{
+                width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontFamily: 'sans-serif', fontSize: 10, fontWeight: 700,
+                background: isSelected ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                color: isSelected ? 'white' : 'rgba(0,0,0,0.4)',
+              }}>
+                {idx + 1}
+              </div>
+
+              {/* Persona info */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontFamily: 'Georgia, serif', fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.85)' }}>{p.name}</span>
+                  {selectedRank >= 0 && (
+                    <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: '#C5A059', color: 'white', padding: '1px 5px', borderRadius: 3 }}>
+                      #{selectedRank + 1}
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.45)', marginTop: 1 }}>
+                  {p.field} · {p.special_trait}
+                </div>
+              </div>
+
+              {/* Match % */}
+              <div style={{
+                fontFamily: 'sans-serif', fontSize: 13, fontWeight: 700,
+                color: p.match_pct >= 80 ? '#16a34a' : p.match_pct >= 60 ? '#C5A059' : 'rgba(0,0,0,0.35)',
+                flexShrink: 0, minWidth: 36, textAlign: 'right',
+              }}>
+                {p.match_pct}%
+              </div>
+
+              {/* Drag handle */}
+              <div style={{ flexShrink: 0, color: 'rgba(0,0,0,0.2)', fontSize: 14, cursor: 'grab', userSelect: 'none' }}>
+                ⠿
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
-  const [phase, setPhase] = useState<'chat' | 'goal' | 'pricing'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
   const [turns, setTurns] = useState<ChatMsg[]>([
     { role: 'system', content: ONBOARDING_SYSTEM_PROMPT },
     { role: 'assistant', content: OPENING_MESSAGE },
@@ -322,18 +573,47 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [paid, setPaid] = useState(false);
+
+  // ── New state for sliders + personas ──────────────────────────────────────
+  const [learningStyle, setLearningStyle] = useState<Record<string, number>>(() => {
+    const init: Record<string, number> = {};
+    SLIDER_CONFIG.forEach(s => { init[s.key] = 50; });
+    return init;
+  });
+  const [allPersonas, setAllPersonas] = useState<Persona[]>([]);
+  const [selectedPersonaIds, setSelectedPersonaIds] = useState<string[]>([]);
+  const [loadingPersonas, setLoadingPersonas] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Fetch personas when entering the sliders phase
+  useEffect(() => {
+    if (phase === 'sliders' && allPersonas.length === 0) {
+      setLoadingPersonas(true);
+      fetchPersonas()
+        .then(setAllPersonas)
+        .catch(() => {})
+        .finally(() => setLoadingPersonas(false));
+    }
+  }, [phase, allPersonas.length]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns, sending]);
 
   async function finishChat(parsedAnswers: Record<string, string | string[]>) {
-    setPhase('pricing');
-    setAnalyzing(true);
     // Persist raw answers — the roadmap generator and personalization
     // profile read these later (learning-style q7, study-intensity q1/q3).
     saveOnboardingAnswers(parsedAnswers);
+    // Go to sliders next
+    setPhase('sliders');
+  }
+
+  async function triggerPricing() {
+    if (!pendingAnswers) return;
+    setPhase('pricing');
+    setAnalyzing(true);
+    saveLearningStyle(learningStyle);
+    saveSelectedPersonas(selectedPersonaIds);
     try {
-      const result = await analyzeOnboarding(parsedAnswers);
+      const result = await analyzeOnboarding(pendingAnswers, learningStyle, selectedPersonaIds);
       setAiResult(result);
       if (result.recommended_plan_id) setSelectedPlan(result.recommended_plan_id);
     } catch {
@@ -366,7 +646,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
       try { parsed = JSON.parse(jsonStr); } catch { /* malformed — treat as not-yet-done */ }
       if (Object.keys(parsed).length > 0) {
         setPendingAnswers(parsed);
-        setPhase('goal');
+        finishChat(parsed);
       }
     } catch (e: any) {
       setChatError(e?.message || 'Something went wrong — please try again.');
@@ -378,7 +658,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   function confirmGoal() {
     if (!goalDate || !pendingAnswers) return;
     startStreakGoal(goalDate, goalLabel.trim());
-    finishChat(pendingAnswers);
+    triggerPricing();
   }
 
   function handlePaySuccess(planId: string) {
@@ -397,13 +677,25 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const altIds  = (aiResult?.alternatives || []).map(a => a.plan_id);
 
   const userTurnCount = turns.filter(t => t.role === 'user').length;
-  const progress = phase === 'pricing' ? 1 : phase === 'goal' ? 0.95 : Math.min(userTurnCount / 6, 0.92);
+  const progress =
+    phase === 'pricing'  ? 1 :
+    phase === 'goal'     ? 0.92 :
+    phase === 'personas' ? 0.72 :
+    phase === 'sliders'  ? 0.52 :
+    Math.min(userTurnCount / 6, 0.42);
+
+  const phaseLabel =
+    phase === 'chat'     ? 'The Lyceum — Talk to your advisor' :
+    phase === 'sliders'  ? "The Lyceum — What's your brain's fav?" :
+    phase === 'personas' ? 'The Lyceum — Choose your partners' :
+    phase === 'goal'     ? 'The Lyceum — Set your target' :
+                           'The Lyceum — Plans for you';
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 200,
-      background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
+      background: '#050508',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontFamily: 'Georgia, serif',
     }}>
@@ -415,11 +707,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         @keyframes obDotBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
         .ob-dot { width: 6px; height: 6px; border-radius: 50%; background: #C5A059; display: inline-block; animation: obDotBounce 1s infinite ease-in-out; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #ccc; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #C5A059; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); cursor: grab; }
+        input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #C5A059; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); cursor: grab; }
       `}</style>
 
       {/* Modal panel */}
       <div className="ob-scale" style={{
-        background: '#FAFAF8', borderRadius: 8, width: '92vw', maxWidth: phase === 'pricing' ? 1060 : phase === 'goal' ? 460 : 600,
+        background: '#FAFAF8', borderRadius: 8, width: '92vw',
+        maxWidth: phase === 'pricing' ? 1060 : phase === 'personas' ? 680 : phase === 'goal' ? 460 : 600,
         maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
         boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
         transition: 'max-width 0.4s cubic-bezier(0.23,1,0.32,1)',
@@ -428,7 +723,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
-              {phase === 'chat' ? 'The Lyceum — Talk to your advisor' : phase === 'goal' ? 'The Lyceum — Set your target' : 'The Lyceum — Plans for you'}
+              {phaseLabel}
             </span>
             <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.28)' }}>
               Skip
@@ -449,6 +744,29 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
               <p style={{ fontSize: 22, marginBottom: 8 }}>Welcome to The Lyceum</p>
               <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
             </div>
+          )}
+
+          {/* ── Learning Style Sliders screen ── */}
+          {!paid && phase === 'sliders' && (
+            <LearningStyleSliders value={learningStyle} onChange={setLearningStyle} />
+          )}
+
+          {/* ── Persona Selection screen ── */}
+          {!paid && phase === 'personas' && (
+            loadingPersonas ? (
+              <div className="ob-enter" style={{ textAlign: 'center', padding: '48px 0' }}>
+                <div style={{ width: 32, height: 32, border: '2px solid rgba(0,0,0,0.12)', borderTop: '2px solid #C5A059', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)' }}>Loading personas…</p>
+              </div>
+            ) : (
+              <PersonaSelection
+                personas={allPersonas}
+                learningStyle={learningStyle}
+                selected={selectedPersonaIds}
+                onReorder={setSelectedPersonaIds}
+              />
+            )
           )}
 
           {/* ── Goal-date screen ── */}
@@ -488,6 +806,24 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 </div>
               ) : (
                 <div className="ob-enter">
+                  {/* Selected persona badges */}
+                  {selectedPersonaIds.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 20 }}>
+                      {selectedPersonaIds.map(id => {
+                        const p = allPersonas.find(x => x.id === id);
+                        return p ? (
+                          <span key={id} style={{
+                            fontFamily: 'sans-serif', fontSize: 10, padding: '4px 10px', borderRadius: 12,
+                            background: 'rgba(197,160,89,0.12)', border: '1px solid rgba(197,160,89,0.3)',
+                            color: '#6b5215', display: 'flex', alignItems: 'center', gap: 4,
+                          }}>
+                            {p.name} · {p.special_trait}
+                          </span>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+
                   {aiResult?.reasoning && (
                     <div style={{ background: 'rgba(197,160,89,0.1)', border: '1px solid rgba(197,160,89,0.35)', borderRadius: 6, padding: '14px 18px', marginBottom: 24 }}>
                       <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: '#C5A059', display: 'block', marginBottom: 6 }}>AI assessment</span>
@@ -589,6 +925,48 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 transition: 'all 0.15s',
               }}>
               Start my streak
+            </button>
+          </div>
+        )}
+
+        {/* Sliders footer — Next button */}
+        {!paid && phase === 'sliders' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>
+              Adjust sliders to match your style
+            </span>
+            <button
+              onClick={() => { saveLearningStyle(learningStyle); setPhase('personas'); }}
+              style={{
+                padding: '13px 26px', background: '#C5A059',
+                border: 'none', borderRadius: 8, cursor: 'pointer',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: '#1a1a1a', fontWeight: 700, transition: 'all 0.15s',
+              }}>
+              Next
+            </button>
+          </div>
+        )}
+
+        {/* Personas footer — Continue button */}
+        {!paid && phase === 'personas' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedPersonaIds.length === 3 ? '#16a34a' : 'rgba(0,0,0,0.35)' }}>
+              {selectedPersonaIds.length === 3 ? '✓ 3 partners selected' : `${selectedPersonaIds.length}/3 selected — drag or click to choose`}
+            </span>
+            <button
+              onClick={() => setPhase('goal')}
+              disabled={selectedPersonaIds.length !== 3}
+              style={{
+                padding: '13px 26px',
+                background: selectedPersonaIds.length === 3 ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                border: 'none', borderRadius: 8,
+                cursor: selectedPersonaIds.length === 3 ? 'pointer' : 'not-allowed',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: selectedPersonaIds.length === 3 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
+                fontWeight: 700, transition: 'all 0.15s',
+              }}>
+              Continue
             </button>
           </div>
         )}

@@ -94,6 +94,14 @@ body {
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
 }
 
+/* Mind Map panel — much less see-through than the base glass-strong so the
+   graph reads clearly against whatever's behind it. */
+.glass-strong.mindmap-panel {
+  background: rgba(15, 20, 36, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
 .glass-input {
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(24px);

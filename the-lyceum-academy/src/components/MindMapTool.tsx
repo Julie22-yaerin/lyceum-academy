@@ -343,7 +343,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
   return (
     <>
       <div
-        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[480px] glass-strong rounded-3xl flex flex-col overflow-hidden"
+        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[480px] glass-strong mindmap-panel rounded-3xl flex flex-col overflow-hidden"
         style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
       >
         <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant/20 flex-shrink-0">
