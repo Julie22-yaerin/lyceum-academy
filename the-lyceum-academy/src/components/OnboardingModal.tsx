@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useRef, useMemo, type DragEvent } from 'react';
 import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Persona } from '../lib/api';
-import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas } from '../lib/persist';
+import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
@@ -662,14 +662,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   }
 
   function handlePaySuccess(planId: string) {
-    localStorage.setItem('lyceum_onboarding_done', '1');
+    localStorage.setItem(scopedGateKey('lyceum_onboarding_done'), '1');
     localStorage.setItem('lyceum_plan', planId);
     setPaid(true);
     setTimeout(onClose, 2200);
   }
 
   function handleSkip() {
-    localStorage.setItem('lyceum_onboarding_done', '1');
+    localStorage.setItem(scopedGateKey('lyceum_onboarding_done'), '1');
     onClose();
   }
 

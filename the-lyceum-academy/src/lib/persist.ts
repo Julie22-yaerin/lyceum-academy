@@ -1,4 +1,16 @@
 // ── Lightweight localStorage persistence for ProblemSets & Graphs ──────────
+import { auth } from './firebase';
+
+/**
+ * Namespaces a one-time-gate localStorage key (terms/onboarding/tour/login-count)
+ * by the signed-in Firebase UID. Without this, a second account signing in on
+ * the same browser inherits the first account's "already onboarded" flags —
+ * the gates would never re-trigger for a genuinely new user.
+ */
+export function scopedGateKey(base: string): string {
+  const uid = auth.currentUser?.uid;
+  return uid ? `${base}:${uid}` : base;
+}
 
 const PSET_TTL = 24 * 60 * 60 * 1000; // 24 hours
 

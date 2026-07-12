@@ -17,6 +17,10 @@ import MistakeBankView from './views/MistakeBankView';
 import ReferenceBankView from './views/ReferenceBankView';
 import TermsModal from './components/TermsModal';
 import FeedbackModal from './components/FeedbackModal';
+import ProductTour from './components/ProductTour';
+import { buildTourSteps } from './lib/tourSteps';
+import { detectLocale, setDocumentLocale } from './lib/locale';
+import { scopedGateKey } from './lib/persist';
 
 
 function AppInner() {
@@ -25,7 +29,13 @@ function AppInner() {
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [showTour, setShowTour] = useState(false);
   const loginCountedRef = useRef(false);
+  const tourCheckedRef = useRef(false);
+
+  useEffect(() => {
+    setDocumentLocale(detectLocale());
+  }, []);
 
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
@@ -39,37 +49,56 @@ function AppInner() {
   useEffect(() => {
     if (!loading && ((user && emailVerified) || devMode) && view !== 'landing' && view !== 'auth') {
       try {
-        if (!localStorage.getItem('lyceum_terms_accepted')) {
+        if (!localStorage.getItem(scopedGateKey('lyceum_terms_accepted'))) {
           setShowTerms(true);
           return;
         }
-        if (!localStorage.getItem('lyceum_onboarding_done')) {
+        if (!localStorage.getItem(scopedGateKey('lyceum_onboarding_done'))) {
           setShowOnboarding(true);
         }
       } catch { /* ignore */ }
     }
   }, [loading, user, devMode, view]);
 
-  // Every 2nd time a student actually reaches the workspace (not mid
-  // terms/onboarding gate), pop up a quick anonymous feedback ask.
-  // loginCountedRef guards against double-counting the same page load.
+  // First-ever real visit to the workspace (not mid terms/onboarding gate):
+  // a one-time spotlight tour of the main features. tourCheckedRef guards
+  // against re-checking on every render of the same page load.
   useEffect(() => {
     if (loading || showTerms || showOnboarding) return;
+    if (!((user && emailVerified) || devMode) || view === 'landing' || view === 'auth') return;
+    if (tourCheckedRef.current) return;
+    tourCheckedRef.current = true;
+    try {
+      if (!localStorage.getItem(scopedGateKey('lyceum_tour_done'))) setShowTour(true);
+    } catch { /* ignore */ }
+  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding]);
+
+  function handleTourFinish() {
+    try { localStorage.setItem(scopedGateKey('lyceum_tour_done'), '1'); } catch { /* ignore */ }
+    setShowTour(false);
+  }
+
+  // Every 2nd time a student actually reaches the workspace (not mid
+  // terms/onboarding/tour gate), pop up a quick anonymous feedback ask.
+  // loginCountedRef guards against double-counting the same page load.
+  useEffect(() => {
+    if (loading || showTerms || showOnboarding || showTour) return;
     if (!((user && emailVerified) || devMode) || view === 'landing' || view === 'auth') return;
     if (loginCountedRef.current) return;
     loginCountedRef.current = true;
     try {
-      const count = (Number(localStorage.getItem('lyceum_login_count')) || 0) + 1;
-      localStorage.setItem('lyceum_login_count', String(count));
+      const key = scopedGateKey('lyceum_login_count');
+      const count = (Number(localStorage.getItem(key)) || 0) + 1;
+      localStorage.setItem(key, String(count));
       if (count % 2 === 0) setShowFeedback(true);
     } catch { /* ignore */ }
-  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding]);
+  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding, showTour]);
 
   function handleAgreeTerms() {
-    try { localStorage.setItem('lyceum_terms_accepted', '1'); } catch { /* ignore */ }
+    try { localStorage.setItem(scopedGateKey('lyceum_terms_accepted'), '1'); } catch { /* ignore */ }
     setShowTerms(false);
     try {
-      if (!localStorage.getItem('lyceum_onboarding_done')) {
+      if (!localStorage.getItem(scopedGateKey('lyceum_onboarding_done'))) {
         setShowOnboarding(true);
       }
     } catch { /* ignore */ }
@@ -106,8 +135,9 @@ function AppInner() {
 
   return (
     <>
+      {showTour && <ProductTour steps={buildTourSteps(setView)} onFinish={handleTourFinish} />}
       {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
-      <MainLayout currentView={view} onNavigate={setView}>
+      <MainLayout currentView={view} onNavigate={setView} tourActive={showTour}>
         {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
         {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}
