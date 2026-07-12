@@ -5,6 +5,7 @@ import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectSubject, type SavedPSet } from '../lib/persist';
 import { recordProfileEvent } from '../lib/profile';
+import { useWorkspace } from '../context/WorkspaceContext';
 import MindMapTool from '../components/MindMapTool';
 
 // ── Math keyboard symbols ─────────────────────────────────────────────────
@@ -825,6 +826,7 @@ function LensView({
             location: `${docKey} · Q${questions.indexOf(oq) + 1}`,
             explanation: g.feedback || '',
             concept: oq.concepts[0],
+            subject: activeTab || undefined,
           });
         } catch { /* ignore */ }
       });
@@ -834,6 +836,7 @@ function LensView({
         sessionId: `${docKey}_${Date.now()}`,
         date: Date.now(),
         filename: docKey,
+        subject: activeTab || undefined,
         grades: result.grades.map(g => {
           const oq = questions.find(q => q.id === g.id);
           return {
@@ -1549,6 +1552,7 @@ function LensView({
 
 // ── Main ProblemSetsView ──────────────────────────────────────────────────
 export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: string) => void } = {}) {
+  const { activeTab } = useWorkspace();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [pages, setPages] = useState<PdfPage[]>([]);
   const [lensMode, setLensMode] = useState(false);
@@ -1583,7 +1587,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
 
   useEffect(() => { getUsage().then(u => setUsage(u)); }, [questions]);
   useEffect(() => { loadKaTeX(() => setKatexTick(t => t + 1)); }, []);
-  useEffect(() => { setSavedSets(loadPSets()); }, []);
+  useEffect(() => { setSavedSets(loadPSets(activeTab || undefined)); }, [activeTab]);
 
   // ── Trigger AI analysis when questions are loaded ──
   useEffect(() => {
@@ -1667,7 +1671,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         const isLens = pgData.length > 0;
         setLensMode(isLens);
         // Re-use existing saved set ID if same file name (preserves progress position)
-        const existingSet = loadPSets().find(s => s.name === file.name);
+        const existingSet = loadPSets(activeTab || undefined).find(s => s.name === file.name);
         const id = (psetIdRef.current && docKey === file.name && existingSet)
           ? psetIdRef.current
           : `pset_${Date.now()}`;
@@ -1675,8 +1679,8 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         psetIdRef.current = id;
         // Save pages to IndexedDB (async, fire-and-forget; large data)
         if (pgData.length > 0) savePages(id, pgData);
-        savePSet({ id, name: file.name, savedAt: Date.now(), questions: qs, currentIdx: savedIdx, lensMode: isLens, totalPages: tp, hasCachedPages: pgData.length > 0 });
-        setSavedSets(loadPSets());
+        savePSet({ id, name: file.name, savedAt: Date.now(), questions: qs, currentIdx: savedIdx, lensMode: isLens, totalPages: tp, hasCachedPages: pgData.length > 0, subject: existingSet?.subject ?? activeTab ?? undefined });
+        setSavedSets(loadPSets(activeTab || undefined));
         if (isLens) {
           setLensOpen(true);
         }
@@ -1767,7 +1771,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         analyzedPagesRef.current = new Set(Array.from({ length: cachedPages.length }, (_, i) => i));
         setAnalyzedPageCount(cachedPages.length);
         savePSet({ ...s, savedAt: Date.now() });
-        setSavedSets(loadPSets());
+        setSavedSets(loadPSets(activeTab || undefined));
         setLensOpen(true);
         return;
       }
@@ -1775,7 +1779,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
 
     // Cached pages expired or unavailable — prompt re-upload
     savePSet({ ...s, savedAt: Date.now() });
-    setSavedSets(loadPSets());
+    setSavedSets(loadPSets(activeTab || undefined));
     fileRef.current?.click();
   }
 
@@ -1794,14 +1798,15 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
           onExit={(exitIdx) => {
             setLensOpen(false);
             if (psetIdRef.current) {
-              const existing = loadPSets().find(p => p.id === psetIdRef.current);
+              const existing = loadPSets(activeTab || undefined).find(p => p.id === psetIdRef.current);
               savePSet({
                 id: psetIdRef.current, name: docKey, savedAt: Date.now(), questions, currentIdx: exitIdx,
                 lensMode: true, totalPages, hasCachedPages: true,
                 // Preserve original expiresAt so the 24h clock doesn't reset on exit
                 expiresAt: existing?.expiresAt,
+                subject: existing?.subject ?? activeTab ?? undefined,
               });
-              setSavedSets(loadPSets());
+              setSavedSets(loadPSets(activeTab || undefined));
             }
           }}
           onClean={handleClean}
@@ -2125,7 +2130,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                       </button>
                     )}
                     <button
-                      onClick={() => { deletePSet(s.id); setSavedSets(loadPSets()); }}
+                      onClick={() => { deletePSet(s.id); setSavedSets(loadPSets(activeTab || undefined)); }}
                       className="opacity-0 group-hover:opacity-30 hover:!opacity-70 transition-opacity p-1"
                       title="Delete"
                     >

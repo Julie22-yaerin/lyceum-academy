@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 import { generateGraph, getNodeSummary } from '../lib/api';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { loadGraphs, saveGraph, deleteGraph, timeAgo, type SavedGraph } from '../lib/persist';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────
 interface GraphNode extends d3.SimulationNodeDatum {
@@ -36,6 +37,7 @@ const TOPIC_CHIPS = [
 ];
 
 export default function KnowledgeMapView() {
+  const { activeTab } = useWorkspace();
   // Graph
   const [topic, setTopic] = useState('');
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -58,7 +60,7 @@ export default function KnowledgeMapView() {
   const [showSavedGraphs, setShowSavedGraphs] = useState(false);
   const currentGraphIdRef = useRef<string>('');
 
-  useEffect(() => { setSavedGraphs(loadGraphs()); }, []);
+  useEffect(() => { setSavedGraphs(loadGraphs(activeTab || undefined)); }, [activeTab]);
 
   // ── D3 Graph ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -208,8 +210,9 @@ export default function KnowledgeMapView() {
           source: typeof e.source === 'string' ? e.source : (e.source as GraphNode).id,
           target: typeof e.target === 'string' ? e.target : (e.target as GraphNode).id,
         })),
+        subject: activeTab || undefined,
       });
-      setSavedGraphs(loadGraphs());
+      setSavedGraphs(loadGraphs(activeTab || undefined));
     } catch (e: any) {
       setGraphError(e.message || 'Backend is not running. Start it first.');
     } finally {
@@ -266,7 +269,7 @@ export default function KnowledgeMapView() {
                       </p>
                     </div>
                     <button
-                      onClick={() => { deleteGraph(g.id); setSavedGraphs(loadGraphs()); }}
+                      onClick={() => { deleteGraph(g.id); setSavedGraphs(loadGraphs(activeTab || undefined)); }}
                       className="opacity-0 group-hover:opacity-30 hover:!opacity-70 transition-opacity ml-2 flex-shrink-0"
                     >
                       <span className="material-symbols-outlined text-[14px]">delete</span>

@@ -4,6 +4,8 @@ import SmartImage from './SmartImage';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
 import { getNodeSummary, voiceFallbackChat } from '../lib/api';
 import { startVoiceSession, endVoiceSession, logFeatureUsage } from '../lib/subscriptionApi';
+import { getSpeechLocale, type AppLocale } from '../lib/locale';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 // Gemini 2.0 Flash + v1alpha BidiGenerateContent were shut down 2026-06-01.
 // Live voice now runs on the native-audio Live model over v1beta (see backend/app/main.py).
@@ -19,6 +21,7 @@ interface S2SVoiceOverlayProps {
   systemInstruction: string;
   enableAutoSave?: boolean;
   voiceName?: 'Puck' | 'Aoede' | 'Charon' | 'Kore' | 'Fenrir';
+  locale?: AppLocale;
   /** If true, mic starts muted (push-to-talk mode). Default: false (always-listen). */
   startMuted?: boolean;
 }
@@ -35,8 +38,10 @@ export default function S2SVoiceOverlay({
   systemInstruction,
   enableAutoSave = false,
   voiceName = 'Puck',
+  locale = 'en',
   startMuted = false,
 }: S2SVoiceOverlayProps) {
+  const { activeTab } = useWorkspace();
   const [status, setStatus] = useState<'connecting' | 'idle' | 'listening' | 'speaking' | 'paused' | 'error' | 'fallback'>('connecting');
   const [isMuted, setIsMuted] = useState(startMuted);
   const [liveUserTranscription, setLiveUserTranscription] = useState('');
@@ -146,7 +151,7 @@ export default function S2SVoiceOverlay({
     if (text) {
       lastResearchRef.current = { topic, imageUrl: imageUrls[0], imageUrls, sourceUrl };
       showToastMsg(text, 'research', imageUrls);
-      saveReference({ topic, summary: text, imageUrl: imageUrls[0], imageUrls, sourceUrl });
+      saveReference({ topic, summary: text, imageUrl: imageUrls[0], imageUrls, sourceUrl, category: activeTab || undefined });
 
       // Log reference library usage
       try {
@@ -215,7 +220,7 @@ export default function S2SVoiceOverlay({
     try {
       window.speechSynthesis.cancel();
       const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'en-US';
+      utter.lang = getSpeechLocale(locale);
       utter.onstart = () => setStatus('speaking');
       utter.onend = () => setStatus('fallback');
       utter.onerror = () => setStatus('fallback');
@@ -370,13 +375,13 @@ export default function S2SVoiceOverlay({
               title: title,
               savedAt: Date.now(),
               sourceType: 'text',
+              subject: activeTab || undefined,
               note: {
                 title: title,
                 tldr: content,
                 concepts: [],
                 takeaways: [content]
-              },
-              subject: 'General Study Notes'
+              }
             });
             showToastMsg(`Saved note: "${title}"`, 'note');
           } catch (err) {
@@ -393,7 +398,8 @@ export default function S2SVoiceOverlay({
             saveMistake({
               mistake: mistakeText,
               location: locationText,
-              explanation: explanationText
+              explanation: explanationText,
+              subject: activeTab || undefined,
             });
             showToastMsg(`Logged mistake: "${mistakeText}"`, 'mistake');
           } catch (err) {
@@ -441,8 +447,8 @@ export default function S2SVoiceOverlay({
           const rec = new SpeechRecognitionClass();
           rec.continuous = true;
           rec.interimResults = true;
-          // S2S is focused on English speech recognition.
-          rec.lang = 'en-US';
+          // Match speech recognition to the selected UI/assistant locale.
+          rec.lang = getSpeechLocale(locale);
 
           rec.onresult = (e: any) => {
             // Muted: don't transcribe, don't touch status.
@@ -486,7 +492,7 @@ export default function S2SVoiceOverlay({
           try { rec.start(); } catch (err) { console.warn('SpeechRecognition start failed:', err); }
         }
 
-        const API_BASE = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8000';
+        const API_BASE = ((import.meta as any).env?.VITE_API_BASE as string) || 'http://localhost:8000';
         const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/s2s';
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
@@ -508,13 +514,13 @@ export default function S2SVoiceOverlay({
           const setupMsg = {
             setup: {
               model: LIVE_MODEL,
-              generationConfig: {
-                responseModalities: ["AUDIO"],
-                speechConfig: {
-                  languageCode: 'en-US',
-                  voiceConfig: {
-                    prebuiltVoiceConfig: {
-                      voiceName: voiceName
+                generationConfig: {
+                  responseModalities: ["AUDIO"],
+                  speechConfig: {
+                    languageCode: getSpeechLocale(locale),
+                    voiceConfig: {
+                      prebuiltVoiceConfig: {
+                        voiceName: voiceName
                     }
                   }
                 }

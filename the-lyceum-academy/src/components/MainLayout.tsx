@@ -1,15 +1,17 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import FloatingDock from './FloatingDock';
 import VoiceOrb from './VoiceOrb';
+import SubjectTabBar from './SubjectTabBar';
 import { NavigationProps } from '../types';
 import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
 import { recordSubjectActivity } from '../lib/profile';
 
 interface MainLayoutProps extends NavigationProps {
   children: ReactNode;
+  tourActive?: boolean;
 }
 
-export default function MainLayout({ currentView, onNavigate, children }: MainLayoutProps) {
+export default function MainLayout({ currentView, onNavigate, children, tourActive }: MainLayoutProps) {
   const [showSubjectPrompt, setShowSubjectPrompt] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
   const initRef = useRef<string | null>(null);
@@ -19,7 +21,10 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
   // deliberately lightweight after the Pomodoro timer/task-chain system
   // (StudyTimer/MiniTimer/TaskSetupModal, view-locking, break-locking) was
   // removed; this is just the subject signal, not a timer.
+  // Deferred while the first-login product tour is active — it's a
+  // separate full-screen overlay, two modals at once would collide.
   useEffect(() => {
+    if (tourActive) return;
     const today = new Date().toDateString();
     if (initRef.current === today) return;
     initRef.current = today;
@@ -28,7 +33,7 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
       setSubjectInput('');
       setShowSubjectPrompt(true);
     }
-  }, [currentView]);
+  }, [currentView, tourActive]);
 
   function handleSubjectSubmit() {
     if (subjectInput) {
@@ -41,17 +46,24 @@ export default function MainLayout({ currentView, onNavigate, children }: MainLa
   // Knowledge map needs its own full-bleed layout (contains its own toolbar, drawer, etc.)
   const isFullBleed = currentView === 'knowledge-map';
 
+  // Subject-scoped views get the workspace tab strip; Nexus/Settings stay
+  // cross-subject overviews and don't show it.
+  const SUBJECT_SCOPED_VIEWS = new Set(['dialogue', 'notes', 'problem-sets', 'mistake-bank', 'knowledge-map', 'progress', 'reference-bank']);
+  const showTabBar = SUBJECT_SCOPED_VIEWS.has(currentView);
+
   return (
     <div className="bg-[#050508] text-white/90 min-h-screen flex flex-col">
       <FloatingDock currentView={currentView} onNavigate={onNavigate} />
-      <VoiceOrb currentView={currentView} />
+      <VoiceOrb currentView={currentView} tourActive={tourActive} />
       <main id="lyceum-workspace-content" className={`flex flex-1 w-full ${isFullBleed ? '' : 'max-w-7xl mx-auto px-6 pt-24 pb-32'}`}>
         <div className={`flex-1 ${isFullBleed ? '' : 'overflow-y-auto'}`}>
+          {showTabBar && isFullBleed && <div className="px-6 pt-6"><SubjectTabBar /></div>}
+          {showTabBar && !isFullBleed && <SubjectTabBar />}
           {children}
         </div>
       </main>
 
-      {showSubjectPrompt && (
+      {showSubjectPrompt && !tourActive && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 180,
           background: 'rgba(0,0,0,0.4)',

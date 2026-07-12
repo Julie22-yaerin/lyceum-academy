@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { loadReferences, deleteReference, SUBJECT_META, type ReferenceEntry } from '../lib/persist';
+import { useState, useEffect } from 'react';
+import { loadReferences, deleteReference, type ReferenceEntry } from '../lib/persist';
 import SmartImage from '../components/SmartImage';
 import { useReferenceLibraryGate } from '../lib/useSubscription';
 import UpgradePrompt from '../components/UpgradePrompt';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry; onDelete: () => void; onOpenImage: (url: string) => void }) {
   const date = new Date(entry.savedAt);
@@ -58,23 +59,18 @@ function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry
 }
 
 export default function ReferenceBankView() {
-  const [refs, setRefs] = useState<ReferenceEntry[]>(() => loadReferences());
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const { activeTab } = useWorkspace();
+  const [refs, setRefs] = useState<ReferenceEntry[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
   const { canUse, limit, used } = useReferenceLibraryGate();
 
+  useEffect(() => { setRefs(loadReferences(activeTab || undefined)); }, [activeTab]);
+
   function handleDelete(id: string) {
     deleteReference(id);
-    setRefs(loadReferences());
+    setRefs(loadReferences(activeTab || undefined));
   }
-
-  const byCategory: Record<string, ReferenceEntry[]> = {};
-  for (const r of refs) {
-    (byCategory[r.category] ??= []).push(r);
-  }
-  const categories = Object.keys(byCategory).sort((a, b) => byCategory[b].length - byCategory[a].length);
-  const visibleCategories = activeCategory ? categories.filter(c => c === activeCategory) : categories;
 
   const limitText = limit === Infinity ? 'Unlimited' : `${used} / ${limit}`;
   const nearLimit = limit !== Infinity && used >= limit * 0.8;
@@ -114,54 +110,15 @@ export default function ReferenceBankView() {
       {refs.length === 0 ? (
         <div className="glass-strong rounded-2xl p-10 text-center">
           <p className="font-sans text-sm text-white/40">
-            Nothing here yet. Ask ARI to look something up and it'll show up in this bank automatically.
+            Nothing here yet for this subject. Ask ARI to look something up and it'll show up in this bank automatically.
           </p>
         </div>
       ) : (
-        <>
-          <div className="flex flex-wrap gap-2 mb-6">
-            <button
-              onClick={() => setActiveCategory(null)}
-              className={`px-3 py-1.5 rounded-full text-[11px] font-sans transition-all ${
-                activeCategory === null ? 'bg-white/15 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
-              }`}
-            >
-              All ({refs.length})
-            </button>
-            {categories.map(cat => {
-              const meta = SUBJECT_META[cat] || SUBJECT_META.other;
-              return (
-                <button
-                  key={cat}
-                  onClick={() => setActiveCategory(cat === activeCategory ? null : cat)}
-                  className={`px-3 py-1.5 rounded-full text-[11px] font-sans transition-all ${
-                    activeCategory === cat ? 'bg-white/15 text-white' : 'bg-white/5 text-white/50 hover:bg-white/10'
-                  }`}
-                >
-                  {meta.icon} {meta.label} ({byCategory[cat].length})
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="flex flex-col gap-8">
-            {visibleCategories.map(cat => {
-              const meta = SUBJECT_META[cat] || SUBJECT_META.other;
-              return (
-                <div key={cat}>
-                  <h3 className="font-sans text-[10px] uppercase tracking-[2px] text-white/40 mb-3">
-                    {meta.icon} {meta.label}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {byCategory[cat].map(r => (
-                      <ReferenceCard key={r.id} entry={r} onDelete={() => handleDelete(r.id)} onOpenImage={setLightboxImage} />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {refs.map(r => (
+            <ReferenceCard key={r.id} entry={r} onDelete={() => handleDelete(r.id)} onOpenImage={setLightboxImage} />
+          ))}
+        </div>
       )}
 
       {/* Lightbox: full-size reference image on a blurred backdrop */}

@@ -1,14 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { chatMessage } from '../lib/api';
 import {
-  loadMistakes,
   deleteMistake,
   clearMistakes,
   getSubjectIcon,
   getSortedMistakes,
-  getAllSubjects,
   type MistakeEntry,
 } from '../lib/mistakes';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -212,21 +211,18 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
 }
 
 export default function MistakeBankView() {
+  const { activeTab } = useWorkspace();
   const [entries, setEntries] = useState<MistakeEntry[]>([]);
-  const [subjects, setSubjects] = useState<string[]>([]);
-  const [filterSubject, setFilterSubject] = useState('');
   const [showClear, setShowClear] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [chatEntries, setChatEntries] = useState<MistakeEntry[] | null>(null);
 
   function refresh() {
-    setEntries(getSortedMistakes(filterSubject || undefined));
-    setSubjects(getAllSubjects());
+    setEntries(getSortedMistakes(activeTab || undefined));
   }
 
-  useEffect(() => { refresh(); }, []);
-  useEffect(() => { refresh(); }, [filterSubject]);
+  useEffect(() => { refresh(); }, [activeTab]);
 
   function toggleSelect(id: string) {
     setSelectedIds(prev => {
@@ -257,7 +253,7 @@ export default function MistakeBankView() {
     refresh();
   }
 
-  const totalMistakes = loadMistakes().length;
+  const totalMistakes = entries.length;
 
   const bankContent = (
     <>
@@ -274,18 +270,6 @@ export default function MistakeBankView() {
       {/* Controls */}
       <div className="flex items-center justify-between gap-4 mb-4 flex-wrap">
         <div className="flex items-center gap-2">
-          {subjects.length > 0 && (
-            <select
-              value={filterSubject}
-              onChange={e => setFilterSubject(e.target.value)}
-              className="glass-input rounded-xl px-2 py-2 text-xs text-white/70 bg-transparent border border-white/10"
-            >
-              <option value="">All</option>
-              {subjects.map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          )}
           {entries.length > 0 && !selectMode && (
             <button
               onClick={() => { setSelectMode(true); setSelectedIds(new Set()); }}
@@ -309,7 +293,7 @@ export default function MistakeBankView() {
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowClear(false)}
                   className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 hover:text-white/80 transition-opacity">Cancel</button>
-                <button onClick={() => { clearMistakes(); setShowClear(false); refresh(); }}
+                <button onClick={() => { clearMistakes(activeTab || undefined); setShowClear(false); refresh(); }}
                   className="font-sans text-[9px] uppercase tracking-[2px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
                   <span className="material-symbols-outlined text-[11px]">warning</span>Confirm
                 </button>

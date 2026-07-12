@@ -11,8 +11,9 @@
 
 import { useState, useEffect, useRef, useMemo, type DragEvent } from 'react';
 import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Persona } from '../lib/api';
-import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey } from '../lib/persist';
+import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
 // The advisor gathers the same 8 signals the old multiple-choice form did
@@ -551,10 +552,59 @@ function PersonaSelection({
   );
 }
 
+// ── Subject Selection (which workspaces/tabs to open) ───────────────────────
+// Multi-select from the fixed SUBJECT_META list — becomes the student's
+// initial set of Chrome-style workspace tabs (see WorkspaceContext).
+
+function SubjectSelection({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>📚</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What are you studying?</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
+          Pick every subject you want your own workspace for — you can open more later.
+        </p>
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '8px 0' }}>
+        {Object.entries(SUBJECT_META).filter(([key]) => key !== 'other').map(([key, meta]) => {
+          const isSelected = selected.includes(key);
+          return (
+            <button
+              key={key}
+              onClick={() => onToggle(key)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '10px 16px', borderRadius: 10, cursor: 'pointer',
+                background: isSelected ? 'rgba(197,160,89,0.14)' : 'rgba(255,255,255,0.55)',
+                border: isSelected ? '1.5px solid rgba(197,160,89,0.55)' : '1.5px solid rgba(0,0,0,0.1)',
+                fontFamily: 'sans-serif', fontSize: 13, color: isSelected ? '#6b5215' : 'rgba(0,0,0,0.7)',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{meta.icon}</span>
+              {meta.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
-  const [phase, setPhase] = useState<'chat' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'subjects' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
+  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const { seedTabs } = useWorkspace();
   const [turns, setTurns] = useState<ChatMsg[]>([
     { role: 'system', content: ONBOARDING_SYSTEM_PROMPT },
     { role: 'assistant', content: OPENING_MESSAGE },
@@ -602,7 +652,18 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     // Persist raw answers — the roadmap generator and personalization
     // profile read these later (learning-style q7, study-intensity q1/q3).
     saveOnboardingAnswers(parsedAnswers);
-    // Go to sliders next
+    // Subject selection next — becomes the student's workspace tabs.
+    setPhase('subjects');
+  }
+
+  function toggleSubject(key: string) {
+    setSelectedSubjects(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  }
+
+  function handleSubjectsContinue() {
+    if (selectedSubjects.length === 0) return;
+    seedTabs(selectedSubjects);
+    if (pendingAnswers) saveOnboardingAnswers({ ...pendingAnswers, subjects: selectedSubjects });
     setPhase('sliders');
   }
 
@@ -677,10 +738,12 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     phase === 'goal'     ? 0.92 :
     phase === 'personas' ? 0.72 :
     phase === 'sliders'  ? 0.52 :
-    Math.min(userTurnCount / 6, 0.42);
+    phase === 'subjects' ? 0.44 :
+    Math.min(userTurnCount / 6, 0.38);
 
   const phaseLabel =
     phase === 'chat'     ? 'The Lyceum — Talk to your advisor' :
+    phase === 'subjects' ? 'The Lyceum — Your subjects' :
     phase === 'sliders'  ? "The Lyceum — What's your brain's fav?" :
     phase === 'personas' ? 'The Lyceum — Choose your partners' :
     phase === 'goal'     ? 'The Lyceum — Set your target' :
@@ -736,6 +799,11 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
               <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(0,0,0,0.85)' }}>Welcome to The Lyceum</p>
               <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
             </div>
+          )}
+
+          {/* ── Subject Selection screen ── */}
+          {!paid && phase === 'subjects' && (
+            <SubjectSelection selected={selectedSubjects} onToggle={toggleSubject} />
           )}
 
           {/* ── Learning Style Sliders screen ── */}
@@ -917,6 +985,29 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 transition: 'all 0.15s',
               }}>
               Start my streak
+            </button>
+          </div>
+        )}
+
+        {/* Subjects footer — Continue button */}
+        {!paid && phase === 'subjects' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedSubjects.length > 0 ? '#16a34a' : 'rgba(0,0,0,0.35)' }}>
+              {selectedSubjects.length > 0 ? `✓ ${selectedSubjects.length} selected` : 'Pick at least one'}
+            </span>
+            <button
+              onClick={handleSubjectsContinue}
+              disabled={selectedSubjects.length === 0}
+              style={{
+                padding: '13px 26px',
+                background: selectedSubjects.length > 0 ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                border: 'none', borderRadius: 8,
+                cursor: selectedSubjects.length > 0 ? 'pointer' : 'not-allowed',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: selectedSubjects.length > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
+                fontWeight: 700, transition: 'all 0.15s',
+              }}>
+              Continue
             </button>
           </div>
         )}

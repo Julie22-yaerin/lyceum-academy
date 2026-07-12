@@ -25,6 +25,8 @@ export interface SavedPSet {
   totalPages?: number;
   // pages are stored in IndexedDB (too large for localStorage)
   hasCachedPages?: boolean;
+  /** SUBJECT_META key — the workspace tab active when this set was saved. */
+  subject?: string;
 }
 
 export interface SavedGraph {
@@ -33,6 +35,8 @@ export interface SavedGraph {
   savedAt: number;
   nodes: any[];
   edges: any[];
+  /** SUBJECT_META key — the workspace tab active when this graph was saved. */
+  subject?: string;
 }
 
 const PSETS_KEY  = 'lyceum_psets_v2';
@@ -94,7 +98,7 @@ export async function deletePages(psetId: string): Promise<void> {
 }
 
 // ── Problem Sets ─────────────────────────────────────────────────────────
-export function loadPSets(): SavedPSet[] {
+export function loadPSets(subjectFilter?: string): SavedPSet[] {
   const all = parse<SavedPSet>(PSETS_KEY);
   // Auto-purge expired
   const live = all.filter(p => p.expiresAt > Date.now());
@@ -103,7 +107,7 @@ export function loadPSets(): SavedPSet[] {
     expired.forEach(p => deletePages(p.id));
     try { localStorage.setItem(PSETS_KEY, JSON.stringify(live)); } catch {}
   }
-  return live;
+  return subjectFilter ? live.filter(p => p.subject === subjectFilter) : live;
 }
 
 export function savePSet(pset: Omit<SavedPSet, 'expiresAt'> & { expiresAt?: number }): void {
@@ -129,15 +133,17 @@ export interface SavedNote {
   expiresAt: number;
   sourceType: string;   // 'pdf' | 'image' | 'youtube' | 'text'
   note: any;            // full NoteResult object
+  /** SUBJECT_META key — the workspace tab active when this note was saved. */
+  subject?: string;
 }
 
-export function loadNotes(): SavedNote[] {
+export function loadNotes(subjectFilter?: string): SavedNote[] {
   const all = parse<SavedNote>(NOTES_KEY);
   const live = all.filter(n => n.expiresAt > Date.now());
   if (live.length !== all.length) {
     try { localStorage.setItem(NOTES_KEY, JSON.stringify(live)); } catch {}
   }
-  return live;
+  return subjectFilter ? live.filter(n => n.subject === subjectFilter) : live;
 }
 
 export function saveNote(note: Omit<SavedNote, 'expiresAt'> & { expiresAt?: number }): void {
@@ -191,7 +197,10 @@ export function timeRemaining(expiresAt: number): string {
 }
 
 // ── Graphs ────────────────────────────────────────────────────────────────
-export function loadGraphs(): SavedGraph[] { return parse<SavedGraph>(GRAPHS_KEY); }
+export function loadGraphs(subjectFilter?: string): SavedGraph[] {
+  const all = parse<SavedGraph>(GRAPHS_KEY);
+  return subjectFilter ? all.filter(g => g.subject === subjectFilter) : all;
+}
 
 export function saveGraph(g: SavedGraph): void {
   const list = loadGraphs().filter(x => x.id !== g.id);
@@ -333,16 +342,17 @@ export interface ReferenceEntry {
   savedAt: number;
 }
 
-export function loadReferences(): ReferenceEntry[] {
-  return parse<ReferenceEntry>(REFERENCES_KEY);
+export function loadReferences(categoryFilter?: string): ReferenceEntry[] {
+  const all = parse<ReferenceEntry>(REFERENCES_KEY);
+  return categoryFilter ? all.filter(r => r.category === categoryFilter) : all;
 }
 
-export function saveReference(entry: Omit<ReferenceEntry, 'id' | 'category' | 'savedAt'>): void {
+export function saveReference(entry: Omit<ReferenceEntry, 'id' | 'category' | 'savedAt'> & { category?: string }): void {
   const list = loadReferences();
   const full: ReferenceEntry = {
     ...entry,
     id: `ref-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    category: detectSubject(entry.topic),
+    category: entry.category || detectSubject(entry.topic),
     savedAt: Date.now(),
   };
   list.unshift(full);

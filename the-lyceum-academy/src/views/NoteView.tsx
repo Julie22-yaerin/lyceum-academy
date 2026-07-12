@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── ConceptCard ───────────────────────────────────────────────────────────
 function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applications?: string; why?: string } }) {
@@ -550,6 +551,7 @@ function NoteCard({ note }: { note: NoteResult }) {
 
 // ── Main NoteView ─────────────────────────────────────────────────────────
 export default function NoteView() {
+  const { activeTab } = useWorkspace();
   const [note, setNote] = useState<NoteResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -560,7 +562,7 @@ export default function NoteView() {
 
   const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp';
 
-  useEffect(() => { setSavedNotes(loadNotes()); }, []);
+  useEffect(() => { setSavedNotes(loadNotes(activeTab || undefined)); }, [activeTab]);
 
   async function handleFile(file: File) {
     setError(''); setNote(null); setLoading(true); setSaved(false);
@@ -577,8 +579,8 @@ export default function NoteView() {
   function handleSaveNote() {
     if (!note) return;
     const id = `note_${Date.now()}`;
-    saveNote({ id, title: note.title || 'Note', savedAt: Date.now(), sourceType, note });
-    setSavedNotes(loadNotes());
+    saveNote({ id, title: note.title || 'Note', savedAt: Date.now(), sourceType, note, subject: activeTab || undefined });
+    setSavedNotes(loadNotes(activeTab || undefined));
     setSaved(true);
   }
 
@@ -743,7 +745,7 @@ export default function NoteView() {
                       Review
                     </button>
                     <button
-                      onClick={() => { deleteNote(sn.id); setSavedNotes(loadNotes()); }}
+                      onClick={() => { deleteNote(sn.id); setSavedNotes(loadNotes(activeTab || undefined)); }}
                       className="opacity-0 group-hover:opacity-30 hover:!opacity-70 transition-opacity p-1"
                     >
                       <span className="material-symbols-outlined text-[14px]">delete</span>

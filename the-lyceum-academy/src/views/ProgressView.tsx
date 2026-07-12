@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { loadProgress, clearProgress, GradeRecord } from '../lib/progress';
+import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── Color palette ─────────────────────────────────────────────────────────
 const TOPIC_COLORS = [
@@ -72,10 +73,11 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function ProgressView() {
+  const { activeTab } = useWorkspace();
   const [records, setRecords] = useState<GradeRecord[]>([]);
   const [showClear, setShowClear] = useState(false);
 
-  useEffect(() => { setRecords(loadProgress()); }, []);
+  useEffect(() => { setRecords(loadProgress(activeTab || undefined)); }, [activeTab]);
 
   const allGrades = records.flatMap(r => r.grades);
   const totalQs = allGrades.length;
@@ -311,7 +313,7 @@ export default function ProgressView() {
         ) : (
           <div className="flex justify-center gap-4 pb-6">
             <button onClick={() => setShowClear(false)} className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity">Cancel</button>
-            <button onClick={() => { clearProgress(); setRecords([]); setShowClear(false); }}
+            <button onClick={() => { clearProgress(activeTab || undefined); setRecords([]); setShowClear(false); }}
               className="font-sans text-[10px] uppercase tracking-[2px] text-red-500 hover:text-red-700 transition-colors flex items-center gap-1">
               <span className="material-symbols-outlined text-[12px]">warning</span>Confirm clear
             </button>

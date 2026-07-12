@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
+import { migrateLegacySubjectTags } from './lib/workspace';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
 import MainLayout from './components/MainLayout';
@@ -37,6 +39,12 @@ function AppInner() {
   useEffect(() => {
     setDocumentLocale(detectLocale());
   }, []);
+
+  // One-time backfill of subject tags on pre-existing data, once we know
+  // who's signed in (scopedGateKey needs a resolved uid to namespace against).
+  useEffect(() => {
+    if (!loading && ((user && emailVerified) || devMode)) migrateLegacySubjectTags();
+  }, [loading, user, emailVerified, devMode]);
 
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
@@ -161,7 +169,9 @@ export default function App() {
   }
   return (
     <AuthProvider>
-      <AppInner />
+      <WorkspaceProvider>
+        <AppInner />
+      </WorkspaceProvider>
     </AuthProvider>
   );
 }

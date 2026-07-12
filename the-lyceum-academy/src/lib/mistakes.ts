@@ -27,9 +27,9 @@ export function loadMistakes(): MistakeEntry[] {
   }
 }
 
-export function saveMistake(entry: Omit<MistakeEntry, 'id' | 'createdAt' | 'subject'>): MistakeEntry {
+export function saveMistake(entry: Omit<MistakeEntry, 'id' | 'createdAt' | 'subject'> & { subject?: string }): MistakeEntry {
   const all = loadMistakes();
-  const subject = detectSubject(entry.mistake + ' ' + entry.location);
+  const subject = entry.subject || detectSubject(entry.mistake + ' ' + entry.location);
   const full: MistakeEntry = {
     ...entry,
     id: crypto.randomUUID(),
@@ -52,9 +52,10 @@ export function deleteMistake(id: string): void {
   } catch {}
 }
 
-export function clearMistakes(): void {
+export function clearMistakes(subjectFilter?: string): void {
   try {
-    localStorage.removeItem(KEY);
+    if (!subjectFilter) { localStorage.removeItem(KEY); return; }
+    localStorage.setItem(KEY, JSON.stringify(loadMistakes().filter(m => m.subject !== subjectFilter)));
   } catch {}
 }
 
