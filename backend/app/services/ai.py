@@ -4887,3 +4887,55 @@ async def generate_variant_questions(sources: list[dict]) -> dict:
     except Exception as e:
         log.error("generate_variant_questions AI error: %s", e)
         return {"questions": []}
+
+
+@_tag_task
+async def analyze_feedback_themes(feedback_items: list[dict]) -> dict:
+    """
+    Admin Feedback dashboard: clusters free-text student feedback comments
+    into themes for the AI-insights chart. Numeric rating distribution is
+    computed directly in feedback.py (plain SQL) — this is only for the
+    qualitative comment text, which actually needs an LLM.
+
+    Uses NVIDIA NIM (Gemma) rather than the general chat() cascade — this
+    is a one-off admin-dashboard analysis task, not part of the student-
+    facing AI cascade.
+
+    feedback_items: [{rating: int, comment: str}]
+    Returns { themes: [{label, count, sentiment}], summary: str }
+    """
+    import logging
+    log = logging.getLogger("pclick")
+
+    comments = [f.get("comment", "").strip() for f in feedback_items if f.get("comment", "").strip()]
+    if not comments:
+        return {"themes": [], "summary": "No written feedback yet."}
+
+    comments_text = "\n".join(f"- {c[:300]}" for c in comments[:200])
+    system = (
+        "You analyze user feedback comments for an ed-tech product's admin dashboard. "
+        "Group the comments into 3-8 short themes (e.g. 'Bug reports', 'Feature requests', "
+        "'Praise', 'Confusing UI', 'Performance'). Return ONLY JSON: "
+        "{\"themes\": [{\"label\": string, \"count\": number, \"sentiment\": \"positive\"|\"neutral\"|\"negative\"}], "
+        "\"summary\": string — a 2-3 sentence overview of what students are saying overall}"
+    )
+
+    try:
+        data = await _nvidia_call(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": f"Feedback comments:\n{comments_text}"}],
+            model=settings.nvidia_feedback_model,
+            temperature=0.3,
+            max_tokens=1536,
+        )
+        raw = extract_text(data)
+        parsed = _parse_json_robust(raw)
+        if parsed and isinstance(parsed, dict):
+            parsed.setdefault("themes", [])
+            parsed.setdefault("summary", "")
+            return parsed
+        log.warning("analyze_feedback_themes: JSON parse failed. Raw: %s", raw[:300])
+        return {"themes": [], "summary": "", "error": "parse_failed"}
+    except Exception as e:
+        log.error("analyze_feedback_themes NVIDIA error: %s", e)
+        return {"themes": [], "summary": "", "error": str(e)}

@@ -115,6 +115,7 @@
       <button id="nav-models" onclick="viewModels()" class="nav-btn text-xs">Training AI</button>
       <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
+      <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
     </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" />
@@ -139,6 +140,7 @@
     <div id="view-activity" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-profiles" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
   </main>
 </div>
 
@@ -511,6 +513,7 @@ async function viewModels() {
   hide('view-activity');
   hide('view-profiles');
   hide('view-profile-detail');
+  hide('view-feedback');
   setActiveNav('nav-models');
   const el = document.getElementById('view-models');
   show('view-models');
@@ -598,6 +601,7 @@ async function viewActivity() {
   hide('view-model-detail');
   hide('view-profiles');
   hide('view-profile-detail');
+  hide('view-feedback');
   setActiveNav('nav-activity');
   show('view-activity');
   _activityOffset = 0;
@@ -719,6 +723,7 @@ async function viewProfiles() {
   hide('view-model-detail');
   hide('view-activity');
   hide('view-profile-detail');
+  hide('view-feedback');
   setActiveNav('nav-profiles');
   const el = document.getElementById('view-profiles');
   show('view-profiles');
@@ -945,6 +950,7 @@ async function viewModelDetail(modelId) {
   hide('view-models');
   hide('view-profiles');
   hide('view-profile-detail');
+  hide('view-feedback');
   const el = document.getElementById('view-model-detail');
   show('view-model-detail');
   await fetchModelTotals();
@@ -1525,6 +1531,131 @@ function copyText(text) {
     document.execCommand('copy'); document.body.removeChild(ta);
     toast('✓ Copied');
   });
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: FEEDBACK — anonymous student star rating + comments, plus an
+// NVIDIA-Gemma theme breakdown of the free-text comments (backend:
+// app/services/feedback.py, /admin/feedback/*).
+// ════════════════════════════════════════════════════════════════
+
+async function viewFeedback() {
+  hide('view-models');
+  hide('view-model-detail');
+  hide('view-activity');
+  hide('view-profiles');
+  hide('view-profile-detail');
+  setActiveNav('nav-feedback');
+  show('view-feedback');
+  await renderFeedback();
+}
+
+function statBar(count, max, color) {
+  const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+  return `<div style="flex:1;height:8px;border-radius:4px;background:rgba(255,255,255,.06);overflow:hidden">
+    <div style="width:${pct}%;height:100%;background:${color}"></div>
+  </div>`;
+}
+
+const SENTIMENT_COLORS = { positive: 'var(--em)', neutral: 'var(--amber)', negative: '#f85149' };
+
+async function renderFeedback() {
+  const el = document.getElementById('view-feedback');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const [summary, listResp] = await Promise.all([
+    api('/admin/feedback/summary').then(r => r.json()).catch(() => ({ total: 0, average: 0, distribution: {} })),
+    api('/admin/feedback?limit=100').then(r => r.json()).catch(() => ({ items: [] })),
+  ]);
+  const items = listResp.items || [];
+  const dist  = summary.distribution || {};
+  const maxCount = Math.max(1, ...Object.values(dist).map(v => Number(v) || 0));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">User Feedback</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Anonymous star ratings + comments submitted from the workspace — ${summary.total} total, ${summary.average || 0}★ average.</p>
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <div class="text-xs mb-1" style="color:var(--muted)">Average rating</div>
+          <div class="text-2xl font-bold" style="color:var(--amber)">${summary.average || 0}★</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <div class="text-xs mb-1" style="color:var(--muted)">Total submissions</div>
+          <div class="text-2xl font-bold">${summary.total || 0}</div>
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+        <div class="text-xs font-medium mb-3" style="color:var(--muted)">Rating distribution</div>
+        <div class="space-y-2">
+          ${[5, 4, 3, 2, 1].map(n => `
+            <div class="flex items-center gap-3 text-xs">
+              <span style="width:24px" class="text-right">${n}★</span>
+              ${statBar(dist[String(n)] || 0, maxCount, 'var(--amber)')}
+              <span style="width:24px;color:var(--muted)">${dist[String(n)] || 0}</span>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+        <div class="flex items-center justify-between mb-3">
+          <div class="text-xs font-medium" style="color:var(--muted)">AI theme breakdown (comments)</div>
+          <button onclick="loadFeedbackInsights()" class="btn btn-ghost text-xs">↻ Analyze</button>
+        </div>
+        <div id="feedback-insights-body" class="text-sm" style="color:var(--muted)">Click "Analyze" to cluster the written feedback into themes.</div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">When</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Rating</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Comment</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(r => `
+              <tr style="border-bottom:1px solid var(--border)">
+                <td class="px-4 py-2.5" style="color:var(--muted)">${timeAgo(r.created_at)}</td>
+                <td class="px-4 py-2.5" style="color:var(--amber)">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
+                <td class="px-4 py-2.5">${esc(r.comment) || '<span style="color:var(--muted)">—</span>'}</td>
+                <td class="px-4 py-2.5" style="color:var(--muted)">${esc(r.context) || '—'}</td>
+              </tr>`).join('') || `<tr><td colspan="4" class="px-4 py-8 text-center" style="color:var(--muted)">No feedback yet.</td></tr>`}
+          </tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+async function loadFeedbackInsights() {
+  const body = document.getElementById('feedback-insights-body');
+  if (!body) return;
+  body.innerHTML = `<div style="color:var(--muted)">Analyzing…</div>`;
+  try {
+    const r = await api('/admin/feedback/insights');
+    const data = await r.json();
+    const themes = data.themes || [];
+    const maxCount = Math.max(1, ...themes.map(t => t.count || 0));
+    body.innerHTML = `
+      ${data.summary ? `<p class="mb-3" style="color:var(--text)">${esc(data.summary)}</p>` : ''}
+      ${themes.length ? `<div class="space-y-2">
+        ${themes.map(t => `
+          <div class="flex items-center gap-3 text-xs">
+            <span style="width:140px" class="truncate">${esc(t.label)}</span>
+            ${statBar(t.count || 0, maxCount, SENTIMENT_COLORS[t.sentiment] || 'var(--blue)')}
+            <span style="width:24px;color:var(--muted)">${t.count || 0}</span>
+          </div>`).join('')}
+      </div>` : `<div style="color:var(--muted)">Not enough written feedback to analyze yet.</div>`}
+    `;
+  } catch (e) {
+    body.innerHTML = `<div style="color:#f85149">Failed to analyze: ${esc(e.message)}</div>`;
+  }
 }
 </script>
 </body>

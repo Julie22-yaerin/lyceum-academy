@@ -30,6 +30,7 @@ from app.services import wolfram as wolfram_svc
 from app.services import safety_guard as safety_guard_svc
 from app.services import data_retention as data_retention_svc
 from app.services import personas as personas_svc
+from app.services import feedback as feedback_svc
 
 _s2s_logger = logging.getLogger("pclick.s2s")
 
@@ -133,17 +134,10 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
 
 
 def _mind_map_ai_limit(tier: str | None) -> int | None:
-    """Per-document (per-PDF) "Let AI see" quota — SOC-13: the vision call is
-    the expensive escalation path, only meant to be reached after the free
-    structural check has failed a few times, so the cap is scoped to a single
-    problem-set document rather than a calendar day."""
-    if tier == "compass":
-        return 12
-    if tier in {"scholar", "mentor"}:
-        return 20
-    if tier == "researcher":
-        return 30
-    return 3  # free
+    """Per-document (per-PDF) "Let AI see" quota — SOC-13. Plan limits are
+    currently disabled app-wide (every tier is unlimited); keep the tier
+    param and per-tier docstring so re-enabling later is a one-line change."""
+    return None  # unlimited for every tier
 
 
 def _mind_map_ai_usage(db: Session, user_id: str, document_id: str) -> int:
@@ -306,6 +300,8 @@ async def lifespan(_app: FastAPI):
     activity_log_svc.init_db()
     from app.services import mastery_profile as mastery_profile_svc
     mastery_profile_svc.init_db()
+    from app.services import feedback as feedback_svc
+    feedback_svc.init_db()
 
     # Pre-warm the embedding model so the first upload doesn't time out.
     # all-MiniLM-L6-v2 (~80 MB) is downloaded from HuggingFace on first run.
@@ -1070,6 +1066,31 @@ async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dic
             )
         # ──────────────────────────────────────────────────────────────────
         return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class FeedbackRequest(BaseModel):
+    rating:  int = 0            # 1-5 stars
+    comment: str = ""
+    context: str = ""           # optional, e.g. "workspace" — not user-identifying
+
+
+@app.post("/feedback")
+@limiter.limit("5/minute")
+async def submit_feedback(request: Request, req: FeedbackRequest, _: dict = Depends(require_auth)):
+    """
+    Store one anonymous feedback submission (star rating + optional comment)
+    for the admin Feedback dashboard. require_auth is only a spam gate —
+    the stored row never includes a user identifier.
+    """
+    if req.rating < 1 or req.rating > 5:
+        raise HTTPException(status_code=400, detail="rating must be 1-5")
+    if req.comment:
+        check_prompt(req.comment, "comment")
+    try:
+        feedback_svc.submit(req.rating, req.comment, req.context)
+        return {"ok": True}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

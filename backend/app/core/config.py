@@ -118,6 +118,15 @@ class Settings(BaseSettings):
     nvidia_gemma_reviewer_model: str = "google/diffusiongemma-26b-a4b-it"
     nvidia_gemma_reviewer_max_retries: int = 2  # retries before WolframAlpha fallback
 
+    # ── NVIDIA NIM Feedback Insights (admin Feedback dashboard) ────
+    # Clusters free-text student feedback into themes for the admin
+    # dashboard's AI-insights chart. Uses the same nvidia_api_key.
+    # NOTE: "google/gemma-4-31b-it" (originally requested) times out on
+    # NVIDIA's catalog — not a deployed model as of this writing. Verified
+    # google/gemma-2-2b-it responds correctly instead (same as
+    # nvidia_primary_model); override via NVIDIA_FEEDBACK_MODEL if needed.
+    nvidia_feedback_model: str = "google/gemma-2-2b-it"
+
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""
     openrouter_primary_model: str = "nvidia/nemotron-3-super-120b-a12b:free"

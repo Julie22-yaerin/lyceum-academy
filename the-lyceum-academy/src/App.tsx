@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LandingPage from './views/LandingPage';
@@ -16,6 +16,7 @@ import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
 import ReferenceBankView from './views/ReferenceBankView';
 import TermsModal from './components/TermsModal';
+import FeedbackModal from './components/FeedbackModal';
 
 
 function AppInner() {
@@ -23,6 +24,8 @@ function AppInner() {
   const { user, loading, devMode, emailVerified } = useAuth();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const loginCountedRef = useRef(false);
 
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
@@ -46,6 +49,21 @@ function AppInner() {
       } catch { /* ignore */ }
     }
   }, [loading, user, devMode, view]);
+
+  // Every 2nd time a student actually reaches the workspace (not mid
+  // terms/onboarding gate), pop up a quick anonymous feedback ask.
+  // loginCountedRef guards against double-counting the same page load.
+  useEffect(() => {
+    if (loading || showTerms || showOnboarding) return;
+    if (!((user && emailVerified) || devMode) || view === 'landing' || view === 'auth') return;
+    if (loginCountedRef.current) return;
+    loginCountedRef.current = true;
+    try {
+      const count = (Number(localStorage.getItem('lyceum_login_count')) || 0) + 1;
+      localStorage.setItem('lyceum_login_count', String(count));
+      if (count % 2 === 0) setShowFeedback(true);
+    } catch { /* ignore */ }
+  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding]);
 
   function handleAgreeTerms() {
     try { localStorage.setItem('lyceum_terms_accepted', '1'); } catch { /* ignore */ }
@@ -87,17 +105,20 @@ function AppInner() {
   }
 
   return (
-    <MainLayout currentView={view} onNavigate={setView}>
-      {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
-      {view === 'dialogue' && <DialogueView />}
-      {view === 'exercise' && <ExerciseView />}
-      {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
-      {view === 'knowledge-map' && <KnowledgeMapView />}
-      {view === 'notes' && <NoteView />}
-      {view === 'mistake-bank' && <MistakeBankView />}
-      {view === 'reference-bank' && <ReferenceBankView />}
-      {view === 'progress' && <ProgressView />}
-    </MainLayout>
+    <>
+      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
+      <MainLayout currentView={view} onNavigate={setView}>
+        {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
+        {view === 'dialogue' && <DialogueView />}
+        {view === 'exercise' && <ExerciseView />}
+        {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
+        {view === 'knowledge-map' && <KnowledgeMapView />}
+        {view === 'notes' && <NoteView />}
+        {view === 'mistake-bank' && <MistakeBankView />}
+        {view === 'reference-bank' && <ReferenceBankView />}
+        {view === 'progress' && <ProgressView />}
+      </MainLayout>
+    </>
   );
 }
 

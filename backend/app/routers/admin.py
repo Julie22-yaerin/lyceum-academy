@@ -19,6 +19,8 @@ from app.services import finetune_db      as ft_svc
 from app.services import openai_finetune  as ft_openai
 from app.services import activity_log     as activity_svc
 from app.services import mastery_profile  as profile_svc
+from app.services import feedback         as feedback_svc
+from app.services import ai               as ai_svc
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
 from app.models.entities import UserProfile, AuthProviderEnum
@@ -187,6 +189,28 @@ def activity_model_totals(_: None = Depends(_auth)):
 def ft_export(_: None = Depends(_auth)):
     """Download all examples as OpenAI-format JSONL for fine-tuning."""
     return ft_svc.export_jsonl()
+
+
+# ── User Feedback — anonymous star rating + comment, collected in-app ──────
+
+@router.get("/feedback")
+def feedback_list(limit: int = 200, offset: int = 0, _: None = Depends(_auth)):
+    return {"items": feedback_svc.list_recent(limit=limit, offset=offset)}
+
+
+@router.get("/feedback/summary")
+def feedback_summary(_: None = Depends(_auth)):
+    return feedback_svc.summary()
+
+
+@router.get("/feedback/insights")
+async def feedback_insights(_: None = Depends(_auth)):
+    """
+    AI-generated theme breakdown of the free-text feedback comments
+    (NVIDIA Gemma) — powers the admin Feedback dashboard's chart.
+    """
+    items = feedback_svc.recent_for_analysis()
+    return await ai_svc.analyze_feedback_themes(items)
 
 
 # ── Per-model Role & Characteristic — the Training AI board's system-prompt/

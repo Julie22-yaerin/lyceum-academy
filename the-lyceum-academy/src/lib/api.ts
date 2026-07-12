@@ -733,3 +733,17 @@ export async function generateVariantQuestions(
   }
   return res.json() as Promise<{ questions: VariantQuestion[] }>;
 }
+
+// ── User feedback (anonymous — star rating + optional comment) ─────────────
+
+export async function submitFeedback(rating: number, comment = '', context = ''): Promise<void> {
+  const res = await authFetch(`${API_BASE}/feedback`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating, comment, context }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+}

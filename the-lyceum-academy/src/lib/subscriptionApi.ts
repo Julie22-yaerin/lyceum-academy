@@ -135,30 +135,24 @@ export async function createPortalSession(): Promise<{ portal_url: string }> {
   return response.json();
 }
 
-// Feature gating helpers
-export function canUseVoice(usage: UsageStats): boolean {
-  if (usage.voice_minutes_limit === null) {
-    return true; // Unlimited
-  }
-  return usage.voice_minutes_used < usage.voice_minutes_limit;
+// Feature gating helpers — plan limits are currently disabled app-wide
+// (every plan is unlimited); onboarding's plan recommendation/selection
+// stays as-is, only enforcement is off. Kept as functions (not deleted) so
+// re-enabling later is a one-line change per gate.
+export function canUseVoice(_usage: UsageStats): boolean {
+  return true;
 }
 
-export function canUseMindMap(plan: SubscriptionPlan): boolean {
-  return plan.mind_map_ai_see_document_limit === null || plan.mind_map_ai_see_document_limit > 0;
+export function canUseMindMap(_plan: SubscriptionPlan): boolean {
+  return true;
 }
 
-export function canAddReferenceLibraryItem(usage: UsageStats): boolean {
-  if (usage.reference_library_limit === null) {
-    return true; // Unlimited
-  }
-  return usage.reference_library_count < usage.reference_library_limit;
+export function canAddReferenceLibraryItem(_usage: UsageStats): boolean {
+  return true;
 }
 
-export function canRegenerateRoadmap(usage: UsageStats): boolean {
-  if (usage.roadmap_regen_daily_limit === null) {
-    return true; // Unlimited
-  }
-  return usage.roadmap_regens_today < usage.roadmap_regen_daily_limit;
+export function canRegenerateRoadmap(_usage: UsageStats): boolean {
+  return true;
 }
 
 // Voice usage tracking

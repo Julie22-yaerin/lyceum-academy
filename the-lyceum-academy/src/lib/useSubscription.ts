@@ -67,50 +67,29 @@ export function useSubscription(): SubscriptionState {
   };
 }
 
-// Feature gate hooks
+// Feature gate hooks — plan limits are currently disabled app-wide, so
+// these always report canUse: true / limit: Infinity regardless of
+// subscription state. This also fixes the previous default (canUse: false
+// whenever there was no matching Stripe subscription row — the common case
+// for every Firebase-authed user, since checkout is a separate PayPal flow
+// in onboarding) which was blocking real users by accident. Real usage
+// counts are still surfaced where available, only the limits are off.
 export function useVoiceGate() {
-  const { usage, subscription } = useSubscription();
-
-  if (!usage || !subscription) {
-    return { canUse: false, remaining: 0, limit: 0 };
-  }
-
-  const limit = usage.voice_minutes_limit || Infinity;
-  const used = usage.voice_minutes_used;
-  const remaining = Math.max(0, limit - used);
-  const canUse = usage.voice_minutes_limit === null || used < usage.voice_minutes_limit;
-
-  return { canUse, remaining, limit, used };
+  const { usage } = useSubscription();
+  const used = usage?.voice_minutes_used ?? 0;
+  return { canUse: true, remaining: Infinity, limit: Infinity, used };
 }
 
 export function useRoadmapRegenGate() {
   const { usage } = useSubscription();
-
-  if (!usage) {
-    return { canUse: false, remaining: 0, limit: 0 };
-  }
-
-  const limit = usage.roadmap_regen_daily_limit || Infinity;
-  const used = usage.roadmap_regens_today;
-  const remaining = Math.max(0, limit - used);
-  const canUse = usage.roadmap_regen_daily_limit === null || used < usage.roadmap_regen_daily_limit;
-
-  return { canUse, remaining, limit, used };
+  const used = usage?.roadmap_regens_today ?? 0;
+  return { canUse: true, remaining: Infinity, limit: Infinity, used };
 }
 
 export function useReferenceLibraryGate() {
   const { usage } = useSubscription();
-
-  if (!usage) {
-    return { canUse: false, remaining: 0, limit: 0 };
-  }
-
-  const limit = usage.reference_library_limit || Infinity;
-  const used = usage.reference_library_count;
-  const remaining = Math.max(0, limit - used);
-  const canUse = usage.reference_library_limit === null || used < usage.reference_library_limit;
-
-  return { canUse, remaining, limit, used };
+  const used = usage?.reference_library_count ?? 0;
+  return { canUse: true, remaining: Infinity, limit: Infinity, used };
 }
 
 export function useMindMapGate(documentId = '') {

@@ -160,14 +160,9 @@ def get_reference_library_count(
 
 def get_mind_map_ai_limit(tier: str) -> int | None:
     """Per-document "Let AI see" quota — keep in sync with
-    app.main._mind_map_ai_limit (SOC-13)."""
-    if tier == "compass":
-        return 12
-    if tier in {"scholar", "mentor"}:
-        return 20
-    if tier == "researcher":
-        return 30
-    return 3
+    app.main._mind_map_ai_limit (SOC-13). Plan limits are currently
+    disabled app-wide; every tier is unlimited."""
+    return None
 
 
 # ============================================================================
@@ -181,17 +176,19 @@ def list_plans(db: Session = Depends(get_db)):
     result = db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.price_usd_cents))
     plans = result.scalars().all()
 
+    # Plan limits are currently disabled app-wide — every tier reports
+    # unlimited, regardless of what's stored on the plan row.
     return [
         PlanResponse(
             id=str(plan.id),
             tier=plan.tier.value,
             billing_cycle=plan.billing_cycle.value,
             price_usd=plan.price_usd_cents / 100.0,
-            voice_minutes_monthly=plan.voice_minutes_monthly,
+            voice_minutes_monthly=None,
             mind_map_enabled=plan.mind_map_enabled,
             mind_map_ai_see_document_limit=get_mind_map_ai_limit(plan.tier.value),
-            reference_library_limit=plan.reference_library_limit,
-            roadmap_regen_daily_limit=plan.roadmap_regen_daily_limit,
+            reference_library_limit=None,
+            roadmap_regen_daily_limit=None,
         )
         for plan in plans
     ]
@@ -273,7 +270,7 @@ def get_current_subscription(
         current_period_end=subscription.current_period_end,
         cancel_at_period_end=subscription.cancel_at_period_end,
         voice_minutes_used=voice_minutes,
-        voice_minutes_limit=plan.voice_minutes_monthly,
+        voice_minutes_limit=None,  # plan limits disabled app-wide
     )
 
 
@@ -294,15 +291,18 @@ def get_usage(
     roadmap_regens = get_roadmap_regens_today(db, str(current_user.id))
     reference_count = get_reference_library_count(db, str(current_user.id))
 
+    # Plan limits are currently disabled app-wide — every tier is unlimited.
+    # Usage counts are still returned (real numbers, for display), only the
+    # limits themselves are forced to None so canUse*() always passes.
     return UsageResponse(
         billing_period_start=subscription.current_period_start,
         billing_period_end=subscription.current_period_end,
         voice_minutes_used=voice_minutes,
-        voice_minutes_limit=plan.voice_minutes_monthly,
+        voice_minutes_limit=None,
         roadmap_regens_today=roadmap_regens,
-        roadmap_regen_daily_limit=plan.roadmap_regen_daily_limit,
+        roadmap_regen_daily_limit=None,
         reference_library_count=reference_count,
-        reference_library_limit=plan.reference_library_limit,
+        reference_library_limit=None,
     )
 
 
