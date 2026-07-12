@@ -15,6 +15,7 @@ import OnboardingModal from './components/OnboardingModal';
 import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
 import ReferenceBankView from './views/ReferenceBankView';
+import SettingsView from './views/SettingsView';
 import TermsModal from './components/TermsModal';
 import FeedbackModal from './components/FeedbackModal';
 import ProductTour from './components/ProductTour';
@@ -147,6 +148,7 @@ function AppInner() {
         {view === 'mistake-bank' && <MistakeBankView />}
         {view === 'reference-bank' && <ReferenceBankView />}
         {view === 'progress' && <ProgressView />}
+        {view === 'settings' && <SettingsView />}
       </MainLayout>
     </>
   );

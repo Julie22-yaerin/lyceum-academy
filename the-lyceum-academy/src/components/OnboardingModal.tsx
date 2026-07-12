@@ -668,11 +668,6 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     setTimeout(onClose, 2200);
   }
 
-  function handleSkip() {
-    localStorage.setItem(scopedGateKey('lyceum_onboarding_done'), '1');
-    onClose();
-  }
-
   const recPlan = PLANS.find(p => p.id === aiResult?.recommended_plan_id);
   const altIds  = (aiResult?.alternatives || []).map(a => a.plan_id);
 
@@ -721,13 +716,10 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
       }}>
         {/* Header */}
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
               {phaseLabel}
             </span>
-            <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.28)' }}>
-              Skip
-            </button>
           </div>
           {/* Progress bar */}
           <div style={{ height: 2, background: 'rgba(0,0,0,0.08)', borderRadius: 2, marginBottom: 2 }}>

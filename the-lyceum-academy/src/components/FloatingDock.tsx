@@ -48,6 +48,7 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
   return (
     <div
       ref={ref}
+      data-tour="usage-panel"
       className="absolute bottom-full right-0 mb-2 w-80 glass-strong rounded-2xl z-[200] overflow-hidden"
       style={{ animation: 'fadeDown 0.18s ease-out' }}
     >
@@ -128,6 +129,7 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
   return (
     <div
       ref={ref}
+      data-tour="streak-panel"
       className="absolute bottom-full right-0 mb-2 w-64 glass-strong rounded-2xl z-[200] overflow-hidden"
       style={{ animation: 'fadeDown 0.18s ease-out' }}
     >
@@ -172,6 +174,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
   return (
     <div className="fixed top-6 right-6 z-50 flex items-center gap-2">
       <div
+        data-tour="corner-brand"
         className="glass rounded-full px-4 py-2 text-xs font-medium tracking-wider uppercase text-white/80 cursor-pointer hover:bg-white/10 transition-colors"
         onClick={() => onNavigate('nexus')}
       >
@@ -181,6 +184,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
       {streak && (
         <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
           <button
+            data-tour="corner-streak"
             onClick={() => setShowStreak(v => !v)}
             className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
             title={`${streak.streakCount}-day streak`}
@@ -194,6 +198,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
 
       <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
         <button
+          data-tour="corner-usage"
           onClick={() => setShowStats(v => !v)}
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
           title="AI Usage"
@@ -201,6 +206,14 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           <span className="material-symbols-outlined text-[16px]">analytics</span>
         </button>
         {showStats && <UsagePanel onClose={() => setShowStats(false)} />}
+
+        <button
+          onClick={() => onNavigate('settings')}
+          className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
+          title="Settings"
+        >
+          <span className="material-symbols-outlined text-[16px]">settings</span>
+        </button>
 
         {user ? (
           <button
@@ -240,6 +253,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
           return (
             <button
               key={view}
+              data-tour={`dock-${view}`}
               onClick={() => onNavigate(view)}
               className="dock-icon group relative flex flex-col items-center justify-center w-12 h-12 rounded-2xl"
               title={label}
