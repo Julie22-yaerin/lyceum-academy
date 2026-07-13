@@ -10,12 +10,10 @@
  */
 
 import { useState, useEffect, useRef, useMemo, type DragEvent } from 'react';
-import { Compass, GraduationCap, Rocket, Brain, Microscope, FlaskConical, BookOpen, Target, type LucideIcon } from 'lucide-react';
 import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Persona } from '../lib/api';
 import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { SubjectIcon } from '../lib/subjectIcons';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
 // The advisor gathers the same 8 signals the old multiple-choice form did
@@ -51,33 +49,33 @@ const JSON_END = '[[/ONBOARDING_JSON]]';
 // ── Pricing plans (client-side display config) ──────────────────────────────
 
 interface Plan {
-  id: string; name: string; price: number; icon: LucideIcon;
+  id: string; name: string; price: number; emoji: string;
   tagline: string; color: string; features: string[]; flagship?: boolean;
 }
 
 const PLANS: Plan[] = [
   {
-    id: 'compass', name: 'Compass', price: 9.99, icon: Compass, color: '#4A7C59',
+    id: 'compass', name: 'Compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
     tagline: '"I feel lost."',
     features: ['Personalized study roadmap', 'Basic Neural Map', 'Progress tracking', 'Weekly planner'],
   },
   {
-    id: 'scholar', name: 'Scholar', price: 19.99, icon: GraduationCap, color: '#7c3aed',
+    id: 'scholar', name: 'Scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
     tagline: 'Flagship — 80% users', flagship: true,
     features: ['AI grading (Meta + Gemma)', 'Full Neural Map', 'Roadmap', 'AI discussion', 'Reflection', 'Planner'],
   },
   {
-    id: 'builder', name: 'Builder', price: 24.99, icon: Rocket, color: '#2563EB',
+    id: 'builder', name: 'Builder', price: 24.99, emoji: '🚀', color: '#2563EB',
     tagline: '"Learn to build."',
     features: ['Skill roadmap', 'Project roadmap', 'Learning dependency graph', 'AI mentor', '+ Everything in Scholar'],
   },
   {
-    id: 'polymath', name: 'Polymath', price: 34.99, icon: Brain, color: '#0891b2',
+    id: 'polymath', name: 'Polymath', price: 34.99, emoji: '🧠', color: '#7C3AED',
     tagline: '"A second brain."',
     features: ['Cross-domain Neural Map', 'Long-term memory', 'Multi-subject planning', 'Advanced knowledge graph', '+ Everything in Scholar'],
   },
   {
-    id: 'research', name: 'Research', price: 39.99, icon: Microscope, color: '#DC2626',
+    id: 'research', name: 'Research', price: 39.99, emoji: '🔬', color: '#DC2626',
     tagline: '"Papers, theses, research."',
     features: ['Paper analysis', 'Figure explanation', 'Citation map', 'Literature comparison', '+ Everything in Scholar'],
   },
@@ -139,7 +137,7 @@ function PayPalButtons({ plan, onSuccess }: { plan: Plan; onSuccess: (planId: st
   }, [ready]);
 
   if (error) return <p style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(220,38,38,0.8)', padding: '6px 0', lineHeight: 1.5 }}>{error}</p>;
-  if (!ready) return <div style={{ height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Loading…</span></div>;
+  if (!ready) return <div style={{ height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Loading…</span></div>;
   return <div ref={containerRef} />;
 }
 
@@ -154,10 +152,10 @@ function PlanCard({
     <div
       onClick={onSelect}
       style={{
-        border: `2px solid ${recommended ? plan.color : isAlt ? 'rgba(255,255,255,0.16)' : 'rgba(255,255,255,0.08)'}`,
+        border: `2px solid ${recommended ? plan.color : isAlt ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.08)'}`,
         borderRadius: 6,
         padding: '18px 20px',
-        background: recommended ? `${plan.color}14` : '#171a28',
+        background: recommended ? `${plan.color}08` : 'white',
         opacity: dim ? 0.35 : 1,
         cursor: 'pointer',
         transition: 'all 0.2s',
@@ -180,28 +178,28 @@ function PlanCard({
       {isAlt && !recommended && (
         <div style={{
           position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(255,255,255,0.15)', color: 'white', fontFamily: 'sans-serif',
+          background: 'rgba(0,0,0,0.5)', color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 8px',
           borderRadius: 10, whiteSpace: 'nowrap',
         }}>Also a good fit</div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <plan.icon size={20} color={plan.color} />
-        <span style={{ fontSize: 17, fontWeight: 400, color: 'rgba(255,255,255,0.92)' }}>{plan.name}</span>
+        <span style={{ fontSize: 22 }}>{plan.emoji}</span>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: 'rgba(0,0,0,0.85)' }}>{plan.name}</span>
         {plan.flagship && (
           <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>★ Best</span>
         )}
       </div>
 
-      <div style={{ fontSize: 22, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
-        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(255,255,255,0.45)' }}>/month</span>
+      <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
+        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>/month</span>
       </div>
-      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(255,255,255,0.55)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{plan.tagline}</p>
+      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{plan.tagline}</p>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
         {plan.features.map(f => (
-          <li key={f} style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(255,255,255,0.75)', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+          <li key={f} style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
             <span style={{ color: plan.color, flexShrink: 0 }}>✓</span>{f}
           </li>
         ))}
@@ -255,20 +253,20 @@ function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelec
   }, [cursor]);
 
   return (
-    <div style={{ background: '#171a28', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: '16px 18px' }}>
+    <div style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '16px 18px', boxShadow: '0 4px 18px rgba(0,0,0,0.06)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(255,255,255,0.45)', padding: '4px 8px' }}>‹</button>
-        <span style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)' }}>
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(0,0,0,0.4)', padding: '4px 8px' }}>‹</button>
+        <span style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.6)' }}>
           {cursor.toLocaleString('en-US', { month: 'long', year: 'numeric' })}
         </span>
         <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() + 1, 1))}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(255,255,255,0.45)', padding: '4px 8px' }}>›</button>
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(0,0,0,0.4)', padding: '4px 8px' }}>›</button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 4, marginBottom: 4 }}>
         {WEEKDAY_LABELS.map((w, i) => (
-          <div key={i} style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(255,255,255,0.4)' }}>{w}</div>
+          <div key={i} style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)' }}>{w}</div>
         ))}
       </div>
 
@@ -286,10 +284,10 @@ function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelec
                 disabled={isPast}
                 onClick={() => onSelect(iso)}
                 style={{
-                  aspectRatio: '1', border: isSelected ? '1.5px solid #7c3aed' : isToday ? '1px solid rgba(124,58,237,0.5)' : '1px solid transparent',
+                  aspectRatio: '1', border: isSelected ? '1.5px solid #C5A059' : isToday ? '1px solid rgba(197,160,89,0.5)' : '1px solid transparent',
                   borderRadius: 8, cursor: isPast ? 'default' : 'pointer',
-                  background: isSelected ? '#7c3aed' : 'transparent',
-                  color: isPast ? 'rgba(255,255,255,0.25)' : isSelected ? 'white' : 'rgba(255,255,255,0.8)',
+                  background: isSelected ? '#C5A059' : 'transparent',
+                  color: isPast ? 'rgba(0,0,0,0.2)' : isSelected ? 'white' : 'rgba(0,0,0,0.75)',
                   fontFamily: 'sans-serif', fontSize: 12, fontWeight: isSelected ? 700 : 400,
                   transition: 'all 0.15s',
                 }}
@@ -330,9 +328,9 @@ function LearningStyleSliders({
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
-        <Brain size={36} color="#7c3aed" style={{ display: 'block', margin: '0 auto 8px' }} />
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(255,255,255,0.92)' }}>What's your brain's fav?</p>
-        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧠</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What's your brain's fav?</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
           Drag each bar toward the style you prefer. This helps us pair you with the right AI study partner.
         </p>
       </div>
@@ -340,11 +338,11 @@ function LearningStyleSliders({
       {SLIDER_CONFIG.map(s => (
         <div key={s.key}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>{s.label}</span>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: '#7c3aed', fontWeight: 700 }}>{value[s.key] ?? 50}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.7)', fontWeight: 500 }}>{s.label}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: '#C5A059', fontWeight: 700 }}>{value[s.key] ?? 50}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(255,255,255,0.4)', width: 70, textAlign: 'right', flexShrink: 0 }}>{s.left}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, textAlign: 'right', flexShrink: 0 }}>{s.left}</span>
             <input
               type="range"
               min={0}
@@ -353,11 +351,11 @@ function LearningStyleSliders({
               onChange={e => onChange({ ...value, [s.key]: Number(e.target.value) })}
               style={{
                 flex: 1, height: 4, appearance: 'none', WebkitAppearance: 'none',
-                background: `linear-gradient(to right, #7c3aed 0%, #7c3aed ${value[s.key] ?? 50}%, rgba(255,255,255,0.12) ${value[s.key] ?? 50}%, rgba(255,255,255,0.12) 100%)`,
+                background: `linear-gradient(to right, #C5A059 0%, #C5A059 ${value[s.key] ?? 50}%, rgba(0,0,0,0.12) ${value[s.key] ?? 50}%, rgba(0,0,0,0.12) 100%)`,
                 borderRadius: 2, outline: 'none', cursor: 'pointer',
               }}
             />
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(255,255,255,0.4)', width: 70, flexShrink: 0 }}>{s.right}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, flexShrink: 0 }}>{s.right}</span>
           </div>
         </div>
       ))}
@@ -456,23 +454,23 @@ function PersonaSelection({
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
-        <FlaskConical size={36} color="#7c3aed" style={{ display: 'block', margin: '0 auto 8px' }} />
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(255,255,255,0.92)' }}>Choose your 3 AI study partners</p>
-        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧪</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Choose your 3 AI study partners</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
           Ranked by how well they match your style. Drag to reorder, or click to select. Pick exactly 3.
         </p>
       </div>
 
       {/* Selected badges */}
       {selected.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           {selected.map((id, i) => {
             const p = ranked.find(x => x.id === id);
             return p ? (
               <span key={id} style={{
                 fontFamily: 'sans-serif', fontSize: 10, padding: '4px 10px', borderRadius: 12,
-                background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.4)',
-                color: '#ddd6fe', display: 'flex', alignItems: 'center', gap: 4,
+                background: 'rgba(197,160,89,0.15)', border: '1px solid rgba(197,160,89,0.4)',
+                color: '#6b5215', display: 'flex', alignItems: 'center', gap: 4,
               }}>
                 <span style={{ fontWeight: 700 }}>#{i + 1}</span> {p.name.split(' ').pop()}
               </span>
@@ -500,11 +498,11 @@ function PersonaSelection({
               style={{
                 display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
                 borderRadius: 8, cursor: 'grab', transition: 'all 0.15s',
-                background: isSelected ? 'rgba(124,58,237,0.1)' : 'rgba(255,255,255,0.03)',
-                border: isSelected ? '1.5px solid rgba(124,58,237,0.5)' : isOver ? '1.5px solid rgba(124,58,237,0.3)' : '1.5px solid rgba(255,255,255,0.08)',
+                background: isSelected ? 'rgba(197,160,89,0.1)' : 'rgba(255,255,255,0.5)',
+                border: isSelected ? '1.5px solid rgba(197,160,89,0.5)' : isOver ? '1.5px solid rgba(197,160,89,0.3)' : '1.5px solid rgba(0,0,0,0.08)',
                 opacity: isDragging ? 0.5 : 1,
                 transform: isOver ? 'scale(1.01)' : 'scale(1)',
-                boxShadow: isSelected ? '0 2px 12px rgba(124,58,237,0.12)' : 'none',
+                boxShadow: isSelected ? '0 2px 12px rgba(197,160,89,0.12)' : 'none',
               }}
             >
               {/* Rank badge */}
@@ -512,8 +510,8 @@ function PersonaSelection({
                 width: 22, height: 22, borderRadius: '50%', flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 fontFamily: 'sans-serif', fontSize: 10, fontWeight: 700,
-                background: isSelected ? '#7c3aed' : 'rgba(255,255,255,0.08)',
-                color: isSelected ? 'white' : 'rgba(255,255,255,0.45)',
+                background: isSelected ? '#C5A059' : 'rgba(0,0,0,0.08)',
+                color: isSelected ? 'white' : 'rgba(0,0,0,0.4)',
               }}>
                 {idx + 1}
               </div>
@@ -521,14 +519,14 @@ function PersonaSelection({
               {/* Persona info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.92)' }}>{p.name}</span>
+                  <span style={{ fontFamily: 'Georgia, serif', fontSize: 13, fontWeight: 600, color: 'rgba(0,0,0,0.85)' }}>{p.name}</span>
                   {selectedRank >= 0 && (
-                    <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: '#7c3aed', color: 'white', padding: '1px 5px', borderRadius: 3 }}>
+                    <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: '#C5A059', color: 'white', padding: '1px 5px', borderRadius: 3 }}>
                       #{selectedRank + 1}
                     </span>
                   )}
                 </div>
-                <div style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 1 }}>
+                <div style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.45)', marginTop: 1 }}>
                   {p.field} · {p.special_trait}
                 </div>
               </div>
@@ -536,14 +534,14 @@ function PersonaSelection({
               {/* Match % */}
               <div style={{
                 fontFamily: 'sans-serif', fontSize: 13, fontWeight: 700,
-                color: p.match_pct >= 80 ? '#10b981' : p.match_pct >= 60 ? '#7c3aed' : 'rgba(255,255,255,0.4)',
+                color: p.match_pct >= 80 ? '#16a34a' : p.match_pct >= 60 ? '#C5A059' : 'rgba(0,0,0,0.35)',
                 flexShrink: 0, minWidth: 36, textAlign: 'right',
               }}>
                 {p.match_pct}%
               </div>
 
               {/* Drag handle */}
-              <div style={{ flexShrink: 0, color: 'rgba(255,255,255,0.25)', fontSize: 14, cursor: 'grab', userSelect: 'none' }}>
+              <div style={{ flexShrink: 0, color: 'rgba(0,0,0,0.2)', fontSize: 14, cursor: 'grab', userSelect: 'none' }}>
                 ⠿
               </div>
             </div>
@@ -568,9 +566,9 @@ function SubjectSelection({
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
-        <BookOpen size={36} color="#7c3aed" style={{ display: 'block', margin: '0 auto 8px' }} />
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(255,255,255,0.92)' }}>What are you studying?</p>
-        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(255,255,255,0.55)', margin: 0, lineHeight: 1.6 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>📚</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What are you studying?</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
           Pick every subject you want your own workspace for — you can open more later.
         </p>
       </div>
@@ -585,13 +583,13 @@ function SubjectSelection({
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '10px 16px', borderRadius: 10, cursor: 'pointer',
-                background: isSelected ? 'rgba(124,58,237,0.14)' : 'rgba(255,255,255,0.04)',
-                border: isSelected ? '1.5px solid rgba(124,58,237,0.55)' : '1.5px solid rgba(255,255,255,0.1)',
-                fontFamily: 'sans-serif', fontSize: 13, color: isSelected ? '#ddd6fe' : 'rgba(255,255,255,0.75)',
+                background: isSelected ? 'rgba(197,160,89,0.14)' : 'rgba(255,255,255,0.55)',
+                border: isSelected ? '1.5px solid rgba(197,160,89,0.55)' : '1.5px solid rgba(0,0,0,0.1)',
+                fontFamily: 'sans-serif', fontSize: 13, color: isSelected ? '#6b5215' : 'rgba(0,0,0,0.7)',
                 transition: 'all 0.15s',
               }}
             >
-              <SubjectIcon subject={key} className="w-4 h-4" />
+              <span style={{ fontSize: 16 }}>{meta.icon}</span>
               {meta.label}
             </button>
           );
@@ -755,9 +753,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   return (
     <div style={{
       position: 'fixed', inset: 0, zIndex: 200,
-      background: '#0a0a0f',
+      background: '#050508',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: "'Plus Jakarta Sans', sans-serif",
+      fontFamily: 'Georgia, serif',
     }}>
       <style>{`
         @keyframes fadeSlideIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
@@ -765,31 +763,30 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
         .ob-enter { animation: fadeSlideIn 0.22s ease-out; }
         .ob-scale { animation: scaleIn 0.28s cubic-bezier(0.23,1,0.32,1); }
         @keyframes obDotBounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.35; } 40% { transform: translateY(-4px); opacity: 1; } }
-        .ob-dot { width: 6px; height: 6px; border-radius: 50%; background: #7c3aed; display: inline-block; animation: obDotBounce 1s infinite ease-in-out; }
+        .ob-dot { width: 6px; height: 6px; border-radius: 50%; background: #C5A059; display: inline-block; animation: obDotBounce 1s infinite ease-in-out; }
         ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-thumb { background: #ccc; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #7c3aed; border: 2px solid white; box-shadow: 0 1px 4px rgba(255,255,255,0.25); cursor: grab; }
-        input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #7c3aed; border: 2px solid white; box-shadow: 0 1px 4px rgba(255,255,255,0.25); cursor: grab; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #C5A059; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); cursor: grab; }
+        input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border-radius: 50%; background: #C5A059; border: 2px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.2); cursor: grab; }
       `}</style>
 
       {/* Modal panel */}
       <div className="ob-scale" style={{
-        background: '#12141f', borderRadius: 8, width: '92vw',
-        border: '1px solid rgba(255,255,255,0.08)',
+        background: '#FAFAF8', borderRadius: 8, width: '92vw',
         maxWidth: phase === 'pricing' ? 1060 : phase === 'personas' ? 680 : phase === 'goal' ? 460 : 600,
         maxHeight: '88vh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
-        boxShadow: '0 24px 80px rgba(0,0,0,0.5)',
+        boxShadow: '0 24px 80px rgba(0,0,0,0.35)',
         transition: 'max-width 0.4s cubic-bezier(0.23,1,0.32,1)',
       }}>
         {/* Header */}
         <div style={{ padding: '20px 28px 0', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 4, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>
               {phaseLabel}
             </span>
           </div>
           {/* Progress bar */}
-          <div style={{ height: 2, background: 'rgba(255,255,255,0.08)', borderRadius: 2, marginBottom: 2 }}>
-            <div style={{ height: '100%', background: '#7c3aed', borderRadius: 2, width: `${progress * 100}%`, transition: 'width 0.4s ease' }} />
+          <div style={{ height: 2, background: 'rgba(0,0,0,0.08)', borderRadius: 2, marginBottom: 2 }}>
+            <div style={{ height: '100%', background: '#C5A059', borderRadius: 2, width: `${progress * 100}%`, transition: 'width 0.4s ease' }} />
           </div>
         </div>
 
@@ -798,9 +795,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Success state ── */}
           {paid && (
             <div className="ob-enter" style={{ textAlign: 'center', padding: '40px 0' }}>
-              <div style={{ fontSize: 48, marginBottom: 16, color: '#7c3aed' }}>✦</div>
-              <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(255,255,255,0.92)' }}>Welcome to The Lyceum</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.55)' }}>Starting up your study workspace…</p>
+              <div style={{ fontSize: 48, marginBottom: 16, color: '#C5A059' }}>✦</div>
+              <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(0,0,0,0.85)' }}>Welcome to The Lyceum</p>
+              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
             </div>
           )}
 
@@ -818,9 +815,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {!paid && phase === 'personas' && (
             loadingPersonas ? (
               <div className="ob-enter" style={{ textAlign: 'center', padding: '48px 0' }}>
-                <div style={{ width: 32, height: 32, border: '2px solid rgba(255,255,255,0.12)', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                <div style={{ width: 32, height: 32, border: '2px solid rgba(0,0,0,0.12)', borderTop: '2px solid #C5A059', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>Loading personas…</p>
+                <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)' }}>Loading personas…</p>
               </div>
             ) : (
               <PersonaSelection
@@ -835,9 +832,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Goal-date screen ── */}
           {!paid && phase === 'goal' && (
             <div className="ob-enter">
-              <Target size={36} color="#7c3aed" style={{ display: 'block', margin: '0 auto 8px' }} />
-              <p style={{ fontSize: 18, textAlign: 'center', margin: '0 0 6px', color: 'rgba(255,255,255,0.92)' }}>Pick a target day</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(255,255,255,0.55)', textAlign: 'center', margin: '0 0 22px', lineHeight: 1.6 }}>
+              <span style={{ fontSize: 40, display: 'block', textAlign: 'center', marginBottom: 8, color: '#C5A059' }}>♟</span>
+              <p style={{ fontSize: 18, textAlign: 'center', margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Pick a target day</p>
+              <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', textAlign: 'center', margin: '0 0 22px', lineHeight: 1.6 }}>
                 A deadline, an upcoming exam — anything that gives your studying a finish line. From today, every day you show up earns a glass pawn; reach this day and it becomes a glass king.
               </p>
 
@@ -849,9 +846,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 onChange={e => setGoalLabel(e.target.value)}
                 placeholder="What's this day for? (e.g. Calculus midterm)"
                 style={{
-                  width: '100%', marginTop: 16, padding: '12px 14px', border: '1.5px solid rgba(255,255,255,0.14)', borderRadius: 8,
-                  fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.92)', outline: 'none',
-                  background: 'rgba(255,255,255,0.05)',
+                  width: '100%', marginTop: 16, padding: '12px 14px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
+                  fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.85)', outline: 'none',
+                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -863,9 +860,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
             <div>
               {analyzing ? (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
-                  <div style={{ width: 32, height: 32, border: '2px solid rgba(255,255,255,0.12)', borderTop: '2px solid #7c3aed', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
+                  <div style={{ width: 32, height: 32, border: '2px solid rgba(0,0,0,0.12)', borderTop: '2px solid #C5A059', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px' }} />
                   <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)' }}>Analyzing your answers…</p>
+                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)' }}>Analyzing your answers…</p>
                 </div>
               ) : (
                 <div className="ob-enter">
@@ -877,8 +874,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                         return p ? (
                           <span key={id} style={{
                             fontFamily: 'sans-serif', fontSize: 10, padding: '4px 10px', borderRadius: 12,
-                            background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
-                            color: '#ddd6fe', display: 'flex', alignItems: 'center', gap: 4,
+                            background: 'rgba(197,160,89,0.12)', border: '1px solid rgba(197,160,89,0.3)',
+                            color: '#6b5215', display: 'flex', alignItems: 'center', gap: 4,
                           }}>
                             {p.name} · {p.special_trait}
                           </span>
@@ -888,13 +885,13 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                   )}
 
                   {aiResult?.reasoning && (
-                    <div style={{ background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.35)', borderRadius: 6, padding: '14px 18px', marginBottom: 24 }}>
-                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: '#7c3aed', display: 'block', marginBottom: 6 }}>AI assessment</span>
-                      <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.78)', margin: 0, lineHeight: 1.6 }}>{aiResult.reasoning}</p>
+                    <div style={{ background: 'rgba(197,160,89,0.1)', border: '1px solid rgba(197,160,89,0.35)', borderRadius: 6, padding: '14px 18px', marginBottom: 24 }}>
+                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: '#C5A059', display: 'block', marginBottom: 6 }}>AI assessment</span>
+                      <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.72)', margin: 0, lineHeight: 1.6 }}>{aiResult.reasoning}</p>
                     </div>
                   )}
 
-                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 18 }}>
+                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', marginBottom: 18 }}>
                     Choose a plan and pay to get started
                   </p>
 
@@ -914,16 +911,16 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                   </div>
 
                   {aiResult?.alternatives && aiResult.alternatives.length > 0 && (
-                    <div style={{ marginTop: 16, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: 14 }}>
-                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}>Other good fits</span>
+                    <div style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 14 }}>
+                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Other good fits</span>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
                         {aiResult.alternatives.map(alt => {
                           const p = PLANS.find(x => x.id === alt.plan_id);
                           return p ? (
-                            <div key={alt.plan_id} style={{ border: '1px solid rgba(255,255,255,0.12)', borderRadius: 4, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div key={alt.plan_id} style={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                               <span>{p.emoji}</span>
                               <span style={{ fontFamily: 'sans-serif', fontSize: 11, fontWeight: 600 }}>{p.name}</span>
-                              <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(255,255,255,0.5)' }}>— {alt.reason}</span>
+                              <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.45)' }}>— {alt.reason}</span>
                             </div>
                           ) : null;
                         })}
@@ -944,10 +941,12 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                     maxWidth: '82%',
                     padding: '12px 16px',
                     borderRadius: t.role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                    background: t.role === 'user' ? 'rgba(124,58,237,0.16)' : 'rgba(255,255,255,0.05)',
-                    border: t.role === 'user' ? '1px solid rgba(124,58,237,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    background: t.role === 'user' ? 'rgba(197,160,89,0.16)' : 'rgba(255,255,255,0.55)',
+                    backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    border: t.role === 'user' ? '1px solid rgba(197,160,89,0.4)' : '1px solid rgba(0,0,0,0.08)',
+                    boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
                     fontFamily: 'sans-serif', fontSize: 13.5, lineHeight: 1.6,
-                    color: t.role === 'user' ? '#ddd6fe' : 'rgba(255,255,255,0.85)',
+                    color: t.role === 'user' ? '#6b5215' : 'rgba(0,0,0,0.78)',
                     whiteSpace: 'pre-wrap',
                   }}>
                     {t.content}
@@ -958,8 +957,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <div style={{
                     padding: '12px 16px', borderRadius: '14px 14px 14px 3px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.08)', display: 'flex', gap: 4, alignItems: 'center',
+                    background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    border: '1px solid rgba(0,0,0,0.08)', display: 'flex', gap: 4, alignItems: 'center',
                   }}>
                     <span className="ob-dot" style={{ animationDelay: '0s' }} />
                     <span className="ob-dot" style={{ animationDelay: '0.15s' }} />
@@ -974,15 +973,15 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         {/* Goal-date confirm footer */}
         {!paid && phase === 'goal' && (
-          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={confirmGoal}
               disabled={!goalDate}
               style={{
-                padding: '13px 26px', background: goalDate ? '#7c3aed' : 'rgba(255,255,255,0.08)',
+                padding: '13px 26px', background: goalDate ? '#C5A059' : 'rgba(0,0,0,0.08)',
                 border: 'none', borderRadius: 8, cursor: goalDate ? 'pointer' : 'not-allowed',
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
-                color: goalDate ? '#ffffff' : 'rgba(255,255,255,0.3)', fontWeight: 700,
+                color: goalDate ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700,
                 transition: 'all 0.15s',
               }}>
               Start my streak
@@ -992,8 +991,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         {/* Subjects footer — Continue button */}
         {!paid && phase === 'subjects' && (
-          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedSubjects.length > 0 ? '#10b981' : 'rgba(255,255,255,0.4)' }}>
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedSubjects.length > 0 ? '#16a34a' : 'rgba(0,0,0,0.35)' }}>
               {selectedSubjects.length > 0 ? `✓ ${selectedSubjects.length} selected` : 'Pick at least one'}
             </span>
             <button
@@ -1001,11 +1000,11 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
               disabled={selectedSubjects.length === 0}
               style={{
                 padding: '13px 26px',
-                background: selectedSubjects.length > 0 ? '#7c3aed' : 'rgba(255,255,255,0.08)',
+                background: selectedSubjects.length > 0 ? '#C5A059' : 'rgba(0,0,0,0.08)',
                 border: 'none', borderRadius: 8,
                 cursor: selectedSubjects.length > 0 ? 'pointer' : 'not-allowed',
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
-                color: selectedSubjects.length > 0 ? '#ffffff' : 'rgba(255,255,255,0.3)',
+                color: selectedSubjects.length > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
                 fontWeight: 700, transition: 'all 0.15s',
               }}>
               Continue
@@ -1015,17 +1014,17 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         {/* Sliders footer — Next button */}
         {!paid && phase === 'sliders' && (
-          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>
               Adjust sliders to match your style
             </span>
             <button
               onClick={() => { saveLearningStyle(learningStyle); setPhase('personas'); }}
               style={{
-                padding: '13px 26px', background: '#7c3aed',
+                padding: '13px 26px', background: '#C5A059',
                 border: 'none', borderRadius: 8, cursor: 'pointer',
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
-                color: '#ffffff', fontWeight: 700, transition: 'all 0.15s',
+                color: '#1a1a1a', fontWeight: 700, transition: 'all 0.15s',
               }}>
               Next
             </button>
@@ -1034,8 +1033,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         {/* Personas footer — Continue button */}
         {!paid && phase === 'personas' && (
-          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedPersonaIds.length === 3 ? '#10b981' : 'rgba(255,255,255,0.4)' }}>
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: selectedPersonaIds.length === 3 ? '#16a34a' : 'rgba(0,0,0,0.35)' }}>
               {selectedPersonaIds.length === 3 ? '✓ 3 partners selected' : `${selectedPersonaIds.length}/3 selected — drag or click to choose`}
             </span>
             <button
@@ -1043,11 +1042,11 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
               disabled={selectedPersonaIds.length !== 3}
               style={{
                 padding: '13px 26px',
-                background: selectedPersonaIds.length === 3 ? '#7c3aed' : 'rgba(255,255,255,0.08)',
+                background: selectedPersonaIds.length === 3 ? '#C5A059' : 'rgba(0,0,0,0.08)',
                 border: 'none', borderRadius: 8,
                 cursor: selectedPersonaIds.length === 3 ? 'pointer' : 'not-allowed',
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
-                color: selectedPersonaIds.length === 3 ? '#ffffff' : 'rgba(255,255,255,0.3)',
+                color: selectedPersonaIds.length === 3 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
                 fontWeight: 700, transition: 'all 0.15s',
               }}>
               Continue
@@ -1057,7 +1056,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
         {/* Chat input — the only way to answer during onboarding */}
         {!paid && phase === 'chat' && (
-          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
             {chatError && (
               <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(220,38,38,0.8)', margin: '0 0 8px' }}>{chatError}</p>
             )}
@@ -1071,9 +1070,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 disabled={sending}
                 autoFocus
                 style={{
-                  flex: 1, padding: '13px 16px', border: '1.5px solid rgba(255,255,255,0.14)', borderRadius: 8,
-                  fontFamily: 'sans-serif', fontSize: 14, color: 'rgba(255,255,255,0.92)', outline: 'none',
-                  background: 'rgba(255,255,255,0.05)',
+                  flex: 1, padding: '13px 16px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
+                  fontFamily: 'sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.85)', outline: 'none',
+                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -1081,10 +1080,10 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 onClick={sendMessage}
                 disabled={sending || !input.trim()}
                 style={{
-                  padding: '13px 22px', background: (!sending && input.trim()) ? '#7c3aed' : 'rgba(255,255,255,0.08)',
+                  padding: '13px 22px', background: (!sending && input.trim()) ? '#C5A059' : 'rgba(0,0,0,0.08)',
                   border: 'none', borderRadius: 8, cursor: (!sending && input.trim()) ? 'pointer' : 'not-allowed',
                   fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
-                  color: (!sending && input.trim()) ? '#ffffff' : 'rgba(255,255,255,0.3)', fontWeight: 700, flexShrink: 0,
+                  color: (!sending && input.trim()) ? '#1a1a1a' : 'rgba(0,0,0,0.25)', fontWeight: 700, flexShrink: 0,
                   transition: 'all 0.15s',
                 }}>
                 Send

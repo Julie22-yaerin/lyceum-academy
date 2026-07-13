@@ -247,7 +247,7 @@ export default function NotepadWindow() {
 
   const canAnswer = mode === 'text' ? answer.trim().length > 0 : canvasTranscript.trim().length > 0 || (canvasRef.current !== null);
   const DIFF_COLOR: Record<string, string> = {
-    easy: '#4A7C59', medium: '#f59e0b', hard: '#823B18', extreme: '#7C3AED',
+    easy: '#4A7C59', medium: '#C5A059', hard: '#823B18', extreme: '#7C3AED',
   };
 
   // ── Waiting screen ─────────────────────────────────────────────────────────
@@ -255,7 +255,7 @@ export default function NotepadWindow() {
     return (
       <div style={{ background: '#111', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'sans-serif' }}>
         <style>{`body{margin:0;background:#111;} @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
-        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', color: 'rgba(255,255,255,0.25)' }}>THE LYCEUM</div>
+        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', fontFamily: 'Georgia, serif', color: 'rgba(255,255,255,0.25)' }}>THE LYCEUM</div>
         <p style={{ fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Notepad</p>
         <p style={{ fontSize: 10, letterSpacing: 1, opacity: 0.5, marginTop: 24 }}>Waiting for PDF to open in main window…</p>
       </div>
@@ -263,14 +263,14 @@ export default function NotepadWindow() {
   }
 
   const { question, idx, total } = qData;
-  const diffColor = DIFF_COLOR[question.difficulty] || '#f59e0b';
+  const diffColor = DIFF_COLOR[question.difficulty] || '#C5A059';
 
   return (
-    <div style={{ background: '#0a0a0f', height: '100vh', display: 'flex', flexDirection: 'column', color: '#F5F0E8', userSelect: 'none', overflow: 'hidden' }}>
+    <div style={{ background: '#131313', height: '100vh', display: 'flex', flexDirection: 'column', color: '#F5F0E8', fontFamily: 'Georgia, serif', userSelect: 'none', overflow: 'hidden' }}>
       <style>{`
         * { box-sizing: border-box; }
         body { margin: 0; background: #131313; }
-        textarea { font-family: 'Plus Jakarta Sans', sans-serif; }
+        textarea { font-family: Georgia, serif; }
         @keyframes tearOff {
           0%   { transform: scale(1) translateY(0); opacity: 1; }
           100% { transform: scale(0.6) translateY(-30px); opacity: 0; }
@@ -313,7 +313,7 @@ export default function NotepadWindow() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px', gap: 8, minHeight: 0, overflow: 'hidden' }}>
         {masteryResult ? (
           <div style={{ border: `1px solid ${masteryResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(251,191,36,0.4)'}`, padding: 12, background: masteryResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(251,191,36,0.06)', borderRadius: 3 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 6, color: masteryResult.passed ? '#4A7C59' : '#f59e0b' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 6, color: masteryResult.passed ? '#4A7C59' : '#C5A059' }}>
               {masteryResult.passed ? '✓ Mastered' : '◯ Keep Exploring'}
             </span>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'rgba(255,255,255,0.75)' }}
@@ -333,6 +333,7 @@ export default function NotepadWindow() {
               color: '#F5F0E8', padding: '14px 16px', fontSize: 14, lineHeight: 1.7,
               resize: 'none', outline: 'none', borderRadius: 3,
               animation: tearing ? 'tearOff 0.35s ease-in both' : 'none',
+              fontFamily: 'Georgia, serif',
             }}
           />
         ) : (
@@ -416,7 +417,7 @@ export default function NotepadWindow() {
             <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
 
             {/* Color presets + a real color wheel via the native picker */}
-            {['#F5F0E8','#7c3aed','#4A7C59','#2563EB','#DC2626'].map(c => (
+            {['#F5F0E8','#C5A059','#4A7C59','#2563EB','#DC2626'].map(c => (
               <button key={c} onClick={() => setBrushColor(c)} style={{
                 width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer', padding: 0,
               }} />

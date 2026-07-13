@@ -222,7 +222,7 @@ function AnswerPanel({
               onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
           </div>
           <div className="flex items-center gap-3 flex-wrap flex-shrink-0">
-            {['#1A1A1A','#7c3aed','#823b18','#2563eb','#dc2626'].map(c => (
+            {['#1A1A1A','#C5A059','#823b18','#2563eb','#dc2626'].map(c => (
               <button key={c} onClick={() => setBrushColor(c)}
                 className={`w-5 h-5 border-2 ${brushColor === c ? 'border-on-surface' : 'border-transparent'}`}
                 style={{ backgroundColor: c }} />
@@ -1424,7 +1424,7 @@ function LensView({
           {/* Canvas controls */}
           {mode === 'canvas' && (
             <div className="flex items-center gap-2 mr-2">
-              {['#1A1A1A','#7c3aed','#823b18','#2563eb','#dc2626'].map(c => (
+              {['#1A1A1A','#C5A059','#823b18','#2563eb','#dc2626'].map(c => (
                 <button key={c} onClick={() => setBrushColor(c)}
                   className={`w-5 h-5 border-2 ${brushColor === c ? 'border-on-surface' : 'border-transparent'}`}
                   style={{ backgroundColor: c }} />

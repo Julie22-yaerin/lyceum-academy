@@ -37,7 +37,7 @@ export default function FeedbackModal({ onClose }: { onClose: () => void }) {
       >
         {done ? (
           <div className="text-center py-4">
-            <div className="text-3xl mb-2 text-purple-400">✦</div>
+            <div className="text-3xl mb-2 text-amber-400">✦</div>
             <p className="font-serif text-white text-lg">Thanks for the feedback</p>
           </div>
         ) : (
@@ -56,7 +56,7 @@ export default function FeedbackModal({ onClose }: { onClose: () => void }) {
                   onMouseEnter={() => setHoverRating(n)}
                   onMouseLeave={() => setHoverRating(0)}
                   className="text-3xl leading-none transition-transform hover:scale-110"
-                  style={{ color: n <= (hoverRating || rating) ? '#8b5cf6' : 'rgba(255,255,255,0.15)' }}
+                  style={{ color: n <= (hoverRating || rating) ? '#C5A059' : 'rgba(255,255,255,0.15)' }}
                   aria-label={`${n} star${n > 1 ? 's' : ''}`}
                 >
                   ★

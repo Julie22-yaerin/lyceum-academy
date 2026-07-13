@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { SUBJECT_META } from '../lib/persist';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { SubjectIcon } from '../lib/subjectIcons';
 
 /**
  * Chrome-style subject tab strip. One tab per open subject; switching tabs
@@ -40,9 +39,9 @@ export default function SubjectTabBar() {
             className={`group flex items-center gap-1.5 px-3 py-2 rounded-t-lg cursor-pointer text-sm flex-shrink-0 transition-colors ${
               active ? 'bg-white/10 text-white' : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.05] hover:text-white/70'
             }`}
-            style={active ? { boxShadow: 'inset 0 2px 0 0 var(--color-primary)' } : undefined}
+            style={active ? { boxShadow: 'inset 0 2px 0 0 #a78bfa' } : undefined}
           >
-            <SubjectIcon subject={key} className="w-3.5 h-3.5" />
+            <span className="text-[13px]">{meta.icon}</span>
             <span className="whitespace-nowrap">{meta.label}</span>
             {openTabs.length > 1 && (
               <button
@@ -74,7 +73,7 @@ export default function SubjectTabBar() {
                   onClick={() => { openTab(key); setShowAdd(false); }}
                   className="w-full flex items-center gap-2 px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white transition-colors text-left"
                 >
-                  <SubjectIcon subject={key} className="w-3.5 h-3.5" />
+                  <span>{meta.icon}</span>
                   {meta.label}
                 </button>
               ))}

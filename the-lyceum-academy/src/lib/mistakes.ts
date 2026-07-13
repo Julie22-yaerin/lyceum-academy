@@ -1,4 +1,4 @@
-import { detectSubject } from './persist';
+import { detectSubject, SUBJECT_META } from './persist';
 import { recordProfileEvent } from './profile';
 
 export interface MistakeEntry {
@@ -57,6 +57,10 @@ export function clearMistakes(subjectFilter?: string): void {
     if (!subjectFilter) { localStorage.removeItem(KEY); return; }
     localStorage.setItem(KEY, JSON.stringify(loadMistakes().filter(m => m.subject !== subjectFilter)));
   } catch {}
+}
+
+export function getSubjectIcon(subject: string): string {
+  return SUBJECT_META[subject]?.icon || '📝';
 }
 
 export function getSortedMistakes(subjectFilter?: string): MistakeEntry[] {
