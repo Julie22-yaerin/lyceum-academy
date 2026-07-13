@@ -4,14 +4,14 @@ import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── Color palette ─────────────────────────────────────────────────────────
 const TOPIC_COLORS = [
-  '#C5A059', '#4A7C59', '#823B18', '#2563EB',
+  '#f59e0b', '#4A7C59', '#823B18', '#2563EB',
   '#7C3AED', '#059669', '#DC2626', '#D97706',
   '#0891B2', '#BE185D', '#65A30D', '#6366F1',
 ];
 
 const DIFF_COLORS: Record<string, string> = {
   easy: '#4A7C59',
-  medium: '#C5A059',
+  medium: '#f59e0b',
   hard: '#823B18',
   extreme: '#7C3AED',
 };
@@ -52,7 +52,7 @@ function DonutChart({ slices, size = 160, label = '' }: { slices: Slice[]; size?
       <circle cx={cx} cy={cy} r={r * 0.58} fill="var(--surface, #fff)" />
       {label && (
         <>
-          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={18} fontFamily="Georgia, serif" fill="currentColor" opacity={0.8}>{label}</text>
+          <text x={cx} y={cy - 4} textAnchor="middle" fontSize={18} fill="currentColor" opacity={0.8}>{label}</text>
           <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fontFamily="sans-serif" fill="currentColor" opacity={0.35} letterSpacing={1}>TOTAL</text>
         </>
       )}
@@ -123,7 +123,7 @@ export default function ProgressView() {
   // Mastery pie
   const masterySlices: Slice[] = [
     { label: 'Mastered ≥70%', value: masteredCount, color: '#4A7C59' },
-    { label: 'Improving 40–69%', value: improvingCount, color: '#C5A059' },
+    { label: 'Improving 40–69%', value: improvingCount, color: '#f59e0b' },
     { label: 'Struggling <40%', value: strugglingCount, color: '#823B18' },
   ].filter(s => s.value > 0);
 
@@ -211,7 +211,7 @@ export default function ProgressView() {
                     className="w-full transition-all"
                     style={{
                       height: `${Math.max(4, (s.rate / maxRate) * 96)}px`,
-                      background: s.rate >= 70 ? '#4A7C59' : s.rate >= 40 ? '#C5A059' : '#823B18',
+                      background: s.rate >= 70 ? '#4A7C59' : s.rate >= 40 ? '#f59e0b' : '#823B18',
                       opacity: 0.75,
                     }}
                   />
@@ -284,7 +284,7 @@ export default function ProgressView() {
             </div>
             <div className="divide-y divide-outline/8">
               {topics.map(t => {
-                const color = t.rate >= 70 ? '#4A7C59' : t.rate >= 40 ? '#C5A059' : '#823B18';
+                const color = t.rate >= 70 ? '#4A7C59' : t.rate >= 40 ? '#f59e0b' : '#823B18';
                 const status = t.rate >= 70 ? 'Mastered' : t.rate >= 40 ? 'Improving' : 'Struggling';
                 return (
                   <div key={t.name} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container-highest/30 transition-colors">

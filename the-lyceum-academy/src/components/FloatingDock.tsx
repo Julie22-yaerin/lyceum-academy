@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Flame, Trophy } from 'lucide-react';
 import { View, NavigationProps } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { auth, signOut } from '../lib/firebase';
@@ -135,9 +136,9 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
     >
       <div className="px-5 py-4 flex flex-col gap-3">
         <div className="flex items-center gap-3">
-          <span className="text-[28px] leading-none" style={{ filter: 'drop-shadow(0 0 6px rgba(216,204,255,0.5))' }}>
-            {state.goalAchieved ? '♚' : '♟'}
-          </span>
+          {state.goalAchieved
+            ? <Trophy size={28} color="#8b5cf6" style={{ filter: 'drop-shadow(0 0 6px rgba(139,92,246,0.5))' }} />
+            : <Flame size={28} color="#8b5cf6" style={{ filter: 'drop-shadow(0 0 6px rgba(139,92,246,0.5))' }} />}
           <div>
             <div className="text-lg font-semibold text-white/90">{state.streakCount}-day streak</div>
             <div className="text-[10px] uppercase tracking-wider text-white/40">Longest: {state.longestStreak}</div>
@@ -189,7 +190,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
             className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
             title={`${streak.streakCount}-day streak`}
           >
-            <span className="text-[16px] leading-none">{streak.goalAchieved ? '♚' : '♟'}</span>
+            {streak.goalAchieved ? <Trophy size={16} /> : <Flame size={16} />}
             <span className="text-[11px] font-semibold text-white/80">{streak.streakCount}</span>
           </button>
           {showStreak && <StreakPanel state={streak} onClose={() => setShowStreak(false)} />}

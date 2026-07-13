@@ -19,7 +19,6 @@ function Toolbar({ editor }: { editor: any }) {
       className={`px-2 py-1 text-xs leading-none border border-white/10 transition-colors ${
         active ? 'bg-white/10 text-white' : 'text-white/50 hover:bg-white/5'
       }`}
-      style={{ fontFamily: 'Georgia, serif' }}
     >
       {label}
     </button>

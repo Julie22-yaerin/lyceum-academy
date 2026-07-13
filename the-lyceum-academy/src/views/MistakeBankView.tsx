@@ -3,11 +3,11 @@ import { chatMessage } from '../lib/api';
 import {
   deleteMistake,
   clearMistakes,
-  getSubjectIcon,
   getSortedMistakes,
   type MistakeEntry,
 } from '../lib/mistakes';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { SubjectIcon } from '../lib/subjectIcons';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -41,7 +41,7 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
           )}
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">{getSubjectIcon(entry.subject)}</span>
+              <SubjectIcon subject={entry.subject} className="w-4 h-4 text-white/60" />
               <span className="font-sans text-[10px] uppercase tracking-[2px] text-white/50 px-2 py-0.5 bg-white/5 rounded">
                 {entry.subject}
               </span>

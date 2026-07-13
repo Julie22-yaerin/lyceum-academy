@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Search, Paperclip, AlertTriangle, FileText } from 'lucide-react';
 import { saveNote, attachToNote, attachToGraphNode, saveReference } from '../lib/persist';
 import SmartImage from './SmartImage';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
@@ -813,10 +814,10 @@ export default function S2SVoiceOverlay({
                 className="w-12 h-12 rounded-xl object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity" />
             )}
             <div className="min-w-0">
-              <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-1">
-                {toast.type === 'research' ? '🔎 Gemma researched' :
-                 toast.type === 'attach' ? '📎 Attached' :
-                 toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
+              <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 mb-1 flex items-center gap-1">
+                {toast.type === 'research' ? <><Search size={11} /> Gemma researched</> :
+                 toast.type === 'attach' ? <><Paperclip size={11} /> Attached</> :
+                 toast.type === 'mistake' ? <><AlertTriangle size={11} /> Mistake Bank</> : <><FileText size={11} /> Notes</>}
               </span>
               <p className="font-sans text-xs text-white/85 leading-relaxed line-clamp-4">{toast.message}</p>
             </div>

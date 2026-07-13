@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { Brain } from 'lucide-react';
 import { synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
@@ -168,7 +169,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
     <div className="w-full max-w-3xl border border-outline/10 shadow-sm overflow-hidden">
       {/* Header */}
       <div className="px-8 py-5 border-b border-outline/10 bg-surface-container-lowest/30 flex items-center gap-3">
-        <span className="text-xl">🧠</span>
+        <Brain className="w-5 h-5" />
         <div>
           <p className="font-serif text-base font-medium">Feynman Test</p>
           <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
