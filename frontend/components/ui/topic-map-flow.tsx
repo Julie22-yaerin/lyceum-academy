@@ -15,8 +15,8 @@ import {
   useEdgesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { TopicMap, MapNode } from "@/app/topic-map/page";
-import { NODE_COLORS } from "@/app/topic-map/page";
+import type { TopicMap, MapNode } from "@/lib/topic-map";
+import { NODE_COLORS } from "@/lib/topic-map";
 
 // ── Layout: simple radial layout ─────────────────────────────────────────────
 

@@ -16,8 +16,12 @@ export function IntroAnimation({ onComplete }: Props) {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx2d = canvas.getContext("2d");
+    if (!ctx2d) return;
+    // Explicit non-null alias so the closures below (drawBg/drawSnake/…) keep
+    // the narrowed type — control-flow narrowing of a checked const isn't
+    // preserved inside nested function declarations, but a typed const is.
+    const ctx: CanvasRenderingContext2D = ctx2d;
 
     // ── sizing ────────────────────────────────────────────────────────────────
     const W = 560, H = 280;
