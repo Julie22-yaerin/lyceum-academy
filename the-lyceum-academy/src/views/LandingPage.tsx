@@ -15,6 +15,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
+import FeedbackWidget from '../components/FeedbackWidget';
 
 // ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
 const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
@@ -187,6 +188,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         <div className="orb-2" />
         <div className="orb-3" />
       </div>
+
+      <FeedbackWidget context="landing" />
 
       {/* Nav */}
       <motion.nav

@@ -2,6 +2,7 @@ import { ReactNode, useEffect, useRef, useState } from 'react';
 import FloatingDock from './FloatingDock';
 import VoiceOrb from './VoiceOrb';
 import SubjectTabBar from './SubjectTabBar';
+import FeedbackWidget from './FeedbackWidget';
 import { NavigationProps } from '../types';
 import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
 import { recordSubjectActivity } from '../lib/profile';
@@ -120,6 +121,8 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
           </div>
         </div>
       )}
+
+      <FeedbackWidget context="workspace" />
     </div>
   );
 }
