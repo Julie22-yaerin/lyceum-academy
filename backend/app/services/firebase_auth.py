@@ -41,11 +41,7 @@ async def verify_firebase_id_token(token: str) -> Mapping[str, str]:
             issuer=settings.firebase_issuer,
             options={"verify_exp": True},
         )
-        if not payload.get("email_verified"):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Email not verified. Please check your inbox and verify your email before continuing.",
-            )
+        # Email verification check disabled
         return payload
     except HTTPException:
         raise

@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { ARI_COPY, detectLocale } from '../lib/locale';
 
 interface UpgradePromptProps {
   feature: 'voice' | 'mindmap' | 'reference' | 'roadmap';
@@ -42,6 +43,7 @@ const RECOMMENDED_TIERS = {
 };
 
 export default function UpgradePrompt({ feature, currentTier = 'compass', onClose }: UpgradePromptProps) {
+  const locale = detectLocale();
   const message = FEATURE_MESSAGES[feature];
   const recommendedTiers = RECOMMENDED_TIERS[feature];
 
@@ -67,11 +69,15 @@ export default function UpgradePrompt({ feature, currentTier = 'compass', onClos
         {/* Icon */}
         <div className="text-center mb-4">
           <div className="text-6xl mb-4">{message.icon}</div>
-          <h2 className="text-2xl font-bold text-gray-900">{message.title}</h2>
+          <h2 className="text-2xl font-bold text-gray-900">
+            {feature === 'voice' ? ARI_COPY[locale].voiceLimitTitle : message.title}
+          </h2>
         </div>
 
         {/* Description */}
-        <p className="text-gray-600 text-center mb-6">{message.description}</p>
+        <p className="text-gray-600 text-center mb-6">
+          {feature === 'voice' ? ARI_COPY[locale].voiceLimitDescription : message.description}
+        </p>
 
         {/* Recommended upgrade */}
         <div className="bg-blue-50 rounded-lg p-4 mb-6">

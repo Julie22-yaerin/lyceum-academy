@@ -4,8 +4,9 @@
  */
 
 import { supabase } from './supabase';
+import { getApiBaseUrl } from './apiBase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = getApiBaseUrl();
 
 export interface SubscriptionPlan {
   id: string;

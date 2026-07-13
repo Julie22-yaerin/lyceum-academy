@@ -36,8 +36,27 @@ export const LEARNING_STYLE_KEY   = "pclick:learning-style"; // LearningStyle
 export const PERSONA_MATCHES_KEY  = "pclick:persona-matches"; // PersonaMatch[]
 export const SEASON_KEY           = "pclick:season";          // SeasonMap
 
+export const PLAN_KEY             = "pclick:plan";            // PlanResult
+
 // ── Types ─────────────────────────────────────────────────────────────────────
-type Step = "profile" | "subjects" | "learning" | "materials" | "done";
+type Step = "profile" | "questions" | "subjects" | "learning" | "materials" | "done";
+
+interface OnboardingQuestion {
+  id:       string;
+  question: string;
+  type:     "single" | "multi" | "text";
+  options?: string[];
+  hint?:    string;
+  max?:     number;
+}
+
+interface PlanResult {
+  recommended_plan_id: string;
+  plan_name:           string;
+  reasoning:           string;
+  emoji?:              string;
+  alternatives?:       { plan_id: string; reason: string }[];
+}
 
 export interface PersonaMatch {
   persona_id:           string;
@@ -85,7 +104,7 @@ const DEFAULT_LEARNING_STYLE: LearningStyle = {
 
 const API = "http://localhost:8000";
 
-const STEP_ORDER: Step[] = ["profile", "subjects", "learning", "materials", "done"];
+const STEP_ORDER: Step[] = ["profile", "questions", "subjects", "learning", "materials", "done"];
 
 // Slider definitions for the learning style step
 const SLIDERS: {
@@ -253,6 +272,14 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
   const [personaMatches,   setPersonaMatches]   = useState<PersonaMatch[]>([]);
   const [personaLoading,   setPersonaLoading]   = useState(false);
 
+  // Questions step state
+  const [questions,      setQuestions]      = useState<OnboardingQuestion[]>([]);
+  const [qAnswers,       setQAnswers]       = useState<Record<string, string>>({});
+  const [qLoading,       setQLoading]       = useState(false);
+  const [qCurrent,       setQCurrent]       = useState(0); // index of current question
+  const [planResult,     setPlanResult]     = useState<PlanResult | null>(null);
+  const [planLoading,    setPlanLoading]    = useState(false);
+
   const psetRef     = useRef<HTMLInputElement>(null);
   const syllabusRef = useRef<HTMLInputElement>(null);
   const rubricRef   = useRef<HTMLInputElement>(null);
@@ -295,14 +322,88 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
   }
 
   // ── Step handlers ──────────────────────────────────────────────────────────
-  function handleProfileNext() {
+  async function handleProfileNext() {
     if (!profile.major.trim() || !profile.university.trim() || !profile.year.trim()) {
       setProfileError("Vui lòng điền đầy đủ thông tin.");
       return;
     }
     setProfileError("");
     localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+    // Fetch questions from backend (public endpoint, no auth needed)
+    if (questions.length === 0) {
+      setQLoading(true);
+      try {
+        const r = await fetch(`${API}/ai/onboarding/questions`);
+        if (r.ok) {
+          const data = await r.json();
+          setQuestions(data.questions ?? []);
+        }
+      } catch { /* soft-fail, show empty questions */ }
+      setQLoading(false);
+    }
+    setQCurrent(0);
+    setStep("questions");
+  }
+
+  // Answer helpers for the questions step
+  function setAnswer(qId: string, value: string) {
+    setQAnswers(prev => ({ ...prev, [qId]: value }));
+  }
+
+  function toggleMultiAnswer(qId: string, option: string, max: number) {
+    setQAnswers(prev => {
+      const current = prev[qId] ? prev[qId].split("|||") : [];
+      if (current.includes(option)) {
+        return { ...prev, [qId]: current.filter(o => o !== option).join("|||") };
+      }
+      if (current.length >= max) return prev; // at cap
+      return { ...prev, [qId]: [...current, option].join("|||") };
+    });
+  }
+
+  function isMultiSelected(qId: string, option: string) {
+    return (qAnswers[qId] ?? "").split("|||").includes(option);
+  }
+
+  function multiCount(qId: string) {
+    const v = qAnswers[qId];
+    return v ? v.split("|||").filter(Boolean).length : 0;
+  }
+
+  function handleQNext() {
+    if (qCurrent < questions.length - 1) {
+      setQCurrent(q => q + 1);
+    } else {
+      handleQuestionsFinish();
+    }
+  }
+
+  function handleQBack() {
+    if (qCurrent > 0) setQCurrent(q => q - 1);
+  }
+
+  async function handleQuestionsFinish() {
     setStep("subjects");
+    // Fire plan analysis in background — result ready by Done step
+    if (Object.keys(qAnswers).length > 0) {
+      setPlanLoading(true);
+      const token = await getToken();
+      try {
+        const r = await fetch(`${API}/ai/onboarding-analyze`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ answers: qAnswers }),
+        });
+        if (r.ok) {
+          const data = await r.json();
+          if (data.recommended_plan_id) {
+            setPlanResult(data);
+            localStorage.setItem(PLAN_KEY, JSON.stringify(data));
+          }
+        }
+      } catch { /* soft-fail */ }
+      setPlanLoading(false);
+    }
   }
 
   function addSubject() {
@@ -410,7 +511,7 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
           {step === "profile" && (
             <div className="space-y-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 1 / 4</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 1 / 5</p>
                 <h2 className="mt-1 text-2xl font-bold text-white">Thông tin học tập</h2>
                 <p className="mt-1.5 text-sm text-zinc-400">Giúp chúng tôi cá nhân hoá lộ trình học tập cho bạn.</p>
               </div>
@@ -452,7 +553,7 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
           {step === "subjects" && (
             <div className="space-y-6">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 2 / 4</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 3 / 5</p>
                 <h2 className="mt-1 text-2xl font-bold text-white">Môn học của bạn</h2>
                 <p className="mt-1.5 text-sm text-zinc-400">
                   Mỗi môn học sẽ trở thành một workspace riêng. Bạn có thể thêm nhiều môn.
@@ -506,7 +607,7 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
           {step === "learning" && (
             <div className="space-y-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 3 / 4</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 4 / 5</p>
                 <h2 className="mt-1 text-2xl font-bold text-white flex items-center gap-2">
                   <Brain className="h-6 w-6 text-emerald-400 shrink-0" />
                   What&apos;s your brain&apos;s fav?
@@ -555,7 +656,7 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
           {step === "materials" && (
             <div className="space-y-5">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 4 / 4</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-emerald-400">Bước 5 / 5</p>
                 <h2 className="mt-1 text-2xl font-bold text-white">Tài liệu học phần</h2>
               </div>
 

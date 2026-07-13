@@ -6,6 +6,7 @@ import { getNodeSummary, voiceFallbackChat } from '../lib/api';
 import { startVoiceSession, endVoiceSession, logFeatureUsage } from '../lib/subscriptionApi';
 import { getSpeechLocale, type AppLocale } from '../lib/locale';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { getApiBaseUrl } from '../lib/apiBase';
 
 // Gemini 2.0 Flash + v1alpha BidiGenerateContent were shut down 2026-06-01.
 // Live voice now runs on the native-audio Live model over v1beta (see backend/app/main.py).
@@ -492,7 +493,7 @@ export default function S2SVoiceOverlay({
           try { rec.start(); } catch (err) { console.warn('SpeechRecognition start failed:', err); }
         }
 
-        const API_BASE = ((import.meta as any).env?.VITE_API_BASE as string) || 'http://localhost:8000';
+        const API_BASE = getApiBaseUrl();
         const wsUrl = API_BASE.replace(/^http/, 'ws') + '/ws/s2s';
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;

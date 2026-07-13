@@ -43,9 +43,9 @@ class Settings(BaseSettings):
     # Pos 2 (Groq)           — tập trung 50% cốt lõi nhất
     critique_groq_key: str = ""
     critique_groq_model: str = "qwen/qwen3-32b"
-    # Pos 3 (Ollama Cloud)   — 20% cốt, chắt lọc + điều phối tranh luận
-    critique_ollama_key: str = ""
-    critique_ollama_model: str = "qwen3.5:9b"
+    # Pos 3 (Google Gemini Pro 2.5) — 20% cốt, chắt lọc + điều phối tranh luận
+    critique_google_key: str = ""
+    critique_google_model: str = "gemini-2.5-pro"
 
     # ── Ollama Cloud (multi-key rotation) ────────────────────
     ollama_api_key:   str = ""   # key 1 (primary)

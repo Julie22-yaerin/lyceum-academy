@@ -1,8 +1,36 @@
-const socket = io();
 const orb = document.getElementById('orb');
 const micBtn = document.getElementById('mic-btn');
 const statusEl = document.getElementById('status');
 const responseEl = document.getElementById('response');
+const locale = (document.documentElement.lang || window.__APP_LOCALE__ || 'vi').toLowerCase().startsWith('en')
+  ? 'en'
+  : 'vi';
+const socket = io({ query: { lang: locale } });
+
+const COPY = {
+  vi: {
+    listening: 'Đang nghe...',
+    processing: 'Đang xử lý âm thanh...',
+    blocked: 'Quyền truy cập micro đang bị chặn',
+    connected: 'Đã kết nối',
+    disconnected: 'Đã ngắt kết nối',
+    speaking: 'AI đang trả lời...',
+    voiceLang: 'vi-VN',
+  },
+  en: {
+    listening: 'Listening...',
+    processing: 'Processing audio...',
+    blocked: 'Microphone access is blocked',
+    connected: 'Connected',
+    disconnected: 'Disconnected',
+    speaking: 'AI is responding...',
+    voiceLang: 'en-US',
+  },
+};
+
+function t(key) {
+  return COPY[locale]?.[key] || COPY.vi[key] || key;
+}
 
 let isRecording = false;
 let audioCtx;
@@ -51,14 +79,14 @@ async function startRecording() {
       pcm[i] = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
     }
 
-    const buffer = Buffer.from(pcm.buffer);
+    const buffer = pcm.buffer;
     socket.emit('audio-data', buffer);
     audioQueue.push(buffer);
   };
 
   isRecording = true;
   micBtn.classList.add('active');
-  statusEl.textContent = 'Listening...';
+  statusEl.textContent = t('listening');
 }
 
 function stopRecording() {
@@ -66,7 +94,7 @@ function stopRecording() {
 
   isRecording = false;
   micBtn.classList.remove('active');
-  statusEl.textContent = 'Processing audio...';
+  statusEl.textContent = t('processing');
   socket.emit('stop-audio');
 
   if (processor) {
@@ -91,13 +119,13 @@ micBtn.addEventListener('click', async () => {
   try {
     await startRecording();
   } catch (error) {
-    statusEl.textContent = 'Microphone access is blocked';
+    statusEl.textContent = t('blocked');
     console.error(error);
   }
 });
 
 socket.on('connect', () => {
-  statusEl.textContent = 'Connected';
+  statusEl.textContent = t('connected');
 });
 
 socket.on('status', ({ text }) => {
@@ -111,14 +139,14 @@ socket.on('ai-response', ({ transcript, reply }) => {
 
   if ('speechSynthesis' in window) {
     const utterance = new SpeechSynthesisUtterance(reply);
-    utterance.lang = 'en-US';
+    utterance.lang = t('voiceLang');
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }
 
-  statusEl.textContent = transcript;
+  statusEl.textContent = t('speaking');
 });
 
 socket.on('disconnect', () => {
-  statusEl.textContent = 'Disconnected';
+  statusEl.textContent = t('disconnected');
 });

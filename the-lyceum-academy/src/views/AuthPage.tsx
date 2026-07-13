@@ -55,16 +55,11 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       if (isLogin) {
-        const cred = await signInWithEmailAndPassword(auth, email, password);
-        if (!cred.user.emailVerified) {
-          setScreen('verify-email');
-        } else {
-          onNavigate('nexus');
-        }
+        await signInWithEmailAndPassword(auth, email, password);
+        onNavigate('nexus');
       } else {
-        const cred = await createUserWithEmailAndPassword(auth, email, password);
-        await sendEmailVerification(cred.user);
-        setScreen('verify-email');
+        await createUserWithEmailAndPassword(auth, email, password);
+        onNavigate('nexus');
       }
     } catch (err: any) {
       const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')

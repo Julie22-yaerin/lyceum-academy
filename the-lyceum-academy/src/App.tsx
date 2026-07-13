@@ -19,7 +19,6 @@ import MistakeBankView from './views/MistakeBankView';
 import ReferenceBankView from './views/ReferenceBankView';
 import SettingsView from './views/SettingsView';
 import TermsModal from './components/TermsModal';
-import FeedbackModal from './components/FeedbackModal';
 import ProductTour from './components/ProductTour';
 import { buildTourSteps } from './lib/tourSteps';
 import { detectLocale, setDocumentLocale } from './lib/locale';
@@ -31,9 +30,7 @@ function AppInner() {
   const { user, loading, devMode, emailVerified } = useAuth();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
   const [showTour, setShowTour] = useState(false);
-  const loginCountedRef = useRef(false);
   const tourCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -87,22 +84,6 @@ function AppInner() {
     setShowTour(false);
   }
 
-  // Every 2nd time a student actually reaches the workspace (not mid
-  // terms/onboarding/tour gate), pop up a quick anonymous feedback ask.
-  // loginCountedRef guards against double-counting the same page load.
-  useEffect(() => {
-    if (loading || showTerms || showOnboarding || showTour) return;
-    if (!((user && emailVerified) || devMode) || view === 'landing' || view === 'auth') return;
-    if (loginCountedRef.current) return;
-    loginCountedRef.current = true;
-    try {
-      const key = scopedGateKey('lyceum_login_count');
-      const count = (Number(localStorage.getItem(key)) || 0) + 1;
-      localStorage.setItem(key, String(count));
-      if (count % 2 === 0) setShowFeedback(true);
-    } catch { /* ignore */ }
-  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding, showTour]);
-
   function handleAgreeTerms() {
     try { localStorage.setItem(scopedGateKey('lyceum_terms_accepted'), '1'); } catch { /* ignore */ }
     setShowTerms(false);
@@ -145,8 +126,11 @@ function AppInner() {
   return (
     <>
       {showTour && <ProductTour steps={buildTourSteps(setView)} onFinish={handleTourFinish} />}
-      {showFeedback && <FeedbackModal onClose={() => setShowFeedback(false)} />}
-      <MainLayout currentView={view} onNavigate={setView} tourActive={showTour}>
+      <MainLayout
+        currentView={view}
+        onNavigate={setView}
+        tourActive={showTour}
+      >
         {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
         {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}

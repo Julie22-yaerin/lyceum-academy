@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="__HTML_LANG__" dir="__HTML_DIR__">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Orb S2S AI Assistant</title>
+    <title>__PAGE_TITLE__</title>
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
@@ -14,16 +14,19 @@
       </div>
 
       <div class="panel">
-        <h1>Native S2S AI Assistant</h1>
-        <p id="status">Sẵn sàng</p>
-        <p id="response">Nhấn mic để nói hoặc ngắt lời AI</p>
-        <button id="mic-btn" aria-label="Toggle microphone">🎤</button>
+        <h1>__MAIN_TITLE__</h1>
+        <p id="status">__READY_TEXT__</p>
+        <p id="response">__PROMPT_TEXT__</p>
+        <button id="mic-btn" aria-label="__MIC_ARIA__">🎤</button>
         <div style="margin-top:8px">
-          <a href="/notes.html" style="color:#fff;background:#222;padding:8px 12px;border-radius:6px;text-decoration:none">Open Notes Editor</a>
+          <a href="/notes.html" style="color:#fff;background:#222;padding:8px 12px;border-radius:6px;text-decoration:none">__NOTES_LINK__</a>
         </div>
       </div>
     </div>
 
+    <script>
+      window.__APP_LOCALE__ = "__APP_LOCALE__";
+    </script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="/script.js"></script>
   </body>

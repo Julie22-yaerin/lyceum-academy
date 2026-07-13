@@ -115,7 +115,7 @@ function RoadmapWidget() {
   const atLimit = !canUse;
 
   return (
-    <div className="lg:col-span-3 glass-card rounded-3xl p-6">
+    <div data-tour="roadmap-widget" className="lg:col-span-3 glass-card rounded-3xl p-6">
       {showUpgradePrompt && (
         <UpgradePrompt
           feature="roadmap"

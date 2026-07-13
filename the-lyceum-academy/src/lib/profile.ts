@@ -9,8 +9,9 @@
  * work even if this silently fails offline).
  */
 import { authFetch } from './api';
+import { getApiBaseUrl } from './apiBase';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8000';
+const API_BASE = getApiBaseUrl();
 
 export type ProfileEventType =
   | 'confusion'            // tần suất hiểu lầm

@@ -58,14 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       if (u) {
-        // Google users are always verified; email/password users may not be
-        const verified = u.emailVerified || u.providerData.some(p => p.providerId === 'google.com');
-        setEmailVerified(verified);
-        if (!verified) {
-          startVerificationPoll(u);
-        } else {
-          stopVerificationPoll();
-        }
+        // Email verification disabled — all authenticated users are treated as verified
+        setEmailVerified(true);
+        stopVerificationPoll();
       } else {
         setEmailVerified(false);
         stopVerificationPoll();

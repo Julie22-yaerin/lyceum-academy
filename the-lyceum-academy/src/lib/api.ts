@@ -1,6 +1,7 @@
 import { auth } from './firebase';
+import { getApiBaseUrl } from './apiBase';
 
-const API_BASE = (import.meta.env.VITE_API_BASE as string) || 'http://localhost:8000';
+const API_BASE = getApiBaseUrl();
 
 /**
  * Fetch wrapper that automatically attaches the current user's Firebase ID token.
@@ -737,10 +738,15 @@ export async function generateVariantQuestions(
 // ── User feedback (anonymous — star rating + optional comment) ─────────────
 
 export async function submitFeedback(rating: number, comment = '', context = ''): Promise<void> {
+  const raw = {
+    page: typeof window !== 'undefined' ? window.location.pathname : '',
+    userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
+    clientTime: new Date().toISOString(),
+  };
   const res = await authFetch(`${API_BASE}/feedback`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rating, comment, context }),
+    body: JSON.stringify({ rating, comment, context, raw }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

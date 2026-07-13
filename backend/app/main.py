@@ -1074,25 +1074,28 @@ class FeedbackRequest(BaseModel):
     rating:  int = 0            # 1-5 stars
     comment: str = ""
     context: str = ""           # optional, e.g. "workspace" — not user-identifying
+    raw: dict = {}               # client submission context (page/view, user agent, ts) — opaque, admin-only
 
 
 @app.post("/feedback")
 @limiter.limit("5/minute")
-async def submit_feedback(request: Request, req: FeedbackRequest, _: dict = Depends(require_auth)):
+async def submit_feedback(request: Request, req: FeedbackRequest):
     """
     Store one anonymous feedback submission (star rating + optional comment)
-    for the admin Feedback dashboard. require_auth is only a spam gate —
-    the stored row never includes a user identifier.
+    for the admin Feedback dashboard. No auth required — the feedback widget
+    must work for anonymous landing-page visitors, not just signed-in
+    students — the per-IP/per-user rate limiter above is the spam gate
+    instead. The stored row never includes a user identifier.
     """
     if req.rating < 1 or req.rating > 5:
         raise HTTPException(status_code=400, detail="rating must be 1-5")
     if req.comment:
         check_prompt(req.comment, "comment")
     try:
-        feedback_svc.submit(req.rating, req.comment, req.context)
+        feedback_svc.submit(req.rating, req.comment, req.context, req.raw)
         return {"ok": True}
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 class GradeDualItem(BaseModel):

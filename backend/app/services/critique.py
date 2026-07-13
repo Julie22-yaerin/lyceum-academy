@@ -38,7 +38,7 @@ from app.core.config import settings
 from app.services.ai import (
     OPENAI_CHAT_URL,
     GROQ_CHAT_URL,
-    OLLAMA_CHAT_URL,
+    GOOGLE_CHAT_URL,
     extract_text,
     _parse_json_robust,
     _record_usage,
@@ -203,8 +203,8 @@ async def _pos3_coordinate(
     c1: dict | None,
     c2: dict | None,
 ) -> dict | None:
-    """Position 3: Ollama Cloud — 20% core distiller + coordinator."""
-    if not settings.critique_ollama_key:
+    """Position 3: Google Gemini Pro 2.5 — 20% core distiller + coordinator."""
+    if not settings.critique_google_key:
         return None
 
     essence = _truncate(draft, 0.2)
@@ -212,7 +212,7 @@ async def _pos3_coordinate(
     c2_summary = _json.dumps(c2, ensure_ascii=False) if c2 else "(unavailable)"
 
     payload: dict[str, Any] = {
-        "model":   settings.critique_ollama_model,
+        "model":    settings.critique_google_model,
         "messages": [
             {"role": "system", "content": _SYS_POS3_COORD},
             {"role": "user",   "content": (
@@ -223,22 +223,23 @@ async def _pos3_coordinate(
                 f"FULL DRAFT (để viết lại nếu cần):\n{draft}"
             )},
         ],
-        "stream":  False,
-        "options": {"temperature": 0.3, "num_predict": 1536},
+        "temperature": 0.3,
+        "max_tokens":  1536,
+        "stream":      False,
     }
     headers = {
-        "Authorization": f"Bearer {settings.critique_ollama_key}",
+        "Authorization": f"Bearer {settings.critique_google_key}",
         "Content-Type":  "application/json",
     }
     try:
         async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(OLLAMA_CHAT_URL, headers=headers, json=payload)
+            resp = await client.post(GOOGLE_CHAT_URL, headers=headers, json=payload)
             resp.raise_for_status()
             data = resp.json()
             raw = extract_text(data)
             return _parse_json_robust(raw)
     except Exception as e:
-        log.warning("Critic 3 (Ollama coordinator) failed: %s", e)
+        log.warning("Critic 3 (Gemini Pro 2.5 coordinator) failed: %s", e)
         return None
 
 
@@ -266,7 +267,7 @@ async def review(
     has_any_key = any([
         settings.critique_openai_key,
         settings.critique_groq_key,
-        settings.critique_ollama_key,
+        settings.critique_google_key,
     ])
     if not has_any_key:
         log.warning("critique: no keys configured, passing through")
@@ -349,7 +350,7 @@ async def routed_review(
     has_any_key = any([
         settings.critique_openai_key,
         settings.critique_groq_key,
-        settings.critique_ollama_key,
+        settings.critique_google_key,
     ])
     if not has_any_key:
         return draft_response

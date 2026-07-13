@@ -220,7 +220,9 @@ const auth = firebase.auth();
 
 const API        = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
   ? 'http://localhost:8000'
-  : 'https://lyceum-academy-production.up.railway.app';
+  : (location.hostname.includes('railway.app')
+      ? location.origin
+      : 'https://lyceum-academy-production.up.railway.app');
 const COOKIE     = 'pclick_fb_token';
 const DEV_TOKEN  = 'pclick-admin-dev';
 
@@ -1559,6 +1561,22 @@ function statBar(count, max, color) {
 
 const SENTIMENT_COLORS = { positive: 'var(--em)', neutral: 'var(--amber)', negative: '#f85149' };
 
+// Raw client submission context (page/view, user agent, client timestamp,
+// etc.) — whatever the frontend sent, verbatim. Truncated preview with the
+// full JSON on hover so admin can inspect without a modal.
+function feedbackRawCell(raw) {
+  if (!raw || (typeof raw === 'object' && Object.keys(raw).length === 0)) {
+    return '<span style="color:var(--muted)">—</span>';
+  }
+  let obj = raw;
+  if (typeof raw === 'string') {
+    try { obj = JSON.parse(raw); } catch { obj = { raw }; }
+  }
+  const json = JSON.stringify(obj);
+  const preview = json.length > 40 ? json.slice(0, 40) + '…' : json;
+  return `<code title="${esc(JSON.stringify(obj, null, 2))}" style="color:var(--muted);cursor:help;font-size:10px">${esc(preview)}</code>`;
+}
+
 async function renderFeedback() {
   const el = document.getElementById('view-feedback');
   el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
@@ -1617,6 +1635,7 @@ async function renderFeedback() {
               <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Rating</th>
               <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Comment</th>
               <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Context</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Raw</th>
             </tr>
           </thead>
           <tbody>
@@ -1626,7 +1645,8 @@ async function renderFeedback() {
                 <td class="px-4 py-2.5" style="color:var(--amber)">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td>
                 <td class="px-4 py-2.5">${esc(r.comment) || '<span style="color:var(--muted)">—</span>'}</td>
                 <td class="px-4 py-2.5" style="color:var(--muted)">${esc(r.context) || '—'}</td>
-              </tr>`).join('') || `<tr><td colspan="4" class="px-4 py-8 text-center" style="color:var(--muted)">No feedback yet.</td></tr>`}
+                <td class="px-4 py-2.5">${feedbackRawCell(r.raw)}</td>
+              </tr>`).join('') || `<tr><td colspan="5" class="px-4 py-8 text-center" style="color:var(--muted)">No feedback yet.</td></tr>`}
           </tbody>
         </table>
       </div>
