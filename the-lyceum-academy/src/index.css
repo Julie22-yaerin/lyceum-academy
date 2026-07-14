@@ -322,17 +322,17 @@ body {
    color utilities instead of the semantic tokens. */
 
 .theme-light {
-  background: #ffffff;
+  background: #f6f8fc;
   color: #1e293b;
 
-  --color-surface: #ffffff;
-  --color-surface-dim: #e5e7f0;
+  --color-surface: #f6f8fc;
+  --color-surface-dim: #e6e9f2;
   --color-surface-bright: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f6f7fb;
-  --color-surface-container: #eef0f6;
-  --color-surface-container-high: #e6e9f2;
-  --color-surface-container-highest: #dde1ee;
+  --color-surface-container-low: #eef1f7;
+  --color-surface-container: #e6e9f2;
+  --color-surface-container-high: #dde1ee;
+  --color-surface-container-highest: #d2d7e8;
 
   --color-on-surface: #0f172a;
   --color-on-surface-variant: #475569;
@@ -355,7 +355,7 @@ body {
 }
 
 .theme-light body {
-  background-color: #ffffff;
+  background-color: #f6f8fc;
   color: #0f172a;
 }
 
@@ -368,29 +368,33 @@ body {
 .theme-light .orb-3 { background: radial-gradient(circle, #bae6fd, transparent); }
 .theme-light .orb-4 { background: radial-gradient(circle, #a5f3fc, transparent); }
 
-/* Glass surfaces: more opaque + a cool-toned border/shadow so each layer
-   reads as distinct against the white page and against stacked glass. */
+/* Glass surfaces: dark mode reads as "distinct" because its glass fills are
+   a LIGHTER tint floating on a near-black page. A white-tinted fill on a
+   white page has nothing to push against, so light mode flips the tint
+   direction instead of just reusing white at higher opacity: components get
+   a dark-navy tint (same navy as the text/border palette) at a low, opaque
+   enough alpha to read as a visibly distinct surface against the page. */
 .theme-light .glass {
-  background: rgba(255, 255, 255, 0.55);
-  border: 1px solid rgba(30, 64, 175, 0.14);
-  box-shadow: 0 8px 32px rgba(30, 64, 175, 0.08);
+  background: rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
 }
 
 .theme-light .glass-card {
-  background: rgba(255, 255, 255, 0.62);
-  border: 1px solid rgba(30, 64, 175, 0.16);
-  box-shadow: 0 8px 32px rgba(30, 64, 175, 0.1);
+  background: rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.1);
 }
 
 .theme-light .glass-strong {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(30, 64, 175, 0.18);
-  box-shadow: 0 8px 32px rgba(30, 64, 175, 0.12);
+  background: rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.14);
 }
 
 .theme-light .glass-input {
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(30, 64, 175, 0.16);
+  background: rgba(15, 23, 42, 0.045);
+  border: 1px solid rgba(15, 23, 42, 0.18);
   color: #1e293b;
 }
 
@@ -491,7 +495,7 @@ body {
 .theme-light .border-purple-400\/40 { border-color: rgba(124, 58, 237, 0.4); }
 .theme-light .border-purple-400\/60 { border-color: rgba(124, 58, 237, 0.55); }
 
-.theme-light .bg-\[\#050508\] { background-color: #ffffff; }
+.theme-light .bg-\[\#050508\] { background-color: #f6f8fc; }
 .theme-light .bg-neutral-900 { background-color: #f1f2f6; }
 .theme-light .bg-neutral-800 { background-color: #e6e8f0; }
 .theme-light .bg-gray-900 { background-color: #f1f2f6; }
