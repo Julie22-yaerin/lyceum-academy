@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { NavigationProps } from '../types';
 import FeedbackWidget from '../components/FeedbackWidget';
+import { useTheme } from '../context/ThemeContext';
 
 // ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
 const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
@@ -38,17 +39,17 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: HelpCircle,
     title: 'You bring a question',
-    body: 'Not a topic to memorize — a real question you’re stuck on, from any of ten subjects.',
+    body: 'Not something to memorize — a real question you’re stuck on, from any of ten subjects.',
   },
   {
     icon: MessageCircle,
-    title: 'Lyceum asks in return',
-    body: 'Instead of the answer, you get the next question — the one that exposes what you actually understand.',
+    title: 'Lyceum asks you back',
+    body: 'Instead of giving you the answer, Lyceum asks another question — one that shows what you really understand.',
   },
   {
     icon: Sparkles,
-    title: 'You arrive at it yourself',
-    body: 'The insight lands because you built it. That’s what makes it stick past the exam.',
+    title: 'You figure it out yourself',
+    body: 'It sticks because you found it, not because someone told you. That’s why you still remember it at test time.',
   },
 ];
 
@@ -57,22 +58,22 @@ const FEATURES: { span: 'lg' | 'sm'; icon: LucideIcon; accent: string; title: st
     span: 'lg',
     icon: Brain,
     accent: 'text-purple-300',
-    title: 'Feynman Technique Simulator',
-    body: 'Teach a concept back in plain language. Lyceum AI probes every explanation for gaps, forcing true understanding instead of memorization — instantly surfacing what you don’t actually know.',
+    title: 'Explain-It-Back Practice',
+    body: 'Explain what you learned in your own simple words. Lyceum AI listens for gaps and asks more questions, so you really understand it — instead of just memorizing it.',
   },
   {
     span: 'sm',
     icon: Share2,
     accent: 'text-blue-300',
     title: 'Knowledge Map',
-    body: 'Every concept you learn joins a living graph of prerequisites, sub-topics, and applications — so you always see how the pieces connect.',
+    body: 'Every idea you learn connects to a big map, like branches on a tree — so you always see how everything fits together.',
   },
   {
     span: 'sm',
     icon: AlertCircle,
     accent: 'text-amber-300',
     title: 'Mistake Vault',
-    body: 'Errors get logged, categorized, and resurfaced with spaced repetition until the blind spot is actually closed.',
+    body: 'Your mistakes get saved and sorted. Lyceum brings them back later so you can practice until you get them right for good.',
     list: ['Sign error · Calc II', 'Unit mismatch · Physics', 'Off-by-one · Recursion'],
   },
   {
@@ -80,7 +81,7 @@ const FEATURES: { span: 'lg' | 'sm'; icon: LucideIcon; accent: string; title: st
     icon: BookOpen,
     accent: 'text-cyan-300',
     title: 'Reference Bank',
-    body: 'Every source you cite, every proof you verify, organized and searchable — your own private library of vetted answers.',
+    body: 'Every source and answer you check gets saved and organized — your own private library you can search anytime.',
   },
 ];
 
@@ -100,7 +101,7 @@ function DialogueDemo() {
     <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
       <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Live Socratic dialogue</span>
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">See it in action</span>
       </div>
       <div className="flex flex-col gap-3">
         <AnimatePresence initial={false}>
@@ -166,22 +167,10 @@ const stagger = {
 };
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
-  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    return localStorage.getItem('lyceum-theme') === 'light' ? 'light' : 'dark';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('lyceum-theme', theme);
-  }, [theme]);
+  const { theme, toggleTheme } = useTheme();
 
   return (
-    <div
-      className={
-        (theme === 'light' ? 'theme-light ' : '') +
-        'bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500'
-      }
-    >
+    <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500">
       {/* Ambient background orbs */}
       <div className="ambient-orbs">
         <div className="orb-1" />
@@ -211,7 +200,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             <motion.button
               whileHover={{ scale: 1.08 }}
               whileTap={{ scale: 0.92 }}
-              onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+              onClick={toggleTheme}
               aria-label="Toggle light / dark mode"
               className="w-9 h-9 flex items-center justify-center rounded-full text-white glass-btn"
             >
@@ -252,7 +241,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse-glow" />
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">AI Socratic Tutor</span>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">An AI Tutor That Asks Questions</span>
             </motion.div>
 
             <motion.h1
@@ -260,9 +249,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic"
             >
-              Great minds aren&rsquo;t filled.
+              Great minds aren&rsquo;t filled up.
               <br />
-              They&rsquo;re kindled.
+              They&rsquo;re sparked.
             </motion.h1>
 
             <motion.p
@@ -270,7 +259,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              Lyceum never hands you the answer. It asks the next question — the one Socrates would have asked — until you find the answer yourself, and keep it.
+              Lyceum never just gives you the answer. It asks you one more question — until you find the answer yourself. And what you find yourself, you don&rsquo;t forget.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
@@ -280,7 +269,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                 onClick={() => onNavigate('auth')}
                 className="inline-block px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
               >
-                Enter the Agora
+                Start Learning
               </motion.button>
               <a
                 href="#method"
@@ -314,9 +303,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="mb-14 text-center"
         >
-          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Elenchus, not lecture</p>
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">The dialectic, automated</h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Every Lyceum session runs the same three-beat rhythm Socrates used in the agora.</p>
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Questions, not lectures</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">How Lyceum teaches</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">Every Lyceum session follows the same three simple steps.</p>
         </motion.div>
 
         <motion.div
@@ -353,7 +342,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           className="mb-12 text-center"
         >
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">Built for how you actually learn</h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Four tools, fused into a single research workspace.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Four tools, all working together in one place.</p>
         </motion.div>
 
         <motion.div
@@ -430,7 +419,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="rounded-3xl glass p-12 flex flex-col items-center gap-6"
         >
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">Begin your inquiry.</h2>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">Start asking questions.</h2>
           <p className="text-slate-400 max-w-md">Ten subjects. One method. No lectures — just the right question, at the right time.</p>
           <motion.button
             whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(167,139,250,0.35)' }}
@@ -438,7 +427,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             onClick={() => onNavigate('auth')}
             className="px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
           >
-            Join the Cohort
+            Get Started
           </motion.button>
         </motion.div>
       </section>
@@ -447,7 +436,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       <footer className="border-t border-white/10 py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm font-semibold tracking-wider text-white/60">LYCEUM</span>
-          <span className="text-xs text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; after Aristotle&rsquo;s school of the same name</span>
+          <span className="text-xs text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; named after the school Aristotle founded</span>
         </div>
       </footer>
     </div>

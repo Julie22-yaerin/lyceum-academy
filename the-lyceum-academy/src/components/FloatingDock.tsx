@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { View, NavigationProps } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { auth, signOut } from '../lib/firebase';
 import { getUsage, UsageData } from '../lib/api';
 import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
@@ -160,6 +161,7 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
 /** Top-right corner utility capsule: brand mark + usage stats + auth */
 function CornerMenu({ onNavigate }: NavigationProps) {
   const { user, devMode } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [showStats, setShowStats] = useState(false);
   const [showStreak, setShowStreak] = useState(false);
   const [streak, setStreak] = useState<StreakState | null>(null);
@@ -206,6 +208,14 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           <span className="material-symbols-outlined text-[16px]">analytics</span>
         </button>
         {showStats && <UsagePanel onClose={() => setShowStats(false)} />}
+
+        <button
+          onClick={toggleTheme}
+          className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          <span className="material-symbols-outlined text-[16px]">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
+        </button>
 
         <button
           onClick={() => onNavigate('settings')}

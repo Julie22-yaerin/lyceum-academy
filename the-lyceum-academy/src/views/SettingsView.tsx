@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { detectLocale, saveLocale, setDocumentLocale, getSupportedLocales, getLocaleDisplayName, type AppLocale } from '../lib/locale';
+import { useTheme, type AppTheme } from '../context/ThemeContext';
 import {
   getCurrentSubscription, getSubscriptionPlans, createPortalSession, createCheckoutSession,
   type CurrentSubscription, type SubscriptionPlan,
@@ -29,7 +30,7 @@ function LanguageSection() {
   return (
     <div className="glass-card rounded-3xl p-6">
       <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Language</p>
-      <p className="text-xs text-white/30 mb-5">Applies to ARI's voice and the site chrome. No auto-detection — pick one.</p>
+      <p className="text-xs text-white/30 mb-5">Applies to ARI's voice and the site chrome. Detected automatically from your device — switch anytime.</p>
       <div className="flex gap-3">
         {getSupportedLocales().map(l => (
           <button
@@ -42,6 +43,37 @@ function LanguageSection() {
             }`}
           >
             {getLocaleDisplayName(l)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const THEME_OPTIONS: { value: AppTheme; label: string }[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+];
+
+function AppearanceSection() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className="glass-card rounded-3xl p-6">
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Appearance</p>
+      <p className="text-xs text-white/30 mb-5">Applies everywhere — the landing page and the workspace.</p>
+      <div className="flex gap-3">
+        {THEME_OPTIONS.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setTheme(value)}
+            className={`flex-1 rounded-xl px-4 py-3 text-sm border transition-colors ${
+              theme === value
+                ? 'border-purple-400/60 bg-purple-400/10 text-white'
+                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'
+            }`}
+          >
+            {label}
           </button>
         ))}
       </div>
@@ -166,8 +198,9 @@ export default function SettingsView() {
     <div className="max-w-2xl mx-auto flex flex-col gap-6 py-4">
       <div>
         <h1 className="font-serif text-3xl text-white mb-1">Settings</h1>
-        <p className="text-sm text-white/40">Language and your Lyceum plan.</p>
+        <p className="text-sm text-white/40">Appearance, language, and your Lyceum plan.</p>
       </div>
+      <AppearanceSection />
       <LanguageSection />
       <PlanSection />
     </div>

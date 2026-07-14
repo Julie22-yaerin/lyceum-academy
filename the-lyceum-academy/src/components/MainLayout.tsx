@@ -73,10 +73,10 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
           <div className="glass-strong animate-scale-in" style={{
             padding: '28px 32px', maxWidth: 420, width: '90vw',
           }}>
-            <h2 style={{ fontSize: 18, fontWeight: 500, color: '#f0f0f5', margin: '0 0 4px' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 500, color: 'var(--color-on-surface)', margin: '0 0 4px' }}>
               What's today's focus?
             </h2>
-            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, margin: '0 0 18px' }}>
+            <p style={{ fontSize: 12, color: 'var(--color-on-surface-variant)', lineHeight: 1.5, margin: '0 0 18px' }}>
               Pick the subject you're spending most of today on.
             </p>
 
@@ -88,9 +88,9 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
                   style={{
                     padding: '6px 12px', fontSize: 11, cursor: 'pointer',
                     borderRadius: 999,
-                    border: subjectInput === key ? '1px solid rgba(167,139,250,0.7)' : '1px solid rgba(255,255,255,0.12)',
+                    border: subjectInput === key ? '1px solid rgba(167,139,250,0.7)' : '1px solid var(--color-outline)',
                     background: subjectInput === key ? 'rgba(167,139,250,0.18)' : 'transparent',
-                    color: subjectInput === key ? '#d8ccff' : 'rgba(255,255,255,0.55)',
+                    color: subjectInput === key ? '#d8ccff' : 'var(--color-on-surface-variant)',
                     transition: 'all 0.15s',
                   }}
                 >
@@ -102,9 +102,9 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowSubjectPrompt(false)}
                 style={{
-                  padding: '9px 20px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)',
+                  padding: '9px 20px', background: 'transparent', border: '1px solid var(--color-outline)',
                   cursor: 'pointer', fontSize: 10, letterSpacing: 2,
-                  textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)',
+                  textTransform: 'uppercase', color: 'var(--color-on-surface-variant)',
                 }}>
                 Skip
               </button>

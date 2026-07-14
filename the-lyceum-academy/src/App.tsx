@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkspaceProvider } from './context/WorkspaceContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { migrateLegacySubjectTags } from './lib/workspace';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
@@ -152,10 +153,12 @@ export default function App() {
     return <NotepadWindow />;
   }
   return (
-    <AuthProvider>
-      <WorkspaceProvider>
-        <AppInner />
-      </WorkspaceProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <WorkspaceProvider>
+          <AppInner />
+        </WorkspaceProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

@@ -306,16 +306,57 @@ body {
   animation: orb-ring-expand 1.8s ease-out infinite;
 }
 
-/* ── Light theme (scoped to .theme-light, e.g. the landing page) ─────────
+/* ── Light theme (toggled via .theme-light on <html>, app-wide) ──────────
    Dark mode keeps the original palette untouched. Light mode is a white
    base sprayed with pale sky-blue ambient blobs; every glass/text/border
-   utility used on the landing page gets an explicit, higher-contrast
-   counterpart here so glass panels never sink into the white background
-   or into each other. */
+   utility used anywhere in the app — landing page, auth, and the whole
+   workspace — gets an explicit, higher-contrast counterpart here so glass
+   panels never sink into the white background or into each other.
+
+   The bulk of the workspace (Nexus, Auth, Settings, etc.) is built on the
+   semantic --color-surface/on-surface/primary/... tokens declared in the
+   @theme block above, so overriding those tokens here re-themes all of it
+   in one shot — no per-component changes needed. The raw text-white/N,
+   bg-white/N etc. overrides below exist for screens (landing page and a
+   handful of older components) that were authored with literal Tailwind
+   color utilities instead of the semantic tokens. */
 
 .theme-light {
   background: #ffffff;
   color: #1e293b;
+
+  --color-surface: #ffffff;
+  --color-surface-dim: #e5e7f0;
+  --color-surface-bright: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f7fb;
+  --color-surface-container: #eef0f6;
+  --color-surface-container-high: #e6e9f2;
+  --color-surface-container-highest: #dde1ee;
+
+  --color-on-surface: #0f172a;
+  --color-on-surface-variant: #475569;
+
+  --color-outline: rgba(15, 23, 42, 0.14);
+  --color-outline-variant: rgba(15, 23, 42, 0.08);
+
+  --color-primary: #7c3aed;
+  --color-primary-container: rgba(124, 58, 237, 0.12);
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #3730a3;
+
+  --color-secondary: #2563eb;
+  --color-secondary-container: rgba(37, 99, 235, 0.1);
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #1e3a8a;
+
+  --color-error: #dc2626;
+  --color-on-error: #ffffff;
+}
+
+.theme-light body {
+  background-color: #ffffff;
+  color: #0f172a;
 }
 
 .theme-light .ambient-orbs > div {
@@ -386,32 +427,72 @@ body {
 }
 
 /* Primary/secondary/tertiary text — same opacity steps as dark mode,
-   remapped from white-on-black to slate-on-white. */
+   remapped from white-on-black to slate-on-white. Faint dark-mode values
+   (low opacity) get boosted more than strong ones, since a faint dark navy
+   on white reads weaker than a faint white on black at the same opacity. */
 .theme-light .text-white { color: #0f172a; }
 .theme-light .text-white\/90 { color: rgba(15, 23, 42, 0.88); }
+.theme-light .text-white\/85 { color: rgba(15, 23, 42, 0.85); }
+.theme-light .text-white\/80 { color: rgba(15, 23, 42, 0.8); }
+.theme-light .text-white\/70 { color: rgba(15, 23, 42, 0.74); }
 .theme-light .text-white\/60 { color: rgba(15, 23, 42, 0.65); }
+.theme-light .text-white\/50 { color: rgba(15, 23, 42, 0.58); }
+.theme-light .text-white\/45 { color: rgba(15, 23, 42, 0.54); }
 .theme-light .text-white\/40 { color: rgba(15, 23, 42, 0.52); }
+.theme-light .text-white\/35 { color: rgba(15, 23, 42, 0.48); }
 .theme-light .text-white\/30 { color: rgba(15, 23, 42, 0.42); }
 .theme-light .text-white\/25 { color: rgba(15, 23, 42, 0.38); }
+.theme-light .text-white\/20 { color: rgba(15, 23, 42, 0.34); }
+.theme-light .text-white\/15 { color: rgba(15, 23, 42, 0.3); }
+.theme-light .text-white\/10 { color: rgba(15, 23, 42, 0.26); }
+.theme-light .text-black { color: #0f172a; }
 
 .theme-light .text-slate-200 { color: #1e293b; }
 .theme-light .text-slate-300 { color: #334155; }
 .theme-light .text-slate-400 { color: #475569; }
 
 .theme-light .text-purple-100 { color: #3730a3; }
+.theme-light .text-purple-200 { color: #5b21b6; }
 .theme-light .text-purple-300 { color: #7c3aed; }
 .theme-light .text-purple-300\/70 { color: rgba(124, 58, 237, 0.8); }
 .theme-light .text-blue-300 { color: #2563eb; }
+.theme-light .text-blue-300\/70 { color: rgba(37, 99, 235, 0.8); }
 .theme-light .text-cyan-300 { color: #0891b2; }
+.theme-light .text-cyan-200 { color: #0e7490; }
 .theme-light .text-amber-300 { color: #b45309; }
+.theme-light .text-amber-300\/60 { color: rgba(180, 83, 9, 0.7); }
+.theme-light .text-amber-300\/80 { color: rgba(180, 83, 9, 0.85); }
+.theme-light .text-amber-400 { color: #b45309; }
+.theme-light .text-emerald-400 { color: #047857; }
+.theme-light .text-emerald-300\/90 { color: rgba(4, 120, 87, 0.9); }
+.theme-light .text-green-500 { color: #15803d; }
+.theme-light .text-red-400 { color: #b91c1c; }
+.theme-light .text-red-400\/70 { color: rgba(185, 28, 28, 0.8); }
+.theme-light .text-rose-300\/60 { color: rgba(190, 18, 60, 0.7); }
+.theme-light .text-yellow-400 { color: #a16207; }
+.theme-light .text-sky-200 { color: #0369a1; }
+.theme-light .text-sky-300\/80 { color: rgba(3, 105, 161, 0.85); }
 
 /* Faint fill/border utilities that were calibrated for a black backdrop —
    on white they need to darken instead of lighten to stay visible. */
+.theme-light .bg-white\/5 { background-color: rgba(15, 23, 42, 0.03); }
 .theme-light .bg-white\/8 { background-color: rgba(15, 23, 42, 0.05); }
 .theme-light .bg-white\/10 { background-color: rgba(15, 23, 42, 0.06); }
 .theme-light .bg-white\/15 { background-color: rgba(15, 23, 42, 0.09); }
+.theme-light .bg-white\/20 { background-color: rgba(15, 23, 42, 0.12); }
 
+.theme-light .border-white\/5 { border-color: rgba(15, 23, 42, 0.04); }
 .theme-light .border-white\/10 { border-color: rgba(15, 23, 42, 0.1); }
+.theme-light .border-white\/15 { border-color: rgba(15, 23, 42, 0.13); }
+.theme-light .border-white\/20 { border-color: rgba(15, 23, 42, 0.16); }
+.theme-light .border-white\/30 { border-color: rgba(15, 23, 42, 0.22); }
+.theme-light .border-white\/40 { border-color: rgba(15, 23, 42, 0.28); }
 .theme-light .border-purple-400\/20 { border-color: rgba(124, 58, 237, 0.28); }
+.theme-light .border-purple-400\/40 { border-color: rgba(124, 58, 237, 0.4); }
+.theme-light .border-purple-400\/60 { border-color: rgba(124, 58, 237, 0.55); }
 
 .theme-light .bg-\[\#050508\] { background-color: #ffffff; }
+.theme-light .bg-neutral-900 { background-color: #f1f2f6; }
+.theme-light .bg-neutral-800 { background-color: #e6e8f0; }
+.theme-light .bg-gray-900 { background-color: #f1f2f6; }
+.theme-light .bg-gray-800 { background-color: #e6e8f0; }

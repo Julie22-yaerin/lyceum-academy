@@ -50,7 +50,7 @@ export default function FeedbackWidget({ context = 'workspace' }: { context?: st
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="glass rounded-full px-4 py-2.5 text-[10px] uppercase tracking-[2px] text-white/60 hover:text-white/90 hover:bg-white/10 transition-all flex items-center gap-2"
+          className="glass rounded-full px-4 py-2.5 text-[10px] uppercase tracking-[2px] text-white/80 hover:text-white transition-all flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[15px]">chat_bubble</span>
           Feedback
@@ -69,7 +69,7 @@ export default function FeedbackWidget({ context = 'workspace' }: { context?: st
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="font-serif text-white text-base font-semibold">How's it going?</h2>
-                  <p className="text-white/40 text-[10px] font-sans uppercase tracking-[1.5px] mt-0.5">Anonymous · 10 seconds</p>
+                  <p className="text-white/60 text-[10px] font-sans uppercase tracking-[1.5px] mt-0.5">Anonymous · 10 seconds</p>
                 </div>
                 <button onClick={() => setOpen(false)} className="opacity-40 hover:opacity-80 transition-opacity">
                   <span className="material-symbols-outlined text-[16px]">close</span>
@@ -85,7 +85,7 @@ export default function FeedbackWidget({ context = 'workspace' }: { context?: st
                     onMouseEnter={() => setHoverRating(n)}
                     onMouseLeave={() => setHoverRating(0)}
                     className="text-2xl leading-none transition-transform hover:scale-110"
-                    style={{ color: n <= (hoverRating || rating) ? '#C5A059' : 'rgba(255,255,255,0.15)' }}
+                    style={{ color: n <= (hoverRating || rating) ? '#C5A059' : 'var(--color-on-surface-variant)' }}
                     aria-label={`${n} star${n > 1 ? 's' : ''}`}
                   >
                     ★

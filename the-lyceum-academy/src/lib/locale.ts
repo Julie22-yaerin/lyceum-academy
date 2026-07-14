@@ -44,9 +44,9 @@ export function normalizeLocale(value?: string | null): AppLocale {
 }
 
 /**
- * Resolves the active locale. Deliberately NOT adaptive — it never infers
- * from the browser/OS language. Language is a user choice made once in
- * Settings and persisted; everyone gets DEFAULT_LOCALE until they pick one.
+ * Resolves the active locale: explicit ?lang= param, then a saved Settings
+ * choice, then the browser/OS language, then DEFAULT_LOCALE as last resort.
+ * A user's own pick in Settings always overrides auto-detection.
  */
 export function detectLocale(): AppLocale {
   if (typeof window === 'undefined') return DEFAULT_LOCALE;
@@ -57,6 +57,9 @@ export function detectLocale(): AppLocale {
 
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) return normalizeLocale(stored);
+
+    const browserLocale = window.navigator?.language || (window.navigator as unknown as { userLanguage?: string })?.userLanguage;
+    if (browserLocale) return normalizeLocale(browserLocale);
   } catch {
     // ignore
   }

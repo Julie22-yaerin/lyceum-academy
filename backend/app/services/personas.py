@@ -139,7 +139,13 @@ def persona_context_for_chat(persona_id: str, question: str = "") -> str:
         lines.append(system_prompt)
     if question:
         lines.append("")
-        lines.append(f"Apply this persona's thinking style to answer: {question}")
+        lines.append(
+            f"Apply this persona's thinking style to respond to: {question}\n"
+            "Socratic, not oracular: do not just hand over the answer. Ask a pointed "
+            "question back — what would they guess, what have they already tried, what "
+            "assumption are they making — in this persona's own voice, and only build "
+            "toward the full answer incrementally as the student engages back."
+        )
 
     return "\n".join(lines)
 
