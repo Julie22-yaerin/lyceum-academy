@@ -420,12 +420,12 @@ const DEFAULT_MODELS = [
   { id:'gemini-2.5-flash',       name:'Gemini 2.5 Flash',             provider:'Google AI Studio', modelId:'gemini-2.5-flash',                            color:'#4285F4', context:'1M',   tier:'Free' },
   { id:'gemma-3-27b',            name:'Gemma 3 27B IT',               provider:'Google AI Studio', modelId:'gemma-3-27b-it',                              color:'#4285F4', context:'128K', tier:'Free' },
   { id:'gemini-live-audio',      name:'Gemini 2.5 Flash Live (native audio)', provider:'Google AI Studio', modelId:'gemini-2.5-flash-native-audio-preview-12-2025', color:'#4285F4', context:'32K', tier:'Free' },
-  { id:'nvidia-gemma-2-2b',      name:'Gemma 2 2B IT',                provider:'NVIDIA NIM',       modelId:'google/gemma-2-2b-it',                        color:'#76B900', context:'8K',   tier:'Free' },
-  { id:'nvidia-llama32-vision',  name:'Llama 3.2 11B Vision',         provider:'NVIDIA NIM',       modelId:'meta/llama-3.2-11b-vision-instruct',          color:'#76B900', context:'128K', tier:'Free' },
-  { id:'nvidia-llama31-70b',     name:'Llama 3.1 70B Instruct',       provider:'NVIDIA NIM',       modelId:'meta/llama-3.1-70b-instruct',                 color:'#76B900', context:'128K', tier:'Free' },
-  { id:'nvidia-gpt-oss-20b',     name:'GPT-OSS 20B',                  provider:'NVIDIA NIM',       modelId:'openai/gpt-oss-20b',                          color:'#76B900', context:'128K', tier:'Free' },
-  { id:'openrouter-nemotron',    name:'Nemotron 3 Super 120B',        provider:'OpenRouter',       modelId:'nvidia/nemotron-3-super-120b-a12b:free',      color:'#7C3AED', context:'128K', tier:'Free' },
-  { id:'openrouter-qwen3-coder', name:'Qwen3 Coder',                  provider:'OpenRouter',       modelId:'qwen/qwen3-coder:free',                       color:'#7C3AED', context:'128K', tier:'Free' },
+  { id:'nvidia-gemma-2-2b',      name:'Gemma 2 2B IT',                provider:'NVIDIA NIM',       modelId:'google/gemma-2-2b-it',                        color:'#76B900', context:'8K',   tier:'Free', disabled:true },
+  { id:'nvidia-llama32-vision',  name:'Llama 3.2 11B Vision',         provider:'NVIDIA NIM',       modelId:'meta/llama-3.2-11b-vision-instruct',          color:'#76B900', context:'128K', tier:'Free', disabled:true },
+  { id:'nvidia-llama31-70b',     name:'Llama 3.1 70B Instruct',       provider:'NVIDIA NIM',       modelId:'meta/llama-3.1-70b-instruct',                 color:'#76B900', context:'128K', tier:'Free', disabled:true },
+  { id:'nvidia-gpt-oss-20b',     name:'GPT-OSS 20B',                  provider:'NVIDIA NIM',       modelId:'openai/gpt-oss-20b',                          color:'#76B900', context:'128K', tier:'Free', disabled:true },
+  { id:'openrouter-nemotron',    name:'Nemotron 3 Super 120B',        provider:'OpenRouter',       modelId:'nvidia/nemotron-3-super-120b-a12b:free',      color:'#7C3AED', context:'128K', tier:'Free', disabled:true },
+  { id:'openrouter-qwen3-coder', name:'Qwen3 Coder',                  provider:'OpenRouter',       modelId:'qwen/qwen3-coder:free',                       color:'#7C3AED', context:'128K', tier:'Free', disabled:true },
   { id:'ollama-deepseek-v4',     name:'DeepSeek V4 Flash',            provider:'Ollama Cloud',     modelId:'deepseek-v4-flash',                           color:'#6B7280', context:'1M',   tier:'Free' },
   { id:'ollama-qwen3.5-9b',      name:'Qwen3.5 9B',                   provider:'Ollama Cloud',     modelId:'qwen3.5:9b',                                  color:'#6B7280', context:'128K', tier:'Free' },
 ];
@@ -434,7 +434,7 @@ const DEFAULT_MODELS = [
 // whatever's saved in the admin's browser — old placeholder models (Qwen
 // 2.5 14B, Mistral 7B, etc. that never matched any real backend model) get
 // wiped and replaced rather than accumulating alongside the real list.
-const MODELS_SCHEMA_VERSION = 2;
+const MODELS_SCHEMA_VERSION = 3;
 
 function loadModels() {
   try {
@@ -544,15 +544,16 @@ async function viewModels() {
             : 'background:rgba(210,153,34,.08);color:#d29922;border:1px solid rgba(210,153,34,.2)';
           const taskCount = loadTasks(m.id).length;
           const usage = tokensByModel[m.modelId];
+          const isDisabled = m.disabled;
           return `
-          <div class="model-card" onclick="viewModelDetail('${esc(m.id)}')">
+          <div class="model-card" onclick="${isDisabled ? '' : `viewModelDetail('${esc(m.id)}')`}" style="${isDisabled ? 'opacity:.35;cursor:default;text-decoration:line-through;text-decoration-color:rgba(248,81,73,.5);pointer-events:none;' : ''}">
             <div class="flex items-center gap-3 mb-3">
               <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
                 style="background:${m.color}22;border:1px solid ${m.color}44;color:${m.color}">
                 ${m.name.slice(0,2).toUpperCase()}
               </div>
               <div class="min-w-0 flex-1">
-                <div class="font-semibold text-sm truncate">${esc(m.name)}</div>
+                <div class="font-semibold text-sm truncate">${esc(m.name)} ${isDisabled ? '<span style="color:#f85149;font-size:9px;text-decoration:none;letter-spacing:1px;text-transform:uppercase">OFF</span>' : ''}</div>
                 <div class="text-xs mt-0.5" style="color:var(--muted)">${esc(m.provider)}</div>
               </div>
             </div>

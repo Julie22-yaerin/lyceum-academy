@@ -3,6 +3,7 @@ import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkspaceProvider } from './context/WorkspaceContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { I18nProvider } from './i18n/I18nContext';
 import { migrateLegacySubjectTags } from './lib/workspace';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
@@ -17,7 +18,7 @@ import NotepadWindow from './views/NotepadWindow';
 import OnboardingModal from './components/OnboardingModal';
 import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
-import ReferenceBankView from './views/ReferenceBankView';
+// import ReferenceBankView from './views/ReferenceBankView';  // disabled, coming soon
 import SettingsView from './views/SettingsView';
 import TermsModal from './components/TermsModal';
 import ProductTour from './components/ProductTour';
@@ -139,7 +140,9 @@ function AppInner() {
         {view === 'knowledge-map' && <KnowledgeMapView />}
         {view === 'notes' && <NoteView />}
         {view === 'mistake-bank' && <MistakeBankView />}
+        {/* Reference Bank disabled, coming soon
         {view === 'reference-bank' && <ReferenceBankView />}
+        */}
         {view === 'progress' && <ProgressView />}
         {view === 'settings' && <SettingsView />}
       </MainLayout>
@@ -153,6 +156,7 @@ export default function App() {
     return <NotepadWindow />;
   }
   return (
+    <I18nProvider>
     <ThemeProvider>
       <AuthProvider>
         <WorkspaceProvider>
@@ -160,5 +164,6 @@ export default function App() {
         </WorkspaceProvider>
       </AuthProvider>
     </ThemeProvider>
+    </I18nProvider>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { detectLocale, saveLocale, setDocumentLocale, getSupportedLocales, getLocaleDisplayName, type AppLocale } from '../lib/locale';
+import { useTranslation, type AppLanguage } from '../i18n/I18nContext';
+import { LANGUAGES } from '../i18n/translations';
 import { useTheme, type AppTheme } from '../context/ThemeContext';
 import {
   getCurrentSubscription, getSubscriptionPlans, createPortalSession, createCheckoutSession,
@@ -14,65 +15,76 @@ const TIER_LABELS: Record<string, string> = {
 };
 
 function LanguageSection() {
-  const [locale, setLocale] = useState<AppLocale>(() => detectLocale());
+  const { lang, setLang, t } = useTranslation();
+  const [showAll, setShowAll] = useState(false);
 
-  function pick(next: AppLocale) {
-    if (next === locale) return;
-    saveLocale(next);
-    setDocumentLocale(next);
-    setLocale(next);
-    // No app-wide i18n context exists yet — a reload is the honest way to
-    // make every already-mounted component (ARI's voice session included)
-    // pick up the new language consistently.
-    window.location.reload();
-  }
+  const visibleLangs = showAll ? LANGUAGES : LANGUAGES.slice(0, 8);
 
   return (
     <div className="glass-card rounded-3xl p-6">
-      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Language</p>
-      <p className="text-xs text-white/30 mb-5">Applies to ARI's voice and the site chrome. Detected automatically from your device — switch anytime.</p>
-      <div className="flex gap-3">
-        {getSupportedLocales().map(l => (
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">{t('settings.language')}</p>
+      <p className="text-xs text-white/30 mb-5">{t('settings.languageDesc')}</p>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        {visibleLangs.map(l => (
           <button
-            key={l}
-            onClick={() => pick(l)}
-            className={`flex-1 rounded-xl px-4 py-3 text-sm border transition-colors ${
-              locale === l
-                ? 'border-purple-400/60 bg-purple-400/10 text-white'
-                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'
+            key={l.code}
+            onClick={() => setLang(l.code as AppLanguage)}
+            className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm border transition-all ${
+              lang === l.code
+                ? 'border-purple-400/60 bg-purple-400/10 text-white shadow-lg shadow-purple-500/10'
+                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:border-white/20'
             }`}
           >
-            {getLocaleDisplayName(l)}
+            <span className="text-lg">{l.flag}</span>
+            <div className="text-left min-w-0">
+              <div className="text-xs font-medium truncate">{l.label}</div>
+              <div className="text-[9px] text-white/30 uppercase">{l.code}</div>
+            </div>
+            {lang === l.code && (
+              <span className="ml-auto material-symbols-outlined text-[14px] text-purple-300">check</span>
+            )}
           </button>
         ))}
       </div>
+
+      {LANGUAGES.length > 8 && (
+        <button
+          onClick={() => setShowAll(v => !v)}
+          className="mt-3 text-[10px] text-white/30 hover:text-white/60 transition-colors uppercase tracking-wider"
+        >
+          {showAll ? '← Show less' : `+ ${LANGUAGES.length - 8} more languages`}
+        </button>
+      )}
     </div>
   );
 }
 
-const THEME_OPTIONS: { value: AppTheme; label: string }[] = [
-  { value: 'dark', label: 'Dark' },
-  { value: 'light', label: 'Light' },
+const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
+  { value: 'dark', label: 'Dark', icon: 'dark_mode' },
+  { value: 'light', label: 'Light', icon: 'light_mode' },
 ];
 
 function AppearanceSection() {
   const { theme, setTheme } = useTheme();
+  const { t } = useTranslation();
 
   return (
     <div className="glass-card rounded-3xl p-6">
-      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Appearance</p>
-      <p className="text-xs text-white/30 mb-5">Applies everywhere — the landing page and the workspace.</p>
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">{t('settings.appearance')}</p>
+      <p className="text-xs text-white/30 mb-5">{t('settings.appearanceDesc')}</p>
       <div className="flex gap-3">
-        {THEME_OPTIONS.map(({ value, label }) => (
+        {THEME_OPTIONS.map(({ value, label, icon }) => (
           <button
             key={value}
             onClick={() => setTheme(value)}
-            className={`flex-1 rounded-xl px-4 py-3 text-sm border transition-colors ${
+            className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm border transition-colors ${
               theme === value
                 ? 'border-purple-400/60 bg-purple-400/10 text-white'
                 : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'
             }`}
           >
+            <span className="material-symbols-outlined text-[16px]">{icon}</span>
             {label}
           </button>
         ))}
@@ -87,6 +99,7 @@ function PlanSection() {
   const [loading, setLoading] = useState(true);
   const [busyPlanId, setBusyPlanId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const { t } = useTranslation();
 
   useEffect(() => {
     (async () => {
@@ -123,12 +136,12 @@ function PlanSection() {
 
   return (
     <div className="glass-card rounded-3xl p-6">
-      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Plan</p>
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">{t('settings.plan')}</p>
 
       {loading ? (
         <div className="flex items-center gap-3 py-4">
           <div className="w-3 h-3 border border-white/20 border-t-white rounded-full animate-spin" />
-          <span className="text-xs text-white/40">Loading…</span>
+          <span className="text-xs text-white/40">{t('common.loading')}</span>
         </div>
       ) : (
         <>
@@ -139,8 +152,8 @@ function PlanSection() {
               </p>
               {sub && (
                 <p className="text-[11px] text-white/40 mt-0.5">
-                  {sub.status === 'active' ? 'Active' : sub.status}
-                  {sub.current_period_end && ` · renews ${new Date(sub.current_period_end).toLocaleDateString()}`}
+                  {sub.status === 'active' ? t('settings.active') : sub.status}
+                  {sub.current_period_end && ` · ${t('settings.renews')} ${new Date(sub.current_period_end).toLocaleDateString()}`}
                 </p>
               )}
             </div>
@@ -149,7 +162,7 @@ function PlanSection() {
                 onClick={handleManageBilling}
                 className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
               >
-                Manage billing
+                {t('settings.manageBilling')}
               </button>
             )}
           </div>
@@ -172,14 +185,14 @@ function PlanSection() {
                       <p className="text-[10px] text-white/40">${p.price_usd}/{p.billing_cycle === 'annual' ? 'yr' : 'mo'}</p>
                     </div>
                     {isCurrent ? (
-                      <span className="text-[10px] uppercase tracking-[2px] text-purple-300">Current</span>
+                      <span className="text-[10px] uppercase tracking-[2px] text-purple-300">{t('tier.current')}</span>
                     ) : (
                       <button
                         onClick={() => handleUpgrade(p.id)}
                         disabled={busyPlanId === p.id}
                         className="glass-btn rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[2px] disabled:opacity-30"
                       >
-                        {busyPlanId === p.id ? '…' : 'Select'}
+                        {busyPlanId === p.id ? '…' : t('tier.select')}
                       </button>
                     )}
                   </div>
@@ -194,11 +207,13 @@ function PlanSection() {
 }
 
 export default function SettingsView() {
+  const { t } = useTranslation();
+
   return (
     <div className="max-w-2xl mx-auto flex flex-col gap-6 py-4">
       <div>
-        <h1 className="font-serif text-3xl text-white mb-1">Settings</h1>
-        <p className="text-sm text-white/40">Appearance, language, and your Lyceum plan.</p>
+        <h1 className="font-serif text-3xl text-white mb-1">{t('settings.title')}</h1>
+        <p className="text-sm text-white/40">{t('settings.subtitle')}</p>
       </div>
       <AppearanceSection />
       <LanguageSection />
