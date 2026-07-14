@@ -79,6 +79,19 @@ export default function DialogueView() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, thinking]);
 
+  // Warn before the tab closes while a reply is still in flight — that
+  // reply can't be saved yet because it doesn't exist, so the only way to
+  // avoid losing it is to stop the student from leaving mid-answer.
+  useEffect(() => {
+    function handler(e: BeforeUnloadEvent) {
+      if (!thinking) return;
+      e.preventDefault();
+      e.returnValue = '';
+    }
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [thinking]);
+
   const sendMessage = useCallback(async () => {
     const text = input.trim();
     if (!text || thinking) return;
@@ -90,9 +103,10 @@ export default function DialogueView() {
     setMessages(history);
     setThinking(true);
 
-    // Save user message
+    // Save the user's message before starting the AI call — awaited so it's
+    // actually persisted even if the student closes the tab right after.
     if (userId !== 'anon') {
-      saveMessage({ user_id: userId, role: 'user', content: text });
+      await saveMessage({ user_id: userId, role: 'user', content: text });
     }
 
     try {
@@ -108,7 +122,7 @@ export default function DialogueView() {
       setMessages(prev => [...prev, aiMsg]);
 
       if (userId !== 'anon') {
-        saveMessage({ user_id: userId, role: 'assistant', content: result.reply, model: result.model });
+        await saveMessage({ user_id: userId, role: 'assistant', content: result.reply, model: result.model });
       }
     } catch (e: any) {
       setError(e.message || 'Connection error — is the backend running?');
