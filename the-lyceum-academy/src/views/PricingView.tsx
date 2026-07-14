@@ -12,15 +12,13 @@ type BillingCycle = 'monthly' | 'annual';
 const TIER_NAMES: Record<string, string> = {
   compass: 'Compass',
   scholar: 'Scholar',
-  mentor: 'Mentor',
-  researcher: 'Researcher',
+  focus: 'Focus',
 };
 
 const TIER_DESCRIPTIONS: Record<string, string> = {
   compass: 'Essential tools for focused learning',
   scholar: 'Advanced features for serious students',
-  mentor: 'Full access for dedicated learners',
-  researcher: 'Unlimited resources for intensive study',
+  focus: 'Total focus with unlimited AI power',
 };
 
 export default function PricingView() {
@@ -62,7 +60,7 @@ export default function PricingView() {
   };
 
   const filteredPlans = plans.filter((plan) => plan.billing_cycle === billingCycle);
-  const tierOrder = ['compass', 'scholar', 'mentor', 'researcher'];
+  const tierOrder = ['compass', 'scholar', 'focus'];
   const sortedPlans = filteredPlans.sort(
     (a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier)
   );
@@ -77,7 +75,7 @@ export default function PricingView() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Plan</h1>
@@ -114,7 +112,7 @@ export default function PricingView() {
         </div>
 
         {/* Pricing cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {sortedPlans.map((plan) => {
             const isCurrentPlan =
               subscription?.tier === plan.tier && subscription?.billing_cycle === plan.billing_cycle;
@@ -123,11 +121,11 @@ export default function PricingView() {
               <div
                 key={plan.id}
                 className={`bg-white rounded-lg shadow-md overflow-hidden ${
-                  plan.tier === 'mentor' ? 'border-2 border-blue-500 relative' : ''
+                  plan.tier === 'scholar' ? 'border-2 border-amber-400 relative' : ''
                 }`}
               >
-                {plan.tier === 'mentor' && (
-                  <div className="absolute top-0 right-0 bg-blue-500 text-white px-3 py-1 text-xs font-semibold">
+                {plan.tier === 'scholar' && (
+                  <div className="absolute top-0 right-0 bg-amber-500 text-white px-3 py-1 text-xs font-semibold">
                     POPULAR
                   </div>
                 )}
@@ -195,8 +193,8 @@ export default function PricingView() {
                     className={`w-full py-3 px-4 rounded-md font-medium transition-colors ${
                       isCurrentPlan
                         ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                        : plan.tier === 'mentor'
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : plan.tier === 'scholar'
+                        ? 'bg-amber-500 text-white hover:bg-amber-600'
                         : 'bg-gray-800 text-white hover:bg-gray-900'
                     }`}
                   >

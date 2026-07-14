@@ -10,7 +10,7 @@ const API_BASE = getApiBaseUrl();
 
 export interface SubscriptionPlan {
   id: string;
-  tier: 'compass' | 'scholar' | 'mentor' | 'researcher';
+  tier: 'compass' | 'scholar' | 'focus';
   billing_cycle: 'monthly' | 'annual';
   price_usd: number;
   voice_minutes_monthly: number | null;

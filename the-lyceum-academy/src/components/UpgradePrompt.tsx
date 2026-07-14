@@ -36,10 +36,10 @@ const FEATURE_MESSAGES = {
 };
 
 const RECOMMENDED_TIERS = {
-  voice: ['scholar', 'mentor', 'researcher'],
-  mindmap: ['scholar', 'mentor', 'researcher'],
-  reference: ['mentor', 'researcher'],
-  roadmap: ['mentor', 'researcher'],
+  voice: ['scholar', 'focus'],
+  mindmap: ['scholar', 'focus'],
+  reference: ['focus'],
+  roadmap: ['focus'],
 };
 
 export default function UpgradePrompt({ feature, currentTier = 'compass', onClose }: UpgradePromptProps) {

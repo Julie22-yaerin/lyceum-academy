@@ -116,6 +116,7 @@
       <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
       <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
+      <button id="nav-storage" onclick="viewStorage()" class="nav-btn text-xs">Storage</button>
     </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" />
@@ -141,6 +142,7 @@
     <div id="view-profiles" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-storage" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
   </main>
 </div>
 
@@ -516,6 +518,7 @@ async function viewModels() {
   hide('view-profiles');
   hide('view-profile-detail');
   hide('view-feedback');
+  hide('view-storage');
   setActiveNav('nav-models');
   const el = document.getElementById('view-models');
   show('view-models');
@@ -605,6 +608,7 @@ async function viewActivity() {
   hide('view-profiles');
   hide('view-profile-detail');
   hide('view-feedback');
+  hide('view-storage');
   setActiveNav('nav-activity');
   show('view-activity');
   _activityOffset = 0;
@@ -727,6 +731,7 @@ async function viewProfiles() {
   hide('view-activity');
   hide('view-profile-detail');
   hide('view-feedback');
+  hide('view-storage');
   setActiveNav('nav-profiles');
   const el = document.getElementById('view-profiles');
   show('view-profiles');
@@ -1548,6 +1553,7 @@ async function viewFeedback() {
   hide('view-activity');
   hide('view-profiles');
   hide('view-profile-detail');
+  hide('view-storage');
   setActiveNav('nav-feedback');
   show('view-feedback');
   await renderFeedback();
@@ -1633,6 +1639,112 @@ async function renderFeedback() {
           </tbody>
         </table>
       </div>
+    </div>`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: STORAGE
+// ════════════════════════════════════════════════════════════════
+function viewStorage() {
+  hide('view-models');
+  hide('view-model-detail');
+  hide('view-activity');
+  hide('view-profiles');
+  hide('view-profile-detail');
+  hide('view-feedback');
+  setActiveNav('nav-storage');
+  const el = document.getElementById('view-storage');
+  show('view-storage');
+
+  // Collect localStorage data
+  const lsItems = [];
+  let lsTotal = 0;
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const val = localStorage.getItem(key) || '';
+    const bytes = new TextEncoder().encode(key + val).length;
+    lsTotal += bytes;
+    lsItems.push({ key, bytes, preview: val.substring(0, 80) });
+  }
+  lsItems.sort((a, b) => b.bytes - a.bytes);
+
+  // Group by prefix
+  const groups = {};
+  lsItems.forEach(item => {
+    const prefix = item.key.includes(':') ? item.key.split(':')[0] : 'other';
+    if (!groups[prefix]) groups[prefix] = { items: [], total: 0 };
+    groups[prefix].items.push(item);
+    groups[prefix].total += item.bytes;
+  });
+
+  const sortedGroups = Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+
+  function fmt(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(2) + ' MB';
+  }
+
+  // User-scoped keys
+  const userKeys = lsItems.filter(i => i.key.includes(':'));
+  const globalKeys = lsItems.filter(i => !i.key.includes(':'));
+  const uniqueUsers = [...new Set(userKeys.map(i => i.key.split(':').pop()))].length;
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h2 class="text-lg font-semibold mb-1">Storage Explorer</h2>
+        <p style="color:var(--muted)" class="text-xs">Local browser data for this domain. Shows what the app stores per user.</p>
+      </div>
+
+      <!-- Summary cards -->
+      <div class="grid grid-cols-4 gap-3">
+        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
+          <div class="text-xs mb-1" style="color:var(--muted)">Total localStorage</div>
+          <div class="text-xl font-bold">${fmt(lsTotal)}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
+          <div class="text-xs mb-1" style="color:var(--muted)">Total keys</div>
+          <div class="text-xl font-bold">${lsItems.length}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
+          <div class="text-xs mb-1" style="color:var(--muted)">User-scoped keys</div>
+          <div class="text-xl font-bold">${userKeys.length}</div>
+        </div>
+        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
+          <div class="text-xs mb-1" style="color:var(--muted)">Unique users (est.)</div>
+          <div class="text-xl font-bold">${uniqueUsers}</div>
+        </div>
+      </div>
+
+      <!-- Grouped by prefix -->
+      ${sortedGroups.map(([prefix, data]) => `
+        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--border)">
+            <span class="text-sm font-medium">${esc(prefix)}*</span>
+            <span class="text-xs" style="color:var(--muted)">${data.items.length} keys · ${fmt(data.total)}</span>
+          </div>
+          <div class="max-h-48 overflow-auto">
+            <table class="w-full text-xs">
+              <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
+                <th class="text-left px-4 py-2 font-medium">Key</th>
+                <th class="text-right px-4 py-2 font-medium" style="width:80px">Size</th>
+                <th class="text-left px-4 py-2 font-medium">Preview</th>
+              </tr></thead>
+              <tbody>
+                ${data.items.map(item => `
+                  <tr style="border-bottom:1px solid var(--border)">
+                    <td class="px-4 py-2 font-mono" style="color:var(--blue)">${esc(item.key)}</td>
+                    <td class="px-4 py-2 text-right" style="color:var(--muted)">${fmt(item.bytes)}</td>
+                    <td class="px-4 py-2 truncate max-w-xs" style="color:var(--muted)">${esc(item.preview)}</td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `).join('')}
+
+      ${lsItems.length === 0 ? '<div class="text-center py-12" style="color:var(--muted)">No localStorage data found.</div>' : ''}
     </div>`;
 }
 

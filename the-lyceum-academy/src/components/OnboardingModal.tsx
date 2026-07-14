@@ -55,29 +55,19 @@ interface Plan {
 
 const PLANS: Plan[] = [
   {
-    id: 'compass', name: 'Compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
+    id: 'compass', name: 'Compass', price: 5, emoji: '🌱', color: '#4A7C59',
     tagline: '"I feel lost."',
     features: ['Personalized study roadmap', 'Basic Neural Map', 'Progress tracking', 'Weekly planner'],
   },
   {
-    id: 'scholar', name: 'Scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
+    id: 'scholar', name: 'Scholar', price: 8, emoji: '🎓', color: '#C5A059',
     tagline: 'Flagship — 80% users', flagship: true,
     features: ['AI grading (Meta + Gemma)', 'Full Neural Map', 'Roadmap', 'AI discussion', 'Reflection', 'Planner'],
   },
   {
-    id: 'builder', name: 'Builder', price: 24.99, emoji: '🚀', color: '#2563EB',
-    tagline: '"Learn to build."',
-    features: ['Skill roadmap', 'Project roadmap', 'Learning dependency graph', 'AI mentor', '+ Everything in Scholar'],
-  },
-  {
-    id: 'polymath', name: 'Polymath', price: 34.99, emoji: '🧠', color: '#7C3AED',
-    tagline: '"A second brain."',
-    features: ['Cross-domain Neural Map', 'Long-term memory', 'Multi-subject planning', 'Advanced knowledge graph', '+ Everything in Scholar'],
-  },
-  {
-    id: 'research', name: 'Research', price: 39.99, emoji: '🔬', color: '#DC2626',
-    tagline: '"Papers, theses, research."',
-    features: ['Paper analysis', 'Figure explanation', 'Citation map', 'Literature comparison', '+ Everything in Scholar'],
+    id: 'focus', name: 'Focus', price: 12, emoji: '🎯', color: '#7C3AED',
+    tagline: '"Total focus."',
+    features: ['Everything in Scholar', 'Cross-domain Neural Map', 'Advanced knowledge graph', 'Priority support', 'Unlimited AI minutes'],
   },
 ];
 

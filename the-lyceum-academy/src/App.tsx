@@ -25,14 +25,19 @@ import ProductTour from './components/ProductTour';
 import { buildTourSteps } from './lib/tourSteps';
 import { detectLocale, setDocumentLocale } from './lib/locale';
 import { scopedGateKey } from './lib/persist';
+import { shouldShowPaywall, trialDaysRemaining, getTrialStart } from './lib/trial';
+import { useSubscription } from './lib/useSubscription';
+import TrialPaywall from './components/TrialPaywall';
 
 
 function AppInner() {
   const [view, setView] = useState<View>('landing');
   const { user, loading, devMode, emailVerified } = useAuth();
+  const { hasActiveSubscription, loading: subLoading } = useSubscription();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTour, setShowTour] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
   const tourCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -100,6 +105,17 @@ function AppInner() {
     setShowOnboarding(false);
   }
 
+  // Trial paywall: check after auth + subscription load
+  useEffect(() => {
+    if (loading || subLoading || devMode) return;
+    if (!user) return;
+    if (shouldShowPaywall(user.uid, hasActiveSubscription)) {
+      setShowPaywall(true);
+    } else {
+      setShowPaywall(false);
+    }
+  }, [loading, subLoading, devMode, user, hasActiveSubscription]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
@@ -123,6 +139,11 @@ function AppInner() {
   // dashboard, until the interview is done.
   if (showOnboarding) {
     return <OnboardingModal onClose={handleOnboardingClose} />;
+  }
+
+  // Trial expired paywall: block workspace until user subscribes
+  if (showPaywall && user) {
+    return <TrialPaywall daysRemaining={trialDaysRemaining(user.uid)} onSubscribe={() => {}} />;
   }
 
   return (

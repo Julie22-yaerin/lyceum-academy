@@ -8,10 +8,9 @@ import {
 } from '../lib/subscriptionApi';
 
 const TIER_LABELS: Record<string, string> = {
-  compass: 'Compass (Free)',
+  compass: 'Compass',
   scholar: 'Scholar',
-  mentor: 'Mentor',
-  researcher: 'Researcher',
+  focus: 'Focus',
 };
 
 function LanguageSection() {
