@@ -454,10 +454,7 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
     setStep("done");
   }
 
-  function handleSkip() {
-    localStorage.setItem(ONBOARDING_DONE_KEY, "1");
-    onComplete();
-  }
+
 
   // ── Persona matching ────────────────────────────────────────────────────────
   async function fetchPersonaMatches() {
@@ -709,33 +706,23 @@ export function OnboardingModal({ onComplete }: { onComplete: () => void }) {
                 </div>
               )}
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleSkip}
-                  disabled={uploading}
-                  className="flex-1 rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-sm text-zinc-400 transition-colors hover:bg-white/8 hover:text-zinc-200 disabled:opacity-40"
-                >
-                  Bỏ qua
-                </button>
-                <button
-                  type="button"
-                  onClick={handleFinish}
-                  disabled={uploading}
-                  className="flex flex-[2] items-center justify-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {uploading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Đang tải lên…
-                    </>
-                  ) : (
-                    <>
-                      Hoàn tất <ChevronRight className="h-4 w-4" />
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleFinish}
+                disabled={uploading}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-5 py-3 text-sm font-medium text-emerald-100 transition-colors hover:bg-emerald-500/20 disabled:pointer-events-none disabled:opacity-50"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Đang tải lên…
+                  </>
+                ) : (
+                  <>
+                    Hoàn tất <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
             </div>
           )}
 

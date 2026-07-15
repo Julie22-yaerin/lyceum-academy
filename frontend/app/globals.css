@@ -35,3 +35,12 @@ html, body {
   100% { box-shadow: 0 0 0 0   rgba(16,185,129,0);    }
 }
 .ring-pulse { animation: ring-pulse 2s ease-out infinite; }
+
+/* Hide scrollbar for workspace tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

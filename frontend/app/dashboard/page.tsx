@@ -7,7 +7,8 @@ import { Plus, Flame, Brain, BookOpen, X, LogOut, User } from "lucide-react";
 
 import { LearningTree } from "@/components/ui/learning-tree";
 import { IntroAnimation } from "@/components/ui/intro-animation";
-import { OnboardingModal, ONBOARDING_DONE_KEY } from "@/components/onboarding/onboarding-modal";
+import { OnboardingModal, ONBOARDING_DONE_KEY, SUBJECTS_KEY } from "@/components/onboarding/onboarding-modal";
+import { WorkspaceTabs } from "@/components/workspace/workspace-tabs";
 import { useFirebaseAuth } from "@/components/providers/firebase-auth";
 import { firebaseSignOut } from "@/lib/firebase/auth";
 import { demoPset } from "@/lib/mock-data";
@@ -131,6 +132,7 @@ export default function DashboardPage() {
   const { user, loading } = useFirebaseAuth();
   const [showIntro, setShowIntro] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [activeSubject, setActiveSubject] = useState("");
 
   // Intro animation (session-scoped)
   useEffect(() => {
@@ -146,6 +148,21 @@ export default function DashboardPage() {
       setShowOnboarding(true);
     }
   }, [user, loading]);
+
+  // Load first subject from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(SUBJECTS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0 && !activeSubject) {
+          setActiveSubject(parsed[0]);
+        }
+      }
+    } catch {
+      // soft-fail
+    }
+  }, []);
 
   const handleIntroDone = useCallback(() => {
     sessionStorage.setItem(INTRO_KEY, "1");
@@ -191,6 +208,18 @@ export default function DashboardPage() {
           <AccountMenu />
         </div>
       </header>
+
+      {/* ── Workspace tabs ── */}
+      {user && (
+        <div className="border-b border-white/5 bg-[#050816]/80 backdrop-blur-md">
+          <div className="mx-auto max-w-2xl">
+            <WorkspaceTabs
+              activeSubject={activeSubject}
+              onSubjectChange={setActiveSubject}
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── Guest banner ── */}
       {!user && (
