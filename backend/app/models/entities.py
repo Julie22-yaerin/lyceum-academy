@@ -395,6 +395,7 @@ class AIAnalysisJob(Base, TimestampMixin):
 
 
 class SubscriptionTierEnum(str, enum.Enum):
+    free = "free"
     compass = "compass"
     scholar = "scholar"
     mentor = "mentor"
