@@ -78,6 +78,20 @@ export async function getNodeSummary(concept: string) {
   }>;
 }
 
+/** WolframAlpha exact computation (SOC-17 plugin) — used by Ari's compute_math tool call. */
+export async function computeMath(query: string): Promise<{ result: string | null; configured: boolean }> {
+  const res = await authFetch(`${API_BASE}/ai/compute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
 /** GPT (NVIDIA gpt-oss-20b) text fallback for ARI when Gemini Live's WS is down. */
 export async function voiceFallbackChat(messages: { role: string; content: string }[], systemInstruction: string): Promise<string> {
   const res = await authFetch(`${API_BASE}/ai/voice-fallback`, {

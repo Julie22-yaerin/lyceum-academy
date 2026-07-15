@@ -393,7 +393,7 @@ async def admin_retention_run(
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
-@app.get("/health/live")
+@app.api_route("/health/live", methods=["GET", "HEAD"])
 def health_live():
     return {"status": "ok"}
 
@@ -615,6 +615,10 @@ class HintRequest(BaseModel):
     level: int = 1   # 1 = vague, 2 = name concept, 3 = first step
 
 
+class ComputeRequest(BaseModel):
+    query: str
+
+
 class MasteryRequest(BaseModel):
     problem: str
     solution: str
@@ -824,6 +828,21 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
         return {"hint": hint}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@app.post("/ai/compute")
+@limiter.limit("30/minute")
+async def ai_compute(request: Request, req: ComputeRequest, _: dict = Depends(require_auth)):
+    """
+    Exact computation via WolframAlpha (SOC-17 plugin) — used by Ari's live
+    voice tool-calling (compute_math) for arithmetic/algebra/unit-conversion
+    questions that need a precise answer rather than a Socratic discussion.
+    """
+    check_prompt(req.query, "query")
+    if not wolfram_svc.is_configured():
+        return {"result": None, "configured": False}
+    result = await wolfram_svc.compute(req.query)
+    return {"result": result, "configured": True}
 
 
 @app.post("/ai/reverse-build-eval")

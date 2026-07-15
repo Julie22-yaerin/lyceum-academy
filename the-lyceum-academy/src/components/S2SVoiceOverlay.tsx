@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { saveNote, attachToNote, attachToGraphNode, saveReference } from '../lib/persist';
 import SmartImage from './SmartImage';
 import { saveMistake, attachToMistake } from '../lib/mistakes';
-import { getNodeSummary, voiceFallbackChat } from '../lib/api';
+import { getNodeSummary, voiceFallbackChat, computeMath } from '../lib/api';
 import { startVoiceSession, endVoiceSession, logFeatureUsage } from '../lib/subscriptionApi';
 import { getSpeechLocale, type AppLocale } from '../lib/locale';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -560,6 +560,15 @@ export default function S2SVoiceOverlay({
                         required: ['target_type', 'target_text'],
                       },
                     },
+                    {
+                      name: 'compute_math',
+                      description: 'Get an exact WolframAlpha answer for arithmetic, algebra, calculus, or unit conversion — call this to check your own arithmetic before speaking a number out loud. This is for YOUR accuracy only: still ask the student for their guess first and keep the discussion Socratic, never just read the result out as the answer.',
+                      parameters: {
+                        type: 'OBJECT',
+                        properties: { query: { type: 'STRING', description: 'The computation to evaluate, e.g. "integral of x^2" or "15% of 340"' } },
+                        required: ['query'],
+                      },
+                    },
                   ],
                 },
               ],
@@ -633,6 +642,11 @@ export default function S2SVoiceOverlay({
                     } else if (call.name === 'attach_reference') {
                       const ok = handleAttach(String(call.args?.target_type || ''), String(call.args?.target_text || ''));
                       response = { attached: ok };
+                    } else if (call.name === 'compute_math') {
+                      const { result, configured } = await computeMath(String(call.args?.query || ''));
+                      response = configured
+                        ? { result: result ?? 'WolframAlpha had no exact answer for that.' }
+                        : { result: 'Computation plugin is not configured yet — reason it through yourself.' };
                     }
                   } catch (e) {
                     console.error(`Tool call ${call.name} failed:`, e);

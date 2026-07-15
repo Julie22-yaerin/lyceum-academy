@@ -2845,6 +2845,29 @@ async def clean_question(prompt: str, context: str = "") -> str:
         return prompt
 
 
+async def _apply_wolfram_grade_check(items: list[dict], data: dict) -> dict:
+    """
+    Cross-check computational questions against WolframAlpha and append a
+    reference note to that grade's feedback. Informational only — never
+    flips `passed` itself, since Wolfram's short answer format doesn't
+    reliably line up with how a student phrased their answer.
+    """
+    if not _wolfram.is_configured():
+        return data
+    by_id = {it["id"]: it for it in items}
+    for grade in data.get("grades", []):
+        item = by_id.get(grade.get("id"))
+        if not item or not _wolfram.looks_computational(item.get("prompt", "")):
+            continue
+        try:
+            answer = await _wolfram.compute(item["prompt"])
+        except Exception:
+            answer = None
+        if answer:
+            grade["feedback"] = f"{grade.get('feedback', '')} (WolframAlpha check: {answer})".strip()
+    return data
+
+
 @_tag_task
 async def grade_all(items: list[dict]) -> dict:
     """
@@ -2881,7 +2904,7 @@ async def grade_all(items: list[dict]) -> dict:
             raw = extract_text(resp)
             data = _parse_json_robust(raw)
             if data and "grades" in data:
-                return data
+                return await _apply_wolfram_grade_check(items, data)
         except Exception:
             import logging
             logging.getLogger("pclick").warning("grade_all: Gemini Pro failed, falling back", exc_info=True)
@@ -2897,7 +2920,7 @@ async def grade_all(items: list[dict]) -> dict:
     try:
         data = _parse_json_robust(raw)
         if data and "grades" in data:
-            return data
+            return await _apply_wolfram_grade_check(items, data)
     except Exception:
         pass
     return {"grades": [{"id": it["id"], "passed": False, "feedback": "Could not grade."} for it in items]}
@@ -3917,6 +3940,7 @@ async def grade_dual(items: list[dict]) -> dict:
                 for it in items
             ]}
 
+    grades_data = await _apply_wolfram_grade_check(items, grades_data)
     grades = grades_data["grades"]
     wrong_ids = {g["id"] for g in grades if not g.get("passed")}
 
@@ -4372,6 +4396,29 @@ async def dual_role_chat(
         "",
     )
 
+    # ── WolframAlpha grounding (SOC-17/ARI-compute) ───────────────────────────
+    # Proactive, not just a failure fallback: for a computational query, fetch
+    # an exact answer BEFORE the primary model drafts, and hand it over as a
+    # reference the model must stay consistent with. It still can't just recite
+    # the number — the Socratic system prompts at the call sites already forbid
+    # that — this only keeps the model's own arithmetic from drifting.
+    grounded_messages = messages
+    if wolfram_fallback and _wolfram.is_configured() and _wolfram.looks_computational(last_user):
+        wolfram_ground_truth = await _wolfram.compute(last_user)
+        if wolfram_ground_truth:
+            log.info("dual_role_chat: WolframAlpha grounding applied")
+            grounded_messages = [
+                *messages,
+                {
+                    "role": "system",
+                    "content": (
+                        f"WolframAlpha computed this exactly: {last_user} -> {wolfram_ground_truth}. "
+                        "Use it to keep your own reasoning and arithmetic correct. Do not just state "
+                        "this number to the student — stay Socratic, ask them first, per your instructions above."
+                    ),
+                },
+            ]
+
     # ── Stage 1: Primary model drafts ─────────────────────────────────────────
     draft_text: str = ""
     primary_model: str = "unknown"
@@ -4379,7 +4426,7 @@ async def dual_role_chat(
 
     try:
         resp = await chat(
-            messages,
+            grounded_messages,
             temperature=temperature,
             max_tokens=max_tokens,
             prefer_fast=prefer_fast,

@@ -117,6 +117,9 @@ export function buildAriSystemInstruction(locale: AppLocale, context?: string) {
     'Once Gemma has researched something, if the student asks you to attach that image or reference source to a specific place — a Note, a Mistake Bank entry, or a node in the Knowledge Tree (does NOT apply to PDF Problem Sets — those can\'t be attached to) — call the attach_reference function if available (target_type + target_text), otherwise end your reply with the tag [ATTACH: <note|mistake|node> | <name/keyword to find the right spot>]. Briefly confirm to the student that it\'s attached.',
     'Proactively suggest related material at the right moment based on the current context: if the student is doing Problem Sets, suggest reviewing related Notes or Mistake Bank entries; if they\'re viewing the Knowledge Tree, suggest saved notes on that topic. Don\'t overdo it — only suggest when it\'s genuinely useful.',
     'If the student wants to log a mistake, end your reply with the tag: [MISTAKE: <name of the mistake> | <subject/location> | <brief explanation>]. If they want to take a note, end with the tag: [NOTE: <note title> | <note content>]. Don\'t add any extra characters around the tag, and don\'t read the tag content out loud.',
+    '',
+    '=== COMPUTATION CHECK (WolframAlpha) ===',
+    'If you have a function/tool available named compute_math, CALL IT before speaking any arithmetic, algebra, calculus, or unit-conversion result out loud — it gives you the exact answer so you never mis-speak a number. This is silent, for your own accuracy only: never announce that you\'re checking or read WolframAlpha\'s answer straight to the student. Stay Socratic — still ask what they think the answer is first, and only bring in the verified number once they\'ve engaged, phrased as your own reasoning.',
     context ? `\n=== CURRENT CONTEXT ===\n${context}` : '',
   ].filter(Boolean).join('\n\n');
 }
