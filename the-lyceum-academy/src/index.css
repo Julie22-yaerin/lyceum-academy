@@ -326,19 +326,19 @@ body {
   color: #1e293b;
 
   --color-surface: #f6f8fc;
-  --color-surface-dim: #e6e9f2;
+  --color-surface-dim: #dde3ef;
   --color-surface-bright: #ffffff;
   --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #eef1f7;
-  --color-surface-container: #e6e9f2;
-  --color-surface-container-high: #dde1ee;
-  --color-surface-container-highest: #d2d7e8;
+  --color-surface-container-low: #e7ebf5;
+  --color-surface-container: #dde3f0;
+  --color-surface-container-high: #d2d9ea;
+  --color-surface-container-highest: #c5cee4;
 
   --color-on-surface: #0f172a;
   --color-on-surface-variant: #475569;
 
-  --color-outline: rgba(15, 23, 42, 0.14);
-  --color-outline-variant: rgba(15, 23, 42, 0.08);
+  --color-outline: rgba(15, 23, 42, 0.22);
+  --color-outline-variant: rgba(15, 23, 42, 0.12);
 
   --color-primary: #7c3aed;
   --color-primary-container: rgba(124, 58, 237, 0.12);
@@ -374,55 +374,55 @@ body {
    gradient fills + layered inset/outset box-shadows instead. */
 
 .theme-light .glass {
-  background: linear-gradient(145deg, #f0f4ff, #e8edf8);
-  border: 1.5px solid rgba(124, 58, 237, 0.12);
+  background: linear-gradient(145deg, #e5eaf7, #d7ddef);
+  border: 2px solid rgba(124, 58, 237, 0.22);
   box-shadow:
-    8px 8px 20px rgba(15, 23, 42, 0.08),
-    -4px -4px 12px rgba(255, 255, 255, 0.9),
+    10px 10px 24px rgba(15, 23, 42, 0.16),
+    -5px -5px 14px rgba(255, 255, 255, 0.9),
     inset 1px 1px 2px rgba(255, 255, 255, 0.7),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.04);
+    inset -1px -1px 2px rgba(15, 23, 42, 0.07);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-card {
-  background: linear-gradient(145deg, #f2f5ff, #eaeff9);
-  border: 1.5px solid rgba(124, 58, 237, 0.14);
+  background: linear-gradient(145deg, #e7ecf9, #d9e0f1);
+  border: 2px solid rgba(124, 58, 237, 0.25);
   box-shadow:
-    10px 10px 24px rgba(15, 23, 42, 0.1),
-    -5px -5px 14px rgba(255, 255, 255, 0.95),
+    12px 12px 28px rgba(15, 23, 42, 0.18),
+    -6px -6px 16px rgba(255, 255, 255, 0.95),
     inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.03);
+    inset -1px -1px 2px rgba(15, 23, 42, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-strong {
-  background: linear-gradient(145deg, #eef2ff, #e5eaf6);
-  border: 1.5px solid rgba(124, 58, 237, 0.18);
+  background: linear-gradient(145deg, #e2e8f7, #d1d9ed);
+  border: 2px solid rgba(124, 58, 237, 0.3);
   box-shadow:
-    12px 12px 28px rgba(15, 23, 42, 0.12),
-    -6px -6px 16px rgba(255, 255, 255, 1),
+    14px 14px 32px rgba(15, 23, 42, 0.2),
+    -7px -7px 18px rgba(255, 255, 255, 1),
     inset 2px 2px 4px rgba(255, 255, 255, 0.85),
-    inset -1.5px -1.5px 3px rgba(15, 23, 42, 0.04);
+    inset -1.5px -1.5px 3px rgba(15, 23, 42, 0.07);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-strong.mindmap-panel {
-  background: linear-gradient(145deg, #edf1fc, #e2e7f4);
+  background: linear-gradient(145deg, #dfe6f6, #cdd6ec);
   box-shadow:
-    10px 10px 24px rgba(15, 23, 42, 0.1),
-    -5px -5px 14px rgba(255, 255, 255, 0.95),
+    12px 12px 28px rgba(15, 23, 42, 0.18),
+    -6px -6px 16px rgba(255, 255, 255, 0.95),
     inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.03);
+    inset -1px -1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .theme-light .glass-input {
-  background: linear-gradient(145deg, #f5f7ff, #edf0fa);
-  border: 1.5px solid rgba(15, 23, 42, 0.12);
+  background: linear-gradient(145deg, #e9eefb, #dce3f3);
+  border: 2px solid rgba(15, 23, 42, 0.22);
   box-shadow:
-    inset 2px 2px 5px rgba(15, 23, 42, 0.06),
+    inset 3px 3px 6px rgba(15, 23, 42, 0.1),
     inset -1px -1px 3px rgba(255, 255, 255, 0.8);
   color: #1e293b;
   backdrop-filter: none;
@@ -430,34 +430,34 @@ body {
 }
 
 .theme-light .glass-input:focus {
-  border-color: rgba(37, 99, 235, 0.5);
+  border-color: rgba(37, 99, 235, 0.55);
   box-shadow:
-    inset 2px 2px 5px rgba(15, 23, 42, 0.06),
+    inset 3px 3px 6px rgba(15, 23, 42, 0.1),
     inset -1px -1px 3px rgba(255, 255, 255, 0.8),
-    0 0 0 3px rgba(37, 99, 235, 0.12);
+    0 0 0 3px rgba(37, 99, 235, 0.16);
 }
 
 .theme-light .glass-btn {
-  background: linear-gradient(145deg, #e8ecff, #dde3fa);
-  border: 1.5px solid rgba(37, 99, 235, 0.2);
+  background: linear-gradient(145deg, #d7defb, #c5d0f2);
+  border: 2px solid rgba(37, 99, 235, 0.35);
   box-shadow:
-    4px 4px 12px rgba(15, 23, 42, 0.08),
-    -2px -2px 8px rgba(255, 255, 255, 0.9),
+    6px 6px 16px rgba(15, 23, 42, 0.15),
+    -3px -3px 10px rgba(255, 255, 255, 0.9),
     inset 1px 1px 2px rgba(255, 255, 255, 0.7),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.03);
+    inset -1px -1px 2px rgba(15, 23, 42, 0.06);
   color: #1e3a8a;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-btn:hover {
-  background: linear-gradient(145deg, #e0e5ff, #d5dbf7);
+  background: linear-gradient(145deg, #c9d2fb, #b4c1ef);
   box-shadow:
-    6px 6px 16px rgba(15, 23, 42, 0.1),
-    -3px -3px 10px rgba(255, 255, 255, 1),
+    8px 8px 20px rgba(15, 23, 42, 0.18),
+    -4px -4px 12px rgba(255, 255, 255, 1),
     inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.04);
-  border-color: rgba(37, 99, 235, 0.35);
+    inset -1px -1px 2px rgba(15, 23, 42, 0.07);
+  border-color: rgba(37, 99, 235, 0.55);
 }
 
 .theme-light .nav-link {

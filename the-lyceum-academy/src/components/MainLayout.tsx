@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import FloatingDock from './FloatingDock';
-// import VoiceOrb from './VoiceOrb';  // S2S ARI — disabled, coming soon
+import VoiceOrb from './VoiceOrb';
 import SubjectTabBar from './SubjectTabBar';
 import FeedbackWidget from './FeedbackWidget';
 import { NavigationProps } from '../types';
@@ -55,16 +55,7 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
   return (
     <div className="bg-[#050508] text-white/90 min-h-screen flex flex-col">
       <FloatingDock currentView={currentView} onNavigate={onNavigate} />
-      {/* S2S ARI — disabled, coming soon
       <VoiceOrb currentView={currentView} tourActive={tourActive} />
-      */}
-      {/* S2S ARI badge — coming soon */}
-      <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 pointer-events-none select-none">
-        <div className="glass rounded-full px-4 py-2 flex items-center gap-2 opacity-50">
-          <span className="text-lg">🎙</span>
-          <span className="font-sans text-[10px] uppercase tracking-wider text-white/60">Voice ARI — coming soon!</span>
-        </div>
-      </div>
       <main id="lyceum-workspace-content" className={`flex flex-1 w-full ${isFullBleed ? '' : 'max-w-7xl mx-auto px-6 pt-24 pb-32'}`}>
         <div className={`flex-1 ${isFullBleed ? '' : 'overflow-y-auto'}`}>
           {showTabBar && isFullBleed && <div className="px-6 pt-6"><SubjectTabBar /></div>}
