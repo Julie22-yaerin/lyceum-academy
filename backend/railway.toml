@@ -1,8 +1,6 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
 
 [deploy]
-startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
 healthcheckPath = "/health/live"
-healthcheckTimeout = 30
-restartPolicyType = "on_failure"
+healthcheckTimeout = 120
