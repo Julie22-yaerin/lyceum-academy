@@ -243,7 +243,7 @@ function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelec
   }, [cursor]);
 
   return (
-    <div style={{ background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '16px 18px', boxShadow: '0 4px 18px rgba(0,0,0,0.06)' }}>
+    <div style={{ background: 'linear-gradient(145deg, #ffffff, #efece2)', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '16px 18px', boxShadow: '6px 6px 16px rgba(0,0,0,0.08), -4px -4px 12px rgba(255,255,255,0.9), inset 1px 1px 2px rgba(255,255,255,0.8)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <button onClick={() => setCursor(c => new Date(c.getFullYear(), c.getMonth() - 1, 1))}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, color: 'rgba(0,0,0,0.4)', padding: '4px 8px' }}>‹</button>
@@ -838,7 +838,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 style={{
                   width: '100%', marginTop: 16, padding: '12px 14px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
                   fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.85)', outline: 'none',
-                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  background: 'linear-gradient(145deg, #f0ede4, #fbfaf6)',
+                  boxShadow: 'inset 2px 2px 5px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.8)',
                   boxSizing: 'border-box',
                 }}
               />
@@ -931,10 +932,9 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                     maxWidth: '82%',
                     padding: '12px 16px',
                     borderRadius: t.role === 'user' ? '14px 14px 3px 14px' : '14px 14px 14px 3px',
-                    background: t.role === 'user' ? 'rgba(197,160,89,0.16)' : 'rgba(255,255,255,0.55)',
-                    backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    background: t.role === 'user' ? 'linear-gradient(145deg, #f3e8d0, #ecdcb8)' : 'linear-gradient(145deg, #ffffff, #efece2)',
                     border: t.role === 'user' ? '1px solid rgba(197,160,89,0.4)' : '1px solid rgba(0,0,0,0.08)',
-                    boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
+                    boxShadow: '5px 5px 14px rgba(0,0,0,0.08), -3px -3px 10px rgba(255,255,255,0.85), inset 1px 1px 2px rgba(255,255,255,0.6)',
                     fontFamily: 'sans-serif', fontSize: 13.5, lineHeight: 1.6,
                     color: t.role === 'user' ? '#6b5215' : 'rgba(0,0,0,0.78)',
                     whiteSpace: 'pre-wrap',
@@ -947,7 +947,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
                   <div style={{
                     padding: '12px 16px', borderRadius: '14px 14px 14px 3px',
-                    background: 'rgba(255,255,255,0.55)', backdropFilter: 'blur(18px)', WebkitBackdropFilter: 'blur(18px)',
+                    background: 'linear-gradient(145deg, #ffffff, #efece2)',
+                    boxShadow: '5px 5px 14px rgba(0,0,0,0.08), -3px -3px 10px rgba(255,255,255,0.85)',
                     border: '1px solid rgba(0,0,0,0.08)', display: 'flex', gap: 4, alignItems: 'center',
                   }}>
                     <span className="ob-dot" style={{ animationDelay: '0s' }} />
@@ -1062,7 +1063,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 style={{
                   flex: 1, padding: '13px 16px', border: '1.5px solid rgba(0,0,0,0.16)', borderRadius: 8,
                   fontFamily: 'sans-serif', fontSize: 14, color: 'rgba(0,0,0,0.85)', outline: 'none',
-                  background: 'rgba(255,255,255,0.7)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
+                  background: 'linear-gradient(145deg, #f0ede4, #fbfaf6)',
+                  boxShadow: 'inset 2px 2px 5px rgba(0,0,0,0.08), inset -1px -1px 3px rgba(255,255,255,0.8)',
                   boxSizing: 'border-box',
                 }}
               />

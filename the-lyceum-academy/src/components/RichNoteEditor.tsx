@@ -16,8 +16,8 @@ function Toolbar({ editor }: { editor: any }) {
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); action(); }}
-      className={`px-2 py-1 text-xs leading-none border border-white/10 transition-colors ${
-        active ? 'bg-white/10 text-white' : 'text-white/50 hover:bg-white/5'
+      className={`px-2 py-1 text-xs leading-none rounded-md transition-colors ${
+        active ? 'glass-pill-active' : 'glass-pill'
       }`}
       style={{ fontFamily: 'Georgia, serif' }}
     >
@@ -26,7 +26,7 @@ function Toolbar({ editor }: { editor: any }) {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-white/10 bg-white/5 backdrop-blur-xl">
+    <div className="flex flex-wrap items-center gap-1 px-3 py-2 border-b border-white/10">
       {btn('B', () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
       {btn('I', () => editor.chain().focus().toggleItalic().run(), editor.isActive('italic'))}
       {btn('U', () => editor.chain().focus().toggleUnderline().run(), editor.isActive('underline'))}

@@ -69,44 +69,59 @@ body {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* ── Glassmorphism utilities ───────────────────────────────────────────── */
+/* ── Claymorphism utilities ────────────────────────────────────────────── *
+ * Soft, solid extruded surfaces — no backdrop blur, no translucency. Gradient
+ * fills + layered outset/inset box-shadows for a puffy 3D look, in both
+ * dark and light mode (light mode overrides live in the .theme-light block
+ * further down). */
 
 .glass {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(145deg, #141b2e, #0a0e1a);
+  border: 1px solid rgba(167, 139, 250, 0.2);
+  box-shadow:
+    8px 8px 20px rgba(0, 0, 0, 0.5),
+    -4px -4px 12px rgba(255, 255, 255, 0.03),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.05),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .glass-card {
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(32px);
-  -webkit-backdrop-filter: blur(32px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  background: linear-gradient(145deg, #161f34, #0b101e);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  box-shadow:
+    10px 10px 24px rgba(0, 0, 0, 0.55),
+    -5px -5px 14px rgba(255, 255, 255, 0.035),
+    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.06),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .glass-strong {
-  background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(40px);
-  -webkit-backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  background: linear-gradient(145deg, #182035, #0a0f1c);
+  border: 1px solid rgba(167, 139, 250, 0.3);
+  box-shadow:
+    12px 12px 28px rgba(0, 0, 0, 0.6),
+    -6px -6px 16px rgba(255, 255, 255, 0.04),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.07),
+    inset -1.5px -1.5px 3px rgba(0, 0, 0, 0.4);
 }
 
-/* Mind Map panel — much less see-through than the base glass-strong so the
+/* Mind Map panel — much more opaque than the base glass-strong so the
    graph reads clearly against whatever's behind it. */
 .glass-strong.mindmap-panel {
-  background: rgba(15, 20, 36, 0.94);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: linear-gradient(145deg, #131a2c, #080c16);
+  box-shadow:
+    12px 12px 28px rgba(0, 0, 0, 0.6),
+    -6px -6px 16px rgba(255, 255, 255, 0.03),
+    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.05),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .glass-input {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(145deg, #0a0e1a, #141b2e);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    inset 3px 3px 6px rgba(0, 0, 0, 0.45),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.04);
   color: #f0f0f5;
   outline: none;
   transition: border-color 0.2s;
@@ -114,41 +129,60 @@ body {
 
 .glass-input:focus {
   border-color: rgba(167, 139, 250, 0.5);
+  box-shadow:
+    inset 3px 3px 6px rgba(0, 0, 0, 0.45),
+    inset -1px -1px 3px rgba(255, 255, 255, 0.04),
+    0 0 0 3px rgba(167, 139, 250, 0.18);
 }
 
 .glass-btn {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.15), rgba(129, 140, 248, 0.15));
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(167, 139, 250, 0.25);
+  background: linear-gradient(145deg, #2a2350, #1a1638);
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  box-shadow:
+    6px 6px 16px rgba(0, 0, 0, 0.5),
+    -3px -3px 10px rgba(255, 255, 255, 0.04),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.08),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.3);
   color: #d8ccff;
   transition: all 0.2s;
 }
 
 .glass-btn:hover {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(129, 140, 248, 0.25));
-  border-color: rgba(167, 139, 250, 0.4);
+  background: linear-gradient(145deg, #332a5e, #221c42);
+  border-color: rgba(167, 139, 250, 0.6);
+  box-shadow:
+    8px 8px 20px rgba(0, 0, 0, 0.55),
+    -4px -4px 12px rgba(255, 255, 255, 0.05),
+    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.1),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
 }
 
 /* ── Pill/chip/tab utilities — lighter-weight than .glass* for dense UI
    (tabs, toggle buttons, option chips) where a full card shadow would be
    too heavy. Same claymorphism treatment in light mode, smaller shadows. */
 .glass-pill {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(145deg, #131a2c, #0a0e1a);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    3px 3px 8px rgba(0, 0, 0, 0.4),
+    -2px -2px 6px rgba(255, 255, 255, 0.03);
   transition: all 0.15s;
 }
 
 .glass-pill:hover {
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.75);
+  background: linear-gradient(145deg, #161d30, #0d1220);
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .glass-pill-active {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(145deg, #1c2540, #10162a);
+  border: 1px solid rgba(167, 139, 250, 0.4);
   color: #ffffff;
+  box-shadow:
+    3px 3px 8px rgba(0, 0, 0, 0.45),
+    -2px -2px 6px rgba(255, 255, 255, 0.04),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.06);
 }
 
 /* ── Ambient background orbs ──────────────────────────────────────────── */
@@ -279,11 +313,13 @@ body {
 /* ── Floating dock ─────────────────────────────────────────────────────── */
 
 .dock {
-  background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(145deg, #161f34, #0a0e1a);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  box-shadow:
+    8px 8px 22px rgba(0, 0, 0, 0.55),
+    -4px -4px 14px rgba(255, 255, 255, 0.035),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.06),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .dock-icon {
@@ -293,6 +329,20 @@ body {
 .dock-icon:hover {
   transform: translateY(-6px) scale(1.08);
   background: rgba(255, 255, 255, 0.08);
+}
+
+.theme-light .dock {
+  background: linear-gradient(145deg, #e7ecf9, #d7ddef);
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  box-shadow:
+    8px 8px 22px rgba(15, 23, 42, 0.18),
+    -4px -4px 14px rgba(255, 255, 255, 0.95),
+    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.85),
+    inset -1px -1px 2px rgba(15, 23, 42, 0.07);
+}
+
+.theme-light .dock-icon:hover {
+  background: rgba(15, 23, 42, 0.06);
 }
 
 .dock-dot {
