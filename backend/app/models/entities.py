@@ -426,6 +426,13 @@ class SubscriptionPlan(Base, TimestampMixin):
     mind_map_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     reference_library_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
     roadmap_regen_daily_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    # Entitlements (migration 004): daily/per-file usage caps and AI response
+    # queue priority, tied to plan price rather than the older limit set above.
+    daily_tool_call_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    reverse_build_hint_limit_per_file: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    daily_upload_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited
+    ai_queue_priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # higher = served first
+    ari_voice_daily_call_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited, 0 = locked out
     stripe_price_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
 
     __table_args__ = (

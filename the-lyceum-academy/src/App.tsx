@@ -25,7 +25,7 @@ import ProductTour from './components/ProductTour';
 import { buildTourSteps } from './lib/tourSteps';
 import { detectLocale, setDocumentLocale } from './lib/locale';
 import { scopedGateKey } from './lib/persist';
-import { shouldShowPaywall, trialDaysRemaining, getTrialStart } from './lib/trial';
+import { shouldShowPaywall, trialDaysRemaining, getTrialStart, chooseFree } from './lib/trial';
 import { useSubscription } from './lib/useSubscription';
 import TrialPaywall from './components/TrialPaywall';
 
@@ -143,7 +143,13 @@ function AppInner() {
 
   // Trial expired paywall: block workspace until user subscribes
   if (showPaywall && user) {
-    return <TrialPaywall daysRemaining={trialDaysRemaining(user.uid)} onSubscribe={() => {}} />;
+    return (
+      <TrialPaywall
+        daysRemaining={trialDaysRemaining(user.uid)}
+        onSubscribe={() => {}}
+        onChooseFree={() => { chooseFree(user.uid); setShowPaywall(false); }}
+      />
+    );
   }
 
   return (

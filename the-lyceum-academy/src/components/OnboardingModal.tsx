@@ -55,19 +55,19 @@ interface Plan {
 
 const PLANS: Plan[] = [
   {
-    id: 'compass', name: 'Compass', price: 5, emoji: '🌱', color: '#4A7C59',
+    id: 'compass', name: 'Compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
     tagline: '"I feel lost."',
-    features: ['Personalized study roadmap', 'Basic Neural Map', 'Progress tracking', 'Weekly planner'],
+    features: ['10 tool calls a day', '3 reverse-building hints per PDF', 'Upload up to 3 documents a day'],
   },
   {
-    id: 'scholar', name: 'Scholar', price: 8, emoji: '🎓', color: '#C5A059',
+    id: 'scholar', name: 'Scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
     tagline: 'Flagship — 80% users', flagship: true,
-    features: ['AI grading (Meta + Gemma)', 'Full Neural Map', 'Roadmap', 'AI discussion', 'Reflection', 'Planner'],
+    features: ['20 tool calls a day (2x Compass)', '6 reverse-building hints per PDF', 'Upload up to 5 documents a day', 'Higher AI response priority than Compass'],
   },
   {
-    id: 'focus', name: 'Focus', price: 12, emoji: '🎯', color: '#7C3AED',
+    id: 'mentor', name: 'STEM Focus', price: 34, emoji: '🎯', color: '#7C3AED',
     tagline: '"Total focus."',
-    features: ['Everything in Scholar', 'Cross-domain Neural Map', 'Advanced knowledge graph', 'Priority support', 'Unlimited AI minutes'],
+    features: ['30 tool calls a day', 'Upload up to 10 documents a day', 'Higher AI response priority than Scholar', 'Unlocks Ari voice assistant (5 calls a day)'],
   },
 ];
 

@@ -5,6 +5,7 @@
  */
 
 const TRIAL_PREFIX = 'lyceum_trial_started:';
+const FREE_CHOSEN_PREFIX = 'lyceum_free_tier_chosen:';
 const TRIAL_DAYS = 3;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -45,11 +46,26 @@ export function hasTrialExpired(uid: string): boolean {
 }
 
 /**
+ * Record that the user picked "continue with Free" on the paywall — after
+ * this, they're let into the app under the Free tier's limits instead of
+ * being blocked. Deliberately more restricted than the 3-day trial was.
+ */
+export function chooseFree(uid: string): void {
+  localStorage.setItem(FREE_CHOSEN_PREFIX + uid, '1');
+}
+
+export function hasChosenFree(uid: string): boolean {
+  return localStorage.getItem(FREE_CHOSEN_PREFIX + uid) === '1';
+}
+
+/**
  * Should we show the paywall?
- * True when: trial expired AND no active paid subscription.
+ * True when: trial expired AND no active paid subscription AND the user
+ * hasn't already picked the Free tier.
  */
 export function shouldShowPaywall(uid: string, hasActiveSubscription: boolean): boolean {
   if (hasActiveSubscription) return false;
+  if (hasChosenFree(uid)) return false;
   // If trial hasn't started yet, don't block — start it and let them in
   if (!getTrialStart(uid)) return false;
   return hasTrialExpired(uid);

@@ -58,6 +58,11 @@ class PlanResponse(BaseModel):
     mind_map_ai_see_document_limit: int | None
     reference_library_limit: int | None
     roadmap_regen_daily_limit: int | None
+    daily_tool_call_limit: int | None
+    reverse_build_hint_limit_per_file: int | None
+    daily_upload_limit: int | None
+    ai_queue_priority: int
+    ari_voice_daily_call_limit: int | None
 
     class Config:
         from_attributes = True
@@ -176,8 +181,10 @@ def list_plans(db: Session = Depends(get_db)):
     result = db.execute(select(SubscriptionPlan).order_by(SubscriptionPlan.price_usd_cents))
     plans = result.scalars().all()
 
-    # Plan limits are currently disabled app-wide — every tier reports
-    # unlimited, regardless of what's stored on the plan row.
+    # The older limit set (voice minutes, mind map, reference library, roadmap
+    # regen) stays disabled app-wide per prior decision. The entitlements
+    # added in migration 004 (tool calls, uploads, reverse-build hints, queue
+    # priority, Ari voice calls) are real, tier-priced limits — returned as-is.
     return [
         PlanResponse(
             id=str(plan.id),
@@ -189,6 +196,11 @@ def list_plans(db: Session = Depends(get_db)):
             mind_map_ai_see_document_limit=get_mind_map_ai_limit(plan.tier.value),
             reference_library_limit=None,
             roadmap_regen_daily_limit=None,
+            daily_tool_call_limit=plan.daily_tool_call_limit,
+            reverse_build_hint_limit_per_file=plan.reverse_build_hint_limit_per_file,
+            daily_upload_limit=plan.daily_upload_limit,
+            ai_queue_priority=plan.ai_queue_priority,
+            ari_voice_daily_call_limit=plan.ari_voice_daily_call_limit,
         )
         for plan in plans
     ]

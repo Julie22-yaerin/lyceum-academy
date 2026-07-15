@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useCallback, useMemo, type ReactNode } from 'react';
 import { translations, LANGUAGES, type AppLanguage } from './translations';
 
+export type { AppLanguage };
+
 const STORAGE_KEY = 'lyceum_lang';
 const DEFAULT_LANG: AppLanguage = 'en';
 

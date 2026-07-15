@@ -10,7 +10,7 @@ const API_BASE = getApiBaseUrl();
 
 export interface SubscriptionPlan {
   id: string;
-  tier: 'compass' | 'scholar' | 'focus';
+  tier: 'free' | 'compass' | 'scholar' | 'mentor' | 'researcher';
   billing_cycle: 'monthly' | 'annual';
   price_usd: number;
   voice_minutes_monthly: number | null;
@@ -18,6 +18,11 @@ export interface SubscriptionPlan {
   mind_map_ai_see_document_limit: number | null;
   reference_library_limit: number | null;
   roadmap_regen_daily_limit: number | null;
+  daily_tool_call_limit: number | null;
+  reverse_build_hint_limit_per_file: number | null;
+  daily_upload_limit: number | null;
+  ai_queue_priority: number;
+  ari_voice_daily_call_limit: number | null;
 }
 
 export interface CurrentSubscription {

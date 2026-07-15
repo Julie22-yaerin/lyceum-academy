@@ -8,9 +8,11 @@ import {
 } from '../lib/subscriptionApi';
 
 const TIER_LABELS: Record<string, string> = {
+  free: 'Free',
   compass: 'Compass',
   scholar: 'Scholar',
-  focus: 'Focus',
+  mentor: 'STEM Focus',
+  researcher: 'Researcher',
 };
 
 function LanguageSection() {
@@ -105,7 +107,10 @@ function PlanSection() {
       try {
         const [subResult, planList] = await Promise.allSettled([getCurrentSubscription(), getSubscriptionPlans()]);
         if (subResult.status === 'fulfilled') setSub(subResult.value);
-        if (planList.status === 'fulfilled') setPlans(planList.value);
+        if (planList.status === 'fulfilled') {
+          // Free (no-payment fallback tier) and Researcher (unreleased, hidden) don't belong in the upgrade list.
+          setPlans(planList.value.filter(p => p.tier !== 'free' && p.tier !== 'researcher'));
+        }
       } finally {
         setLoading(false);
       }
@@ -147,7 +152,7 @@ function PlanSection() {
           <div className="flex items-center justify-between mb-5">
             <div>
               <p className="text-lg font-semibold text-white">
-                {sub ? (TIER_LABELS[sub.tier] || sub.tier) : 'Compass (Free)'}
+                {sub ? (TIER_LABELS[sub.tier] || sub.tier) : 'Free'}
               </p>
               {sub && (
                 <p className="text-[11px] text-white/40 mt-0.5">

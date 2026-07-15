@@ -12,13 +12,13 @@ type BillingCycle = 'monthly' | 'annual';
 const TIER_NAMES: Record<string, string> = {
   compass: 'Compass',
   scholar: 'Scholar',
-  focus: 'Focus',
+  mentor: 'STEM Focus',
 };
 
 const TIER_DESCRIPTIONS: Record<string, string> = {
   compass: 'Essential tools for focused learning',
   scholar: 'Advanced features for serious students',
-  focus: 'Total focus with unlimited AI power',
+  mentor: 'Total focus with unlimited AI power',
 };
 
 export default function PricingView() {
@@ -59,8 +59,8 @@ export default function PricingView() {
     }
   };
 
-  const filteredPlans = plans.filter((plan) => plan.billing_cycle === billingCycle);
-  const tierOrder = ['compass', 'scholar', 'focus'];
+  const filteredPlans = plans.filter((plan) => plan.billing_cycle === billingCycle && plan.tier !== 'free' && plan.tier !== 'researcher');
+  const tierOrder = ['compass', 'scholar', 'mentor'];
   const sortedPlans = filteredPlans.sort(
     (a, b) => tierOrder.indexOf(a.tier) - tierOrder.indexOf(b.tier)
   );
