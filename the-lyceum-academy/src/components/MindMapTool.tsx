@@ -1,18 +1,34 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { inspectMindMap, validateToolMap } from '../lib/api';
 import { useMindMapGate } from '../lib/useSubscription';
 import UpgradePrompt from './UpgradePrompt';
 
+// ── Types ──────────────────────────────────────────────────────────────────
 interface MindMapNode {
   id: string;
   label: string;
   x: number;
   y: number;
   color: string;
-  role: 'input_a' | 'input_b' | 'systems' | 'output' | 'custom';
-  fixed?: boolean;
+  size: 's' | 'm' | 'l';
 }
+
+interface MindMapLink {
+  id: string;
+  from: string;
+  to: string;
+}
+
+interface ContextMenu {
+  nodeId: string | null;
+  linkId: string | null;
+  x: number;
+  y: number;
+}
+
+// ── Constants ──────────────────────────────────────────────────────────────
+const MAX_LABEL = 50;
 
 const DEFAULT_COLUMNS = [
   { id: 'given', label: 'Given', color: '#E8F4F8' },
@@ -22,29 +38,24 @@ const DEFAULT_COLUMNS = [
   { id: 'check', label: 'Check', color: '#E8E8F8' },
 ];
 
-const NODE_COLORS = ['#FF3D57', '#7C4DFF', '#00B0FF', '#00C875', '#FFAB40', '#9E9E9E'];
+const NODE_PALETTE = [
+  '#FF3D57', '#7C4DFF', '#00B0FF', '#00C875',
+  '#FFAB40', '#E040FB', '#FF6E40', '#64FFDA',
+  '#84FFFF', '#B388FF', '#FF80AB', '#CCFF90',
+];
+
+const NODE_SIZES: Record<string, { w: number; h: number; rx: number; fontSize: number }> = {
+  s: { w: 100, h: 36, rx: 10, fontSize: 10 },
+  m: { w: 140, h: 48, rx: 14, fontSize: 12 },
+  l: { w: 180, h: 60, rx: 16, fontSize: 14 },
+};
+
 const FREE_VIEWBOX = { width: 1000, height: 520 };
 
-function createDefaultFreeNodes(): MindMapNode[] {
-  return [
-    { id: 'input-a', label: 'Input 1', x: 150, y: 160, color: '#CFE8FF', role: 'input_a', fixed: true },
-    { id: 'input-b', label: 'Input 2', x: 150, y: 360, color: '#D7F7E7', role: 'input_b', fixed: true },
-    { id: 'systems', label: 'Systems', x: 500, y: 260, color: '#FFE7B8', role: 'systems', fixed: true },
-    { id: 'output', label: 'Output', x: 850, y: 260, color: '#E5D5FF', role: 'output', fixed: true },
-  ];
-}
+// ── Helpers ────────────────────────────────────────────────────────────────
+function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`; }
 
-function makeCustomNode(index: number): MindMapNode {
-  const offset = Math.max(0, index - 4);
-  return {
-    id: `${Date.now()}-${index}`,
-    label: 'Custom node',
-    x: 250 + Math.random() * 420,
-    y: 80 + ((offset % 4) * 90) + Math.random() * 40,
-    color: NODE_COLORS[index % NODE_COLORS.length],
-    role: 'custom',
-  };
-}
+function truncate(s: string, max: number) { return s.length > max ? s.slice(0, max - 1) + '…' : s; }
 
 function Toast({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   return (
@@ -55,121 +66,23 @@ function Toast({ msg, onDismiss }: { msg: string; onDismiss: () => void }) {
   );
 }
 
-const PLACEHOLDER_LABELS: Partial<Record<MindMapNode['role'], string>> = {
-  input_a: 'Input 1',
-  input_b: 'Input 2',
-  systems: 'Systems',
-  output: 'Output',
-};
-
-const WRONG_STREAK_BEFORE_AI_SUGGESTION = 3;
-
-function tokenize(text: string): Set<string> {
-  return new Set(
-    text
-      .toLowerCase()
-      .normalize('NFD').replace(/[̀-ͯ]/g, '') // strip accents
-      .replace(/[^a-z0-9\s]/g, ' ')
-      .split(/\s+/)
-      .filter(w => w.length > 2)
-  );
-}
-
-interface StructuralCheckResult {
-  pass: boolean;
-  location?: 'input' | 'systems' | 'output';
-  detail: string;
-}
-
-/**
- * The "normal algorithm" pass, run entirely client-side before the paid
- * vision model is ever called (SOC-13): it can only judge what's mechanically
- * checkable — a placeholder block never renamed, or a map whose labels share
- * zero words with the problem prompt. Anything past that is a semantic
- * judgment call the algorithm can't make, so it just reports "wrong" with no
- * location, matching what happens 3 times in a row before "Let AI see" is
- * suggested.
- */
-function checkFreeMapStructure(nodes: MindMapNode[], context: string): StructuralCheckResult {
-  const requiredRoles: ('input_a' | 'input_b' | 'systems' | 'output')[] = ['input_a', 'input_b', 'systems', 'output'];
-  for (const role of requiredRoles) {
-    const node = nodes.find(n => n.role === role);
-    const location: 'input' | 'systems' | 'output' = role === 'input_a' || role === 'input_b' ? 'input' : role;
-    if (!node) {
-      return { pass: false, location, detail: `Missing the ${role.replace('_', ' ')} block.` };
-    }
-    if (node.label.trim() === PLACEHOLDER_LABELS[role]) {
-      return {
-        pass: false,
-        location,
-        detail: location === 'input'
-          ? `"${node.label}" is still a placeholder — fill in what this problem actually gives you.`
-          : location === 'systems'
-            ? '"Systems" is still a placeholder — name the tool or method you will apply.'
-            : '"Output" is still a placeholder — state what the problem is asking you to find.',
-      };
-    }
-  }
-
-  if (context.trim()) {
-    const promptWords = tokenize(context);
-    const mapWords = new Set<string>();
-    for (const n of nodes) tokenize(n.label).forEach(w => mapWords.add(w));
-    let overlap = 0;
-    mapWords.forEach(w => { if (promptWords.has(w)) overlap++; });
-    if (overlap === 0) {
-      return { pass: false, detail: "This doesn't look related to the problem — check your map again." };
-    }
-  }
-
-  return { pass: true, detail: 'Structure looks complete.' };
-}
-
-function formatFindings(result: { summary?: string; findings?: { location: string; issue: string; detail: string }[]; missing?: string[]; suggestions?: string[] }) {
-  const lines: string[] = [];
-  if (result.summary) lines.push(result.summary);
-  if (result.findings?.length) {
-    lines.push('');
-    lines.push('Findings:');
-    for (const item of result.findings.slice(0, 5)) {
-      lines.push(`- ${item.location}: ${item.issue} — ${item.detail}`);
-    }
-  }
-  if (result.missing?.length) {
-    lines.push('');
-    lines.push(`Missing: ${result.missing.join(', ')}`);
-  }
-  if (result.suggestions?.length) {
-    lines.push('');
-    lines.push(`Fix: ${result.suggestions[0]}`);
-  }
-  return lines.join('\n');
-}
-
 async function svgToPngDataUrl(svgEl: SVGSVGElement): Promise<string> {
   const serializer = new XMLSerializer();
   const svgClone = svgEl.cloneNode(true) as SVGSVGElement;
   svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-
   const width = Math.max(1, svgEl.clientWidth || FREE_VIEWBOX.width);
   const height = Math.max(1, svgEl.clientHeight || FREE_VIEWBOX.height);
   const svgText = serializer.serializeToString(svgClone);
   const svgUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
-
-  return await new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     const img = new Image();
     const canvas = document.createElement('canvas');
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
-
     img.onload = () => {
       const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas unavailable'));
-        return;
-      }
+      if (!ctx) { reject(new Error('Canvas unavailable')); return; }
       ctx.scale(dpr, dpr);
       ctx.fillStyle = '#0b1020';
       ctx.fillRect(0, 0, width, height);
@@ -181,35 +94,91 @@ async function svgToPngDataUrl(svgEl: SVGSVGElement): Promise<string> {
   });
 }
 
-/**
- * Mind Map — Tool Map (Given/Find/Tools/Steps/Check scaffold) + Free Map
- * The free map starts with a standard 2-input -> systems -> output layout
- * and allows custom nodes. The "Let AI see" action sends a screenshot to
- * the vision model for structural feedback.
- */
+function tokenize(text: string): Set<string> {
+  return new Set(
+    text.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 2)
+  );
+}
+
+function formatFindings(result: { summary?: string; findings?: { location: string; issue: string; detail: string }[]; missing?: string[]; suggestions?: string[] }) {
+  const lines: string[] = [];
+  if (result.summary) lines.push(result.summary);
+  if (result.findings?.length) {
+    lines.push('', 'Findings:');
+    for (const item of result.findings.slice(0, 5)) lines.push(`- ${item.location}: ${item.issue} — ${item.detail}`);
+  }
+  if (result.missing?.length) lines.push('', `Missing: ${result.missing.join(', ')}`);
+  if (result.suggestions?.length) lines.push('', `Fix: ${result.suggestions[0]}`);
+  return lines.join('\n');
+}
+
+// ── Layout: arrange tool items into a mind-map ─────────────────────────────
+function layoutToolItems(columns: { id: string; label: string; color: string; items: string[] }[]): MindMapNode[] {
+  const nodes: MindMapNode[] = [];
+  const colCount = columns.length;
+  const colWidth = FREE_VIEWBOX.width / (colCount + 1);
+
+  columns.forEach((col, ci) => {
+    const cx = colWidth * (ci + 1);
+    const items = col.items.slice(0, 6); // max 6 per column
+    const totalH = items.length * 58;
+    const startY = (FREE_VIEWBOX.height - totalH) / 2;
+
+    items.forEach((item, ri) => {
+      nodes.push({
+        id: uid(),
+        label: truncate(item, MAX_LABEL),
+        x: cx,
+        y: startY + ri * 58,
+        color: NODE_PALETTE[ci % NODE_PALETTE.length],
+        size: 'm',
+      });
+    });
+  });
+
+  return nodes;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  COMPONENT
+// ═══════════════════════════════════════════════════════════════════════════
 export default function MindMapTool({ context = '', documentId = '' }: { context?: string; documentId?: string }) {
   const { canUse, tier, used, limit, remaining, loading, refetch } = useMindMapGate(documentId);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<'tool' | 'free'>('free');
+  const [tab, setTab] = useState<'tool' | 'free'>('tool');
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
+  // ── Tool tab state ────────────────────────────────────────────────────
   const [columns, setColumns] = useState(DEFAULT_COLUMNS.map(c => ({ ...c, items: [] as string[] })));
   const [toolInput, setToolInput] = useState<Record<string, string>>({});
-  const [toastMsg, setToastMsg] = useState('');
   const [validating, setValidating] = useState(false);
 
-  const [mmNodes, setMmNodes] = useState<MindMapNode[]>(() => createDefaultFreeNodes());
+  // ── Free map state ────────────────────────────────────────────────────
+  const [mmNodes, setMmNodes] = useState<MindMapNode[]>([]);
+  const [mmLinks, setMmLinks] = useState<MindMapLink[]>([]);
   const [mmDragging, setMmDragging] = useState<string | null>(null);
   const [mmDragOffset, setMmDragOffset] = useState({ x: 0, y: 0 });
   const [inspecting, setInspecting] = useState(false);
-  const [wrongStreak, setWrongStreak] = useState(0);
-  const mmSvgRef = useRef<SVGSVGElement>(null);
-  const suggestAiSee = wrongStreak >= WRONG_STREAK_BEFORE_AI_SUGGESTION;
+  const [toastMsg, setToastMsg] = useState('');
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
+  // link drawing state: click first node → click second node
+  const [linkingFrom, setLinkingFrom] = useState<string | null>(null);
+
+  // editing node inline
+  const [editingNode, setEditingNode] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  // color picker for selected node
+  const [colorPickerNode, setColorPickerNode] = useState<string | null>(null);
+
+  const mmSvgRef = useRef<SVGSVGElement>(null);
+
+  // ── Tool tab helpers ──────────────────────────────────────────────────
   function addItem(colId: string) {
     const val = (toolInput[colId] || '').trim();
     if (!val) return;
-    setColumns(cols => cols.map(c => c.id === colId ? { ...c, items: [...c.items, val] } : c));
+    setColumns(cols => cols.map(c => c.id === colId ? { ...c, items: [...c.items, truncate(val, MAX_LABEL)] } : c));
     setToolInput(ti => ({ ...ti, [colId]: '' }));
   }
 
@@ -230,40 +199,50 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
     }
   }
 
-  function addMmNode() {
-    setMmNodes(prev => [...prev, makeCustomNode(prev.length)]);
-  }
-
-  function resetMmNodes() {
-    setMmNodes(createDefaultFreeNodes());
-    setWrongStreak(0);
-  }
-
-  function handleOk() {
-    const result = checkFreeMapStructure(mmNodes, context);
-    if (result.pass) {
-      setWrongStreak(0);
-      setToastMsg('✓ Looks right — structure checks out.');
+  /** Transfer tool column items → mind map nodes */
+  function buildMapFromTool() {
+    const total = columns.reduce((s, c) => s + c.items.length, 0);
+    if (total === 0) {
+      setToastMsg('Add items to the columns first, then build the map.');
       return;
     }
-    const next = wrongStreak + 1;
-    setWrongStreak(next);
-    const lines = [`✗ Not quite right${result.location ? ` (${result.location})` : ''}: ${result.detail}`];
-    if (next >= WRONG_STREAK_BEFORE_AI_SUGGESTION) {
-      lines.push('', `Wrong ${next} times in a row — try "Let AI see" for a closer look.`);
-    }
-    setToastMsg(lines.join('\n'));
+    const nodes = layoutToolItems(columns);
+    setMmNodes(nodes);
+    setMmLinks([]);
+    setTab('free');
+    setToastMsg(`Map built with ${nodes.length} nodes. Drag, connect, and customize freely.`);
   }
 
-  function startMmDrag(id: string, e: MouseEvent) {
+  // ── Mind map: node operations ─────────────────────────────────────────
+  function addNode() {
+    const id = uid();
+    setMmNodes(prev => [...prev, {
+      id,
+      label: 'New node',
+      x: 200 + Math.random() * 500,
+      y: 80 + Math.random() * 300,
+      color: NODE_PALETTE[prev.length % NODE_PALETTE.length],
+      size: 'm',
+    }]);
+  }
+
+  function deleteNode(id: string) {
+    setMmNodes(prev => prev.filter(n => n.id !== id));
+    setMmLinks(prev => prev.filter(l => l.from !== id && l.to !== id));
+    setContextMenu(null);
+    setColorPickerNode(null);
+  }
+
+  function startDrag(id: string, e: MouseEvent) {
+    if (editingNode === id) return;
     const node = mmNodes.find(n => n.id === id);
-    if (!node || node.fixed || !mmSvgRef.current) return;
+    if (!node || !mmSvgRef.current) return;
     const rect = mmSvgRef.current.getBoundingClientRect();
     setMmDragging(id);
     setMmDragOffset({ x: e.clientX - rect.left - node.x, y: e.clientY - rect.top - node.y });
   }
 
-  function onMmMouseMove(e: MouseEvent) {
+  function onMove(e: MouseEvent) {
     if (!mmDragging || !mmSvgRef.current) return;
     const rect = mmSvgRef.current.getBoundingClientRect();
     const nx = Math.min(FREE_VIEWBOX.width - 60, Math.max(60, e.clientX - rect.left - mmDragOffset.x));
@@ -271,34 +250,84 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
     setMmNodes(prev => prev.map(n => n.id === mmDragging ? { ...n, x: nx, y: ny } : n));
   }
 
-  function updateNodeLabel(id: string) {
-    const node = mmNodes.find(n => n.id === id);
-    const lbl = window.prompt('Rename node:', node?.label || '');
-    if (!lbl) return;
-    setMmNodes(prev => prev.map(n => n.id === id ? { ...n, label: lbl } : n));
+  function onUp() {
+    setMmDragging(null);
+    setLinkingFrom(null);
   }
 
-  async function handleAiSee() {
-    if (loading) {
-      setToastMsg('Checking quota...');
-      return;
+  /** Click on a node: if linking mode, create link; else start linking */
+  function onNodeClick(id: string) {
+    if (editingNode === id) return;
+    if (linkingFrom && linkingFrom !== id) {
+      // create link
+      const exists = mmLinks.some(l =>
+        (l.from === linkingFrom && l.to === id) || (l.from === id && l.to === linkingFrom)
+      );
+      if (!exists) {
+        setMmLinks(prev => [...prev, { id: uid(), from: linkingFrom, to: id }]);
+      }
+      setLinkingFrom(null);
+    } else {
+      setLinkingFrom(linkingFrom === id ? null : id);
     }
-    if (!canUse) {
-      setShowUpgradePrompt(true);
-      return;
-    }
-    const svg = mmSvgRef.current;
-    if (!svg) {
-      setToastMsg('Mind map canvas is not ready yet.');
-      return;
-    }
+  }
 
+  /** Double-click → inline edit */
+  function onNodeDblClick(id: string) {
+    const node = mmNodes.find(n => n.id === id);
+    if (!node) return;
+    setEditingNode(id);
+    setEditValue(node.label);
+  }
+
+  function commitEdit(id: string) {
+    const trimmed = editValue.trim();
+    if (trimmed) {
+      setMmNodes(prev => prev.map(n => n.id === id ? { ...n, label: truncate(trimmed, MAX_LABEL) } : n));
+    }
+    setEditingNode(null);
+  }
+
+  function changeNodeColor(id: string, color: string) {
+    setMmNodes(prev => prev.map(n => n.id === id ? { ...n, color } : n));
+    setColorPickerNode(null);
+    setContextMenu(null);
+  }
+
+  function changeNodeSize(id: string, size: 's' | 'm' | 'l') {
+    setMmNodes(prev => prev.map(n => n.id === id ? { ...n, size } : n));
+    setContextMenu(null);
+  }
+
+  function deleteLink(id: string) {
+    setMmLinks(prev => prev.filter(l => l.id !== id));
+    setContextMenu(null);
+  }
+
+  // ── Context menu (right-click) ────────────────────────────────────────
+  function onNodeContextMenu(e: MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ nodeId: id, linkId: null, x: e.clientX, y: e.clientY });
+  }
+
+  function onSvgContextMenu(e: MouseEvent) {
+    e.preventDefault();
+    setContextMenu(null);
+    setColorPickerNode(null);
+  }
+
+  // ── AI see ────────────────────────────────────────────────────────────
+  async function handleAiSee() {
+    if (loading) { setToastMsg('Checking quota...'); return; }
+    if (!canUse) { setShowUpgradePrompt(true); return; }
+    const svg = mmSvgRef.current;
+    if (!svg) { setToastMsg('Mind map canvas is not ready yet.'); return; }
     setInspecting(true);
     try {
       const image = await svgToPngDataUrl(svg);
       const result = await inspectMindMap(image, context, documentId);
       await refetch();
-      setWrongStreak(0);
       const remainingText = result.remaining === null ? 'unlimited' : `${result.remaining} left in this PDF`;
       const lines = [formatFindings(result), '', `Quota: ${result.used_in_document}/${result.document_limit ?? '∞'} · ${remainingText}`];
       setToastMsg(lines.filter(Boolean).join('\n'));
@@ -309,24 +338,100 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
     }
   }
 
-  const defaultNodes = mmNodes.filter(n => n.role !== 'custom');
-  const customNodes = mmNodes.filter(n => n.role === 'custom');
-
   const aiQuotaLabel = loading
     ? 'Checking quota...'
     : limit === null
       ? `AI see: unlimited (${tier})`
       : `AI see: ${used}/${limit} this PDF · ${remaining ?? 0} left`;
 
+  // ── Render SVG link between two nodes ─────────────────────────────────
+  function renderLink(link: MindMapLink) {
+    const a = mmNodes.find(n => n.id === link.from);
+    const b = mmNodes.find(n => n.id === link.to);
+    if (!a || !b) return null;
+    return (
+      <line
+        key={link.id}
+        x1={a.x} y1={a.y} x2={b.x} y2={b.y}
+        stroke="rgba(255,255,255,0.3)" strokeWidth={2}
+        markerEnd="url(#mindmap-arrow)"
+        onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setContextMenu({ nodeId: null, linkId: link.id, x: e.clientX, y: e.clientY }); }}
+        style={{ cursor: 'pointer' }}
+      />
+    );
+  }
+
+  // ── Render SVG node ───────────────────────────────────────────────────
+  function renderNode(node: MindMapNode) {
+    const dim = NODE_SIZES[node.size];
+    const isActive = linkingFrom === node.id;
+    const isEditing = editingNode === node.id;
+
+    return (
+      <g
+        key={node.id}
+        transform={`translate(${node.x},${node.y})`}
+        onMouseDown={e => { e.stopPropagation(); startDrag(node.id, e); }}
+        onClick={e => { e.stopPropagation(); onNodeClick(node.id); }}
+        onDoubleClick={e => { e.stopPropagation(); onNodeDblClick(node.id); }}
+        onContextMenu={e => onNodeContextMenu(e, node.id)}
+        style={{ cursor: mmDragging === node.id ? 'grabbing' : 'grab' }}
+      >
+        {/* glow for linking mode */}
+        {isActive && (
+          <rect
+            x={-dim.w / 2 - 4} y={-dim.h / 2 - 4}
+            width={dim.w + 8} height={dim.h + 8}
+            rx={dim.rx + 4} ry={dim.rx + 4}
+            fill="none" stroke="#7C4DFF" strokeWidth={2.5}
+            opacity={0.8}
+          />
+        )}
+        <rect
+          x={-dim.w / 2} y={-dim.h / 2}
+          width={dim.w} height={dim.h}
+          rx={dim.rx} ry={dim.rx}
+          fill={node.color} opacity={0.96}
+          style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.3))' }}
+        />
+        {isEditing ? (
+          <foreignObject x={-dim.w / 2 + 4} y={-dim.h / 2 + 2} width={dim.w - 8} height={dim.h - 4}>
+            <input
+              type="text"
+              autoFocus
+              value={editValue}
+              onChange={e => setEditValue(e.target.value.slice(0, MAX_LABEL))}
+              onBlur={() => commitEdit(node.id)}
+              onKeyDown={e => { if (e.key === 'Enter') commitEdit(node.id); if (e.key === 'Escape') setEditingNode(null); }}
+              className="w-full h-full bg-white text-[#101320] font-sans font-bold outline-none text-center px-1"
+              style={{ fontSize: dim.fontSize }}
+            />
+          </foreignObject>
+        ) : (
+          <text
+            textAnchor="middle"
+            dominantBaseline="middle"
+            fontSize={dim.fontSize}
+            fontFamily="Helvetica Neue, sans-serif"
+            fontWeight="700"
+            fill="#101320"
+            style={{ userSelect: 'none', pointerEvents: 'none' }}
+          >
+            {node.label}
+          </text>
+        )}
+      </g>
+    );
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  //  CLOSED — floating button
+  // ═════════════════════════════════════════════════════════════════════
   if (!open) {
     return (
       <>
         {showUpgradePrompt && (
-          <UpgradePrompt
-            feature="mindmap"
-            currentTier={tier}
-            onClose={() => setShowUpgradePrompt(false)}
-          />
+          <UpgradePrompt feature="mindmap" currentTier={tier} onClose={() => setShowUpgradePrompt(false)} />
         )}
         <button
           onClick={() => setOpen(true)}
@@ -340,23 +445,27 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
     );
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  //  OPEN — panel
+  // ═════════════════════════════════════════════════════════════════════
   return (
     <>
       <div
-        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[480px] glass-strong mindmap-panel rounded-3xl flex flex-col overflow-hidden"
+        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[500px] glass-strong mindmap-panel rounded-3xl flex flex-col overflow-hidden"
         style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
       >
+        {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-outline-variant/20 flex-shrink-0">
           <span className="font-serif text-lg text-on-surface tracking-wide">Mind Map</span>
           <div className="flex items-center gap-3">
             <div className="flex gap-0 rounded-xl overflow-hidden border border-outline-variant/30">
-              {(['free', 'tool'] as const).map(t => (
+              {(['tool', 'free'] as const).map(t => (
                 <button
                   key={t}
                   onClick={() => setTab(t)}
                   className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1.5px] transition-colors ${tab === t ? 'bg-on-surface text-surface' : 'text-on-surface opacity-60 hover:opacity-100'}`}
                 >
-                  {t === 'free' ? 'Map' : 'Tool'}
+                  {t === 'tool' ? 'Tool' : 'Map'}
                 </button>
               ))}
             </div>
@@ -366,7 +475,10 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
           </div>
         </div>
 
+        {/* Body */}
         <div className="flex-1 overflow-hidden">
+
+          {/* ─── TOOL TAB ──────────────────────────────────────────── */}
           {tab === 'tool' && (
             <div className="h-full flex flex-col">
               <div className="flex-1 overflow-x-auto p-3">
@@ -379,7 +491,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                         {col.items.map((item, i) => (
                           <div key={i} className="glass rounded-lg px-2.5 py-1.5 font-sans text-[11px] text-on-surface flex items-center justify-between group">
-                            <span className="flex-1">{item}</span>
+                            <span className="flex-1 truncate" title={item}>{item}</span>
                             <button onClick={() => removeItem(col.id, i)} className="opacity-0 group-hover:opacity-100 ml-2 text-on-surface/50 hover:text-on-surface">✕</button>
                           </div>
                         ))}
@@ -389,9 +501,10 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                           <input
                             type="text"
                             value={toolInput[col.id] || ''}
-                            onChange={e => setToolInput(ti => ({ ...ti, [col.id]: e.target.value }))}
+                            onChange={e => setToolInput(ti => ({ ...ti, [col.id]: e.target.value.slice(0, MAX_LABEL) }))}
                             onKeyDown={e => e.key === 'Enter' && addItem(col.id)}
                             placeholder="Add..."
+                            maxLength={MAX_LABEL}
                             className="flex-1 glass-input rounded-lg px-2 py-1.5 font-sans text-[11px] min-w-0"
                           />
                           <button onClick={() => addItem(col.id)} className="px-2 py-1.5 rounded-lg glass-btn font-sans text-xs">+</button>
@@ -401,7 +514,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   ))}
                 </div>
               </div>
-              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center justify-end">
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center justify-end gap-2">
                 <button
                   onClick={validateMap}
                   disabled={validating}
@@ -410,128 +523,180 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   {validating
                     ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
                     : <span className="material-symbols-outlined text-[14px]">check_circle</span>}
-                  Validate with AI
+                  Validate
+                </button>
+                <button
+                  onClick={buildMapFromTool}
+                  className="rounded-xl bg-on-surface text-surface px-5 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 hover:opacity-90 transition-opacity"
+                >
+                  <span className="material-symbols-outlined text-[14px]">account_tree</span>
+                  Build Map
                 </button>
               </div>
             </div>
           )}
 
+          {/* ─── FREE MAP TAB ──────────────────────────────────────── */}
           {tab === 'free' && (
             <div className="h-full flex flex-col">
               <div className="flex-1 relative overflow-hidden">
+                {linkingFrom && (
+                  <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 glass-strong rounded-xl px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1px] text-on-surface/80 flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[13px] text-violet-400">link</span>
+                    Click another node to connect
+                    <button onClick={() => setLinkingFrom(null)} className="ml-2 opacity-50 hover:opacity-100">✕</button>
+                  </div>
+                )}
                 <svg
                   ref={mmSvgRef}
                   className="w-full h-full"
                   viewBox={`0 0 ${FREE_VIEWBOX.width} ${FREE_VIEWBOX.height}`}
-                  onMouseMove={onMmMouseMove}
-                  onMouseUp={() => setMmDragging(null)}
-                  onMouseLeave={() => setMmDragging(null)}
+                  onMouseMove={onMove}
+                  onMouseUp={onUp}
+                  onMouseLeave={() => { onUp(); setContextMenu(null); setColorPickerNode(null); }}
+                  onContextMenu={onSvgContextMenu}
+                  onClick={() => { setContextMenu(null); setColorPickerNode(null); }}
                 >
                   <defs>
                     <marker id="mindmap-arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
-                      <path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.25)" />
+                      <path d="M0,0 L10,5 L0,10 z" fill="rgba(255,255,255,0.35)" />
                     </marker>
                   </defs>
-
                   <rect x={0} y={0} width={FREE_VIEWBOX.width} height={FREE_VIEWBOX.height} fill="#0b1020" />
 
-                  <line x1={230} y1={160} x2={420} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
-                  <line x1={230} y1={360} x2={420} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
-                  <line x1={580} y1={260} x2={790} y2={260} stroke="rgba(255,255,255,0.26)" strokeWidth={2} markerEnd="url(#mindmap-arrow)" />
-
-                  {defaultNodes.map(node => (
-                    <g
-                      key={node.id}
-                      transform={`translate(${node.x},${node.y})`}
-                      onMouseDown={e => startMmDrag(node.id, e)}
-                      onDoubleClick={e => { e.stopPropagation(); updateNodeLabel(node.id); }}
-                      style={{ cursor: node.fixed ? 'default' : 'move' }}
-                    >
-                      <rect x={-72} y={-24} width={144} height={48} rx={14} ry={14} fill={node.color} opacity={0.96} />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={12}
-                        fontFamily="Helvetica Neue, sans-serif"
-                        fontWeight="700"
-                        fill="#101320"
-                        style={{ userSelect: 'none', pointerEvents: 'none' }}
-                      >
-                        {node.label}
-                      </text>
-                    </g>
-                  ))}
-
-                  {customNodes.map(node => (
-                    <g
-                      key={node.id}
-                      transform={`translate(${node.x},${node.y})`}
-                      onMouseDown={e => startMmDrag(node.id, e)}
-                      onDoubleClick={e => { e.stopPropagation(); updateNodeLabel(node.id); }}
-                      style={{ cursor: 'move' }}
-                    >
-                      <rect x={-64} y={-22} width={128} height={44} rx={12} ry={12} fill={node.color} opacity={0.92} />
-                      <text
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fontSize={11}
-                        fontFamily="Helvetica Neue, sans-serif"
-                        fontWeight="600"
-                        fill="#101320"
-                        style={{ userSelect: 'none', pointerEvents: 'none' }}
-                      >
-                        {node.label}
-                      </text>
-                    </g>
-                  ))}
+                  {mmLinks.map(renderLink)}
+                  {mmNodes.map(renderNode)}
                 </svg>
+
                 {mmNodes.length === 0 && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">Reset the default map to begin</p>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3">
+                    <span className="material-symbols-outlined text-[40px] text-on-surface opacity-15">account_tree</span>
+                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">Build from Tool tab or add nodes</p>
                   </div>
                 )}
               </div>
 
-              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center gap-3 flex-wrap">
-                <button onClick={addMmNode} className="glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[14px]">add</span> Add Node
+              {/* Bottom toolbar */}
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center gap-2 flex-wrap">
+                <button onClick={addNode} className="glass-btn rounded-xl px-3 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-[13px]">add</span> Node
                 </button>
-                <button onClick={resetMmNodes} className="rounded-xl border border-outline-variant/30 px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-70 hover:opacity-100 hover:bg-on-surface/5 transition-colors">
-                  Reset Default
-                </button>
-                <button
-                  onClick={handleOk}
-                  className="rounded-xl bg-on-surface text-surface px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 hover:opacity-90 transition-opacity"
-                  title="Check the map's structure — free, instant, no AI call"
-                >
-                  <span className="material-symbols-outlined text-[14px]">check</span> OK
-                </button>
-                <button
-                  onClick={handleAiSee}
-                  disabled={inspecting}
-                  className={`glass-btn rounded-xl px-4 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 disabled:opacity-40 ${suggestAiSee ? 'ring-2 ring-amber-400 animate-pulse' : ''}`}
-                  title={aiQuotaLabel}
-                >
-                  {inspecting
-                    ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
-                    : <span className="material-symbols-outlined text-[14px]">visibility</span>}
-                  Let AI see
-                </button>
-                <span className="font-sans text-[10px] text-on-surface opacity-40 ml-auto">{aiQuotaLabel}</span>
+
+                {linkingFrom && (
+                  <div className="flex items-center gap-1.5 text-violet-400 font-sans text-[10px]">
+                    <span className="material-symbols-outlined text-[13px] animate-pulse">link</span>
+                    Select target…
+                  </div>
+                )}
+
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    onClick={handleAiSee}
+                    disabled={inspecting}
+                    className={`glass-btn rounded-xl px-3 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-1.5 disabled:opacity-40`}
+                    title={aiQuotaLabel}
+                  >
+                    {inspecting
+                      ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
+                      : <span className="material-symbols-outlined text-[13px]">visibility</span>}
+                    AI see
+                  </button>
+                  <span className="font-sans text-[10px] text-on-surface opacity-30">{aiQuotaLabel}</span>
+                </div>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {showUpgradePrompt && (
-        <UpgradePrompt
-          feature="mindmap"
-          currentTier={tier}
-          onClose={() => setShowUpgradePrompt(false)}
-        />
+      {/* ─── Context Menu (right-click on node or link) ───────────── */}
+      {contextMenu && (
+        <div
+          className="fixed z-[220] glass-strong rounded-2xl shadow-2xl p-2 min-w-[180px] font-sans text-[11px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={e => e.stopPropagation()}
+        >
+          {contextMenu.nodeId && (
+            <>
+              {/* Edit */}
+              <button
+                onClick={() => { onNodeDblClick(contextMenu.nodeId!); setContextMenu(null); }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-on-surface/10 flex items-center gap-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">edit</span> Edit label
+              </button>
+
+              {/* Color */}
+              <button
+                onClick={() => { setColorPickerNode(contextMenu.nodeId); setContextMenu(null); }}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-on-surface/10 flex items-center gap-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">palette</span> Change color
+              </button>
+
+              {/* Size submenu */}
+              <div className="px-3 py-1.5 text-[9px] uppercase tracking-[1.5px] text-on-surface/40 mt-1">Size</div>
+              {(['s', 'm', 'l'] as const).map(sz => (
+                <button
+                  key={sz}
+                  onClick={() => changeNodeSize(contextMenu.nodeId!, sz)}
+                  className="w-full text-left px-3 py-1.5 rounded-xl hover:bg-on-surface/10 flex items-center gap-2 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[13px]">
+                    {sz === 's' ? 'zoom_out' : sz === 'm' ? 'crop_square' : 'zoom_in'}
+                  </span>
+                  {sz === 's' ? 'Small' : sz === 'm' ? 'Medium' : 'Large'}
+                </button>
+              ))}
+
+              <div className="my-1 border-t border-outline-variant/15" />
+
+              {/* Delete */}
+              <button
+                onClick={() => deleteNode(contextMenu.nodeId!)}
+                className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/15 text-red-400 flex items-center gap-2 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[14px]">delete</span> Delete node
+              </button>
+            </>
+          )}
+
+          {contextMenu.linkId && (
+            <button
+              onClick={() => deleteLink(contextMenu.linkId!)}
+              className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/15 text-red-400 flex items-center gap-2 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[14px]">link_off</span> Remove connection
+            </button>
+          )}
+        </div>
       )}
 
+      {/* ─── Floating Color Picker ────────────────────────────────── */}
+      {colorPickerNode && (
+        <div
+          className="fixed z-[220] glass-strong rounded-2xl shadow-2xl p-3"
+          style={{ left: '50%', top: '50%', transform: 'translate(-50%,-50%)' }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="font-sans text-[9px] uppercase tracking-[1.5px] text-on-surface/50 mb-2">Pick color</div>
+          <div className="grid grid-cols-6 gap-1.5">
+            {NODE_PALETTE.map(c => (
+              <button
+                key={c}
+                onClick={() => changeNodeColor(colorPickerNode, c)}
+                className="w-7 h-7 rounded-lg border border-white/10 hover:scale-110 transition-transform"
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+          <button onClick={() => setColorPickerNode(null)} className="mt-2 w-full text-center font-sans text-[10px] text-on-surface/50 hover:text-on-surface transition-colors">Cancel</button>
+        </div>
+      )}
+
+      {showUpgradePrompt && (
+        <UpgradePrompt feature="mindmap" currentTier={tier} onClose={() => setShowUpgradePrompt(false)} />
+      )}
       {toastMsg && <Toast msg={toastMsg} onDismiss={() => setToastMsg('')} />}
     </>
   );
