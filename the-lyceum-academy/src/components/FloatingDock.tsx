@@ -12,7 +12,7 @@ const DOCK_ITEMS: { view: View; label: string; icon: string }[] = [
   { view: 'dialogue',      label: 'Dialogue',       icon: 'forum' },
   { view: 'knowledge-map', label: 'Knowledge Tree', icon: 'hub' },
   { view: 'problem-sets',  label: 'Problem Sets',   icon: 'library_books' },
-  { view: 'notes',         label: 'Feynman Notes',  icon: 'edit_note' },
+  { view: 'notes',         label: 'Notes',          icon: 'edit_note' },
   { view: 'mistake-bank',  label: 'Mistake Vault',  icon: 'error_outline' },
   // { view: 'reference-bank', label: 'Reference Bank', icon: 'auto_stories' },  // disabled, coming soon
   { view: 'progress',      label: 'Progress',       icon: 'bar_chart' },

@@ -37,7 +37,7 @@ export default function SubjectTabBar() {
             key={key}
             onClick={() => setActiveTab(key)}
             className={`group flex items-center gap-1.5 px-3 py-2 rounded-t-lg cursor-pointer text-sm flex-shrink-0 transition-colors ${
-              active ? 'bg-white/10 text-white' : 'bg-white/[0.02] text-white/45 hover:bg-white/[0.05] hover:text-white/70'
+              active ? 'glass-pill-active' : 'glass-pill'
             }`}
             style={active ? { boxShadow: 'inset 0 2px 0 0 #a78bfa' } : undefined}
           >
@@ -60,7 +60,7 @@ export default function SubjectTabBar() {
         <div className="relative flex-shrink-0" ref={addRef}>
           <button
             onClick={() => setShowAdd(v => !v)}
-            className="w-8 h-8 flex items-center justify-center rounded-lg text-white/40 hover:text-white/80 hover:bg-white/[0.05] transition-colors"
+            className="glass-pill w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
             title="Open a new subject tab"
           >
             <span className="material-symbols-outlined text-[16px]">add</span>

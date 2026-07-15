@@ -1176,7 +1176,7 @@ function LensView({
               const showingExp = showExplanation === oq.id;
               const isCurrent = oi === idx;
               return (
-                <div key={oq.id} className={`border rounded-sm ${isCurrent ? 'border-amber-400/50' : 'border-white/10'} bg-white/[0.03]`}>
+                <div key={oq.id} className={`glass-pill rounded-sm ${isCurrent ? '!border-amber-400/50' : ''}`}>
                   <div className="flex items-center justify-between px-3 py-2 cursor-pointer" onClick={() => setIdx(oi)}>
                     <div className="flex items-center gap-2">
                       <span className="font-sans text-[10px] uppercase tracking-[1px] text-white/70 font-bold">Q{oi + 1}</span>

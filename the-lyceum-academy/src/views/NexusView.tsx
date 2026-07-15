@@ -182,7 +182,7 @@ function RoadmapWidget() {
               <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-2">Prerequisites</p>
               <div className="flex flex-wrap gap-2">
                 {result.prerequisites.map((p, i) => (
-                  <div key={i} className={`rounded-xl px-3 py-2 border ${p.priority === 'required' ? 'border-amber-400/40 bg-amber-400/5' : 'border-white/10 bg-white/[0.03]'}`}>
+                  <div key={i} className={`rounded-xl px-3 py-2 ${p.priority === 'required' ? 'border border-amber-400/40 bg-amber-400/5' : 'glass-pill'}`}>
                     <div className="flex items-center gap-1.5 mb-0.5">
                       <span className="text-xs font-medium text-white/85">{p.name}</span>
                       <span className={`text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${p.priority === 'required' ? 'text-amber-300 bg-amber-400/10' : 'text-white/30 bg-white/5'}`}>{p.priority}</span>
@@ -200,7 +200,7 @@ function RoadmapWidget() {
               {result.roadmap_steps.map(s => {
                 const meta = APPROACH_META[s.approach] || APPROACH_META.top_down;
                 return (
-                  <div key={s.order} className="flex gap-3 rounded-xl bg-white/[0.03] border border-white/5 px-4 py-3">
+                  <div key={s.order} className="glass-pill flex gap-3 rounded-xl px-4 py-3">
                     <span className="text-sm font-semibold flex-shrink-0" style={{ color: meta.color }}>{s.order}</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-0.5">

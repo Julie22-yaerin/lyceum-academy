@@ -31,10 +31,8 @@ function LanguageSection() {
           <button
             key={l.code}
             onClick={() => setLang(l.code as AppLanguage)}
-            className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm border transition-all ${
-              lang === l.code
-                ? 'border-purple-400/60 bg-purple-400/10 text-white shadow-lg shadow-purple-500/10'
-                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:border-white/20'
+            className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm transition-all ${
+              lang === l.code ? 'glass-pill-active shadow-lg shadow-purple-500/10' : 'glass-pill'
             }`}
           >
             <span className="text-lg">{l.flag}</span>
@@ -79,10 +77,8 @@ function AppearanceSection() {
           <button
             key={value}
             onClick={() => setTheme(value)}
-            className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm border transition-colors ${
-              theme === value
-                ? 'border-purple-400/60 bg-purple-400/10 text-white'
-                : 'border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06]'
+            className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm transition-colors ${
+              theme === value ? 'glass-pill-active' : 'glass-pill'
             }`}
           >
             <span className="material-symbols-outlined text-[16px]">{icon}</span>
@@ -180,8 +176,8 @@ function PlanSection() {
                 return (
                   <div
                     key={p.id}
-                    className={`flex items-center justify-between rounded-xl px-4 py-3 border ${
-                      isCurrent ? 'border-purple-400/40 bg-purple-400/5' : 'border-white/10 bg-white/[0.03]'
+                    className={`flex items-center justify-between rounded-xl px-4 py-3 ${
+                      isCurrent ? 'glass-pill-active' : 'glass-pill'
                     }`}
                   >
                     <div>

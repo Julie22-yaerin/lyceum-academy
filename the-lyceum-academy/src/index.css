@@ -130,6 +130,27 @@ body {
   border-color: rgba(167, 139, 250, 0.4);
 }
 
+/* ── Pill/chip/tab utilities — lighter-weight than .glass* for dense UI
+   (tabs, toggle buttons, option chips) where a full card shadow would be
+   too heavy. Same claymorphism treatment in light mode, smaller shadows. */
+.glass-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+  transition: all 0.15s;
+}
+
+.glass-pill:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.glass-pill-active {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+}
+
 /* ── Ambient background orbs ──────────────────────────────────────────── */
 
 @keyframes orb-drift-1 {
@@ -458,6 +479,30 @@ body {
     inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
     inset -1px -1px 2px rgba(15, 23, 42, 0.07);
   border-color: rgba(37, 99, 235, 0.55);
+}
+
+.theme-light .glass-pill {
+  background: linear-gradient(145deg, #eef1fa, #e2e6f2);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  color: rgba(15, 23, 42, 0.55);
+  box-shadow:
+    3px 3px 8px rgba(15, 23, 42, 0.08),
+    -2px -2px 6px rgba(255, 255, 255, 0.9);
+}
+
+.theme-light .glass-pill:hover {
+  background: linear-gradient(145deg, #e6eaf6, #d9deec);
+  color: rgba(15, 23, 42, 0.85);
+}
+
+.theme-light .glass-pill-active {
+  background: linear-gradient(145deg, #e2e8f7, #d1d9ed);
+  border: 1px solid rgba(124, 58, 237, 0.3);
+  color: #1e3a8a;
+  box-shadow:
+    3px 3px 8px rgba(15, 23, 42, 0.1),
+    -2px -2px 6px rgba(255, 255, 255, 0.95),
+    inset 1px 1px 2px rgba(255, 255, 255, 0.8);
 }
 
 .theme-light .nav-link {
