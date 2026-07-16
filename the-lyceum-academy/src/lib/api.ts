@@ -1,5 +1,7 @@
 import { auth } from './firebase';
 import { getApiBaseUrl } from './apiBase';
+import { getCurrentLang } from '../i18n/I18nContext';
+import { buildLanguageDirective } from '../lib/locale';
 
 const API_BASE = getApiBaseUrl();
 
@@ -176,6 +178,7 @@ export async function uploadProblemSet(file: File) {
       pages: data.pages || [],
       questions: (data.problems || []).map((p: any) => ({
         id: p.id,
+        label: p.label,      // exact printed question marker (locator code), e.g. "1B-2"
         prompt: p.prompt || p.title || '',
         difficulty: p.difficulty || 'medium',
         concepts: p.concepts || [],
@@ -405,6 +408,7 @@ export async function analyzePage(pageData: string, pageIndex: number, totalPage
   const data = await res.json();
   return (data.problems || []).map((p: any) => ({
     id: p.id,
+    label: p.label,
     prompt: p.prompt || p.title || '',
     difficulty: p.difficulty || 'medium',
     concepts: p.concepts || [],
@@ -593,6 +597,7 @@ export async function noteChatMessage(
       '\n\nUse these related notes to provide a more comprehensive, cross-referenced understanding.';
   }
 
+  const lang = getCurrentLang();
   const systemMsg: ChatMsg = {
     role: 'system',
     content: `You are Lyceum — a witty, sharp study companion with mild sarcasm. You have full access to this note and help the student understand, explore, and customize it.
@@ -615,7 +620,7 @@ You can:
 - When providing structured content, use markdown (## headers, | tables |, **bold**, etc.)
 - Reference other notes in the same subject to connect ideas
 
-Tone: smart friend, not textbook. Short punchy answers unless asked for depth.`,
+Tone: smart friend, not textbook. Short punchy answers unless asked for depth.${buildLanguageDirective(lang)}`,
   };
   return chatMessage([systemMsg, ...userMessages]);
 }
@@ -628,6 +633,7 @@ export async function feynmanChat(
   keyConcepts: string[],
   mode: FeynmanMode,
 ): Promise<{ reply: string }> {
+  const lang = getCurrentLang();
   const conceptsStr = keyConcepts.slice(0, 6).join(', ') || 'the main topic';
 
   const modePrompts: Record<FeynmanMode, string> = {
@@ -657,7 +663,7 @@ export async function feynmanChat(
 
   const systemMsg: ChatMsg = {
     role: 'system',
-    content: `${modePrompts[mode]}\n\nTopic they're discussing: ${noteTitle}\nKey concepts: ${conceptsStr}`,
+    content: `${modePrompts[mode]}${buildLanguageDirective(lang)}\n\nTopic they're discussing: ${noteTitle}\nKey concepts: ${conceptsStr}`,
   };
 
   return chatMessage([systemMsg, ...messages]);

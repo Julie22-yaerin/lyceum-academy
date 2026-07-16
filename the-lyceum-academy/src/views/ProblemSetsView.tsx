@@ -24,6 +24,7 @@ const MATH_SYMBOLS = [
 
 interface Question {
   id: string;
+  label?: string;    // exact printed question marker (e.g. "1B-2", "Problem 12") — the AI's locator code, distinct from `id`'s internal sequence number
   prompt: string;
   difficulty: 'easy' | 'medium' | 'hard';
   concepts: string[];
@@ -310,6 +311,7 @@ function AnswerPanel({
 function LensView({
   questions,
   pages,
+  hiddenPages,
   docKey,
   startIdx = 0,
   totalPages = 0,
@@ -323,13 +325,14 @@ function LensView({
 }: {
   questions: Question[];
   pages: PdfPage[];
+  hiddenPages?: Set<number>;
   docKey: string;
   startIdx?: number;
   totalPages?: number;
   allPagesLoaded?: boolean;
   onExit: (currentIdx: number) => void;
   onClean: (idx: number) => Promise<void>;
-  onPageBoundary?: (nextPage: number) => void;
+  onPageBoundary?: (nextPage: number) => Promise<number | null>;
   onNavigate?: (view: string) => void;
   analysis?: PsetAnalysis | null;
   onAllQuestionsDone?: (rescuedQuestions: Question[]) => void;
@@ -341,6 +344,8 @@ function LensView({
   const [masteryResult, setMasteryResult] = useState<{ passed: boolean; feedback: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showWrongGlow, setShowWrongGlow] = useState(false);
+  const [awaitingNextPage, setAwaitingNextPage] = useState(false);
+  const [pendingNextPage, setPendingNextPage] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [distilling, setDistilling] = useState(false);
   const [brushColor, setBrushColor] = useState('#1A1A1A');
@@ -803,23 +808,36 @@ function LensView({
     setTearing(false);
     setMasteryResult(null);
 
-    // Trigger next-page analysis when OK is pressed on the last question of the current page
-    if (onPageBoundary && totalPages > 0) {
-      const currentPage = q.page ?? 0;
-      const nextPage = currentPage + 1;
-      if (nextPage < totalPages) {
-        const isLastOnPage = idx === questions.length - 1 ||
-          (questions[idx + 1]?.page ?? 0) > currentPage;
-        if (isLastOnPage) onPageBoundary(nextPage);
-      }
+    const currentPage = q.page ?? 0;
+    const isLastOnPage = idx === questions.length - 1 ||
+      (questions[idx + 1]?.page ?? 0) > currentPage;
+
+    if (!isLastOnPage) {
+      await new Promise(r => setTimeout(r, 180));
+      setIdx(i => i + 1);
+      return;
     }
 
-    await new Promise(r => setTimeout(r, 180));
-    if (idx < questions.length - 1) {
-      setIdx(i => i + 1);
-    } else {
-      onAllQuestionsDone?.(rescuedRef.current);
+    // Last question on this page — don't silently jump ahead. Scan forward
+    // (skipping any blank/instruction pages) and let the student explicitly
+    // choose to move on via the Next Page button once it's ready.
+    if (onPageBoundary && totalPages > 0 && currentPage + 1 < totalPages) {
+      setAwaitingNextPage(true);
+      const readyPage = await onPageBoundary(currentPage + 1);
+      setAwaitingNextPage(false);
+      if (readyPage !== null) {
+        setPendingNextPage(readyPage);
+        return;
+      }
     }
+    onAllQuestionsDone?.(rescuedRef.current);
+  }
+
+  function goToNextPage() {
+    if (pendingNextPage === null) return;
+    const firstQIdx = questions.findIndex(qq => (qq.page ?? 0) === pendingNextPage);
+    if (firstQIdx >= 0) setIdx(firstQIdx);
+    setPendingNextPage(null);
   }
 
   async function doGrade() {
@@ -928,6 +946,10 @@ function LensView({
           15%  { opacity: 1; }
           100% { opacity: 0; }
         }
+        @keyframes lyceum-next-page-in {
+          0%   { transform: scale(0.94); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
+        }
       `}</style>
 
       {showConfetti && <Confetti />}
@@ -939,6 +961,29 @@ function LensView({
             animation: 'lyceum-wrong-glow 1.4s ease-out forwards',
           }}
         />
+      )}
+
+      {awaitingNextPage && (
+        <div className="fixed inset-0 z-[295] flex items-center justify-center pointer-events-none">
+          <div className="glass-card rounded-2xl px-6 py-4 flex items-center gap-3">
+            <div className="w-4 h-4 border-2 border-on-surface/30 border-t-on-surface rounded-full animate-spin" />
+            <span className="font-sans text-xs uppercase tracking-[2px] opacity-70">Loading next page…</span>
+          </div>
+        </div>
+      )}
+
+      {pendingNextPage !== null && (
+        <div className="fixed inset-0 z-[295] flex items-center justify-center bg-black/50">
+          <div className="glass-card rounded-3xl px-8 py-6 flex flex-col items-center gap-3" style={{ animation: 'lyceum-next-page-in 0.25s ease-out' }}>
+            <span className="text-3xl">📄</span>
+            <p className="font-serif text-lg text-on-surface">Page {(q.page ?? 0) + 1} complete</p>
+            <button onClick={goToNextPage}
+              className="glass-btn rounded-xl px-6 py-2.5 font-sans text-xs uppercase tracking-[2px] font-bold flex items-center gap-2">
+              Next Page
+              <span className="material-symbols-outlined text-[16px]">arrow_forward</span>
+            </button>
+          </div>
+        </div>
       )}
 
       <MindMapTool context={q.prompt} documentId={docKey} />
@@ -1046,7 +1091,7 @@ function LensView({
       <div className="flex-1 flex min-h-0 overflow-hidden">
       <div ref={scrollAreaRef} className="flex-1 overflow-y-auto bg-neutral-800 min-h-0">
         <div className="flex flex-col gap-1 py-2 px-2" style={{ maxWidth: 860, margin: '0 auto' }}>
-          {pages.map(page => {
+          {pages.filter(page => !hiddenPages?.has(page.index)).map(page => {
             const isActive = page.index === activePage;
             const othersOnPage = questions
               .map((oq, oi) => ({ oq, oi }))
@@ -1204,7 +1249,7 @@ function LensView({
                         fontWeight: 700, letterSpacing: '1.5px',
                         textTransform: 'uppercase', padding: '2px 7px', borderRadius: 6,
                       }}>
-                        Q{oi + 1}
+                        Q{oi + 1}{oq.label ? ` · ${oq.label}` : ''}
                       </div>
                     </div>
                   );
@@ -1244,7 +1289,7 @@ function LensView({
                 <div key={oq.id} className={`glass-pill rounded-2xl ${isCurrent ? '!border-amber-400/50' : ''}`}>
                   <div className="flex items-center justify-between px-3 py-2 cursor-pointer" onClick={() => setIdx(oi)}>
                     <div className="flex items-center gap-2">
-                      <span className="font-sans text-[10px] uppercase tracking-[1px] text-white/70 font-bold">Q{oi + 1}</span>
+                      <span className="font-sans text-[10px] uppercase tracking-[1px] text-white/70 font-bold">Q{oi + 1}{oq.label ? ` · ${oq.label}` : ''}</span>
                       <span className="font-sans text-[9px] text-white/30">Page {(oq.page ?? 0) + 1}</span>
                     </div>
                     {isRight && <span className="text-emerald-400 text-xs">✓</span>}
@@ -1635,6 +1680,9 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
   const [totalPages, setTotalPages] = useState(0);
   const [analyzedPageCount, setAnalyzedPageCount] = useState(0);
+  // Pages the AI found zero questions on (cover/instructions pages) — cut from
+  // the scrollable lens view entirely rather than just dimmed.
+  const [hiddenPages, setHiddenPages] = useState<Set<number>>(new Set());
   const [psetAnalysis, setPsetAnalysis] = useState<PsetAnalysis | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [analyzingQuestions, setAnalyzingQuestions] = useState(false);
@@ -1649,6 +1697,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const fileRef = useRef<HTMLInputElement>(null);
   const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analyzedPagesRef = useRef<Set<number>>(new Set());
+  const hiddenPagesRef = useRef<Set<number>>(new Set());
 
   useEffect(() => { getUsage().then(u => setUsage(u)); }, [questions]);
   useEffect(() => { loadKaTeX(() => setKatexTick(t => t + 1)); }, []);
@@ -1778,26 +1827,47 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
     } finally { setLoading(false); setPhase(0); }
   }
 
-  async function handlePageBoundary(nextPageIdx: number) {
-    if (analyzedPagesRef.current.has(nextPageIdx)) return;
-    if (nextPageIdx >= totalPages) return;
-    const pageImg = pages[nextPageIdx];
-    if (!pageImg) return;
-    analyzedPagesRef.current.add(nextPageIdx); // mark early to avoid double-firing
-    try {
-      const newQs = await analyzePage(pageImg.data, nextPageIdx, totalPages);
-      if (newQs.length > 0) {
-        setQuestions(prev => {
-          const merged = [...prev, ...newQs];
-          merged.sort((a, b) => (a.page ?? 0) - (b.page ?? 0) || (a.yStart ?? 0) - (b.yStart ?? 0));
-          // Re-number IDs
-          return merged.map((q, i) => ({ ...q, id: String(i + 1) }));
-        });
+  /**
+   * Analyze forward from nextPageIdx, skipping any page the AI finds zero
+   * questions on (cover/instructions pages) — those get hidden from the lens
+   * view entirely. Returns the index of the next page that actually has
+   * questions ready to view, or null if none remain.
+   */
+  async function handlePageBoundary(nextPageIdx: number): Promise<number | null> {
+    let pageIdx = nextPageIdx;
+    while (pageIdx < totalPages) {
+      if (hiddenPagesRef.current.has(pageIdx)) { pageIdx++; continue; }
+      if (analyzedPagesRef.current.has(pageIdx)) {
+        // Already analyzed (e.g. re-entering lens mode) — it has questions,
+        // since hidden ones are filtered out above.
+        return pageIdx;
       }
-      setAnalyzedPageCount(analyzedPagesRef.current.size);
-    } catch {
-      analyzedPagesRef.current.delete(nextPageIdx); // allow retry on failure
+      const pageImg = pages[pageIdx];
+      if (!pageImg) return null;
+      analyzedPagesRef.current.add(pageIdx); // mark early to avoid double-firing
+      try {
+        const newQs = await analyzePage(pageImg.data, pageIdx, totalPages);
+        setAnalyzedPageCount(analyzedPagesRef.current.size);
+        if (newQs.length > 0) {
+          setQuestions(prev => {
+            const merged = [...prev, ...newQs];
+            merged.sort((a, b) => (a.page ?? 0) - (b.page ?? 0) || (a.yStart ?? 0) - (b.yStart ?? 0));
+            // Re-number IDs
+            return merged.map((q, i) => ({ ...q, id: String(i + 1) }));
+          });
+          return pageIdx;
+        }
+        // No questions on this page — cut it from the viewable page list and
+        // keep scanning forward for the next one that has content.
+        hiddenPagesRef.current.add(pageIdx);
+        setHiddenPages(new Set(hiddenPagesRef.current));
+        pageIdx++;
+      } catch {
+        analyzedPagesRef.current.delete(pageIdx); // allow retry on failure
+        return null;
+      }
     }
+    return null;
   }
 
   async function handleClean(i: number, rawPrompt?: string) {
@@ -1855,6 +1925,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         <LensView
           questions={questions}
           pages={pages}
+          hiddenPages={hiddenPages}
           docKey={docKey}
           totalPages={totalPages}
           allPagesLoaded={totalPages === 0 || analyzedPageCount >= totalPages}

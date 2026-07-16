@@ -2005,15 +2005,17 @@ async def analyze_image_pset_direct(
         "  Append [Figure: brief description] to prompt field.\n\n"
         "FIELDS:\n"
         f"- {_MATH_NOTATION_RULE}\n"
+        "- label: the EXACT question marker as printed, nothing added (e.g. '1B-1', 'Problem 12', 'Q3') — "
+        "  used as this question's locator/reference code elsewhere in the app, so it must match the page exactly.\n"
         "- title: 6 words max, include question number (e.g. '1B-1 Average velocity')\n"
         "- prompt: full text including all sub-parts on ONE LINE (no literal newlines)\n"
         "- difficulty: easy | medium | hard | extreme\n"
         "- concepts: 1-4 tags\n\n"
         "Return ONLY valid JSON, no markdown fences, no trailing commas:\n"
         '{"summary":"...","problems":['
-        '{"id":"1","title":"1B-1 Test tube drop","prompt":"...sub-parts included...","difficulty":"medium","concepts":["calculus"],'
+        '{"id":"1","label":"1B-1","title":"1B-1 Test tube drop","prompt":"...sub-parts included...","difficulty":"medium","concepts":["calculus"],'
         '"y_start":7,"y_end":36},'
-        '{"id":"2","title":"1B-2 Tennis ball height","prompt":"...","difficulty":"medium","concepts":["derivatives"],'
+        '{"id":"2","label":"1B-2","title":"1B-2 Tennis ball height","prompt":"...","difficulty":"medium","concepts":["derivatives"],'
         '"y_start":40,"y_end":68}]}'
     )
 
@@ -2401,24 +2403,34 @@ def _render_pdf_pages(file_bytes: bytes, max_pages: int = 20, dpi: int = 120) ->
 
 _PAGE_QUESTION_PROMPT = (
     "TASK: Find every NUMBERED MAIN QUESTION on this page and return them as JSON.\n\n"
-    "QUESTION LABEL PATTERNS (any of these at the start of a line):\n"
+    "Do NOT assume how many questions are on a page — pages vary from 0 to many. "
+    "Scan the page top to bottom and detect each new question boundary independently; "
+    "never pad or guess extra entries to hit a round number.\n\n"
+    "A question boundary is marked by a label that is BOLD and/or sits at the START of its "
+    "own line (not mid-sentence). Recognized label patterns:\n"
     "  • Arabic:      1.  2.  3.\n"
     "  • Lettered:    1A  1B  2A  1a  1b  A.  B.\n"
     "  • Compound:    1B-1  1B-2  2C-3  (each is a separate main question)\n"
     "  • Parenthesised: (1)  (2)  (i)  (ii)\n"
-    "  • Keywords:    Q1  Q2  Problem 1  Exercise 3  Part A\n"
+    "  • Keywords:    Q1  Q2  Problem 1  Problem 12  Exercise 3  Part A\n"
     "  Sub-parts a) b) c) that belong to a parent question are NOT separate — include in parent prompt.\n\n"
+    "LABEL FIELD:\n"
+    "  label: the EXACT marker text as printed, nothing else added — e.g. \"1B-2\", \"Problem 12\", \"Q3\", \"(ii)\".\n"
+    "  This is used as the question's locator/reference code elsewhere in the app, so it must match the "
+    "  printed page exactly (same digits/letters), not a re-derived or renumbered value.\n\n"
     "BOUNDING BOX (relative to THIS page's height, 0=top 100=bottom):\n"
     "  y_start: top of the question number label (tight — 1-2% padding only)\n"
     "  y_end:   bottom of the last sub-part of that question\n"
     "  Never return 0 and 100 unless the question truly fills the whole page.\n\n"
     "Return ONLY valid JSON:\n"
     '{"problems":['
-    '{"id":"PLACEHOLDER","title":"1B-1 Velocity from drop",'
+    '{"id":"PLACEHOLDER","label":"1B-1","title":"1B-1 Velocity from drop",'
     '"prompt":"full text of question + all sub-parts on one line",'
     '"difficulty":"medium","concepts":["kinematics"],'
     '"y_start":8,"y_end":38}]}'
-    "\nIf this page has NO questions (e.g. it is a cover/instructions page), return {\"problems\":[]}."
+    "\nIf this page has NO questions — a cover page, a table of contents, or a page of instructions/"
+    "formatting guidance about how to fill out or structure answers rather than an actual problem to "
+    "solve — return {\"problems\":[]}. Such pages should never contribute any entries."
 )
 
 
