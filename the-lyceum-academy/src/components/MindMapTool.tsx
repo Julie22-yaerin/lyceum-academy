@@ -435,7 +435,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
         )}
         <button
           onClick={() => setOpen(true)}
-          className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform"
+          className="fixed bottom-24 left-6 z-40 w-14 h-14 rounded-full glass-strong flex items-center justify-center hover:-translate-y-0.5 transition-transform"
           style={{ boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
           title="Mind Map"
         >
@@ -451,7 +451,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
   return (
     <>
       <div
-        className="fixed bottom-6 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[500px] glass-strong mindmap-panel rounded-3xl flex flex-col overflow-hidden"
+        className="fixed bottom-24 left-6 z-40 w-[min(760px,calc(100vw-3rem))] h-[500px] glass-strong mindmap-panel rounded-3xl flex flex-col overflow-hidden"
         style={{ boxShadow: '0 16px 48px rgba(0,0,0,0.5)' }}
       >
         {/* Header */}

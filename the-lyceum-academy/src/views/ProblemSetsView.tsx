@@ -1021,7 +1021,7 @@ function LensView({
       {/* ── Warn: unanswered questions ── */}
       {warnEmpty.length > 0 && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60">
-          <div className="bg-surface border border-outline-variant/30 shadow-2xl p-8 max-w-sm w-full mx-4" style={{ borderRadius: 4 }}>
+          <div className="bg-surface border border-outline-variant/30 shadow-2xl p-8 max-w-sm w-full mx-4" style={{ borderRadius: 22 }}>
             <p className="font-sans text-[10px] uppercase tracking-[2px] text-amber-600 mb-3">Not answered yet</p>
             <p className="font-serif text-base mb-4 leading-snug">
               {warnEmpty.length} question(s) not yet answered:&nbsp;
@@ -1095,24 +1095,27 @@ function LensView({
 
                 {isActive ? (
                   <>
-                    {/* Top blur+dim */}
+                    {/* Top spotlight fade — solid black up top, blending down to
+                        clear right at the lit question, like a beam of light. */}
                     {yStart > 0 && (
                       <div className="absolute inset-x-0 top-0 pointer-events-none"
-                        style={{ height: `${yStart}%`, background: 'rgba(0,0,0,0.52)', zIndex: 7, ...DIM_STYLE }} />
+                        style={{ height: `${yStart}%`, zIndex: 7, ...DIM_STYLE,
+                          background: 'linear-gradient(to bottom, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 65%, rgba(0,0,0,0) 100%)' }} />
                     )}
                     {/* Amber focus ring + glow */}
                     <div className="absolute inset-x-0 pointer-events-none"
                       style={{ top: `${yStart}%`, height: `${yEnd - yStart}%`, zIndex: 7,
                         boxShadow: 'inset 0 0 0 2.5px rgba(251,191,36,1), inset 0 0 12px rgba(251,191,36,0.12)' }} />
-                    {/* Bottom blur+dim */}
+                    {/* Bottom spotlight fade — mirror of the top band. */}
                     {yEnd < 100 && (
                       <div className="absolute inset-x-0 bottom-0 pointer-events-none"
-                        style={{ top: `${yEnd}%`, height: `${100 - yEnd}%`, background: 'rgba(0,0,0,0.52)', zIndex: 7, ...DIM_STYLE }} />
+                        style={{ top: `${yEnd}%`, height: `${100 - yEnd}%`, zIndex: 7, ...DIM_STYLE,
+                          background: 'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 65%, rgba(0,0,0,0) 100%)' }} />
                     )}
                   </>
                 ) : (
                   <div className="absolute inset-0 pointer-events-none"
-                    style={{ background: 'rgba(0,0,0,0.58)', zIndex: 7, ...DIM_STYLE }} />
+                    style={{ background: 'rgba(0,0,0,0.72)', zIndex: 7, ...DIM_STYLE }} />
                 )}
 
                 {/* Click targets for other questions (above dim) */}
@@ -1129,7 +1132,8 @@ function LensView({
                           student has started answering something, so they can't
                           peek ahead. Already-answered questions stay dimmed only. */}
                       {covered && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black">
+                        <div className="absolute inset-0 flex items-center justify-center"
+                          style={{ background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.94) 0%, rgba(0,0,0,1) 75%)' }}>
                           <span className="material-symbols-outlined text-[18px] text-white/25">lock</span>
                         </div>
                       )}
@@ -1198,7 +1202,7 @@ function LensView({
                         color: isQ ? '#1a1a1a' : 'rgba(255,255,255,0.65)',
                         fontSize: 9, fontFamily: 'Helvetica Neue, sans-serif',
                         fontWeight: 700, letterSpacing: '1.5px',
-                        textTransform: 'uppercase', padding: '2px 7px', borderRadius: 2,
+                        textTransform: 'uppercase', padding: '2px 7px', borderRadius: 6,
                       }}>
                         Q{oi + 1}
                       </div>
@@ -1237,7 +1241,7 @@ function LensView({
               const showingExp = showExplanation === oq.id;
               const isCurrent = oi === idx;
               return (
-                <div key={oq.id} className={`glass-pill rounded-sm ${isCurrent ? '!border-amber-400/50' : ''}`}>
+                <div key={oq.id} className={`glass-pill rounded-2xl ${isCurrent ? '!border-amber-400/50' : ''}`}>
                   <div className="flex items-center justify-between px-3 py-2 cursor-pointer" onClick={() => setIdx(oi)}>
                     <div className="flex items-center gap-2">
                       <span className="font-sans text-[10px] uppercase tracking-[1px] text-white/70 font-bold">Q{oi + 1}</span>
@@ -1277,7 +1281,7 @@ function LensView({
                       </button>
                     )}
                     {showingExp && grade && (
-                      <div className="mt-2 bg-black/40 border border-red-400/30 p-2.5 rounded-sm">
+                      <div className="mt-2 bg-black/40 border border-red-400/30 p-2.5 rounded-xl">
                         <p className="font-serif text-[11px] leading-relaxed text-white/80" dangerouslySetInnerHTML={{ __html: renderMath(grade.feedback) }} />
                       </div>
                     )}
@@ -1293,7 +1297,7 @@ function LensView({
       {/* ── Floating notepad ── */}
       <div
         className="fixed z-[70] bg-surface border border-outline-variant/20 shadow-2xl flex flex-col overflow-hidden"
-        style={{ left: panelPos.x, top: panelPos.y, width: 380, maxHeight: panelMin ? 44 : '62vh', minHeight: panelMin ? 44 : 200, borderRadius: 4, transition: 'max-height 0.2s ease' }}
+        style={{ left: panelPos.x, top: panelPos.y, width: 380, maxHeight: panelMin ? 44 : '62vh', minHeight: panelMin ? 44 : 200, borderRadius: 20, transition: 'max-height 0.2s ease' }}
       >
         {/* Drag handle */}
         <div
@@ -1340,7 +1344,7 @@ function LensView({
                 }
               }}
               title="Open notepad in a separate window"
-              className={`flex items-center gap-1 px-2 py-1 border font-sans text-[9px] uppercase tracking-[1px] transition-all rounded-sm ${
+              className={`flex items-center gap-1 px-2 py-1 border font-sans text-[9px] uppercase tracking-[1px] transition-all rounded-lg ${
                 popupOpen
                   ? 'border-amber-400/70 text-amber-600 bg-amber-50'
                   : 'border-outline-variant/40 opacity-60 hover:opacity-100'
@@ -1468,7 +1472,7 @@ function LensView({
                   <button key={c.value}
                     onClick={() => setHlColor(c.value)}
                     title={c.label}
-                    className={`w-5 h-5 rounded-sm border-2 transition-all ${hlColor === c.value ? 'border-on-surface scale-110' : 'border-transparent opacity-70 hover:opacity-100'}`}
+                    className={`w-5 h-5 rounded-md border-2 transition-all ${hlColor === c.value ? 'border-on-surface scale-110' : 'border-transparent opacity-70 hover:opacity-100'}`}
                     style={{ background: c.value.replace(/[\d.]+\)$/, '0.9)') }}
                   />
                 ))}

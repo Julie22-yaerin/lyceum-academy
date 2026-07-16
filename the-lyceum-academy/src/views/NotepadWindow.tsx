@@ -7,6 +7,12 @@
  *   Main  → Popup: { type:'SYNC_QUESTION', question, idx, total, docKey }
  *   Main  → Popup: { type:'GRADE_RESULT', qId, passed, feedback }
  *   Popup → Main : { type:'ANSWER', qId, text?, dataURL? }
+ *
+ * This is a separate top-level window/document — it never mounts inside
+ * <ThemeProvider>, so it can't read useTheme(). Instead it reads the same
+ * 'lyceum-theme' localStorage key ThemeContext persists to directly, and
+ * listens for the 'storage' event to stay in sync if the main window's
+ * theme is flipped while this popup is open.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -37,7 +43,36 @@ interface GradeResult {
 
 type DrawTool = 'pen' | 'eraser' | 'line' | 'rect' | 'circle' | 'triangle';
 
+function useNotepadTheme() {
+  const [isLight, setIsLight] = useState(() => {
+    try { return localStorage.getItem('lyceum-theme') === 'light'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    function sync() {
+      try { setIsLight(localStorage.getItem('lyceum-theme') === 'light'); } catch { /* ignore */ }
+    }
+    window.addEventListener('storage', sync);
+    return () => window.removeEventListener('storage', sync);
+  }, []);
+
+  return isLight;
+}
+
 export default function NotepadWindow() {
+  const isLight = useNotepadTheme();
+  const C = isLight ? {
+    bg: '#FAF7F0', bar: '#EFE9DA', text: '#2A2620',
+    textDim: 'rgba(42,38,32,0.55)', textFaint: 'rgba(42,38,32,0.35)',
+    border: 'rgba(42,38,32,0.14)', borderStrong: 'rgba(42,38,32,0.22)',
+    inputBg: 'rgba(42,38,32,0.045)', scrollTrack: '#e5ddc8', scrollThumb: '#c9bfa0',
+  } : {
+    bg: '#131313', bar: '#0e0e0e', text: '#F5F0E8',
+    textDim: 'rgba(255,255,255,0.4)', textFaint: 'rgba(255,255,255,0.3)',
+    border: 'rgba(255,255,255,0.08)', borderStrong: 'rgba(255,255,255,0.15)',
+    inputBg: 'rgba(255,255,255,0.04)', scrollTrack: '#1a1a1a', scrollThumb: '#333',
+  };
+
   const channelRef = useRef<BroadcastChannel | null>(null);
   const [qData, setQData]     = useState<{ question: SyncedQuestion; idx: number; total: number; docKey: string } | null>(null);
   const [connected, setConnected] = useState(false);
@@ -253,9 +288,9 @@ export default function NotepadWindow() {
   // ── Waiting screen ─────────────────────────────────────────────────────────
   if (!qData) {
     return (
-      <div style={{ background: '#111', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)', fontFamily: 'sans-serif' }}>
-        <style>{`body{margin:0;background:#111;} @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
-        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', fontFamily: 'Georgia, serif', color: 'rgba(255,255,255,0.25)' }}>THE LYCEUM</div>
+      <div style={{ background: C.bg, height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.textDim, fontFamily: 'sans-serif' }}>
+        <style>{`body{margin:0;background:${C.bg};} @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
+        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', fontFamily: 'Georgia, serif', color: C.textFaint }}>THE LYCEUM</div>
         <p style={{ fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Notepad</p>
         <p style={{ fontSize: 10, letterSpacing: 1, opacity: 0.5, marginTop: 24 }}>Waiting for PDF to open in main window…</p>
       </div>
@@ -266,22 +301,22 @@ export default function NotepadWindow() {
   const diffColor = DIFF_COLOR[question.difficulty] || '#C5A059';
 
   return (
-    <div style={{ background: '#131313', height: '100vh', display: 'flex', flexDirection: 'column', color: '#F5F0E8', fontFamily: 'Georgia, serif', userSelect: 'none', overflow: 'hidden' }}>
+    <div style={{ background: C.bg, height: '100vh', display: 'flex', flexDirection: 'column', color: C.text, fontFamily: 'Georgia, serif', userSelect: 'none', overflow: 'hidden' }}>
       <style>{`
         * { box-sizing: border-box; }
-        body { margin: 0; background: #131313; }
+        body { margin: 0; background: ${C.bg}; }
         textarea { font-family: Georgia, serif; }
         @keyframes tearOff {
           0%   { transform: scale(1) translateY(0); opacity: 1; }
           100% { transform: scale(0.6) translateY(-30px); opacity: 0; }
         }
-        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: #1a1a1a; } ::-webkit-scrollbar-thumb { background: #333; }
+        ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: ${C.scrollTrack}; } ::-webkit-scrollbar-thumb { background: ${C.scrollThumb}; }
       `}</style>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', background: '#0e0e0e', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', borderBottom: `1px solid ${C.border}`, background: C.bar, flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: 'rgba(255,255,255,0.35)' }}>
+          <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase', color: C.textFaint }}>
             Q{idx + 1} / {total}
           </span>
           <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', padding: '2px 6px', border: `1px solid ${diffColor}60`, color: diffColor }}>
@@ -295,13 +330,13 @@ export default function NotepadWindow() {
           it here would just be a second, out-of-sync copy of the same text. */}
 
       {/* ── Mode tabs ── */}
-      <div style={{ display: 'flex', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
         {(['text', 'canvas'] as const).map(m => (
           <button key={m} onClick={() => setMode(m)} style={{
             flex: 1, padding: '8px 0', fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 3, textTransform: 'uppercase',
-            background: mode === m ? 'rgba(255,255,255,0.08)' : 'none',
+            background: mode === m ? C.inputBg : 'none',
             border: 'none', borderBottom: mode === m ? '2px solid rgba(251,191,36,0.8)' : '2px solid transparent',
-            color: mode === m ? '#F5F0E8' : 'rgba(255,255,255,0.3)', cursor: 'pointer',
+            color: mode === m ? C.text : C.textFaint, cursor: 'pointer',
           }}>
             {m === 'text' ? '✍ Write' : '🖊 Draw'}
           </button>
@@ -312,13 +347,13 @@ export default function NotepadWindow() {
           there's no question block above it anymore ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '8px', gap: 8, minHeight: 0, overflow: 'hidden' }}>
         {masteryResult ? (
-          <div style={{ border: `1px solid ${masteryResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(251,191,36,0.4)'}`, padding: 12, background: masteryResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(251,191,36,0.06)', borderRadius: 3 }}>
+          <div style={{ border: `1px solid ${masteryResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(251,191,36,0.4)'}`, padding: 12, background: masteryResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(251,191,36,0.06)', borderRadius: 10 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 6, color: masteryResult.passed ? '#4A7C59' : '#C5A059' }}>
               {masteryResult.passed ? '✓ Mastered' : '◯ Keep Exploring'}
             </span>
-            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: 'rgba(255,255,255,0.75)' }}
+            <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.text, opacity: 0.85 }}
               dangerouslySetInnerHTML={{ __html: renderMath(masteryResult.feedback) }} />
-            <button onClick={() => setMasteryResult(null)} style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', background: 'none', border: 'none', cursor: 'pointer' }}>
+            <button onClick={() => setMasteryResult(null)} style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textFaint, background: 'none', border: 'none', cursor: 'pointer' }}>
               Try Again
             </button>
           </div>
@@ -329,25 +364,25 @@ export default function NotepadWindow() {
             onChange={e => setAnswer(e.target.value)}
             placeholder="Write your solution here…"
             style={{
-              flex: 1, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)',
-              color: '#F5F0E8', padding: '14px 16px', fontSize: 14, lineHeight: 1.7,
-              resize: 'none', outline: 'none', borderRadius: 3,
+              flex: 1, background: C.inputBg, border: `1px solid ${C.border}`,
+              color: C.text, padding: '14px 16px', fontSize: 14, lineHeight: 1.7,
+              resize: 'none', outline: 'none', borderRadius: 14,
               animation: tearing ? 'tearOff 0.35s ease-in both' : 'none',
               fontFamily: 'Georgia, serif',
             }}
           />
         ) : (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8, minHeight: 0 }}>
-            <div style={{ flex: 1, border: '1px solid rgba(255,255,255,0.1)', background: '#fff', borderRadius: 3, overflow: 'hidden', animation: tearing ? 'tearOff 0.35s ease-in both' : 'none', minHeight: 0 }}>
+            <div style={{ flex: 1, border: `1px solid ${C.border}`, background: '#fff', borderRadius: 14, overflow: 'hidden', animation: tearing ? 'tearOff 0.35s ease-in both' : 'none', minHeight: 0 }}>
               <canvas ref={canvasRef} width={1400} height={900}
                 style={{ width: '100%', height: '100%', cursor: drawTool === 'eraser' ? 'cell' : 'crosshair', touchAction: 'none', display: 'block' }}
                 onMouseDown={startDraw} onMouseMove={draw} onMouseUp={stopDraw} onMouseLeave={stopDraw}
                 onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={stopDraw} />
             </div>
             {canvasTranscript && (
-              <div style={{ border: '1px solid rgba(255,255,255,0.1)', padding: '8px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 3, flexShrink: 0 }}>
-                <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', display: 'block', marginBottom: 4 }}>Transcription</span>
-                <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>{canvasTranscript}</p>
+              <div style={{ border: `1px solid ${C.border}`, padding: '8px 12px', background: C.inputBg, borderRadius: 10, flexShrink: 0 }}>
+                <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: C.textFaint, display: 'block', marginBottom: 4 }}>Transcription</span>
+                <p style={{ margin: 0, fontSize: 12, color: C.text, opacity: 0.8, lineHeight: 1.5 }}>{canvasTranscript}</p>
               </div>
             )}
           </div>
@@ -355,12 +390,12 @@ export default function NotepadWindow() {
 
         {/* Math keyboard */}
         {showMathKb && mode === 'text' && (
-          <div style={{ border: '1px solid rgba(255,255,255,0.1)', padding: 8, background: 'rgba(255,255,255,0.03)', borderRadius: 3, flexShrink: 0 }}>
+          <div style={{ border: `1px solid ${C.border}`, padding: 8, background: C.inputBg, borderRadius: 12, flexShrink: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
               {MATH_SYMBOLS.map(sym => (
                 <button key={sym} onClick={() => insertSymbol(sym)} style={{
-                  width: 30, height: 30, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)',
-                  color: '#F5F0E8', fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', borderRadius: 2,
+                  width: 30, height: 30, border: `1px solid ${C.borderStrong}`, background: C.inputBg,
+                  color: C.text, fontSize: 11, fontFamily: 'monospace', cursor: 'pointer', borderRadius: 8,
                 }}>
                   {sym}
                 </button>
@@ -372,24 +407,24 @@ export default function NotepadWindow() {
 
       {/* ── Grade result from main (after Submit) ── */}
       {gradeResult && (
-        <div style={{ margin: '0 14px 10px', border: `1px solid ${gradeResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(220,38,38,0.4)'}`, padding: '10px 12px', background: gradeResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(220,38,38,0.08)', borderRadius: 3 }}>
+        <div style={{ margin: '0 14px 10px', border: `1px solid ${gradeResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(220,38,38,0.4)'}`, padding: '10px 12px', background: gradeResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(220,38,38,0.08)', borderRadius: 10 }}>
           <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 5, color: gradeResult.passed ? '#4A7C59' : 'rgba(220,38,38,0.8)' }}>
             {gradeResult.passed ? '✓ Correct' : '✗ Wrong'}
           </span>
-          <p style={{ margin: 0, fontSize: 11, lineHeight: 1.55, color: 'rgba(255,255,255,0.65)' }}
+          <p style={{ margin: 0, fontSize: 11, lineHeight: 1.55, color: C.text, opacity: 0.75 }}
             dangerouslySetInnerHTML={{ __html: renderMath(gradeResult.feedback) }} />
         </div>
       )}
 
       {/* ── Toolbar ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.08)', flexShrink: 0, flexWrap: 'wrap', background: '#0e0e0e' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderTop: `1px solid ${C.border}`, flexShrink: 0, flexWrap: 'wrap', background: C.bar }}>
         {/* Math kb toggle */}
         {mode === 'text' && (
           <button onClick={() => setShowMathKb(v => !v)} style={{
-            background: showMathKb ? 'rgba(255,255,255,0.1)' : 'none',
-            border: '1px solid rgba(255,255,255,0.15)', borderRadius: 3, padding: '4px 10px',
+            background: showMathKb ? C.inputBg : 'none',
+            border: `1px solid ${C.borderStrong}`, borderRadius: 8, padding: '4px 10px',
             fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase',
-            color: showMathKb ? '#F5F0E8' : 'rgba(255,255,255,0.4)', cursor: 'pointer',
+            color: showMathKb ? C.text : C.textDim, cursor: 'pointer',
           }}>∑ Math</button>
         )}
 
@@ -407,35 +442,35 @@ export default function NotepadWindow() {
                 { id: 'triangle', label: '△', title: 'Triangle' },
               ] as const).map(t => (
                 <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
-                  width: 26, height: 26, border: `1px solid ${drawTool === t.id ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.15)'}`,
-                  background: drawTool === t.id ? 'rgba(255,255,255,0.12)' : 'none', color: '#F5F0E8',
-                  fontSize: 13, cursor: 'pointer', borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
+                  width: 26, height: 26, border: `1px solid ${drawTool === t.id ? C.borderStrong : C.border}`,
+                  background: drawTool === t.id ? C.inputBg : 'none', color: C.text,
+                  fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
                 }}>{t.label}</button>
               ))}
             </div>
 
-            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 14, background: C.borderStrong, margin: '0 4px' }} />
 
             {/* Color presets + a real color wheel via the native picker */}
             {['#F5F0E8','#C5A059','#4A7C59','#2563EB','#DC2626'].map(c => (
               <button key={c} onClick={() => setBrushColor(c)} style={{
-                width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? '2px solid white' : '2px solid transparent', cursor: 'pointer', padding: 0,
+                width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? `2px solid ${C.text}` : '2px solid transparent', cursor: 'pointer', padding: 0,
               }} />
             ))}
             <input type="color" value={brushColor} onChange={e => setBrushColor(e.target.value)} title="Custom color"
-              style={{ width: 22, height: 22, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 3 }} />
+              style={{ width: 22, height: 22, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 6 }} />
 
-            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 14, background: C.borderStrong, margin: '0 4px' }} />
 
             {/* Pen/shape thickness */}
             <input type="range" min={1} max={24} value={brushSize} onChange={e => setBrushSize(Number(e.target.value))}
               title={`Size: ${brushSize}px`} style={{ width: 56, cursor: 'pointer' }} />
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(255,255,255,0.4)', minWidth: 14, textAlign: 'right' }}>{brushSize}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: C.textDim, minWidth: 14, textAlign: 'right' }}>{brushSize}</span>
 
-            <div style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.15)', margin: '0 4px' }} />
+            <div style={{ width: 1, height: 14, background: C.borderStrong, margin: '0 4px' }} />
 
-            <button onClick={clearCanvas} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>Clear</button>
-            <button onClick={transcribeCanvas} disabled={busy} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)', cursor: 'pointer' }}>Read</button>
+            <button onClick={clearCanvas} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}>Clear</button>
+            <button onClick={transcribeCanvas} disabled={busy} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textDim, cursor: 'pointer' }}>Read</button>
           </>
         )}
 
@@ -443,7 +478,7 @@ export default function NotepadWindow() {
 
         {/* Check mastery */}
         <button onClick={handleCheck} disabled={busy || !!masteryResult || !canAnswer}
-          style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', opacity: canAnswer ? 1 : 0.3 }}>
+          style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer', opacity: canAnswer ? 1 : 0.3 }}>
           {busy ? '…' : 'Check'}
         </button>
 
@@ -452,8 +487,8 @@ export default function NotepadWindow() {
           style={{
             padding: '7px 22px', fontFamily: 'sans-serif', fontSize: 10, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 700,
             background: canAnswer ? 'rgba(251,191,36,1)' : 'rgba(251,191,36,0.2)',
-            color: canAnswer ? '#1a1a1a' : 'rgba(255,255,255,0.2)',
-            border: 'none', cursor: canAnswer ? 'pointer' : 'not-allowed', borderRadius: 3, transition: 'all 0.15s',
+            color: canAnswer ? '#1a1a1a' : C.textFaint,
+            border: 'none', cursor: canAnswer ? 'pointer' : 'not-allowed', borderRadius: 10, transition: 'all 0.15s',
           }}>
           {tearing ? '…' : 'OK'}
         </button>
