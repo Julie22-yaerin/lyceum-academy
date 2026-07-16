@@ -8,7 +8,6 @@ import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; label: string; icon: string }[] = [
-  { view: 'nexus',         label: 'Nexus',          icon: 'dashboard' },
   { view: 'dialogue',      label: 'Dialogue',       icon: 'forum' },
   { view: 'knowledge-map', label: 'Knowledge Tree', icon: 'hub' },
   { view: 'problem-sets',  label: 'Problem Sets',   icon: 'library_books' },
@@ -178,7 +177,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
       <div
         data-tour="corner-brand"
         className="glass rounded-full px-4 py-2 text-xs font-medium tracking-wider uppercase text-white/80 cursor-pointer hover:bg-white/10 transition-colors"
-        onClick={() => onNavigate('nexus')}
+        onClick={() => onNavigate('problem-sets')}
       >
         Lyceum
       </div>

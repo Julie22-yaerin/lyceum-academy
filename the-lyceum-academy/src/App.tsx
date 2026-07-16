@@ -16,7 +16,6 @@ import NoteView from './views/NoteView';
 import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
 import OnboardingModal from './components/OnboardingModal';
-import NexusView from './views/NexusView';
 import MistakeBankView from './views/MistakeBankView';
 // import ReferenceBankView from './views/ReferenceBankView';  // disabled, coming soon
 import SettingsView from './views/SettingsView';
@@ -54,7 +53,7 @@ function AppInner() {
   // After auth resolves: redirect verified users out of auth page
   useEffect(() => {
     if (!loading && ((user && emailVerified) || devMode) && view === 'auth') {
-      setView('nexus');
+      setView('problem-sets');
     }
   }, [user, emailVerified, loading, devMode, view]);
 
@@ -164,7 +163,6 @@ function AppInner() {
         onNavigate={setView}
         tourActive={showTour}
       >
-        {view === 'nexus' && <NexusView currentView={view} onNavigate={setView} />}
         {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}
         {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}

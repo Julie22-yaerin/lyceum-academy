@@ -7,6 +7,8 @@ import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectS
 import { recordProfileEvent } from '../lib/profile';
 import { useWorkspace } from '../context/WorkspaceContext';
 import MindMapTool from '../components/MindMapTool';
+import Confetti from '../components/Confetti';
+import { playCorrectSound, playWrongSound, speak } from '../lib/feedbackSounds';
 
 // ── Math keyboard symbols ─────────────────────────────────────────────────
 const MATH_SYMBOLS = [
@@ -337,6 +339,8 @@ function LensView({
   const [answer, setAnswer] = useState('');
   const [showMathKb, setShowMathKb] = useState(false);
   const [masteryResult, setMasteryResult] = useState<{ passed: boolean; feedback: string } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showWrongGlow, setShowWrongGlow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [distilling, setDistilling] = useState(false);
   const [brushColor, setBrushColor] = useState('#1A1A1A');
@@ -395,6 +399,25 @@ function LensView({
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idx, timers[questions[idx]?.id]?.started, timers[questions[idx]?.id]?.timedOut]);
+
+  // ── Correct/wrong feedback: sound + confetti on right, sad sound + spoken
+  // encouragement + red border glow on wrong. Fires once per new grade result.
+  useEffect(() => {
+    if (!masteryResult) return;
+    if (masteryResult.passed) {
+      playCorrectSound();
+      setShowConfetti(true);
+      const t = setTimeout(() => setShowConfetti(false), 1800);
+      return () => clearTimeout(t);
+    } else {
+      playWrongSound();
+      speak("That's okay. May we try again?");
+      setShowWrongGlow(true);
+      const t = setTimeout(() => setShowWrongGlow(false), 1400);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [masteryResult]);
 
   function formatTime(seconds: number): string {
     const m = Math.floor(seconds / 60);
@@ -572,6 +595,17 @@ function LensView({
   const [grading, setGrading] = useState(false);
   const [showExplanation, setShowExplanation] = useState<string | null>(null); // question id
   const [warnEmpty, setWarnEmpty] = useState<number[]>([]); // indices of unanswered Qs
+
+  // ── "Black cloth" — once the student has started answering anything, every
+  // question they haven't touched yet gets fully covered so they can't skim
+  // ahead. A question counts as touched once it's graded or has a saved answer.
+  function isTouched(qId: string): boolean {
+    return !!gradeResults[qId] || !!pastedNotes[qId]?.trim() || !!pastedImages[qId];
+  }
+  const hasStartedAny =
+    Object.keys(gradeResults).length > 0 ||
+    Object.values(pastedNotes).some((v: string) => !!v?.trim()) ||
+    Object.keys(pastedImages).length > 0;
 
   // ── Floating panel drag state ──
   const [panelPos, setPanelPos] = useState({ x: 0, y: 0 });
@@ -889,7 +923,23 @@ function LensView({
           65%  { transform: rotate(-0.5deg) scale(1.03) translateY(1px); opacity:1; filter:blur(0); }
           100% { transform: rotate(-0.35deg) scale(1) translateY(0); opacity:1; filter:blur(0); }
         }
+        @keyframes lyceum-wrong-glow {
+          0%   { opacity: 0; }
+          15%  { opacity: 1; }
+          100% { opacity: 0; }
+        }
       `}</style>
+
+      {showConfetti && <Confetti />}
+      {showWrongGlow && (
+        <div
+          className="fixed inset-0 z-[290] pointer-events-none"
+          style={{
+            boxShadow: 'inset 0 0 40px 10px rgba(239,68,68,0.55), inset 0 0 110px 30px rgba(239,68,68,0.3)',
+            animation: 'lyceum-wrong-glow 1.4s ease-out forwards',
+          }}
+        />
+      )}
 
       <MindMapTool context={q.prompt} documentId={docKey} />
 
@@ -1066,18 +1116,29 @@ function LensView({
                 )}
 
                 {/* Click targets for other questions (above dim) */}
-                {!highlightMode && othersOnPage.map(({ oq, oi }) => (
-                  <div key={oi}
-                    className="absolute inset-x-0 cursor-pointer group"
-                    style={{ top: `${oq.yStart ?? 0}%`, height: `${(oq.yEnd ?? 100) - (oq.yStart ?? 0)}%`, zIndex: 8 }}
-                    title={`Jump to Q${oi + 1}`}
-                    onClick={() => setIdx(oi)}
-                  >
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.35)' }} />
-                    <span className="absolute top-1 left-2 font-sans text-[9px] text-white/40 group-hover:text-white/80 transition-colors select-none">Q{oi + 1}</span>
-                  </div>
-                ))}
+                {!highlightMode && othersOnPage.map(({ oq, oi }) => {
+                  const covered = hasStartedAny && !isTouched(oq.id);
+                  return (
+                    <div key={oi}
+                      className="absolute inset-x-0 cursor-pointer group"
+                      style={{ top: `${oq.yStart ?? 0}%`, height: `${(oq.yEnd ?? 100) - (oq.yStart ?? 0)}%`, zIndex: 8 }}
+                      title={covered ? `Locked — finish Q${idx + 1} first, or jump to Q${oi + 1}` : `Jump to Q${oi + 1}`}
+                      onClick={() => setIdx(oi)}
+                    >
+                      {/* Black cloth — hides not-yet-attempted questions once the
+                          student has started answering something, so they can't
+                          peek ahead. Already-answered questions stay dimmed only. */}
+                      {covered && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black">
+                          <span className="material-symbols-outlined text-[18px] text-white/25">lock</span>
+                        </div>
+                      )}
+                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        style={{ boxShadow: 'inset 0 0 0 1.5px rgba(255,255,255,0.35)' }} />
+                      <span className="absolute top-1 left-2 font-sans text-[9px] text-white/40 group-hover:text-white/80 transition-colors select-none">Q{oi + 1}</span>
+                    </div>
+                  );
+                })}
 
                 {/* ── Highlight drawing overlay (topmost, only in highlight mode) ── */}
                 {highlightMode && (

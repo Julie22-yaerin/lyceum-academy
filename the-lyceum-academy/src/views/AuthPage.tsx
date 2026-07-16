@@ -40,7 +40,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       await signInWithPopup(auth, googleProvider);
-      onNavigate('nexus');
+      onNavigate('problem-sets');
     } catch (e: any) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
         await signInWithRedirect(auth, googleProvider);
@@ -60,12 +60,12 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         const token = await getRecaptchaToken('login');
         await checkLoginAttempt(token);
         await signInWithEmailAndPassword(auth, email, password);
-        onNavigate('nexus');
+        onNavigate('problem-sets');
       } else {
         const token = await getRecaptchaToken('signup');
         await checkLoginAttempt(token);
         await createUserWithEmailAndPassword(auth, email, password);
-        onNavigate('nexus');
+        onNavigate('problem-sets');
       }
     } catch (err: any) {
       const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')

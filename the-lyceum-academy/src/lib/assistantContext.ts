@@ -5,7 +5,6 @@ import { loadProgress } from './progress';
 import { getFullProfile } from './profile';
 
 const VIEW_LABELS: Record<string, string> = {
-  nexus: 'Nexus Dashboard (overview)',
   dialogue: 'Socratic Dialogue (chat with AI)',
   'knowledge-map': 'Knowledge Tree (concept map)',
   'problem-sets': 'Problem Sets (assignment sets)',

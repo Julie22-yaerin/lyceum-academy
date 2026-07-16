@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 
 export interface TourStep {
-  target: string;                 // CSS selector, e.g. '[data-tour="dock-nexus"]'
+  target: string;                 // CSS selector, e.g. '[data-tour="dock-problem-sets"]'
   title: string;
   bullets: string[];
   onEnter?: () => void | Promise<void>;

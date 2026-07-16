@@ -47,7 +47,7 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
   // Knowledge map needs its own full-bleed layout (contains its own toolbar, drawer, etc.)
   const isFullBleed = currentView === 'knowledge-map';
 
-  // Subject-scoped views get the workspace tab strip; Nexus/Settings stay
+  // Subject-scoped views get the workspace tab strip; Settings stays
   // cross-subject overviews and don't show it.
   const SUBJECT_SCOPED_VIEWS = new Set(['dialogue', 'notes', 'problem-sets', 'mistake-bank', 'knowledge-map', 'progress' /* , 'reference-bank' */]);
   const showTabBar = SUBJECT_SCOPED_VIEWS.has(currentView);
