@@ -12,6 +12,7 @@ import {
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { checkLoginAttempt } from '../lib/api';
+import { getRecaptchaToken } from '../lib/recaptcha';
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password';
 
@@ -56,10 +57,13 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       if (isLogin) {
-        await checkLoginAttempt();
+        const token = await getRecaptchaToken('login');
+        await checkLoginAttempt(token);
         await signInWithEmailAndPassword(auth, email, password);
         onNavigate('nexus');
       } else {
+        const token = await getRecaptchaToken('signup');
+        await checkLoginAttempt(token);
         await createUserWithEmailAndPassword(auth, email, password);
         onNavigate('nexus');
       }

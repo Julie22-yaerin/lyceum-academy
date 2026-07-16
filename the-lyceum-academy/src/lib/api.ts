@@ -79,15 +79,51 @@ export async function getNodeSummary(concept: string) {
 }
 
 /**
- * Server-side rate-limit gate for the email/password login form. Email/password
- * sign-in itself goes straight from the browser to Firebase (our backend never
- * sees it), so this pure gate call is what actually caps repeated login attempts
- * from the same IP (2 per 5 minutes) before we let Firebase try the credentials.
+ * Server-side rate-limit + bot-check gate for the email/password login and
+ * signup form. Email/password auth itself goes straight from the browser to
+ * Firebase (our backend never sees it), so this pure gate call is what
+ * actually caps repeated attempts from the same IP (2 per 5 minutes) and
+ * verifies the reCAPTCHA v3 token before we let Firebase try the credentials.
  */
-export async function checkLoginAttempt(): Promise<void> {
-  const res = await authFetch(`${API_BASE}/auth/login-attempt`, { method: 'POST' });
+export async function checkLoginAttempt(recaptchaToken: string | null = null): Promise<void> {
+  const res = await authFetch(`${API_BASE}/auth/login-attempt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ recaptcha_token: recaptchaToken }),
+  });
   if (res.status === 429) {
-    throw new Error('Too many login attempts. Please wait a few minutes and try again.');
+    throw new Error('Too many attempts. Please wait a few minutes and try again.');
+  }
+  if (res.status === 403) {
+    throw new Error('Automated request detected. Please try again.');
+  }
+}
+
+/**
+ * Establish (or refresh) the backend's HttpOnly __session cookie for the
+ * current Firebase user. Supplementary to the app's real auth mechanism
+ * (the Bearer token every authFetch call already sends) — best-effort, so
+ * failures here never block sign-in.
+ */
+export async function establishSessionCookie(idToken: string): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/session`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id_token: idToken }),
+    });
+  } catch {
+    // best-effort only
+  }
+}
+
+/** Clear the __session cookie on sign-out. */
+export async function clearSessionCookie(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/auth/session`, { method: 'DELETE', credentials: 'include' });
+  } catch {
+    // best-effort only
   }
 }
 

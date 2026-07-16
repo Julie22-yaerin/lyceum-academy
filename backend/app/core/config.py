@@ -138,6 +138,12 @@ class Settings(BaseSettings):
     # last-resort answer when every chat provider above is down or errors out.
     wolfram_app_id: str = ""
 
+    # ── Google reCAPTCHA v3 (bot protection on login/signup) ──────
+    # Secret key from https://www.google.com/recaptcha/admin — pairs with the
+    # frontend's VITE_RECAPTCHA_SITE_KEY. Leave empty to disable verification
+    # (the login-attempt rate limit still applies on its own).
+    recaptcha_secret_key: str = ""
+
     # ── API ──────────────────────────────────────────────────
     api_cors_origins: str = "http://localhost:3000"
     api_allow_dev_auth: bool = False

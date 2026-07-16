@@ -7,9 +7,18 @@ DELETE /auth/session — clear the session cookie (logout)
 Cookie attributes enforced:
   • HttpOnly  — JS cannot read the cookie (XSS protection)
   • Secure    — only sent over HTTPS (skipped in local dev)
-  • SameSite  — "lax" blocks cross-site POSTs (CSRF protection)
+  • SameSite  — "none" in production (frontend and backend are on different
+                registrable domains — thelyceum.site vs up.railway.app —
+                so this is a genuinely cross-site cookie; "lax" would never
+                be sent back on API calls at all). "lax" in local dev, where
+                frontend/backend share the "localhost" site.
   • Path=/    — available to all routes
   • Max-Age   — 1 hour (matches Firebase ID token lifetime)
+
+This cookie is supplementary — every request is still authenticated via the
+Authorization: Bearer <id_token> header (see app.api.deps.require_auth),
+which is what actually gates every endpoint. Nothing currently reads this
+cookie server-side; it exists for future same-origin/SSR use cases.
 """
 
 from __future__ import annotations
@@ -18,7 +27,8 @@ import os
 from fastapi import APIRouter, HTTPException, Request, Response, Cookie
 from pydantic import BaseModel
 
-from app.core.limiter import limiter
+from app.core.limiter import limiter, get_client_ip
+from app.services import recaptcha as recaptcha_svc
 from app.services.firebase_auth import verify_firebase_id_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -34,7 +44,7 @@ def _set_session_cookie(response: Response, token: str) -> None:
 
     HttpOnly  — not accessible via document.cookie (XSS mitigation)
     Secure    — HTTPS-only transmission (skipped in local dev)
-    SameSite  — 'lax' allows top-level navigation, blocks cross-site POSTs (CSRF mitigation)
+    SameSite  — see module docstring for why this differs between prod/dev
     Path      — available to all routes
     Max-Age   — 1 hour
     """
@@ -43,9 +53,9 @@ def _set_session_cookie(response: Response, token: str) -> None:
         value=token,
         max_age=COOKIE_MAX_AGE,
         path="/",
-        httponly=True,             # XSS: JS cannot read this cookie
-        secure=_IS_PROD,           # HTTPS only in production; False locally so dev works
-        samesite="lax",            # CSRF: blocks cross-site form POSTs
+        httponly=True,                          # XSS: JS cannot read this cookie
+        secure=_IS_PROD,                         # HTTPS only in production; False locally so dev works
+        samesite="none" if _IS_PROD else "lax",  # cross-site in prod, same-site (localhost) in dev
     )
 
 
@@ -55,7 +65,7 @@ def _clear_session_cookie(response: Response) -> None:
         path="/",
         httponly=True,
         secure=_IS_PROD,
-        samesite="lax",
+        samesite="none" if _IS_PROD else "lax",
     )
 
 
@@ -64,15 +74,16 @@ class SessionRequest(BaseModel):
 
 
 @router.post("/session", status_code=204)
-@limiter.limit("2/5minute")
+@limiter.limit("20/minute")
 async def create_session(request: Request, body: SessionRequest, response: Response):
     """
     Verify a Firebase ID token and issue a secure HttpOnly session cookie.
-    Call this right after signInWithPopup / signInWithEmailAndPassword on the frontend.
 
-    Rate-limited to 2 attempts per 5 minutes per IP (no session cookie exists
-    yet at this point, so get_user_key always falls back to the remote address)
-    to blunt login brute-forcing.
+    Called on every auth state change on the frontend (sign-in, sign-up,
+    and session restore on page load/new tab) — not just the initial login —
+    so this is rate-limited generously (20/min) rather than under the strict
+    anti-brute-force limit. The actual credential-guessing surface is gated
+    separately by POST /auth/login-attempt below.
     """
     if not body.id_token:
         raise HTTPException(status_code=400, detail="id_token required")
@@ -94,12 +105,28 @@ async def delete_session(response: Response):
 @limiter.limit("2/5minute")
 async def login_attempt_gate(request: Request):
     """
-    Pure rate-limit gate for the email/password login form.
+    Rate-limit + bot-check gate for the email/password login and signup form.
 
-    signInWithEmailAndPassword runs entirely client-side against Firebase's
-    own servers — our backend never sees the credentials, so it can't rate
-    limit that call directly. The frontend calls this endpoint first and only
-    proceeds to Firebase if it doesn't 429, capping repeated login attempts
-    from the same IP at 2 per 5 minutes.
+    signInWithEmailAndPassword/createUserWithEmailAndPassword run entirely
+    client-side against Firebase's own servers — our backend never sees the
+    credentials, so it can't rate limit or bot-check that call directly. The
+    frontend calls this endpoint first (with an optional reCAPTCHA v3 token
+    in the JSON body: {"recaptcha_token": "..."}) and only proceeds to
+    Firebase if this doesn't 403/429:
+      - 429 — more than 2 attempts from this IP in the last 5 minutes.
+      - 403 — reCAPTCHA score too low (looks automated), only enforced once
+        RECAPTCHA_SECRET_KEY is configured.
+
+    Body is parsed manually (rather than a Pydantic model) so this stays
+    backward-compatible with callers that send no body at all.
     """
-    return
+    if recaptcha_svc.is_configured():
+        token = None
+        try:
+            payload = await request.json()
+            if isinstance(payload, dict):
+                token = payload.get("recaptcha_token")
+        except Exception:
+            pass
+        if not await recaptcha_svc.verify(token or "", remote_ip=get_client_ip(request)):
+            raise HTTPException(status_code=403, detail="Bot verification failed")

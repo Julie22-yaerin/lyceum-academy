@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { auth, onAuthStateChanged, getRedirectResult, reload, sendEmailVerification } from '../lib/firebase';
 import type { User } from '../lib/firebase';
 import { startTrial } from '../lib/trial';
+import { establishSessionCookie, clearSessionCookie } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -64,9 +65,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Email verification disabled — all authenticated users are treated as verified
         setEmailVerified(true);
         stopVerificationPoll();
+        // Supplementary HttpOnly session cookie — refreshed on every sign-in
+        // and session restore (page load/new tab), independent of the Bearer
+        // token that actually authenticates API calls.
+        u.getIdToken().then(establishSessionCookie).catch(() => {});
       } else {
         setEmailVerified(false);
         stopVerificationPoll();
+        clearSessionCookie();
       }
     });
 
