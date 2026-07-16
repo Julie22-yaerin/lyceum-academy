@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
+import { sanitizeSvg } from '../lib/sanitize';
 import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
 import { useWorkspace } from '../context/WorkspaceContext';
 
@@ -100,7 +101,7 @@ function DiagramCard({ diagram }: { diagram: { type: string; title: string; svg:
       <div
         className="w-full"
         style={{ aspectRatio: '800/480' }}
-        dangerouslySetInnerHTML={{ __html: diagram.svg }}
+        dangerouslySetInnerHTML={{ __html: sanitizeSvg(diagram.svg) }}
       />
     </div>
   );
@@ -728,8 +729,9 @@ export default function NoteView() {
                   <div className="min-w-0 flex items-start gap-3">
                     <span className="text-base flex-shrink-0 mt-0.5">{srcIcon}</span>
                     <div className="min-w-0">
-                      <p className="font-sans text-sm text-on-surface truncate"
-                        dangerouslySetInnerHTML={{ __html: sn.title.replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim() || sn.title }} />
+                      <p className="font-sans text-sm text-on-surface truncate">
+                        {sn.title.replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim() || sn.title}
+                      </p>
                       <p className="font-sans text-[9px] uppercase tracking-[1.5px] mt-0.5">
                         <span className="text-amber-600 opacity-80">{timeRemaining(sn.expiresAt)}</span>
                         <span className="opacity-30"> · {new Date(sn.savedAt).toLocaleDateString('en-US')}</span>

@@ -91,7 +91,7 @@ function AppearanceSection() {
   );
 }
 
-function PlanSection() {
+function PlanSection({ onUpgrade }: { onUpgrade: () => void }) {
   const [sub, setSub] = useState<CurrentSubscription | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,12 +158,19 @@ function PlanSection() {
                 </p>
               )}
             </div>
-            {sub && (
+            {sub ? (
               <button
                 onClick={handleManageBilling}
                 className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
               >
                 {t('settings.manageBilling')}
+              </button>
+            ) : (
+              <button
+                onClick={onUpgrade}
+                className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
+              >
+                Upgrade now
               </button>
             )}
           </div>
@@ -215,7 +222,7 @@ function PlanSection() {
   );
 }
 
-export default function SettingsView() {
+export default function SettingsView({ onUpgrade }: { onUpgrade: () => void }) {
   const { t } = useTranslation();
 
   return (
@@ -226,7 +233,7 @@ export default function SettingsView() {
       </div>
       <AppearanceSection />
       <LanguageSection />
-      <PlanSection />
+      <PlanSection onUpgrade={onUpgrade} />
     </div>
   );
 }

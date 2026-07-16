@@ -12,6 +12,9 @@ interface Props {
   daysRemaining: number;
   onSubscribe: (tier: string) => void;
   onChooseFree: () => void;
+  /** Present only when opened voluntarily (e.g. from Settings, mid-trial) —
+   * renders a close button instead of forcing a plan/Free decision. */
+  onClose?: () => void;
 }
 
 const PROMO_DISCOUNT = 0.4;
@@ -88,7 +91,7 @@ const TIER_META: Record<string, { name: string; emoji: string; color: string; fl
 
 const TIER_ORDER = ['free', 'compass', 'scholar', 'mentor'];
 
-export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
+export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: Props) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(true);
@@ -124,13 +127,24 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 overflow-y-auto">
-      <div className="glass-card rounded-3xl p-8 max-w-3xl w-full my-8 text-center">
-        <div className="text-5xl mb-4">⏰</div>
-        <h2 className="font-serif text-2xl text-white mb-2">Your free trial has ended</h2>
+      <div className="glass-card rounded-3xl p-8 max-w-3xl w-full my-8 text-center relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full glass-pill transition-colors"
+          >
+            <span className="material-symbols-outlined text-[16px]">close</span>
+          </button>
+        )}
+        <div className="text-5xl mb-4">{daysRemaining <= 0 ? '⏰' : '🚀'}</div>
+        <h2 className="font-serif text-2xl text-white mb-2">
+          {daysRemaining <= 0 ? 'Your free trial has ended' : 'Upgrade your plan'}
+        </h2>
         <p className="text-sm text-white/50 mb-1">
           {daysRemaining <= 0
             ? 'Your 3-day trial has expired.'
-            : `You have ${Math.max(0, Math.ceil(daysRemaining))} days left.`}
+            : `You still have ${Math.max(0, Math.ceil(daysRemaining))} trial day${Math.ceil(daysRemaining) === 1 ? '' : 's'} left — upgrade any time.`}
         </p>
         <p className="text-xs text-white/40 mb-4">Choose a plan to continue learning with The Lyceum — or stay on Free with reduced limits.</p>
 

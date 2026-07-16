@@ -21,6 +21,7 @@ from app.services import activity_log     as activity_svc
 from app.services import mastery_profile  as profile_svc
 from app.services import feedback         as feedback_svc
 from app.services import ai               as ai_svc
+from app.services.content_safety import check_upload
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
 from app.models.entities import UserProfile, AuthProviderEnum
@@ -74,7 +75,7 @@ async def rag_upload(
     _: None = Depends(_auth),
 ):
     """Upload a document (PDF / TXT / MD), chunk it, and index it."""
-    content = await file.read()
+    content = await check_upload(file, max_bytes=40 * 1024 * 1024)
     fname   = file.filename or "upload"
     ext     = fname.rsplit(".", 1)[-1].lower() if "." in fname else "txt"
 

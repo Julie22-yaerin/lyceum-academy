@@ -38,6 +38,7 @@ function AppInner() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [manualUpgradeOpen, setManualUpgradeOpen] = useState(false);
   const tourCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -141,13 +142,16 @@ function AppInner() {
     return <OnboardingModal onClose={handleOnboardingClose} />;
   }
 
-  // Trial expired paywall: block workspace until user subscribes
-  if (showPaywall && user) {
+  // Trial expired paywall: block workspace until user subscribes.
+  // Also reachable voluntarily (mid-trial) via the Settings "Upgrade" button —
+  // that path gets a close button instead of forcing a plan/Free decision.
+  if ((showPaywall || manualUpgradeOpen) && user) {
     return (
       <TrialPaywall
         daysRemaining={trialDaysRemaining(user.uid)}
         onSubscribe={() => {}}
-        onChooseFree={() => { chooseFree(user.uid); setShowPaywall(false); }}
+        onChooseFree={() => { chooseFree(user.uid); setShowPaywall(false); setManualUpgradeOpen(false); }}
+        onClose={manualUpgradeOpen ? () => setManualUpgradeOpen(false) : undefined}
       />
     );
   }
@@ -171,7 +175,7 @@ function AppInner() {
         {view === 'reference-bank' && <ReferenceBankView />}
         */}
         {view === 'progress' && <ProgressView />}
-        {view === 'settings' && <SettingsView />}
+        {view === 'settings' && <SettingsView onUpgrade={() => setManualUpgradeOpen(true)} />}
       </MainLayout>
     </>
   );
