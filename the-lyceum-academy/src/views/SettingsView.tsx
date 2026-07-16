@@ -6,6 +6,7 @@ import {
   getCurrentSubscription, getSubscriptionPlans, createPortalSession, createCheckoutSession,
   type CurrentSubscription, type SubscriptionPlan,
 } from '../lib/subscriptionApi';
+import { getLemonCheckoutUrl } from '../lib/lemonsqueezy';
 
 const TIER_LABELS: Record<string, string> = {
   free: 'Free',
@@ -173,6 +174,7 @@ function PlanSection() {
             <div className="flex flex-col gap-2">
               {plans.map(p => {
                 const isCurrent = sub?.tier === p.tier && sub?.billing_cycle === p.billing_cycle;
+                const lemonUrl = getLemonCheckoutUrl(p.tier, p.billing_cycle);
                 return (
                   <div
                     key={p.id}
@@ -186,6 +188,13 @@ function PlanSection() {
                     </div>
                     {isCurrent ? (
                       <span className="text-[10px] uppercase tracking-[2px] text-purple-300">{t('tier.current')}</span>
+                    ) : lemonUrl ? (
+                      <a
+                        href={lemonUrl}
+                        className="lemonsqueezy-button glass-btn rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[2px] inline-block"
+                      >
+                        {t('tier.select')}
+                      </a>
                     ) : (
                       <button
                         onClick={() => handleUpgrade(p.id)}

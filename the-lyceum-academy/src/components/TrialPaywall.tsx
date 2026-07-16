@@ -6,6 +6,7 @@
 
 import { useEffect, useState } from 'react';
 import { createCheckoutSession, getSubscriptionPlans, type SubscriptionPlan } from '../lib/subscriptionApi';
+import { getLemonCheckoutUrl } from '../lib/lemonsqueezy';
 
 interface Props {
   daysRemaining: number;
@@ -89,6 +90,7 @@ const TIER_ORDER = ['free', 'compass', 'scholar', 'mentor'];
 
 export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
@@ -96,13 +98,13 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
 
   useEffect(() => {
     getSubscriptionPlans()
-      .then(all => setPlans(all.filter(p => p.billing_cycle === 'monthly' && TIER_ORDER.includes(p.tier))))
+      .then(all => setPlans(all.filter(p => TIER_ORDER.includes(p.tier))))
       .catch(() => setError('Could not load plans — please refresh.'))
       .finally(() => setLoading(false));
   }, []);
 
   const ordered = TIER_ORDER
-    .map(tier => plans.find(p => p.tier === tier))
+    .map(tier => plans.find(p => p.tier === tier && (tier === 'free' || p.billing_cycle === cycle)))
     .filter((p): p is SubscriptionPlan => !!p);
 
   async function handleSelect(plan: SubscriptionPlan) {
@@ -133,13 +135,28 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
         <p className="text-xs text-white/40 mb-4">Choose a plan to continue learning with The Lyceum — or stay on Free with reduced limits.</p>
 
         {!countdown.expired && (
-          <div className="inline-flex items-center gap-2 rounded-full glass px-4 py-2 mb-6 border border-amber-400/30">
+          <div className="inline-flex items-center gap-2 rounded-full glass px-4 py-2 mb-4 border border-amber-400/30">
             <span className="text-amber-300 text-xs font-semibold uppercase tracking-wider">40% off ends in</span>
             <span className="text-white text-sm font-mono tabular-nums">
               {countdown.days}d {String(countdown.hours).padStart(2, '0')}h {String(countdown.minutes).padStart(2, '0')}m {String(countdown.seconds).padStart(2, '0')}s
             </span>
           </div>
         )}
+
+        <div className="flex items-center justify-center gap-1 mb-6">
+          <button
+            onClick={() => setCycle('monthly')}
+            className={`rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-wider transition-all ${cycle === 'monthly' ? 'glass-pill-active' : 'glass-pill'}`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setCycle('annual')}
+            className={`rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-wider transition-all ${cycle === 'annual' ? 'glass-pill-active' : 'glass-pill'}`}
+          >
+            Yearly
+          </button>
+        </div>
 
         {loading ? (
           <div className="py-8 text-white/40 text-sm">Loading plans…</div>
@@ -149,16 +166,15 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
               const meta = TIER_META[plan.tier];
               const isFree = plan.tier === 'free';
               const discounted = isFree || countdown.expired ? plan.price_usd : plan.price_usd * (1 - PROMO_DISCOUNT);
+              const priceSuffix = plan.billing_cycle === 'annual' ? '/yr' : '/mo';
+              const lemonUrl = isFree ? null : getLemonCheckoutUrl(plan.tier, plan.billing_cycle);
 
-              return (
-                <button
-                  key={plan.id}
-                  onClick={() => handleSelect(plan)}
-                  disabled={busyId !== null}
-                  className={`glass rounded-2xl p-4 flex flex-col items-center gap-2 border transition-all hover:scale-[1.03] ${
-                    meta.flagship ? 'border-amber-400/40 shadow-lg shadow-amber-500/10' : 'border-white/10'
-                  } ${busyId === plan.id ? 'opacity-50' : ''}`}
-                >
+              const cardClassName = `glass rounded-2xl p-4 flex flex-col items-center gap-2 border transition-all hover:scale-[1.03] ${
+                meta.flagship ? 'border-amber-400/40 shadow-lg shadow-amber-500/10' : 'border-white/10'
+              } ${busyId === plan.id ? 'opacity-50' : ''}`;
+
+              const cardContent = (
+                <>
                   <span className="text-3xl">{meta.emoji}</span>
                   <span className="text-sm font-medium text-white">{meta.name}</span>
 
@@ -167,10 +183,10 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
                   ) : (
                     <div className="flex flex-col items-center">
                       {!countdown.expired && (
-                        <span className="text-xs text-white/35 line-through">${plan.price_usd.toFixed(2)}/mo</span>
+                        <span className="text-xs text-white/35 line-through">${plan.price_usd.toFixed(2)}{priceSuffix}</span>
                       )}
                       <span className="text-lg font-bold text-white">
-                        ${discounted.toFixed(2)}<span className="text-xs text-white/40">/mo</span>
+                        ${discounted.toFixed(2)}<span className="text-xs text-white/40">{priceSuffix}</span>
                       </span>
                     </div>
                   )}
@@ -194,6 +210,32 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
                   {isFree && (
                     <span className="text-[9px] text-white/30 mt-1 uppercase tracking-wider">Continue with Free</span>
                   )}
+                </>
+              );
+
+              // Compass has a real Lemon Squeezy checkout wired up — use the overlay
+              // link directly (lemon.js intercepts the click, no page navigation).
+              // Everything else still goes through the internal checkout flow.
+              if (lemonUrl) {
+                return (
+                  <a
+                    key={plan.id}
+                    href={lemonUrl}
+                    className={`lemonsqueezy-button ${cardClassName}`}
+                  >
+                    {cardContent}
+                  </a>
+                );
+              }
+
+              return (
+                <button
+                  key={plan.id}
+                  onClick={() => handleSelect(plan)}
+                  disabled={busyId !== null}
+                  className={cardClassName}
+                >
+                  {cardContent}
                 </button>
               );
             })}
@@ -202,7 +244,7 @@ export default function TrialPaywall({ daysRemaining, onChooseFree }: Props) {
 
         {error && <p className="text-xs text-red-300/80 mb-3">{error}</p>}
 
-        <p className="text-[10px] text-white/25">Secure checkout via Stripe · Cancel anytime</p>
+        <p className="text-[10px] text-white/25">Secure checkout · Cancel anytime</p>
       </div>
     </div>
   );
