@@ -78,6 +78,19 @@ export async function getNodeSummary(concept: string) {
   }>;
 }
 
+/**
+ * Server-side rate-limit gate for the email/password login form. Email/password
+ * sign-in itself goes straight from the browser to Firebase (our backend never
+ * sees it), so this pure gate call is what actually caps repeated login attempts
+ * from the same IP (2 per 5 minutes) before we let Firebase try the credentials.
+ */
+export async function checkLoginAttempt(): Promise<void> {
+  const res = await authFetch(`${API_BASE}/auth/login-attempt`, { method: 'POST' });
+  if (res.status === 429) {
+    throw new Error('Too many login attempts. Please wait a few minutes and try again.');
+  }
+}
+
 /** WolframAlpha exact computation (SOC-17 plugin) — used by Ari's compute_math tool call. */
 export async function computeMath(query: string): Promise<{ result: string | null; configured: boolean }> {
   const res = await authFetch(`${API_BASE}/ai/compute`, {

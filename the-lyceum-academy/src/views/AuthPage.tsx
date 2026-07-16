@@ -11,6 +11,7 @@ import {
   sendPasswordResetEmail,
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
+import { checkLoginAttempt } from '../lib/api';
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password';
 
@@ -55,6 +56,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       if (isLogin) {
+        await checkLoginAttempt();
         await signInWithEmailAndPassword(auth, email, password);
         onNavigate('nexus');
       } else {

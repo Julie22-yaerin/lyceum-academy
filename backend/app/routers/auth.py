@@ -15,9 +15,10 @@ Cookie attributes enforced:
 from __future__ import annotations
 
 import os
-from fastapi import APIRouter, HTTPException, Response, Cookie
+from fastapi import APIRouter, HTTPException, Request, Response, Cookie
 from pydantic import BaseModel
 
+from app.core.limiter import limiter
 from app.services.firebase_auth import verify_firebase_id_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -63,10 +64,15 @@ class SessionRequest(BaseModel):
 
 
 @router.post("/session", status_code=204)
-async def create_session(body: SessionRequest, response: Response):
+@limiter.limit("2/5minute")
+async def create_session(request: Request, body: SessionRequest, response: Response):
     """
     Verify a Firebase ID token and issue a secure HttpOnly session cookie.
     Call this right after signInWithPopup / signInWithEmailAndPassword on the frontend.
+
+    Rate-limited to 2 attempts per 5 minutes per IP (no session cookie exists
+    yet at this point, so get_user_key always falls back to the remote address)
+    to blunt login brute-forcing.
     """
     if not body.id_token:
         raise HTTPException(status_code=400, detail="id_token required")
@@ -82,3 +88,18 @@ async def create_session(body: SessionRequest, response: Response):
 async def delete_session(response: Response):
     """Clear the session cookie (logout)."""
     _clear_session_cookie(response)
+
+
+@router.post("/login-attempt", status_code=204)
+@limiter.limit("2/5minute")
+async def login_attempt_gate(request: Request):
+    """
+    Pure rate-limit gate for the email/password login form.
+
+    signInWithEmailAndPassword runs entirely client-side against Firebase's
+    own servers — our backend never sees the credentials, so it can't rate
+    limit that call directly. The frontend calls this endpoint first and only
+    proceeds to Firebase if it doesn't 429, capping repeated login attempts
+    from the same IP at 2 per 5 minutes.
+    """
+    return

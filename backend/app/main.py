@@ -9,8 +9,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request, Dep
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse, Response
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
@@ -19,6 +18,7 @@ from sqlalchemy.orm import Session
 import websockets as _ws
 
 from app.core.config import settings
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.api.deps import get_current_user, require_auth
 from app.models.entities import FeatureUsageLog
@@ -39,29 +39,6 @@ _GEMINI_LIVE_URL = (
     "/ws/google.ai.generativelanguage.v1beta"
     ".GenerativeService.BidiGenerateContent"
 )
-
-
-# ── Per-user rate limiting key ────────────────────────────────────────────────
-def get_user_key(request: Request) -> str:
-    """Rate limit by Firebase UID when authenticated, else fall back to IP."""
-    auth = request.headers.get("Authorization", "")
-    if auth.startswith("Bearer "):
-        token = auth[7:].strip()
-        try:
-            # Decode payload without signature verification — just need the UID.
-            # Verification is handled by require_auth; here we only need the key.
-            parts = token.split(".")
-            if len(parts) == 3:
-                payload_b64 = parts[1]
-                padding = (4 - len(payload_b64) % 4) % 4
-                payload_bytes = base64.urlsafe_b64decode(payload_b64 + "=" * padding)
-                payload_data = _json.loads(payload_bytes)
-                uid = payload_data.get("user_id") or payload_data.get("sub") or ""
-                if uid and len(uid) > 4:
-                    return f"uid:{uid}"
-        except Exception:
-            pass
-    return get_remote_address(request)
 
 
 def _uid(payload: dict) -> str:
@@ -282,8 +259,6 @@ class DataAccessAuditMiddleware(BaseHTTPMiddleware):
         return response
 
 
-# ── Rate limiter ─────────────────────────────────────────────────────────────
-limiter = Limiter(key_func=get_user_key)
 from app.services import ai         as ai_svc
 from app.services import finetune_db as ft_svc
 from app.routers  import admin      as admin_router
@@ -535,7 +510,7 @@ async def get_persona_prompt(
 
 
 @app.post("/ai/persona/chat")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def persona_chat(
     request: Request,
     req: PersonaChatRequest,
@@ -642,7 +617,7 @@ class TopicMapRequest(BaseModel):
 
 
 @app.post("/ai/chat")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
     """Raw chat call — pass messages directly to Ollama (qwq:32b)."""
     check_messages(req.messages)
@@ -737,7 +712,7 @@ class DualChatRequest(BaseModel):
 
 
 @app.post("/ai/dual")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_dual_chat(request: Request, req: DualChatRequest, auth: dict = Depends(require_auth)):
     """
     Dual-role AI pipeline:
@@ -784,7 +759,7 @@ async def ai_dual_chat(request: Request, req: DualChatRequest, auth: dict = Depe
 
 
 @app.post("/ai/voice-fallback")
-@limiter.limit("20/minute")
+@limiter.limit("3/minute")
 async def ai_voice_fallback(request: Request, req: VoiceFallbackRequest, _: dict = Depends(require_auth)):
     """Text-based GPT fallback for ARI when the Gemini Live WS session is down."""
     check_messages(req.messages)
@@ -808,7 +783,7 @@ async def ai_voice_fallback(request: Request, req: VoiceFallbackRequest, _: dict
 
 
 @app.post("/ai/hint")
-@limiter.limit("20/minute")
+@limiter.limit("3/minute")
 async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_auth)):
     """Return a Socratic hint for a problem at level 1–3."""
     check_prompt(req.problem, "problem")
@@ -831,7 +806,7 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
 
 
 @app.post("/ai/compute")
-@limiter.limit("30/minute")
+@limiter.limit("3/minute")
 async def ai_compute(request: Request, req: ComputeRequest, _: dict = Depends(require_auth)):
     """
     Exact computation via WolframAlpha (SOC-17 plugin) — used by Ari's live
@@ -846,7 +821,7 @@ async def ai_compute(request: Request, req: ComputeRequest, _: dict = Depends(re
 
 
 @app.post("/ai/reverse-build-eval")
-@limiter.limit("15/minute")
+@limiter.limit("3/minute")
 async def ai_reverse_build_eval(
     request: Request,
     req: ReverseBuildRequest,
@@ -895,7 +870,7 @@ async def ai_reverse_build_eval(
 
 
 @app.post("/ai/decompose")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depends(require_auth)):
     """Decompose a problem set into a reasoning tree."""
     check_prompt(req.pset_text, "pset_text")
@@ -916,7 +891,7 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
 
 
 @app.post("/ai/mastery")
-@limiter.limit("20/minute")
+@limiter.limit("3/minute")
 async def ai_mastery(request: Request, req: MasteryRequest, auth: dict = Depends(require_auth)):
     """Evaluate a student's solution and return mastery delta."""
     check_prompt(req.problem, "problem")
@@ -971,7 +946,7 @@ class AnalyzePsetRequest(BaseModel):
 
 
 @app.post("/ai/analyze-pset-questions")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_analyze_pset_questions(request: Request, req: AnalyzePsetRequest, _: dict = Depends(require_auth)):
     """
     Analyze all questions in a problem set — topic, question types, difficulty
@@ -994,7 +969,7 @@ class RevealSolutionRequest(BaseModel):
 
 
 @app.post("/ai/reveal-solution")
-@limiter.limit("15/minute")
+@limiter.limit("3/minute")
 async def ai_reveal_solution(request: Request, req: RevealSolutionRequest, _: dict = Depends(require_auth)):
     """
     REVERSE_BUILD rescue (problem sets): after 3 wrong attempts on the same
@@ -1020,7 +995,7 @@ class GenerateVariantsRequest(BaseModel):
 
 
 @app.post("/ai/generate-variants")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_generate_variants(request: Request, req: GenerateVariantsRequest, _: dict = Depends(require_auth)):
     """
     Bonus round after a problem set: one fresh practice question per source
@@ -1058,7 +1033,7 @@ async def ai_onboarding_questions():
 
 
 @app.post("/ai/onboarding-analyze")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_onboarding_analyze(request: Request, req: OnboardingRequest, _: dict = Depends(require_auth)):
     """
     Analyze onboarding answers with Meta Llama 3.1 70B orchestrator
@@ -1134,7 +1109,7 @@ class AnalyzePageRequest(BaseModel):
     total_pages: int
 
 @app.post("/ai/analyze-page")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = Depends(require_auth)):
     """Analyze a single PDF page on demand (progressive loading). Returns {problems:[...]}."""
     try:
@@ -1146,7 +1121,7 @@ async def ai_analyze_page(request: Request, req: AnalyzePageRequest, _: dict = D
 
 
 @app.post("/ai/grade-dual")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def ai_grade_dual(request: Request, req: GradeDualRequest, auth: dict = Depends(require_auth)):
     """
     Dual-AI grading:
@@ -1191,7 +1166,7 @@ async def ai_grade_dual(request: Request, req: GradeDualRequest, auth: dict = De
 
 
 @app.post("/ai/grade-all")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_grade_all(request: Request, req: GradeAllRequest, auth: dict = Depends(require_auth)):
     """Batch-grade all answers in one Groq call. Returns {grades:[{id,passed,feedback}]}."""
     for q in req.questions:
@@ -1218,7 +1193,7 @@ async def ai_grade_all(request: Request, req: GradeAllRequest, auth: dict = Depe
 
 
 @app.post("/ai/gemini")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(require_auth)):
     """Chat via Ollama primary model (Ollama-only mode)."""
     try:
@@ -1237,7 +1212,7 @@ async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(requir
 
 
 @app.post("/ai/upload-pset")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
     """
     Upload a PDF or PNG/JPG image containing a problem set.
@@ -1319,7 +1294,7 @@ class ToolMapValidateRequest(BaseModel):
 
 
 @app.post("/ai/tool-map/validate")
-@limiter.limit("20/minute")
+@limiter.limit("3/minute")
 async def ai_tool_map_validate(request: Request, req: ToolMapValidateRequest, _: dict = Depends(require_auth)):
     """
     Validate a student's INPUT → TOOL → OUTPUT map using Google Gemini.
@@ -1345,7 +1320,7 @@ class DrawingRequest(BaseModel):
 
 
 @app.post("/ai/describe-drawing")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_describe_drawing(request: Request, req: DrawingRequest, _: dict = Depends(require_auth)):
     """Use Gemini vision to transcribe a student's whiteboard drawing."""
     try:
@@ -1370,7 +1345,7 @@ class NodeSummaryRequest(BaseModel):
 
 
 @app.post("/ai/node-summary")
-@limiter.limit("30/minute")
+@limiter.limit("3/minute")
 async def ai_node_summary(request: Request, req: NodeSummaryRequest, _: dict = Depends(require_auth)):
     """
     Fast Groq summary for a single knowledge graph node.
@@ -1435,7 +1410,7 @@ class MindMapInspectRequest(BaseModel):
 
 
 @app.post("/ai/mind-map/inspect")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_mind_map_inspect(
     request: Request,
     req: MindMapInspectRequest,
@@ -1488,7 +1463,7 @@ class CleanQuestionRequest(BaseModel):
 
 
 @app.post("/ai/clean-question")
-@limiter.limit("20/minute")
+@limiter.limit("3/minute")
 async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict = Depends(require_auth)):
     """
     Use NVIDIA Nemotron to distil a raw question prompt:
@@ -1517,7 +1492,7 @@ async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict
 
 
 @app.post("/ai/note-upload")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
     """
     Synthesize a PDF or image into a structured study note.
@@ -1560,7 +1535,7 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
 
 
 @app.post("/ai/feynman")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 async def ai_feynman(
     request: Request,
     audio: UploadFile = File(...),
@@ -1653,7 +1628,7 @@ async def ai_feynman(
 
 
 @app.post("/ai/topic-map")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_topic_map(request: Request, req: TopicMapRequest, _: dict = Depends(require_auth)):
     """
     Convert a topic into an Obsidian-style knowledge node map.
@@ -1692,7 +1667,7 @@ class RoadmapRequest(BaseModel):
 
 
 @app.post("/ai/roadmap")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 async def ai_roadmap(request: Request, req: RoadmapRequest, auth: dict = Depends(require_auth)):
     """
     DeepSeek-generated learning roadmap for a target topic — prerequisites
