@@ -12,6 +12,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, File, Form
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.services import rag              as rag_svc
@@ -24,7 +25,7 @@ from app.services import ai               as ai_svc
 from app.services.content_safety import check_upload
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
-from app.models.entities import UserProfile, AuthProviderEnum
+from app.models.entities import UserProfile, AuthProviderEnum, SubscriptionPlan
 
 router      = APIRouter(prefix="/admin", tags=["admin"])
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "pclick-admin-dev")
@@ -284,6 +285,42 @@ def get_profile(user_id: str, db: Session = Depends(get_db), _: None = Depends(_
         "full_name": identity.get("full_name"),
         **profile_svc.get_full_profile(user_id),
     }
+
+
+# ── Plan credits — admin-editable credit allotment per subscription plan ────
+# Data model only (see migrations/007_plan_credits.sql): NOT wired to a real
+# Stripe payment yet — user_subscriptions/users don't exist in production,
+# so there's nothing to auto-grant onto. This just lets the admin view/set
+# the per-plan number ahead of that follow-up.
+
+@router.get("/plans")
+def list_plan_credits(db: Session = Depends(get_db), _: None = Depends(_auth)):
+    rows = db.execute(select(SubscriptionPlan)).scalars().all()
+    return {
+        "plans": [
+            {
+                "id": str(p.id),
+                "tier": p.tier.value,
+                "billing_cycle": p.billing_cycle.value,
+                "credits_monthly": p.credits_monthly,
+            }
+            for p in rows
+        ]
+    }
+
+
+class PlanCreditsIn(BaseModel):
+    credits_monthly: int
+
+
+@router.put("/plans/{plan_id}/credits")
+def set_plan_credits(plan_id: str, body: PlanCreditsIn, db: Session = Depends(get_db), _: None = Depends(_auth)):
+    plan = db.get(SubscriptionPlan, plan_id)
+    if not plan:
+        raise HTTPException(404, "Plan not found")
+    plan.credits_monthly = body.credits_monthly
+    db.commit()
+    return {"ok": True, "id": plan_id, "credits_monthly": plan.credits_monthly}
 
 
 # ── Fine-tuning — OpenAI job pipeline ────────────────────────────────────────

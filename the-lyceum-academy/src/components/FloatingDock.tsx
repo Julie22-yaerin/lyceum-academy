@@ -3,10 +3,10 @@ import { View, NavigationProps } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { auth, signOut } from '../lib/firebase';
-import { getUsage, UsageData } from '../lib/api';
 import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
 import { useTranslation } from '../i18n/I18nContext';
 import ReportBugButton from './ReportBugButton';
+import { getCurrentSubscription, getUsageStats, type CurrentSubscription, type UsageStats } from '../lib/subscriptionApi';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
@@ -19,22 +19,58 @@ const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
   { view: 'progress',      labelKey: 'nav.progress',       icon: 'bar_chart' },
 ];
 
-const PROVIDERS: { key: string; label: string; color: string }[] = [
-  { key: 'groq',       label: 'Groq / Llama',   color: '#FF6B35' },
-  { key: 'google',     label: 'Google Gemini',  color: '#4285F4' },
-  { key: 'nvidia',     label: 'NVIDIA NIM',     color: '#76B900' },
-  { key: 'openrouter', label: 'OpenRouter',     color: '#7C3AED' },
-  { key: 'ollama',     label: 'Ollama',         color: '#6B7280' },
-];
+const TIER_LIMITS: Record<string, { voice: number; reference: number; roadmap: number }> = {
+  free:       { voice: 0, reference: 0, roadmap: 0 },
+  compass:    { voice: 15, reference: 20, roadmap: 1 },
+  scholar:    { voice: 60, reference: 100, roadmap: 4 },
+  mentor:     { voice: 180, reference: Infinity, roadmap: 7 },
+  researcher: { voice: 600, reference: Infinity, roadmap: Infinity },
+};
+
+function UsageBar({ label, used, limit, color }: { label: string; used: number; limit: number | null; color: string }) {
+  const { t } = useTranslation();
+  const isUnlimited = limit === null || limit === Infinity;
+  const pct = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-[11px] text-white/70">{label}</span>
+        <span className="text-[11px] font-semibold text-white/60" style={{ minWidth: 36, textAlign: 'right' }}>
+          {isUnlimited ? '∞' : `${pct.toFixed(0)}%`}
+        </span>
+      </div>
+      <div className="h-1.5 w-full bg-white/5 overflow-hidden rounded-full">
+        <div
+          className="h-full transition-all duration-500 rounded-full"
+          style={{
+            width: isUnlimited ? '100%' : `${pct}%`,
+            background: color,
+            opacity: isUnlimited ? 0.3 : 0.85,
+          }}
+        />
+      </div>
+      <p className="text-[9px] text-white/30 mt-0.5 text-right">
+        {isUnlimited
+          ? t('usage.unlimited')
+          : t('usage.usedOf', { used: used.toLocaleString(), limit: limit.toLocaleString() })}
+      </p>
+    </div>
+  );
+}
 
 function UsagePanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [data, setData] = useState<UsageData | null>(null);
+  const [sub, setSub] = useState<CurrentSubscription | null>(null);
+  const [usage, setUsage] = useState<UsageStats | null>(null);
   const [loading, setLoading] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    getUsage().then(d => { setData(d); setLoading(false); });
+    Promise.all([
+      getCurrentSubscription().catch(() => null),
+      getUsageStats().catch(() => null),
+    ]).then(([s, u]) => { setSub(s); setUsage(u); setLoading(false); });
   }, []);
 
   useEffect(() => {
@@ -45,8 +81,35 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
-  const totalReq = data?.total_calls ?? 0;
-  const totalTok = data?.total_tokens ?? 0;
+  const tier = sub?.tier || 'free';
+  const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
+
+  const categories = [
+    {
+      key: 'voice',
+      label: t('usage.voiceAri'),
+      icon: 'mic',
+      used: usage?.voice_minutes_used ?? 0,
+      limit: sub?.voice_minutes_limit ?? limits.voice,
+      color: '#FF6B35',
+    },
+    {
+      key: 'reference',
+      label: t('usage.referenceLibrary'),
+      icon: 'auto_stories',
+      used: usage?.reference_library_count ?? 0,
+      limit: sub ? (usage?.reference_library_limit ?? limits.reference) : limits.reference,
+      color: '#4285F4',
+    },
+    {
+      key: 'roadmap',
+      label: t('usage.roadmapRegen'),
+      icon: 'route',
+      used: usage?.roadmap_regens_today ?? 0,
+      limit: usage?.roadmap_regen_daily_limit ?? limits.roadmap,
+      color: '#76B900',
+    },
+  ];
 
   return (
     <div
@@ -58,7 +121,12 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
       <style>{`@keyframes fadeDown { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
       <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.aiUsage')}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.usage')}</span>
+          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-white/50 uppercase tracking-wide">
+            {tier}
+          </span>
+        </div>
         <button onClick={onClose} className="opacity-30 hover:opacity-80 transition-opacity">
           <span className="material-symbols-outlined text-[14px]">close</span>
         </button>
@@ -70,44 +138,24 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
             <div className="w-3 h-3 border border-white/20 border-t-white rounded-full animate-spin" />
             <span className="text-xs text-white/40">{t('common.loading')}</span>
           </div>
-        ) : totalReq === 0 ? (
-          <p className="text-xs text-white/40 text-center py-2">{t('dock.noCalls')}</p>
         ) : (
           <>
-            {PROVIDERS.map(({ key, label, color }) => {
-              const p = data?.by_provider?.[key];
-              if (!p || p.requests === 0) return null;
-              const pctReq = totalReq > 0 ? (p.requests / totalReq) * 100 : 0;
-              const tok = p.prompt + p.completion;
-              return (
-                <div key={key}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
-                      <span className="text-[11px] text-white/70">{label}</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-white/40">{t('dock.calls', { count: p.requests })}</span>
-                      <span className="text-[11px] font-semibold text-white/60" style={{ minWidth: 36, textAlign: 'right' }}>
-                        {pctReq.toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                  <div className="h-1.5 w-full bg-white/5 overflow-hidden rounded-full">
-                    <div className="h-full transition-all duration-500 rounded-full" style={{ width: `${pctReq}%`, background: color, opacity: 0.85 }} />
-                  </div>
-                  {tok > 0 && (
-                    <p className="text-[9px] text-white/30 mt-0.5 text-right">{t('dock.tokens', { count: tok.toLocaleString() })}</p>
-                  )}
-                </div>
-              );
-            })}
-            <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.total')}</span>
-              <div className="flex items-center gap-4">
-                <span className="text-[10px] text-white/40">{t('dock.calls', { count: totalReq })}</span>
-                <span className="text-[10px] text-white/40">{t('dock.tokens', { count: totalTok.toLocaleString() })}</span>
-              </div>
+            {categories.map((cat) => (
+              <UsageBar
+                key={cat.key}
+                label={cat.label}
+                used={cat.used}
+                limit={cat.limit}
+                color={cat.color}
+              />
+            ))}
+            <div className="border-t border-white/10 pt-3">
+              <p className="text-[9px] text-white/30 text-center">
+                {t('usage.billingPeriod', {
+                  start: usage?.billing_period_start ?? '—',
+                  end: usage?.billing_period_end ?? '—',
+                })}
+              </p>
             </div>
           </>
         )}
@@ -207,7 +255,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           data-tour="corner-usage"
           onClick={() => setShowStats(v => !v)}
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-          title={t('dock.aiUsage')}
+          title={t('dock.usage')}
         >
           <span className="material-symbols-outlined text-[16px]">analytics</span>
         </button>

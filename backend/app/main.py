@@ -282,6 +282,7 @@ from app.routers  import ai_agents   as ai_agents_router
 from app.routers  import dev_patrol  as dev_patrol_router
 from app.routers  import support_chat as support_chat_router
 from app.routers  import commander   as commander_router
+from app.routers  import ai_registry as ai_registry_router
 
 
 @asynccontextmanager
@@ -320,6 +321,9 @@ async def lifespan(_app: FastAPI):
     from app.services import commander as commander_svc
     commander_svc.init_db()
     commander_svc.load_pending()
+
+    from app.services import ai_registry as ai_registry_svc
+    ai_registry_svc.init_db()
 
     async def _commander_batch_loop() -> None:
         """Every 6h, check whether the 4-day minor-bug batch is due and
@@ -397,6 +401,7 @@ app.include_router(ai_agents_router.router)
 app.include_router(dev_patrol_router.router)
 app.include_router(support_chat_router.router)
 app.include_router(commander_router.router)
+app.include_router(ai_registry_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port

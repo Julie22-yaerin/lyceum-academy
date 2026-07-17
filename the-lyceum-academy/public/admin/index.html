@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PCLICK Admin — Training AI</title>
+  <title>PCLICK Admin — AI Ops</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
@@ -27,7 +27,7 @@
     ::-webkit-scrollbar-track { background:var(--bg); }
     ::-webkit-scrollbar-thumb { background:#30363d; border-radius:3px; }
     input,textarea,select { background:var(--surface); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:8px 12px; font-size:13px; width:100%; outline:none; font-family:inherit; }
-    input:focus,textarea:focus { border-color:var(--em); }
+    input:focus,textarea:focus,select:focus { border-color:var(--em); }
     textarea { resize:vertical; }
     .btn { display:inline-flex; align-items:center; gap:6px; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:500; cursor:pointer; border:none; transition:all .15s; white-space:nowrap; }
     .btn-primary { background:var(--em); color:#0d1117; }
@@ -44,18 +44,15 @@
     .fade-in { animation:fadein .18s ease; }
     @keyframes fadein { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:none} }
     #login-screen.hidden, #app.hidden { display:none!important; }
-    .model-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:20px; cursor:pointer; transition:all .15s; }
-    .model-card:hover { border-color:var(--em-ring); background:var(--card); transform:translateY(-1px); }
-    .task-card { border:1px solid var(--border); border-radius:12px; background:var(--card); margin-bottom:10px; }
-    .task-header { display:flex; align-items:center; gap:10px; padding:14px 16px; cursor:pointer; }
-    .task-header:hover { background:rgba(255,255,255,.03); border-radius:12px; }
-    .task-body { padding:0 16px 16px; border-top:1px solid var(--border); }
-    .example-row { border:1px solid var(--border); border-radius:8px; padding:12px; margin-top:8px; background:var(--surface); }
-    .shot-label { font-size:10px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin-bottom:4px; }
+    .agent-card { border:1px solid var(--border); border-radius:14px; background:var(--surface); padding:20px; }
     .pill { display:inline-flex; align-items:center; gap:4px; padding:2px 8px; border-radius:9999px; font-size:11px; font-weight:500; }
     .pill-green { background:var(--em-dim); color:var(--em); border:1px solid var(--em-ring); }
     .pill-blue  { background:rgba(88,166,255,.1); color:var(--blue); border:1px solid rgba(88,166,255,.25); }
     .pill-amber { background:rgba(210,153,34,.1); color:var(--amber); border:1px solid rgba(210,153,34,.25); }
+    .pill-red   { background:rgba(248,81,73,.1); color:#f85149; border:1px solid rgba(248,81,73,.25); }
+    .chat-bubble-user { background:var(--em); color:#0d1117; border-radius:14px 14px 4px 14px; }
+    .chat-bubble-ai { background:var(--card); color:var(--text); border:1px solid var(--border); border-radius:14px 14px 14px 4px; }
+    .org-node { border:1px solid var(--border); border-radius:10px; background:var(--card); padding:8px 12px; display:inline-flex; align-items:center; gap:8px; }
   </style>
 </head>
 <body>
@@ -68,7 +65,7 @@
     <div class="text-center mb-8">
       <div class="text-4xl mb-3">🐍🐈</div>
       <h1 class="text-2xl font-bold">PCLICK Admin</h1>
-      <p style="color:var(--muted)" class="text-sm mt-1">Training AI · Knowledge Base</p>
+      <p style="color:var(--muted)" class="text-sm mt-1">AI Ops · Command Center</p>
     </div>
     <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl p-6 space-y-4 shadow-2xl">
 
@@ -112,7 +109,9 @@
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
     <nav class="flex items-center gap-1 ml-4">
-      <button id="nav-models" onclick="viewModels()" class="nav-btn text-xs">Training AI</button>
+      <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
+      <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
+      <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
       <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
       <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
@@ -136,70 +135,15 @@
 
   <!-- Main -->
   <main class="flex-1 overflow-auto">
-    <div id="view-models" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
-    <div id="view-model-detail" class="hidden p-6 max-w-3xl mx-auto fade-in"></div>
+    <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-ai-chat" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-activity" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-profiles" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-storage" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
   </main>
-</div>
-
-<!-- ════════════════════════════════════════════════════════════
-     TASK MODAL
-════════════════════════════════════════════════════════════ -->
-<div id="task-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.7);backdrop-filter:blur(4px)">
-  <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl w-full max-w-md shadow-2xl">
-    <div class="flex items-center justify-between px-5 py-4" style="border-bottom:1px solid var(--border)">
-      <h3 id="task-modal-title" class="font-semibold text-sm">Add task</h3>
-      <button onclick="closeModal('task-modal')" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
-    </div>
-    <div class="p-5 space-y-3">
-      <input type="hidden" id="task-edit-id" />
-      <div>
-        <div class="text-xs mb-1.5" style="color:var(--muted)">Task name <span class="text-red-400">*</span></div>
-        <input id="task-name" type="text" placeholder="e.g. Generate hint, Decompose problem, Check answer" />
-      </div>
-      <div>
-        <div class="text-xs mb-1.5" style="color:var(--muted)">Description <span style="color:var(--muted)">(optional)</span></div>
-        <input id="task-desc" type="text" placeholder="What this task does" />
-      </div>
-      <div id="task-error" class="text-red-400 text-xs hidden"></div>
-    </div>
-    <div class="px-5 pb-5 flex justify-end gap-2">
-      <button onclick="closeModal('task-modal')" class="btn btn-ghost">Cancel</button>
-      <button onclick="saveTask()" class="btn btn-primary">Save</button>
-    </div>
-  </div>
-</div>
-
-<!-- EXAMPLE MODAL -->
-<div id="example-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4" style="background:rgba(0,0,0,.7);backdrop-filter:blur(4px)">
-  <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-2xl w-full max-w-xl shadow-2xl max-h-[92vh] flex flex-col">
-    <div class="flex items-center justify-between px-5 py-4 shrink-0" style="border-bottom:1px solid var(--border)">
-      <h3 id="example-modal-title" class="font-semibold text-sm">Add few-shot example</h3>
-      <button onclick="closeModal('example-modal')" class="text-gray-500 hover:text-white text-xl leading-none">&times;</button>
-    </div>
-    <div class="p-5 space-y-3 overflow-y-auto flex-1">
-      <input type="hidden" id="ex-id" />
-      <input type="hidden" id="ex-model-id" />
-      <input type="hidden" id="ex-task-id" />
-      <div>
-        <div class="shot-label">User message <span class="text-red-400">*</span></div>
-        <textarea id="ex-user" rows="4" placeholder="What the user/student says or asks…"></textarea>
-      </div>
-      <div>
-        <div class="shot-label">Assistant reply <span class="text-red-400">*</span></div>
-        <textarea id="ex-assistant" rows="5" placeholder="The ideal AI response for fine-tuning…"></textarea>
-      </div>
-      <div id="ex-error" class="text-red-400 text-xs hidden"></div>
-    </div>
-    <div class="px-5 pb-5 flex justify-end gap-2 shrink-0" style="border-top:1px solid var(--border);padding-top:14px">
-      <button onclick="closeModal('example-modal')" class="btn btn-ghost">Cancel</button>
-      <button onclick="submitExample()" class="btn btn-primary">Save example</button>
-    </div>
-  </div>
 </div>
 
 <!-- Toast -->
@@ -233,7 +177,6 @@ let _shown       = false;
 let _pingTimer   = null;
 let _retryTimer  = null;
 let _retryS      = 0;
-let _modelRoles  = {}; // model_id -> role, hydrated from backend (see hydrateRoles())
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 auth.onIdTokenChanged(async user => {
@@ -253,7 +196,7 @@ async function tryCookieSSO() {
 }
 
 async function verifyToken(tok) {
-  try { return (await fetch(API+'/admin/finetune/stats',{headers:{'X-Admin-Token':tok}})).ok; }
+  try { return (await fetch(API+'/ai-registry/agents',{headers:{'X-Admin-Token':tok}})).ok; }
   catch { return false; }
 }
 
@@ -265,7 +208,7 @@ function showAdmin(user) {
   ne.textContent = user ? (user.displayName || user.email) : 'dev token';
   ne.classList.remove('hidden');
   postLoginInit();
-  viewModels();
+  viewErrors();
 }
 
 async function signInWithGoogle() {
@@ -326,7 +269,6 @@ function getCookie(n) {
 function esc(s) { return String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function show(id) { document.getElementById(id).classList.remove('hidden'); }
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
-function closeModal(id) { hide(id); }
 
 function toast(msg, type='ok') {
   const el = document.getElementById('toast');
@@ -342,25 +284,8 @@ function toast(msg, type='ok') {
 async function postLoginInit() {
   setDot('yellow','connecting…');
   const ok = await pingApi();
-  if (ok) { toast('✓ Backend connected'); startPing(); await hydrateRoles(); }
+  if (ok) { toast('✓ Backend connected'); startPing(); }
   else { startRetry(10); }
-}
-
-// Pull every model's persisted Role & Characteristic from the backend, and
-// push up any role that so far only exists in this browser's localStorage
-// (e.g. set before this backend endpoint existed) so it becomes part of
-// the model's real training config instead of being stuck on one device.
-async function hydrateRoles() {
-  try {
-    const r = await api('/admin/models/roles');
-    _modelRoles = (await r.json()).roles || {};
-  } catch { _modelRoles = {}; }
-
-  for (const m of loadModels()) {
-    if (_modelRoles[m.id]) continue;
-    const local = localStorage.getItem(`pclick:training:role:${m.id}`) || '';
-    if (local) await saveRole(m.id, local);
-  }
 }
 
 async function pingApi() {
@@ -401,185 +326,379 @@ function updateRetry() { const e=document.getElementById('retry-countdown'); if(
 function clearRetry() { clearInterval(_retryTimer); _retryTimer=null; const e=document.getElementById('retry-countdown'); if(e)e.textContent=''; }
 async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(10); }
 
-// ════════════════════════════════════════════════════════════════
-// DATA STORE
-// Models + tasks: localStorage
-// Few-shot examples: backend finetune API (subject = modelId__taskId)
-// Role per model: backend (GET/PUT /admin/models/{id}/role), cached in
-//   _modelRoles + mirrored to localStorage (pclick:training:role:{modelId})
-//   as an offline fallback — see hydrateRoles()/loadRole()/saveRole().
-// Tasks per model: localStorage (pclick:training:tasks:{modelId})
-// ════════════════════════════════════════════════════════════════
-
-// Free / near-free models on Ollama Cloud — ollama.com/settings/keys
-// Context: 128K unless noted. Tier: Level 1 = free, Level 2 = near-free.
-// Mirrors backend/app/core/config.py's actual model constants — keep in
-// sync when those change. modelId is the exact string sent to the provider
-// API, which is also what shows up in the activity log / model_totals.
-const DEFAULT_MODELS = [
-  { id:'groq-qwen3-32b',         name:'Qwen3 32B',                    provider:'Groq',             modelId:'qwen/qwen3-32b',                              color:'#FF6B35', context:'131K', tier:'Free' },
-  { id:'groq-llama31-8b',        name:'Llama 3.1 8B Instant',         provider:'Groq',             modelId:'llama-3.1-8b-instant',                        color:'#FF6B35', context:'131K', tier:'Free' },
-  { id:'gemini-2.5-flash',       name:'Gemini 2.5 Flash',             provider:'Google AI Studio', modelId:'gemini-2.5-flash',                            color:'#4285F4', context:'1M',   tier:'Free' },
-  { id:'gemma-3-27b',            name:'Gemma 3 27B IT',               provider:'Google AI Studio', modelId:'gemma-3-27b-it',                              color:'#4285F4', context:'128K', tier:'Free' },
-  { id:'gemini-live-audio',      name:'Gemini 2.5 Flash Live (native audio)', provider:'Google AI Studio', modelId:'gemini-2.5-flash-native-audio-preview-12-2025', color:'#4285F4', context:'32K', tier:'Free' },
-  { id:'nvidia-gemma-2-2b',      name:'Gemma 2 2B IT',                provider:'NVIDIA NIM',       modelId:'google/gemma-2-2b-it',                        color:'#76B900', context:'8K',   tier:'Free', disabled:true },
-  { id:'nvidia-llama32-vision',  name:'Llama 3.2 11B Vision',         provider:'NVIDIA NIM',       modelId:'meta/llama-3.2-11b-vision-instruct',          color:'#76B900', context:'128K', tier:'Free', disabled:true },
-  { id:'nvidia-llama31-70b',     name:'Llama 3.1 70B Instruct',       provider:'NVIDIA NIM',       modelId:'meta/llama-3.1-70b-instruct',                 color:'#76B900', context:'128K', tier:'Free', disabled:true },
-  { id:'nvidia-gpt-oss-20b',     name:'GPT-OSS 20B',                  provider:'NVIDIA NIM',       modelId:'openai/gpt-oss-20b',                          color:'#76B900', context:'128K', tier:'Free', disabled:true },
-  { id:'openrouter-nemotron',    name:'Nemotron 3 Super 120B',        provider:'OpenRouter',       modelId:'nvidia/nemotron-3-super-120b-a12b:free',      color:'#7C3AED', context:'128K', tier:'Free', disabled:true },
-  { id:'openrouter-qwen3-coder', name:'Qwen3 Coder',                  provider:'OpenRouter',       modelId:'qwen/qwen3-coder:free',                       color:'#7C3AED', context:'128K', tier:'Free', disabled:true },
-  { id:'ollama-deepseek-v4',     name:'DeepSeek V4 Flash',            provider:'Ollama Cloud',     modelId:'deepseek-v4-flash',                           color:'#6B7280', context:'1M',   tier:'Free' },
-  { id:'ollama-qwen3.5-9b',      name:'Qwen3.5 9B',                   provider:'Ollama Cloud',     modelId:'qwen3.5:9b',                                  color:'#6B7280', context:'128K', tier:'Free' },
-];
-
-// Bump this whenever DEFAULT_MODELS changes in a way that should replace
-// whatever's saved in the admin's browser — old placeholder models (Qwen
-// 2.5 14B, Mistral 7B, etc. that never matched any real backend model) get
-// wiped and replaced rather than accumulating alongside the real list.
-const MODELS_SCHEMA_VERSION = 3;
-
-function loadModels() {
-  try {
-    const storedVersion = parseInt(localStorage.getItem('pclick:training:models:version') || '1', 10);
-    if (storedVersion < MODELS_SCHEMA_VERSION) {
-      saveModels(DEFAULT_MODELS);
-      localStorage.setItem('pclick:training:models:version', String(MODELS_SCHEMA_VERSION));
-      return DEFAULT_MODELS;
-    }
-    return JSON.parse(localStorage.getItem('pclick:training:models')) || DEFAULT_MODELS;
-  } catch { return DEFAULT_MODELS; }
-}
-function saveModels(m) { localStorage.setItem('pclick:training:models', JSON.stringify(m)); }
-
-function loadRole(modelId) {
-  if (modelId in _modelRoles) return _modelRoles[modelId];
-  return localStorage.getItem(`pclick:training:role:${modelId}`) || '';
-}
-async function saveRole(modelId, role) {
-  _modelRoles[modelId] = role;
-  localStorage.setItem(`pclick:training:role:${modelId}`, role);
-  try {
-    await api(`/admin/models/${encodeURIComponent(modelId)}/role`, {
-      method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({role}),
-    });
-  } catch { toast('⚠ Role saved locally only — backend unreachable'); }
-}
-
-function loadTasks(modelId) {
-  try { return JSON.parse(localStorage.getItem(`pclick:training:tasks:${modelId}`)) || []; }
-  catch { return []; }
-}
-function saveTasks(modelId, tasks) {
-  localStorage.setItem(`pclick:training:tasks:${modelId}`, JSON.stringify(tasks));
-}
-
-// ── User Types (by Symptom) — what kind of struggling student this model
-// should recognize, and how it should respond to that pattern.
-function loadUserTypes(modelId) {
-  try { return JSON.parse(localStorage.getItem(`pclick:training:usertypes:${modelId}`)) || []; }
-  catch { return []; }
-}
-function saveUserTypes(modelId, items) {
-  localStorage.setItem(`pclick:training:usertypes:${modelId}`, JSON.stringify(items));
-}
-
-// ── Connections with other AI — how this model's task hands off to / feeds
-// from another model in the pipeline (e.g. ARI -> Gemma research -> ARI).
-function loadConnections(modelId) {
-  try { return JSON.parse(localStorage.getItem(`pclick:training:connections:${modelId}`)) || []; }
-  catch { return []; }
-}
-function saveConnections(modelId, items) {
-  localStorage.setItem(`pclick:training:connections:${modelId}`, JSON.stringify(items));
-}
-
-// Few-shot examples stored in backend: subject = "train__{modelId}__{taskId}"
-function exSubject(modelId, taskId) { return `train__${modelId}__${taskId}`; }
-
-async function loadExamples(modelId, taskId) {
-  try {
-    const r = await api(`/admin/finetune/examples?subject=${encodeURIComponent(exSubject(modelId,taskId))}`);
-    return await r.json();
-  } catch { return []; }
-}
-
-// ════════════════════════════════════════════════════════════════
-// VIEW: MODELS LIST
-// ════════════════════════════════════════════════════════════════
 function setActiveNav(id) {
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById(id);
   if (btn) btn.classList.add('active');
 }
 
-async function viewModels() {
-  hide('view-model-detail');
-  hide('view-activity');
-  hide('view-profiles');
-  hide('view-profile-detail');
-  hide('view-feedback');
-  hide('view-storage');
-  setActiveNav('nav-models');
-  const el = document.getElementById('view-models');
-  show('view-models');
-  const models = loadModels();
+function hideAllViews() {
+  ['view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
+   'view-profile-detail','view-feedback','view-storage'].forEach(hide);
+}
 
+function timeAgo(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: ERRORS — every bug reported through Commander triage (report
+// button, support consultant, or dev-patrol reports), fix status.
+// ════════════════════════════════════════════════════════════════
+let _errorsFilter = '';
+
+async function viewErrors() {
+  hideAllViews();
+  setActiveNav('nav-errors');
+  show('view-errors');
+  await renderErrors();
+}
+
+async function renderErrors() {
+  const el = document.getElementById('view-errors');
   el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
 
-  const tokensByModel = await fetchModelTotals();
+  let bugs = [];
+  try {
+    const r = await api('/commander/bugs/all?status=' + encodeURIComponent(_errorsFilter));
+    bugs = (await r.json()).bugs || [];
+  } catch (e) {
+    el.innerHTML = `<div class="text-sm" style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  const openCritical = bugs.filter(b => !b.resolved_at && b.severity === 'critical').length;
+  const openMinor    = bugs.filter(b => !b.resolved_at && b.severity !== 'critical').length;
+  const resolved     = bugs.filter(b => b.resolved_at).length;
 
   el.innerHTML = `
     <div class="space-y-6 fade-in">
-      <div class="flex items-center justify-between">
-        <div>
-          <h1 class="text-xl font-bold">Training AI</h1>
-          <p class="text-sm mt-0.5" style="color:var(--muted)">Current production models — role &amp; characteristic, user types, tasks, and cross-AI connections</p>
+      <div>
+        <h1 class="text-xl font-bold">Error Log</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Every bug reported via the report button, the support consultant, or a dev-patrol scan — classified by Commander.</p>
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(180px,1fr))">
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <div class="text-xs mb-1" style="color:var(--muted)">Open critical</div>
+          <div class="text-2xl font-bold" style="color:#f85149">${openCritical}</div>
         </div>
-        <button onclick="openAddModel()" class="btn btn-ghost text-xs">+ Add model</button>
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <div class="text-xs mb-1" style="color:var(--muted)">Open minor</div>
+          <div class="text-2xl font-bold" style="color:var(--amber)">${openMinor}</div>
+        </div>
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <div class="text-xs mb-1" style="color:var(--muted)">Resolved</div>
+          <div class="text-2xl font-bold" style="color:var(--em)">${resolved}</div>
+        </div>
       </div>
 
-      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(240px,1fr))">
-        ${models.map(m => {
-          const tierStyle = m.tier==='Free'
-            ? 'background:rgba(63,185,80,.1);color:var(--em);border:1px solid rgba(63,185,80,.25)'
-            : m.tier==='Near-free'
-            ? 'background:rgba(88,166,255,.08);color:#58a6ff;border:1px solid rgba(88,166,255,.2)'
-            : 'background:rgba(210,153,34,.08);color:#d29922;border:1px solid rgba(210,153,34,.2)';
-          const taskCount = loadTasks(m.id).length;
-          const usage = tokensByModel[m.modelId];
-          const isDisabled = m.disabled;
-          return `
-          <div class="model-card" onclick="${isDisabled ? '' : `viewModelDetail('${esc(m.id)}')`}" style="${isDisabled ? 'opacity:.35;cursor:default;text-decoration:line-through;text-decoration-color:rgba(248,81,73,.5);pointer-events:none;' : ''}">
-            <div class="flex items-center gap-3 mb-3">
-              <div class="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
-                style="background:${m.color}22;border:1px solid ${m.color}44;color:${m.color}">
-                ${m.name.slice(0,2).toUpperCase()}
-              </div>
-              <div class="min-w-0 flex-1">
-                <div class="font-semibold text-sm truncate">${esc(m.name)} ${isDisabled ? '<span style="color:#f85149;font-size:9px;text-decoration:none;letter-spacing:1px;text-transform:uppercase">OFF</span>' : ''}</div>
-                <div class="text-xs mt-0.5" style="color:var(--muted)">${esc(m.provider)}</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5 flex-wrap mb-2">
-              ${m.tier ? `<span class="pill text-xs" style="${tierStyle}">${esc(m.tier)}</span>` : ''}
-              ${m.context ? `<span class="pill text-xs" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)">${esc(m.context)}</span>` : ''}
-              ${taskCount ? `<span class="pill pill-green text-xs">${taskCount} task${taskCount>1?'s':''}</span>` : ''}
-              ${loadRole(m.id) ? `<span class="pill pill-blue text-xs">Role set</span>` : ''}
-            </div>
-            <div class="text-xs" style="color:var(--muted);border-top:1px solid var(--border);padding-top:8px">
-              ${usage
-                ? `<strong style="color:var(--text)">${usage.total_tokens.toLocaleString()}</strong> tokens · ${usage.total_calls.toLocaleString()} calls (global, all users)`
-                : `No usage recorded yet`}
-            </div>
-          </div>`;
-        }).join('')}
+      <div class="flex items-center gap-2">
+        <select id="errors-filter" onchange="onErrorsFilterChange()" style="width:auto">
+          <option value="" ${_errorsFilter===''?'selected':''}>All</option>
+          <option value="open" ${_errorsFilter==='open'?'selected':''}>Open only</option>
+          <option value="resolved" ${_errorsFilter==='resolved'?'selected':''}>Resolved only</option>
+        </select>
+        <button onclick="viewErrors()" class="btn btn-ghost text-xs">↻ Refresh</button>
       </div>
 
-      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px" class="text-xs" style="color:var(--muted)">
-        <p class="font-medium mb-1" style="color:var(--text)">How it works</p>
-        <p style="color:var(--muted)">Each model is configured with four components: <strong style="color:var(--text)">Role &amp; Characteristic</strong> (system prompt — persona and overall behaviour), <strong style="color:var(--text)">User Types (by Symptom)</strong> (recognizable struggle patterns and how to respond to each), <strong style="color:var(--text)">Tasks</strong> (specific behaviours, each with optional few-shot examples), and <strong style="color:var(--text)">Connections with other AI</strong> (how this model's output feeds into or receives from another model in the pipeline). Token counts shown are true global totals across every user, not just this session.</p>
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden">
+        <table class="w-full text-xs">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border)">
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">When</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Severity</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Report</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Assigned to</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Reported by</th>
+              <th class="text-left px-4 py-2.5 font-medium" style="color:var(--muted)">Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${bugs.map(b => `
+              <tr style="border-bottom:1px solid var(--border)">
+                <td class="px-4 py-2.5" style="color:var(--muted)">${timeAgo(b.created_at)}</td>
+                <td class="px-4 py-2.5">
+                  <span class="pill text-xs ${b.severity==='critical'?'pill-red':'pill-amber'}">${esc(b.severity||'—')}</span>
+                </td>
+                <td class="px-4 py-2.5 max-w-md truncate" title="${esc(b.bug_report)}">${esc(b.bug_report)}</td>
+                <td class="px-4 py-2.5" style="color:var(--muted)">${esc(b.assign_to)||'—'}</td>
+                <td class="px-4 py-2.5" style="color:var(--muted)">${esc(b.reported_by)||'—'}</td>
+                <td class="px-4 py-2.5">
+                  ${b.resolved_at
+                    ? `<span class="pill pill-green text-xs">Fixed</span>`
+                    : `<span class="pill text-xs" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)">Open</span>`}
+                </td>
+                <td class="px-4 py-2.5 text-right">
+                  ${b.resolved_at ? '' : `<button onclick="resolveBug(${b.id})" class="btn btn-primary text-xs" style="padding:3px 10px">Mark fixed</button>`}
+                </td>
+              </tr>`).join('') || `<tr><td colspan="7" class="px-4 py-8 text-center" style="color:var(--muted)">No bugs reported yet.</td></tr>`}
+          </tbody>
+        </table>
       </div>
     </div>`;
+}
+
+function onErrorsFilterChange() {
+  _errorsFilter = document.getElementById('errors-filter').value;
+  renderErrors();
+}
+
+async function resolveBug(id) {
+  try {
+    await api(`/commander/bugs/${id}/resolve`, {method:'POST'});
+    toast('✓ Marked fixed');
+    renderErrors();
+  } catch (e) { toast('Failed: '+e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: AI SYSTEM — identity, live status, editable org-chart, and
+// per-plan credit allotment.
+// ════════════════════════════════════════════════════════════════
+const CATEGORY_LABEL = { head: 'Head AI', dev: 'Dev Patrol', support: 'Learning Agent' };
+const CATEGORY_PILL  = { head: 'pill-blue', dev: 'pill-amber', support: 'pill-green' };
+
+async function viewAiSystem() {
+  hideAllViews();
+  setActiveNav('nav-ai-system');
+  show('view-ai-system');
+  await renderAiSystem();
+}
+
+function buildOrgTree(agents) {
+  const byId = Object.fromEntries(agents.map(a => [a.id, a]));
+  const children = {};
+  const roots = [];
+  agents.forEach(a => {
+    if (a.parent_id && byId[a.parent_id]) {
+      (children[a.parent_id] ||= []).push(a);
+    } else {
+      roots.push(a);
+    }
+  });
+  function renderNode(a, depth) {
+    const kids = children[a.id] || [];
+    return `
+      <div style="margin-left:${depth*28}px" class="my-1.5">
+        <div class="org-node">
+          <span class="pill text-xs ${CATEGORY_PILL[a.category]||'pill-blue'}">${esc(a.name||a.id)}</span>
+        </div>
+        ${kids.map(k => renderNode(k, depth+1)).join('')}
+      </div>`;
+  }
+  return roots.map(r => renderNode(r, 0)).join('') || `<p class="text-xs" style="color:var(--muted)">No agents yet.</p>`;
+}
+
+async function renderAiSystem() {
+  const el = document.getElementById('view-ai-system');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  let agents = [], plans = [];
+  try {
+    const [ar, pr] = await Promise.all([
+      api('/ai-registry/agents').then(r => r.json()),
+      api('/admin/plans').then(r => r.json()).catch(() => ({ plans: [] })),
+    ]);
+    agents = ar.agents || [];
+    plans = pr.plans || [];
+  } catch (e) {
+    el.innerHTML = `<div class="text-sm" style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">AI System</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Identity, live status, and reporting hierarchy for every AI agent — fully editable.</p>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5">
+        <div class="font-semibold text-sm mb-3">Power / hierarchy diagram</div>
+        <div id="org-chart">${buildOrgTree(agents)}</div>
+      </div>
+
+      <div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+        ${agents.map(a => renderAgentCard(a, agents)).join('')}
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-3">
+        <div>
+          <div class="font-semibold text-sm">Credits per plan</div>
+          <div class="text-xs mt-0.5" style="color:var(--muted)">Admin-editable credit allotment per subscription tier. Data model only for now — not yet wired to a real Stripe payment (see backend note).</div>
+        </div>
+        <div class="space-y-2">
+          ${plans.length === 0
+            ? `<p class="text-xs" style="color:var(--muted)">No plans found — is Postgres reachable?</p>`
+            : plans.map(p => `
+              <div class="flex items-center gap-3">
+                <span class="text-xs w-40 shrink-0">${esc(p.tier)} · ${esc(p.billing_cycle)}</span>
+                <input id="credits-${esc(p.id)}" type="number" min="0" value="${p.credits_monthly ?? ''}" placeholder="unset" style="width:140px" />
+                <button onclick="saveCredits('${esc(p.id)}')" class="btn btn-ghost text-xs">Save</button>
+              </div>`).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+
+function renderAgentCard(a, allAgents) {
+  const others = allAgents.filter(x => x.id !== a.id);
+  const status = a.live?.status || 'n/a';
+  const statusColor = status === 'idle' ? 'var(--em)' : status === 'processing' ? 'var(--amber)' : 'var(--muted)';
+  return `
+    <div class="agent-card space-y-3" id="agent-card-${esc(a.id)}">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <div class="font-semibold text-sm">${esc(a.name || a.id)}</div>
+          <div class="text-[11px] font-mono" style="color:var(--muted)">${esc(a.id)}</div>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full" style="background:${statusColor}" title="${esc(status)}"></span>
+          <span class="pill text-xs ${CATEGORY_PILL[a.category]||'pill-blue'}">${esc(CATEGORY_LABEL[a.category] || a.category || '—')}</span>
+        </div>
+      </div>
+
+      <textarea id="desc-${esc(a.id)}" rows="3" style="font-size:12px" placeholder="What this agent does">${esc(a.description)}</textarea>
+
+      <div class="flex items-center gap-2">
+        <span class="text-xs shrink-0" style="color:var(--muted)">Reports to</span>
+        <select id="parent-${esc(a.id)}" style="font-size:12px">
+          <option value="">— none —</option>
+          ${others.map(o => `<option value="${esc(o.id)}" ${a.parent_id===o.id?'selected':''}>${esc(o.name||o.id)}</option>`).join('')}
+        </select>
+      </div>
+
+      <textarea id="notes-${esc(a.id)}" rows="2" style="font-size:12px" placeholder="Notes">${esc(a.notes)}</textarea>
+
+      <div class="flex justify-end">
+        <button onclick="saveAgent('${esc(a.id)}')" class="btn btn-primary text-xs">Save</button>
+      </div>
+    </div>`;
+}
+
+async function saveAgent(id) {
+  const description = document.getElementById('desc-'+id)?.value ?? '';
+  const parent_id   = document.getElementById('parent-'+id)?.value || null;
+  const notes       = document.getElementById('notes-'+id)?.value ?? '';
+  try {
+    await api(`/ai-registry/agents/${encodeURIComponent(id)}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ description, parent_id, notes }),
+    });
+    toast('✓ Saved');
+    renderAiSystem();
+  } catch (e) { toast('Save failed: '+e.message, 'err'); }
+}
+
+async function saveCredits(planId) {
+  const val = document.getElementById('credits-'+planId)?.value;
+  if (val === '' || val == null) { toast('Enter a number first', 'err'); return; }
+  try {
+    await api(`/admin/plans/${encodeURIComponent(planId)}/credits`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ credits_monthly: parseInt(val, 10) }),
+    });
+    toast('✓ Credits saved');
+  } catch (e) { toast('Save failed: '+e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: AI CHAT — talk directly to the head AIs. Per-agent session
+// history kept client-side for the life of this browser tab.
+// ════════════════════════════════════════════════════════════════
+const HEAD_AGENTS = [
+  { id: 'commander',      name: 'Commander',           endpoint: '/ai-registry/chat/commander' },
+  { id: 'critique-pos1',  name: 'Critic 1 (OpenAI)',    endpoint: '/ai-registry/chat/critique-pos1' },
+  { id: 'critique-pos2',  name: 'Critic 2 (Groq)',      endpoint: '/ai-registry/chat/critique-pos2' },
+  { id: 'critique-pos3',  name: 'Critic 3 (Gemini)',    endpoint: '/ai-registry/chat/critique-pos3' },
+  { id: 'support-chat',   name: 'Support Consultant',   endpoint: '/support/chat' },
+];
+
+let _aiChatActive = 'commander';
+const _aiChatSessions = {};   // agentId -> session_id
+const _aiChatHistory  = {};   // agentId -> [{role, text}]
+
+function _aiChatSessionId(agentId) {
+  if (!_aiChatSessions[agentId]) _aiChatSessions[agentId] = 'admin_'+agentId+'_'+Date.now().toString(36);
+  return _aiChatSessions[agentId];
+}
+
+async function viewAiChat() {
+  hideAllViews();
+  setActiveNav('nav-ai-chat');
+  show('view-ai-chat');
+  renderAiChat();
+}
+
+function renderAiChat() {
+  const el = document.getElementById('view-ai-chat');
+  const history = _aiChatHistory[_aiChatActive] || [];
+
+  el.innerHTML = `
+    <div class="fade-in flex gap-4" style="height:calc(100vh - 140px)">
+      <div style="width:220px" class="shrink-0 space-y-1">
+        ${HEAD_AGENTS.map(a => `
+          <button onclick="selectAiChatAgent('${a.id}')"
+            class="w-full text-left text-xs px-3 py-2.5 rounded-lg transition-colors"
+            style="background:${_aiChatActive===a.id?'rgba(88,166,255,.1)':'transparent'};color:${_aiChatActive===a.id?'var(--text)':'var(--muted)'}">
+            ${esc(a.name)}
+          </button>`).join('')}
+      </div>
+      <div class="flex-1 flex flex-col" style="border:1px solid var(--border);border-radius:14px;background:var(--surface);overflow:hidden">
+        <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
+          ${history.length === 0
+            ? `<p class="text-xs text-center py-8" style="color:var(--muted)">Say hi to ${esc(HEAD_AGENTS.find(a=>a.id===_aiChatActive)?.name||'')}.</p>`
+            : history.map(m => `
+              <div class="flex ${m.role==='user'?'justify-end':'justify-start'}">
+                <div class="max-w-[75%] px-3.5 py-2 text-xs ${m.role==='user'?'chat-bubble-user':'chat-bubble-ai'}">${esc(m.text)}</div>
+              </div>`).join('')}
+        </div>
+        <div class="border-t p-3 flex gap-2" style="border-color:var(--border)">
+          <input id="ai-chat-input" type="text" placeholder="Message…" onkeydown="if(event.key==='Enter')sendAiChat()" />
+          <button onclick="sendAiChat()" class="btn btn-primary text-xs shrink-0">Send</button>
+        </div>
+      </div>
+    </div>`;
+
+  const box = document.getElementById('ai-chat-messages');
+  if (box) box.scrollTop = box.scrollHeight;
+}
+
+function selectAiChatAgent(id) {
+  _aiChatActive = id;
+  renderAiChat();
+}
+
+async function sendAiChat() {
+  const input = document.getElementById('ai-chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  const agent = HEAD_AGENTS.find(a => a.id === _aiChatActive);
+  const history = (_aiChatHistory[_aiChatActive] ||= []);
+  history.push({ role: 'user', text });
+  renderAiChat();
+
+  try {
+    const body = agent.id === 'support-chat'
+      ? { session_id: _aiChatSessionId(agent.id), message: text }
+      : { session_id: _aiChatSessionId(agent.id), message: text };
+    const r = await api(agent.endpoint, {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
+    });
+    const data = await r.json();
+    history.push({ role: 'assistant', text: data.reply || '(no response)' });
+  } catch (e) {
+    history.push({ role: 'assistant', text: 'Error: ' + e.message });
+  }
+  renderAiChat();
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -590,25 +709,12 @@ let _activityFilter = { provider: '', task: '' };
 let _activityOffset = 0;
 const ACTIVITY_PAGE_SIZE = 50;
 
-function timeAgo(iso) {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
-  return `${Math.floor(diff/86400)}d ago`;
-}
-
 const PROVIDER_COLORS = {
   groq: '#FF6B35', google: '#4285F4', nvidia: '#76B900', openrouter: '#7C3AED', ollama: '#6B7280',
 };
 
 async function viewActivity() {
-  hide('view-models');
-  hide('view-model-detail');
-  hide('view-profiles');
-  hide('view-profile-detail');
-  hide('view-feedback');
-  hide('view-storage');
+  hideAllViews();
   setActiveNav('nav-activity');
   show('view-activity');
   _activityOffset = 0;
@@ -726,12 +832,7 @@ function displayName(p) {
 }
 
 async function viewProfiles() {
-  hide('view-models');
-  hide('view-model-detail');
-  hide('view-activity');
-  hide('view-profile-detail');
-  hide('view-feedback');
-  hide('view-storage');
+  hideAllViews();
   setActiveNav('nav-profiles');
   const el = document.getElementById('view-profiles');
   show('view-profiles');
@@ -857,10 +958,7 @@ function renderSubjectCard(s) {
 }
 
 async function viewProfileDetail(userId) {
-  hide('view-models');
-  hide('view-model-detail');
-  hide('view-activity');
-  hide('view-profiles');
+  hideAllViews();
   const el = document.getElementById('view-profile-detail');
   show('view-profile-detail');
   el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
@@ -918,642 +1016,11 @@ async function viewProfileDetail(userId) {
     </div>`;
 }
 
-// Add model
-let _addingModel = false;
-function openAddModel() {
-  if (_addingModel) return;
-  _addingModel = true;
-  const name = prompt('Model name (e.g. Claude 3.5 Sonnet)');
-  if (!name) { _addingModel = false; return; }
-  const provider = prompt('Provider (e.g. Anthropic, OpenRouter, OpenAI)') || 'OpenRouter';
-  const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'');
-  const color = ['#4285f4','#6ee7b7','#d29922','#f85149','#bc8cff'][Math.floor(Math.random()*5)];
-  const models = loadModels();
-  if (models.find(m=>m.id===id)) { toast('Model already exists','err'); _addingModel=false; return; }
-  models.push({id,name,provider,color});
-  saveModels(models);
-  _addingModel = false;
-  viewModels();
-  toast(`✓ ${name} added`);
-}
-
 // ════════════════════════════════════════════════════════════════
-// VIEW: MODEL DETAIL
+// VIEW: FEEDBACK
 // ════════════════════════════════════════════════════════════════
-let _currentModelId = '';
-let _lastModelTotals = {};   // model -> {total_tokens, total_calls, ...}, refreshed each time it's fetched
-
-async function fetchModelTotals() {
-  try {
-    const resp = await api('/admin/activity/model-totals').then(r => r.json());
-    const byModel = {};
-    (resp.models || []).forEach(row => { byModel[row.model] = row; });
-    _lastModelTotals = byModel;
-  } catch { /* offline / no data yet */ }
-  return _lastModelTotals;
-}
-
-async function viewModelDetail(modelId) {
-  _currentModelId = modelId;
-  hide('view-models');
-  hide('view-profiles');
-  hide('view-profile-detail');
-  hide('view-feedback');
-  const el = document.getElementById('view-model-detail');
-  show('view-model-detail');
-  await fetchModelTotals();
-
-  const models = loadModels();
-  const model  = models.find(m=>m.id===modelId);
-  if (!model) { viewModels(); return; }
-
-  const tasks       = loadTasks(modelId);
-  const role        = loadRole(modelId);
-  const userTypes   = loadUserTypes(modelId);
-  const connections = loadConnections(modelId);
-  const usage       = _lastModelTotals[model.modelId];
-
-  // Render shell first
-  el.innerHTML = `
-    <div class="space-y-6 fade-in">
-
-      <!-- Back + header -->
-      <div class="flex items-center gap-3">
-        <button onclick="viewModels()" class="btn btn-ghost text-xs">← Models</button>
-        <div class="flex items-center gap-2">
-          <div class="w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
-            style="background:${model.color}22;border:1px solid ${model.color}44;color:${model.color}">
-            ${model.name.slice(0,2).toUpperCase()}
-          </div>
-          <span class="font-semibold">${esc(model.name)}</span>
-          <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.07);color:var(--muted)">${esc(model.provider)}</span>
-          ${model.modelId ? `<span class="text-xs px-2 py-0.5 rounded-full font-mono" style="background:rgba(255,255,255,.04);color:var(--muted)">${esc(model.modelId)}</span>` : ''}
-        </div>
-        <div class="flex-1"></div>
-        ${usage ? `<span class="text-xs" style="color:var(--muted)">${usage.total_tokens.toLocaleString()} tokens · ${usage.total_calls.toLocaleString()} calls (global)</span>` : ''}
-        <button onclick="deleteModel('${esc(modelId)}')" class="btn btn-danger text-xs">Remove model</button>
-      </div>
-
-      <!-- 1. Role & Characteristic -->
-      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-3">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <div class="font-semibold text-sm">1. Role &amp; Characteristic</div>
-            <div class="text-xs mt-0.5" style="color:var(--muted)">System prompt — this model's persona, tone, and overall behaviour</div>
-          </div>
-          <button onclick="saveRoleUI()" class="btn btn-primary text-xs">Save</button>
-        </div>
-        <textarea id="role-textarea" rows="6" placeholder="You are Ari, Lyceum's 24/7 background research assistant. Warm, curious, and direct — you explain concepts in plain language first, then switch to rigorous debate the moment the student pushes back…"
-          style="font-size:13px;line-height:1.6">${esc(role)}</textarea>
-      </div>
-
-      <!-- 2. User Types (by Symptom) -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-semibold text-sm">2. User Types (by Symptom)</div>
-            <div class="text-xs mt-0.5" style="color:var(--muted)">Recognizable struggle patterns this model should detect, and how to respond to each</div>
-          </div>
-          <button onclick="addUserType('${esc(modelId)}')" class="btn btn-primary text-xs">+ Add user type</button>
-        </div>
-        <div id="user-type-list" class="space-y-2">
-          ${userTypes.length===0
-            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No user types yet — e.g. "Can't self-assess progress", "Understands in theory but can't apply it"</p></div>`
-            : userTypes.map(u => renderUserTypeCard(modelId, u)).join('')}
-        </div>
-      </div>
-
-      <!-- 3. Tasks -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-semibold text-sm">3. Tasks</div>
-            <div class="text-xs mt-0.5" style="color:var(--muted)">Specific behaviours — each can have optional few-shot examples for fine-tuning</div>
-          </div>
-          <button onclick="openTaskModal(null)" class="btn btn-primary text-xs">+ Add task</button>
-        </div>
-
-        <div id="task-list">
-          ${tasks.length===0
-            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-8 text-center text-sm" style2="color:var(--muted)">
-                <p style="color:var(--muted)">No tasks yet — add one to start building few-shot examples</p>
-               </div>`
-            : tasks.map(t => renderTaskCard(model, t)).join('')}
-        </div>
-      </div>
-
-      <!-- 4. Connections with other AI -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <div>
-            <div class="font-semibold text-sm">4. Connections with other AI</div>
-            <div class="text-xs mt-0.5" style="color:var(--muted)">How this model's task hands off to / receives from another model in the pipeline</div>
-          </div>
-          <button onclick="addConnection('${esc(modelId)}')" class="btn btn-primary text-xs">+ Add connection</button>
-        </div>
-        <div id="connection-list" class="space-y-2">
-          ${connections.length===0
-            ? `<div style="border:1px dashed var(--border);border-radius:12px" class="p-6 text-center text-sm"><p style="color:var(--muted)">No connections yet — e.g. ARI hands a topic to Gemma's research task and gets an image/citation back</p></div>`
-            : connections.map(c => renderConnectionCard(modelId, c)).join('')}
-        </div>
-      </div>
-
-      <!-- Export -->
-      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px" class="flex items-center justify-between gap-3">
-        <div class="text-xs" style="color:var(--muted)">Export all few-shot examples for <strong style="color:var(--text)">${esc(model.name)}</strong> as JSONL (OpenAI/DeepSeek format)</div>
-        <button onclick="exportModel('${esc(modelId)}')" class="btn btn-ghost text-xs shrink-0">↓ Export JSONL</button>
-      </div>
-
-      <!-- ── Fine-tune on OpenAI ───────────────────────────────────── -->
-      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-4">
-        <div>
-          <div class="font-semibold text-sm flex items-center gap-2">
-            <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
-            Fine-tune on OpenAI
-          </div>
-          <div class="text-xs mt-1" style="color:var(--muted)">Takes all few-shot examples for this model → uploads to OpenAI → starts training a custom model</div>
-        </div>
-
-        <div class="flex items-end gap-3 flex-wrap">
-          <div class="flex-1 min-w-[200px]">
-            <div class="text-xs mb-1.5" style="color:var(--muted)">Base model</div>
-            <select id="ft-base-model-${esc(modelId)}" style="background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;width:100%">
-              <option value="gpt-4o-mini-2024-07-18">gpt-4o-mini-2024-07-18 (recommended · cheapest)</option>
-              <option value="gpt-4o-2024-08-06">gpt-4o-2024-08-06</option>
-              <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-            </select>
-          </div>
-          <button onclick="submitFTJob('${esc(modelId)}')" id="ft-btn-${esc(modelId)}" class="btn btn-primary shrink-0">
-            🚀 Start fine-tuning
-          </button>
-        </div>
-
-        <div id="ft-jobs-${esc(modelId)}" class="space-y-2">
-          <div class="text-xs" style="color:var(--muted)">Loading jobs…</div>
-        </div>
-      </div>
-
-    </div>`;
-
-  // Load example counts async
-  await loadAllExampleCounts(modelId, tasks);
-  loadFTJobs(modelId);   // async — populates FT panel independently
-}
-
-// ── User Types (by Symptom) ────────────────────────────────────────────────
-function renderUserTypeCard(modelId, ut) {
-  return `
-    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);padding:12px 14px" class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <div class="font-medium text-sm">${esc(ut.symptom)}</div>
-        ${ut.response ? `<div class="text-xs mt-1" style="color:var(--muted);white-space:pre-wrap">${esc(ut.response)}</div>` : ''}
-      </div>
-      <button onclick="deleteUserType('${esc(modelId)}','${esc(ut.id)}')" class="btn btn-danger text-xs shrink-0" style="padding:3px 8px">✕</button>
-    </div>`;
-}
-
-function addUserType(modelId) {
-  const symptom = prompt('Symptom / struggle pattern (e.g. "Cannot self-assess own progress")');
-  if (!symptom) return;
-  const response = prompt(`How should this model respond when it recognizes "${symptom}"?`) || '';
-  const items = loadUserTypes(modelId);
-  items.push({ id: 'ut-'+Date.now(), symptom, response });
-  saveUserTypes(modelId, items);
-  viewModelDetail(modelId);
-  toast('✓ User type added');
-}
-
-function deleteUserType(modelId, id) {
-  saveUserTypes(modelId, loadUserTypes(modelId).filter(u => u.id !== id));
-  viewModelDetail(modelId);
-}
-
-// ── Connections with other AI ──────────────────────────────────────────────
-function renderConnectionCard(modelId, conn) {
-  const target = loadModels().find(m => m.id === conn.targetModelId);
-  return `
-    <div style="border:1px solid var(--border);border-radius:10px;background:var(--card);padding:12px 14px" class="flex items-start justify-between gap-3">
-      <div class="min-w-0">
-        <div class="font-medium text-sm">→ ${target ? esc(target.name) : esc(conn.targetModelId)}</div>
-        ${conn.description ? `<div class="text-xs mt-1" style="color:var(--muted);white-space:pre-wrap">${esc(conn.description)}</div>` : ''}
-      </div>
-      <button onclick="deleteConnection('${esc(modelId)}','${esc(conn.id)}')" class="btn btn-danger text-xs shrink-0" style="padding:3px 8px">✕</button>
-    </div>`;
-}
-
-function addConnection(modelId) {
-  const others = loadModels().filter(m => m.id !== modelId);
-  if (!others.length) { toast('No other models to connect to', 'err'); return; }
-  const list = others.map((m,i) => `${i+1}. ${m.name} (${m.provider})`).join('\n');
-  const choice = prompt(`Connect to which model? Enter a number:\n${list}`);
-  const idx = parseInt(choice, 10) - 1;
-  if (isNaN(idx) || !others[idx]) return;
-  const description = prompt(`Describe the connection (e.g. "Feeds researched image/citation back into ARI's next reply")`) || '';
-  const items = loadConnections(modelId);
-  items.push({ id: 'conn-'+Date.now(), targetModelId: others[idx].id, description });
-  saveConnections(modelId, items);
-  viewModelDetail(modelId);
-  toast('✓ Connection added');
-}
-
-function deleteConnection(modelId, id) {
-  saveConnections(modelId, loadConnections(modelId).filter(c => c.id !== id));
-  viewModelDetail(modelId);
-}
-
-function renderTaskCard(model, task) {
-  return `
-    <div class="task-card" id="task-card-${esc(task.id)}">
-      <div class="task-header" onclick="toggleTask('${esc(task.id)}')">
-        <svg id="chevron-${esc(task.id)}" class="w-4 h-4 shrink-0 transition-transform" style="color:var(--muted)" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path d="M9 18l6-6-6-6"/>
-        </svg>
-        <div class="flex-1 min-w-0">
-          <div class="font-medium text-sm">${esc(task.name)}</div>
-          ${task.description ? `<div class="text-xs mt-0.5" style="color:var(--muted)">${esc(task.description)}</div>` : ''}
-        </div>
-        <span id="ex-count-${esc(task.id)}" class="pill pill-blue text-xs" style="display:none">0 examples</span>
-        <button onclick="event.stopPropagation();openTaskModal('${esc(task.id)}')" class="btn btn-ghost text-xs" style="padding:3px 8px">Edit</button>
-        <button onclick="event.stopPropagation();deleteTask('${esc(model.id)}','${esc(task.id)}')" class="btn btn-danger text-xs" style="padding:3px 8px">✕</button>
-      </div>
-      <div id="task-body-${esc(task.id)}" class="hidden task-body">
-        <div id="ex-list-${esc(task.id)}" class="space-y-0 pt-3">
-          <div class="text-xs" style="color:var(--muted)">Loading examples…</div>
-        </div>
-        <button onclick="openExampleModal('${esc(model.id)}','${esc(task.id)}')" class="btn btn-ghost text-xs mt-3">+ Add few-shot example</button>
-      </div>
-    </div>`;
-}
-
-async function loadAllExampleCounts(modelId, tasks) {
-  for (const task of tasks) {
-    const examples = await loadExamples(modelId, task.id);
-    const countEl = document.getElementById('ex-count-'+task.id);
-    if (countEl) {
-      countEl.textContent = `${examples.length} example${examples.length!==1?'s':''}`;
-      countEl.style.display = examples.length>0 ? '' : 'none';
-    }
-    // Cache for when the panel is opened
-    task._examples = examples;
-  }
-}
-
-function toggleTask(taskId) {
-  const body = document.getElementById('task-body-'+taskId);
-  const chev = document.getElementById('chevron-'+taskId);
-  const isHidden = body.classList.contains('hidden');
-  body.classList.toggle('hidden', !isHidden);
-  chev.style.transform = isHidden ? 'rotate(90deg)' : '';
-  if (isHidden) loadTaskExamples(_currentModelId, taskId);
-}
-
-async function loadTaskExamples(modelId, taskId) {
-  const listEl = document.getElementById('ex-list-'+taskId);
-  if (!listEl) return;
-  listEl.innerHTML = `<div class="text-xs" style="color:var(--muted)">Loading…</div>`;
-  const examples = await loadExamples(modelId, taskId);
-
-  const countEl = document.getElementById('ex-count-'+taskId);
-  if (countEl) {
-    countEl.textContent = `${examples.length} example${examples.length!==1?'s':''}`;
-    countEl.style.display = examples.length>0?'':'none';
-  }
-
-  if (!examples.length) {
-    listEl.innerHTML = `<p class="text-xs py-2" style="color:var(--muted)">No examples yet — add a few-shot example to teach the model how to handle this task.</p>`;
-    return;
-  }
-
-  listEl.innerHTML = examples.map((ex,i) => `
-    <div class="example-row">
-      <div class="flex items-start justify-between gap-2 mb-3">
-        <span class="pill" style="background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border);font-size:10px">Example ${i+1}</span>
-        <div class="flex gap-1.5">
-          <button onclick="openExampleModal('${esc(modelId)}','${esc(taskId)}',${ex.id})" class="btn btn-ghost" style="font-size:11px;padding:2px 8px">Edit</button>
-          <button onclick="deleteExample(${ex.id},'${esc(modelId)}','${esc(taskId)}')" class="btn btn-danger" style="font-size:11px;padding:2px 8px">✕</button>
-        </div>
-      </div>
-      <div class="space-y-2.5">
-        <div>
-          <div class="shot-label">User</div>
-          <div class="text-xs leading-relaxed" style="color:#c9d1d9;white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">${esc(ex.user_message)}</div>
-        </div>
-        <div>
-          <div class="shot-label">Assistant</div>
-          <div class="text-xs leading-relaxed" style="color:#c9d1d9;white-space:pre-wrap;background:var(--bg);border-radius:6px;padding:8px 10px;border:1px solid var(--border)">${esc(ex.assistant_reply)}</div>
-        </div>
-      </div>
-    </div>`).join('');
-}
-
-// ── Role save ─────────────────────────────────────────────────────────────────
-async function saveRoleUI() {
-  const role = document.getElementById('role-textarea')?.value || '';
-  await saveRole(_currentModelId, role);
-  toast('✓ Role saved');
-}
-
-// ── Task CRUD ─────────────────────────────────────────────────────────────────
-function openTaskModal(taskId) {
-  const tasks = loadTasks(_currentModelId);
-  const task  = taskId ? tasks.find(t=>t.id===taskId) : null;
-  document.getElementById('task-modal-title').textContent = task ? 'Edit task' : 'Add task';
-  document.getElementById('task-edit-id').value  = task?.id || '';
-  document.getElementById('task-name').value     = task?.name || '';
-  document.getElementById('task-desc').value     = task?.description || '';
-  hide('task-error');
-  show('task-modal');
-  setTimeout(()=>document.getElementById('task-name').focus(), 50);
-}
-
-function saveTask() {
-  const name = document.getElementById('task-name').value.trim();
-  if (!name) { const e=document.getElementById('task-error'); e.textContent='Task name is required.'; e.classList.remove('hidden'); return; }
-  const desc   = document.getElementById('task-desc').value.trim();
-  const editId = document.getElementById('task-edit-id').value;
-  const tasks  = loadTasks(_currentModelId);
-
-  if (editId) {
-    const t = tasks.find(t=>t.id===editId);
-    if (t) { t.name=name; t.description=desc; }
-  } else {
-    const id = name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'-'+Date.now();
-    tasks.push({id, name, description:desc});
-  }
-  saveTasks(_currentModelId, tasks);
-  closeModal('task-modal');
-  viewModelDetail(_currentModelId);
-  toast(editId ? '✓ Task updated' : '✓ Task added');
-}
-
-function deleteTask(modelId, taskId) {
-  if (!confirm('Delete this task and all its examples?')) return;
-  const tasks = loadTasks(modelId).filter(t=>t.id!==taskId);
-  saveTasks(modelId, tasks);
-  // Delete backend examples
-  api(`/admin/finetune/examples?subject=${encodeURIComponent(exSubject(modelId,taskId))}`)
-    .then(r=>r.json()).then(exs=>{ exs.forEach(ex=>api('/admin/finetune/examples/'+ex.id,{method:'DELETE'}).catch(()=>{})); });
-  viewModelDetail(modelId);
-  toast('Task deleted');
-}
-
-function deleteModel(modelId) {
-  if (!confirm('Remove this model? This will not delete examples from the backend.')) return;
-  const models = loadModels().filter(m=>m.id!==modelId);
-  saveModels(models);
-  viewModels();
-  toast('Model removed');
-}
-
-// ── Example CRUD ──────────────────────────────────────────────────────────────
-function openExampleModal(modelId, taskId, exId=null) {
-  document.getElementById('example-modal-title').textContent = exId ? 'Edit example' : 'Add few-shot example';
-  document.getElementById('ex-id').value       = exId || '';
-  document.getElementById('ex-model-id').value = modelId;
-  document.getElementById('ex-task-id').value  = taskId;
-
-  // If editing, find example
-  if (exId) {
-    loadExamples(modelId, taskId).then(exs => {
-      const ex = exs.find(e=>e.id===exId);
-      if (ex) {
-        document.getElementById('ex-user').value      = ex.user_message || '';
-        document.getElementById('ex-assistant').value = ex.assistant_reply || '';
-      }
-    });
-  } else {
-    document.getElementById('ex-user').value = '';
-    document.getElementById('ex-assistant').value = '';
-  }
-  hide('ex-error');
-  show('example-modal');
-  setTimeout(()=>document.getElementById('ex-user').focus(), 50);
-}
-
-async function submitExample() {
-  const user  = document.getElementById('ex-user').value.trim();
-  const asst  = document.getElementById('ex-assistant').value.trim();
-  const exId  = document.getElementById('ex-id').value;
-  const mId   = document.getElementById('ex-model-id').value;
-  const tId   = document.getElementById('ex-task-id').value;
-  const errEl = document.getElementById('ex-error');
-
-  if (!user || !asst) {
-    errEl.textContent = 'Both User message and Assistant reply are required.';
-    errEl.classList.remove('hidden'); return;
-  }
-
-  const tasks   = loadTasks(mId);
-  const task    = tasks.find(t=>t.id===tId);
-  const model   = loadModels().find(m=>m.id===mId);
-
-  const body = {
-    user_message:    user,
-    assistant_reply: asst,
-    system_prompt:   loadRole(mId),  // attach current role as system_prompt
-    subject:         exSubject(mId, tId),
-    tags:            [mId, tId, model?.name||mId, task?.name||tId].filter(Boolean),
-  };
-
-  try {
-    if (exId) {
-      await api('/admin/finetune/examples/'+exId, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-      toast('✓ Example updated');
-    } else {
-      await api('/admin/finetune/examples', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-      toast('✓ Example added');
-    }
-    closeModal('example-modal');
-    await loadTaskExamples(mId, tId);
-    // Expand task body if closed
-    const body2 = document.getElementById('task-body-'+tId);
-    if (body2?.classList.contains('hidden')) toggleTask(tId);
-  } catch(e) {
-    errEl.textContent = 'Save failed: '+e.message;
-    errEl.classList.remove('hidden');
-  }
-}
-
-async function deleteExample(exId, modelId, taskId) {
-  if (!confirm('Delete this example?')) return;
-  try {
-    await api('/admin/finetune/examples/'+exId, {method:'DELETE'});
-    toast('Example deleted');
-    await loadTaskExamples(modelId, taskId);
-  } catch(e) { toast('Delete failed: '+e.message,'err'); }
-}
-
-// ── Export JSONL for a single model ──────────────────────────────────────────
-async function exportModel(modelId) {
-  const tasks = loadTasks(modelId);
-  const role  = loadRole(modelId);
-  const lines = [];
-
-  for (const task of tasks) {
-    const exs = await loadExamples(modelId, task.id);
-    for (const ex of exs) {
-      lines.push(JSON.stringify({
-        messages: [
-          { role:'system',    content: ex.system_prompt || role || '' },
-          { role:'user',      content: ex.user_message },
-          { role:'assistant', content: ex.assistant_reply },
-        ]
-      }));
-    }
-  }
-
-  if (!lines.length) { toast('No examples to export','err'); return; }
-  const blob = new Blob([lines.join('\n')], {type:'application/jsonl'});
-  const url  = URL.createObjectURL(blob);
-  const a    = document.createElement('a');
-  a.href = url;
-  a.download = `pclick_${modelId}_${new Date().toISOString().slice(0,10)}.jsonl`;
-  a.click();
-  URL.revokeObjectURL(url);
-  toast(`✓ Exported ${lines.length} examples`);
-}
-
-// ── OpenAI Fine-tuning ────────────────────────────────────────────────────────
-
-const FT_STATUS_STYLE = {
-  queued:    { dot:'#d29922', label:'Queued',    pill:'background:rgba(210,153,34,.12);color:#d29922;border:1px solid rgba(210,153,34,.3)' },
-  running:   { dot:'#58a6ff', label:'Running',   pill:'background:rgba(88,166,255,.1);color:#58a6ff;border:1px solid rgba(88,166,255,.25)' },
-  succeeded: { dot:'var(--em)', label:'Succeeded', pill:'background:rgba(63,185,80,.12);color:var(--em);border:1px solid rgba(63,185,80,.3)' },
-  failed:    { dot:'#f85149', label:'Failed',    pill:'background:rgba(248,81,73,.12);color:#f85149;border:1px solid rgba(248,81,73,.25)' },
-  cancelled: { dot:'var(--muted)', label:'Cancelled', pill:'background:rgba(255,255,255,.05);color:var(--muted);border:1px solid var(--border)' },
-};
-
-let _ftPollTimers = {};
-
-async function submitFTJob(modelId) {
-  const btn = document.getElementById('ft-btn-'+modelId);
-  const sel = document.getElementById('ft-base-model-'+modelId);
-  if (!sel || !btn) return;
-  const baseModel = sel.value;
-  btn.disabled = true;
-  btn.textContent = 'Submitting…';
-
-  try {
-    const r = await api('/admin/finetune/submit-job', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ model_id: modelId, base_model: baseModel, suffix: 'pclick' }),
-    });
-    const job = await r.json();
-    toast(`✓ Job ${job.job_id} queued`);
-    await loadFTJobs(modelId);
-    startFTPoll(modelId, job.job_id);
-  } catch(e) {
-    toast('Submit failed: '+e.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🚀 Start fine-tuning';
-  }
-}
-
-async function loadFTJobs(modelId) {
-  const el = document.getElementById('ft-jobs-'+modelId);
-  if (!el) return;
-  try {
-    const r    = await api('/admin/finetune/jobs');
-    const jobs = await r.json();
-    if (!jobs.length) {
-      el.innerHTML = `<p class="text-xs" style="color:var(--muted)">No jobs yet.</p>`;
-      return;
-    }
-    el.innerHTML = jobs.map(j => renderJobRow(j, modelId)).join('');
-    // Auto-poll any active jobs
-    jobs.filter(j => j.status==='queued'||j.status==='running').forEach(j => startFTPoll(modelId, j.job_id));
-  } catch(e) {
-    el.innerHTML = `<p class="text-xs" style="color:#f85149">${esc(e.message)}</p>`;
-  }
-}
-
-function renderJobRow(job, modelId) {
-  const s   = FT_STATUS_STYLE[job.status] || FT_STATUS_STYLE.cancelled;
-  const ts  = job.created_at ? new Date(job.created_at*1000).toLocaleString() : '';
-  const fin = job.finished_at ? new Date(job.finished_at*1000).toLocaleString() : '';
-  const active = job.status==='queued'||job.status==='running';
-  return `
-    <div id="ft-job-row-${esc(job.job_id)}" style="border:1px solid var(--border);border-radius:10px;padding:12px 14px;background:var(--card)" class="space-y-2">
-      <div class="flex items-center justify-between gap-2 flex-wrap">
-        <div class="flex items-center gap-2">
-          <span class="w-2 h-2 rounded-full shrink-0${active?' animate-pulse':''}" style="background:${s.dot}"></span>
-          <span class="text-xs font-mono" style="color:var(--muted)">${esc(job.job_id)}</span>
-          <span class="pill text-xs" style="${s.pill}">${s.label}</span>
-        </div>
-        <div class="flex gap-1.5">
-          ${active ? `<button onclick="cancelFTJob('${esc(job.job_id)}','${esc(modelId)}')" class="btn btn-danger text-xs" style="padding:2px 8px">Cancel</button>` : ''}
-        </div>
-      </div>
-      <div class="text-xs space-y-0.5" style="color:var(--muted)">
-        <div>Base: <span style="color:var(--text)">${esc(job.base_model||'')}</span></div>
-        ${ts ? `<div>Started: <span style="color:var(--text)">${ts}</span></div>` : ''}
-        ${fin ? `<div>Finished: <span style="color:var(--text)">${fin}</span></div>` : ''}
-        ${job.trained_tokens ? `<div>Tokens trained: <span style="color:var(--text)">${job.trained_tokens.toLocaleString()}</span></div>` : ''}
-        ${job.error ? `<div style="color:#f85149">Error: ${esc(job.error)}</div>` : ''}
-      </div>
-      ${job.fine_tuned_model ? `
-        <div style="background:rgba(63,185,80,.06);border:1px solid rgba(63,185,80,.2);border-radius:8px;padding:8px 10px" class="flex items-center justify-between gap-2">
-          <div>
-            <div class="text-xs font-semibold" style="color:var(--em)">Fine-tuned model ID</div>
-            <div class="text-xs font-mono mt-0.5" style="color:var(--text)">${esc(job.fine_tuned_model)}</div>
-          </div>
-          <button onclick="copyText('${esc(job.fine_tuned_model)}')" class="btn btn-ghost text-xs">Copy</button>
-        </div>` : ''}
-    </div>`;
-}
-
-function startFTPoll(modelId, jobId) {
-  const key = modelId+'__'+jobId;
-  if (_ftPollTimers[key]) return;
-  _ftPollTimers[key] = setInterval(async () => {
-    try {
-      const r   = await api('/admin/finetune/jobs/'+jobId);
-      const job = await r.json();
-      const el  = document.getElementById('ft-job-row-'+jobId);
-      if (el) el.outerHTML = renderJobRow(job, modelId);
-      if (job.status==='succeeded'||job.status==='failed'||job.status==='cancelled') {
-        clearInterval(_ftPollTimers[key]);
-        delete _ftPollTimers[key];
-        if (job.status==='succeeded') toast(`✓ Fine-tuning done! Model: ${job.fine_tuned_model}`);
-        if (job.status==='failed')    toast('Fine-tuning failed: '+(job.error||'unknown'), 'err');
-      }
-    } catch {}
-  }, 20000);   // poll every 20s
-}
-
-async function cancelFTJob(jobId, modelId) {
-  if (!confirm('Cancel this fine-tuning job?')) return;
-  try {
-    await api('/admin/finetune/jobs/'+jobId, {method:'DELETE'});
-    toast('Job cancelled');
-    await loadFTJobs(modelId);
-  } catch(e) { toast('Cancel failed: '+e.message,'err'); }
-}
-
-function copyText(text) {
-  navigator.clipboard.writeText(text).then(()=>toast('✓ Copied')).catch(()=>{
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    document.execCommand('copy'); document.body.removeChild(ta);
-    toast('✓ Copied');
-  });
-}
-
-// ════════════════════════════════════════════════════════════════
-// VIEW: FEEDBACK — anonymous student star rating + comments, plus an
-// NVIDIA-Gemma theme breakdown of the free-text comments (backend:
-// app/services/feedback.py, /admin/feedback/*).
-// ════════════════════════════════════════════════════════════════
-
 async function viewFeedback() {
-  hide('view-models');
-  hide('view-model-detail');
-  hide('view-activity');
-  hide('view-profiles');
-  hide('view-profile-detail');
-  hide('view-storage');
+  hideAllViews();
   setActiveNav('nav-feedback');
   show('view-feedback');
   await renderFeedback();
@@ -1642,16 +1109,36 @@ async function renderFeedback() {
     </div>`;
 }
 
+async function loadFeedbackInsights() {
+  const body = document.getElementById('feedback-insights-body');
+  if (!body) return;
+  body.innerHTML = `<div style="color:var(--muted)">Analyzing…</div>`;
+  try {
+    const r = await api('/admin/feedback/insights');
+    const data = await r.json();
+    const themes = data.themes || [];
+    const maxCount = Math.max(1, ...themes.map(t => t.count || 0));
+    body.innerHTML = `
+      ${data.summary ? `<p class="mb-3" style="color:var(--text)">${esc(data.summary)}</p>` : ''}
+      ${themes.length ? `<div class="space-y-2">
+        ${themes.map(t => `
+          <div class="flex items-center gap-3 text-xs">
+            <span style="width:140px" class="truncate">${esc(t.label)}</span>
+            ${statBar(t.count || 0, maxCount, SENTIMENT_COLORS[t.sentiment] || 'var(--blue)')}
+            <span style="width:24px;color:var(--muted)">${t.count || 0}</span>
+          </div>`).join('')}
+      </div>` : `<div style="color:var(--muted)">Not enough written feedback to analyze yet.</div>`}
+    `;
+  } catch (e) {
+    body.innerHTML = `<div style="color:#f85149">Failed to analyze: ${esc(e.message)}</div>`;
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 // VIEW: STORAGE
 // ════════════════════════════════════════════════════════════════
 function viewStorage() {
-  hide('view-models');
-  hide('view-model-detail');
-  hide('view-activity');
-  hide('view-profiles');
-  hide('view-profile-detail');
-  hide('view-feedback');
+  hideAllViews();
   setActiveNav('nav-storage');
   const el = document.getElementById('view-storage');
   show('view-storage');
@@ -1746,31 +1233,6 @@ function viewStorage() {
 
       ${lsItems.length === 0 ? '<div class="text-center py-12" style="color:var(--muted)">No localStorage data found.</div>' : ''}
     </div>`;
-}
-
-async function loadFeedbackInsights() {
-  const body = document.getElementById('feedback-insights-body');
-  if (!body) return;
-  body.innerHTML = `<div style="color:var(--muted)">Analyzing…</div>`;
-  try {
-    const r = await api('/admin/feedback/insights');
-    const data = await r.json();
-    const themes = data.themes || [];
-    const maxCount = Math.max(1, ...themes.map(t => t.count || 0));
-    body.innerHTML = `
-      ${data.summary ? `<p class="mb-3" style="color:var(--text)">${esc(data.summary)}</p>` : ''}
-      ${themes.length ? `<div class="space-y-2">
-        ${themes.map(t => `
-          <div class="flex items-center gap-3 text-xs">
-            <span style="width:140px" class="truncate">${esc(t.label)}</span>
-            ${statBar(t.count || 0, maxCount, SENTIMENT_COLORS[t.sentiment] || 'var(--blue)')}
-            <span style="width:24px;color:var(--muted)">${t.count || 0}</span>
-          </div>`).join('')}
-      </div>` : `<div style="color:var(--muted)">Not enough written feedback to analyze yet.</div>`}
-    `;
-  } catch (e) {
-    body.innerHTML = `<div style="color:#f85149">Failed to analyze: ${esc(e.message)}</div>`;
-  }
 }
 </script>
 </body>

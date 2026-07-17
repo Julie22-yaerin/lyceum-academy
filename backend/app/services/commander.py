@@ -83,6 +83,9 @@ def init_db() -> None:
     """Create commander tables if they don't exist. Safe to call multiple times."""
     with _conn() as c:
         c.executescript(_DDL)
+        cols = {row["name"] for row in c.execute("PRAGMA table_info(commander_bugs)")}
+        if "resolved_at" not in cols:
+            c.execute("ALTER TABLE commander_bugs ADD COLUMN resolved_at TEXT")
 
 
 def _save_bug(entry: dict[str, Any], queue: str) -> int:
@@ -294,6 +297,52 @@ async def _dispatch_to_dev(bug_entry: dict[str, Any]) -> None:
     })
 
 
+# ── Admin chat — talk directly to the Commander ──────────────────────────────
+_admin_sessions: dict[str, list[dict[str, str]]] = {}
+_ADMIN_MAX_HISTORY = 20
+
+
+async def admin_chat(session_id: str, message: str) -> str:
+    """
+    Open-ended admin chat with the Commander — same NVIDIA model used for
+    triage, but conversational. Folds in a live queue summary so the admin
+    can ask things like "what's in your critical queue right now?".
+    """
+    api_key = settings.commander_key or settings.nvidia_api_key
+    if not api_key:
+        return "Commander has no API key configured."
+    model = settings.commander_model
+
+    queue_summary = (
+        f"Current queue: {len(_critical_bugs)} critical bug(s) pending immediate "
+        f"dispatch, {len(_minor_bugs)} minor bug(s) queued for the next 4-day batch."
+    )
+    system = (
+        "You are the Commander — dev-team coordinator and content-safety gate "
+        "for The Lyceum Academy. You triage bug reports (critical vs minor) and "
+        "dispatch them to backend-dev/frontend-dev/security-dev. You are now "
+        "talking directly with an admin, not triaging a report — answer their "
+        "questions about your role, current queue, and decisions plainly and "
+        f"conversationally, in the language they write in.\n\n{queue_summary}"
+    )
+
+    history = _admin_sessions.setdefault(session_id, [])
+    history.append({"role": "user", "content": message})
+    if len(history) > _ADMIN_MAX_HISTORY:
+        history[:] = history[-_ADMIN_MAX_HISTORY:]
+
+    messages = [{"role": "system", "content": system}] + history
+
+    try:
+        result = await _nvidia_call(api_key, model, messages, temperature=0.4, max_tokens=1024)
+        reply = result.get("raw") or result.get("reply") or json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return f"Sorry, I'm unavailable right now ({type(e).__name__})."
+
+    history.append({"role": "assistant", "content": reply})
+    return reply
+
+
 def _keyword_classify(text: str) -> dict[str, Any]:
     """Fallback keyword-based classification when AI is unavailable."""
     lower = text.lower()
@@ -313,6 +362,36 @@ def get_critical_bugs() -> list[dict[str, Any]]:
 def get_minor_bugs() -> list[dict[str, Any]]:
     """Return all minor bugs pending batch processing."""
     return list(_minor_bugs)
+
+
+def list_all_bugs(status: str = "") -> list[dict[str, Any]]:
+    """
+    Full bug history for the admin Error Log — every triaged bug ever
+    reported, newest first.
+
+    status: "" (all) | "open" (not yet resolved) | "resolved"
+    """
+    query = "SELECT * FROM commander_bugs"
+    if status == "open":
+        query += " WHERE resolved_at IS NULL"
+    elif status == "resolved":
+        query += " WHERE resolved_at IS NOT NULL"
+    query += " ORDER BY id DESC"
+
+    with _conn() as c:
+        rows = c.execute(query).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mark_resolved(row_id: int) -> bool:
+    """Mark a bug as fixed. Returns False if no such row exists."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE commander_bugs SET resolved_at = ? WHERE id = ? AND resolved_at IS NULL",
+            (now, row_id),
+        )
+        return cur.rowcount > 0
 
 
 def should_run_batch() -> bool:

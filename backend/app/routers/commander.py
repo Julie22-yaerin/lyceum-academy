@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import require_auth
+from app.routers.admin import _auth as _admin_auth
 from app.services import commander as cmd_svc
 
 router = APIRouter(prefix="/commander", tags=["commander"])
@@ -83,6 +84,30 @@ async def get_minor_bugs(
         "should_run_batch": cmd_svc.should_run_batch(),
         "batch_interval_days": 4,
     }
+
+
+@router.get("/bugs/all")
+async def list_all_bugs(
+    status: str = "",
+    _: None = Depends(_admin_auth),
+) -> dict[str, Any]:
+    """
+    Full bug history for the admin Error Log — every triaged bug ever
+    reported, newest first. status: "" (all) | "open" | "resolved".
+    """
+    bugs = cmd_svc.list_all_bugs(status)
+    return {"bugs": bugs, "count": len(bugs)}
+
+
+@router.post("/bugs/{bug_id}/resolve")
+async def resolve_bug(
+    bug_id: int,
+    _: None = Depends(_admin_auth),
+) -> dict[str, Any]:
+    """Mark a bug as fixed."""
+    if not cmd_svc.mark_resolved(bug_id):
+        raise HTTPException(404, "Bug not found or already resolved")
+    return {"ok": True}
 
 
 @router.post("/bugs/batch")

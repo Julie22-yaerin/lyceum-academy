@@ -63,6 +63,7 @@ class PlanResponse(BaseModel):
     daily_upload_limit: int | None
     ai_queue_priority: int
     ari_voice_daily_call_limit: int | None
+    credits_monthly: int | None = None
 
     class Config:
         from_attributes = True
@@ -201,6 +202,7 @@ def list_plans(db: Session = Depends(get_db)):
             daily_upload_limit=plan.daily_upload_limit,
             ai_queue_priority=plan.ai_queue_priority,
             ari_voice_daily_call_limit=plan.ari_voice_daily_call_limit,
+            credits_monthly=plan.credits_monthly,
         )
         for plan in plans
     ]

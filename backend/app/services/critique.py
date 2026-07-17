@@ -389,6 +389,69 @@ async def routed_review(
     return await review(draft_response, context=context, max_rounds=2)
 
 
+# ── Admin chat — talk directly to one critique position ──────────────────────
+# Open-ended conversation with a single position's system prompt + model,
+# NOT a run of the real review() pipeline. Session history kept exactly like
+# support_chat.py's _sessions (per-session list, trimmed to _MAX_HISTORY).
+
+_admin_sessions: dict[str, list[dict[str, str]]] = {}
+_ADMIN_MAX_HISTORY = 20
+
+_POS_CONFIG = {
+    1: {"system": _SYS_POS1, "url": OPENAI_CHAT_URL, "key_attr": "critique_openai_key", "model_attr": "critique_openai_model"},
+    2: {"system": _SYS_POS2, "url": GROQ_CHAT_URL, "key_attr": "critique_groq_key", "model_attr": "critique_groq_model"},
+    3: {"system": _SYS_POS3_COORD, "url": GOOGLE_CHAT_URL, "key_attr": "critique_google_key", "model_attr": "critique_google_model"},
+}
+
+
+async def admin_chat(pos: int, session_id: str, message: str) -> str:
+    """
+    Open-ended admin chat with a single critique position (1, 2, or 3) —
+    reuses that position's real system prompt and model, but as a normal
+    conversation instead of the fixed draft/verdict JSON contract.
+    """
+    cfg = _POS_CONFIG.get(pos)
+    if not cfg:
+        return "Unknown position — use 1, 2, or 3."
+
+    api_key = getattr(settings, cfg["key_attr"])
+    if not api_key:
+        return f"Position {pos} has no API key configured."
+
+    history = _admin_sessions.setdefault(session_id, [])
+    history.append({"role": "user", "content": message})
+    if len(history) > _ADMIN_MAX_HISTORY:
+        history[:] = history[-_ADMIN_MAX_HISTORY:]
+
+    chat_system = (
+        cfg["system"]
+        + "\n\nNOTE: You are now talking directly with an admin, NOT reviewing "
+        "a draft response. Answer their questions plainly and conversationally "
+        "in the language they write in — do not return the JSON verdict format."
+    )
+    messages = [{"role": "system", "content": chat_system}] + history
+
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": getattr(settings, cfg["model_attr"]),
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": 1024,
+        "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=45) as client:
+            resp = await client.post(cfg["url"], headers=headers, json=payload)
+            resp.raise_for_status()
+            reply = extract_text(resp.json()) or "(no response)"
+    except Exception as e:
+        log.warning("admin_chat pos%d failed: %s", pos, e)
+        return f"Sorry, Position {pos} is unavailable right now ({type(e).__name__})."
+
+    history.append({"role": "assistant", "content": reply})
+    return reply
+
+
 async def review_dict_field(
     result: dict,
     field: str,

@@ -72,9 +72,10 @@ export default function ReportBugButton({ onNavigate }: { onNavigate: (view: Vie
 
       {open && (
         <div
-          className="absolute bottom-full right-0 mb-2 w-72 glass-strong rounded-2xl z-[200] overflow-hidden"
-          style={{ animation: 'fadeDown 0.18s ease-out' }}
+          className="absolute top-full right-0 mt-2 w-72 glass-strong rounded-2xl z-[200] overflow-hidden"
+          style={{ animation: 'fadeUp 0.18s ease-out' }}
         >
+          <style>{`@keyframes fadeUp { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }`}</style>
           <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-wider text-white/50">{t('reportBug.title')}</span>
             <button onClick={close} className="opacity-30 hover:opacity-80 transition-opacity">
