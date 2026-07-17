@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { loadProgress, clearProgress, GradeRecord } from '../lib/progress';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 // ── Color palette ─────────────────────────────────────────────────────────
 const TOPIC_COLORS = [
@@ -34,9 +35,10 @@ function arc(cx: number, cy: number, r: number, start: number, end: number) {
 interface Slice { label: string; value: number; color: string; }
 
 function DonutChart({ slices, size = 160, label = '' }: { slices: Slice[]; size?: number; label?: string }) {
+  const { t } = useTranslation();
   const cx = size / 2, cy = size / 2, r = size / 2 - 10;
   const total = slices.reduce((s, p) => s + p.value, 0);
-  if (total === 0) return <div style={{ width: size, height: size }} className="flex items-center justify-center"><span className="font-sans text-xs opacity-20">No data</span></div>;
+  if (total === 0) return <div style={{ width: size, height: size }} className="flex items-center justify-center"><span className="font-sans text-xs opacity-20">{t('progress.noData')}</span></div>;
   let angle = 0;
   const segs = slices.map(s => {
     const deg = (s.value / total) * 360;
@@ -53,7 +55,7 @@ function DonutChart({ slices, size = 160, label = '' }: { slices: Slice[]; size?
       {label && (
         <>
           <text x={cx} y={cy - 4} textAnchor="middle" fontSize={18} fontFamily="Georgia, serif" fill="currentColor" opacity={0.8}>{label}</text>
-          <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fontFamily="sans-serif" fill="currentColor" opacity={0.35} letterSpacing={1}>TOTAL</text>
+          <text x={cx} y={cy + 14} textAnchor="middle" fontSize={9} fontFamily="sans-serif" fill="currentColor" opacity={0.35} letterSpacing={1}>{t('progress.total')}</text>
         </>
       )}
     </svg>
@@ -73,6 +75,7 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub?: s
 
 // ── Main ──────────────────────────────────────────────────────────────────
 export default function ProgressView() {
+  const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [records, setRecords] = useState<GradeRecord[]>([]);
   const [showClear, setShowClear] = useState(false);
@@ -122,9 +125,9 @@ export default function ProgressView() {
 
   // Mastery pie
   const masterySlices: Slice[] = [
-    { label: 'Mastered ≥70%', value: masteredCount, color: '#4A7C59' },
-    { label: 'Improving 40–69%', value: improvingCount, color: '#C5A059' },
-    { label: 'Struggling <40%', value: strugglingCount, color: '#823B18' },
+    { label: t('progress.mastered70'), value: masteredCount, color: '#4A7C59' },
+    { label: t('progress.improving4069'), value: improvingCount, color: '#C5A059' },
+    { label: t('progress.struggling40'), value: strugglingCount, color: '#823B18' },
   ].filter(s => s.value > 0);
 
   // Topic distribution pie (top 10)
@@ -147,9 +150,9 @@ export default function ProgressView() {
     return (
       <div className="flex-grow flex flex-col items-center justify-center py-20 px-4 bg-surface">
         <span className="material-symbols-outlined text-5xl opacity-15 mb-6">bar_chart</span>
-        <h1 className="font-serif text-4xl opacity-30 mb-4">No data yet</h1>
+        <h1 className="font-serif text-4xl opacity-30 mb-4">{t('progress.noDataTitle')}</h1>
         <p className="font-sans text-sm opacity-25 text-center max-w-xs">
-          Complete and submit a problem set to see your progress here.
+          {t('progress.noDataDesc')}
         </p>
       </div>
     );
@@ -161,18 +164,18 @@ export default function ProgressView() {
 
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">Progress</h1>
+          <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">{t('progress.title')}</h1>
           <p className="font-sans text-sm text-on-surface opacity-50 italic tracking-wide">
-            "The roots of education are bitter, but the fruit is sweet." — Aristotle
+            {t('progress.quote')}
           </p>
         </div>
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-10">
-          <StatCard label="Questions" value={totalQs.toString()} sub={`${totalPassed} passed`} />
-          <StatCard label="Pass Rate" value={`${overallRate}%`} sub={`${records.length} sessions`} />
-          <StatCard label="Topics Explored" value={topics.length.toString()} sub={`${masteredCount} mastered`} />
-          <StatCard label="Win Streak" value={streak.toString()} sub="sessions ≥70%" />
+          <StatCard label={t('progress.questions')} value={totalQs.toString()} sub={`${totalPassed} ${t('progress.passed')}`} />
+          <StatCard label={t('progress.passRate')} value={`${overallRate}%`} sub={`${records.length} ${t('progress.sessions')}`} />
+          <StatCard label={t('progress.topicsExplored')} value={topics.length.toString()} sub={`${masteredCount} ${t('progress.mastered')}`} />
+          <StatCard label={t('progress.winStreak')} value={streak.toString()} sub={`${t('progress.sessionsGte70')}`} />
         </div>
 
         {/* Row 1: Mastery donut + Session bar chart */}
@@ -180,7 +183,7 @@ export default function ProgressView() {
 
           {/* Mastery donut */}
           <div className="border border-outline/10 shadow-sm p-6">
-            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">Topic Mastery</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">{t('progress.topicMastery')}</p>
             <div className="flex items-center gap-6">
               <DonutChart slices={masterySlices} size={140} label={`${topicCoverage}%`} />
               <div className="flex flex-col gap-3 flex-1">
@@ -192,7 +195,7 @@ export default function ProgressView() {
                   </div>
                 ))}
                 <p className="font-sans text-[9px] opacity-25 mt-1 border-t border-outline/10 pt-2">
-                  {topicCoverage}% of topics mastered
+                  {topicCoverage}% {t('progress.ofTopicsMastered')}
                 </p>
               </div>
             </div>
@@ -200,7 +203,7 @@ export default function ProgressView() {
 
           {/* Session performance */}
           <div className="border border-outline/10 shadow-sm p-6">
-            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">Session Performance</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">{t('progress.sessionPerf')}</p>
             <div className="flex items-end gap-1.5 h-28 mb-2">
               {sessions.map((s, i) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1 group relative min-w-0">
@@ -225,7 +228,7 @@ export default function ProgressView() {
                 </div>
               ))}
             </div>
-            {sessions.length === 0 && <p className="font-sans text-xs opacity-25">No sessions yet.</p>}
+            {sessions.length === 0 && <p className="font-sans text-xs opacity-25">{t('progress.noSessions')}</p>}
           </div>
         </div>
 
@@ -235,7 +238,7 @@ export default function ProgressView() {
           {/* Topic distribution */}
           {topicSlices.length > 0 && (
             <div className="border border-outline/10 shadow-sm p-6">
-              <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">Topic Distribution</p>
+              <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">{t('progress.topicDist')}</p>
               <div className="flex items-center gap-4">
                 <DonutChart slices={topicSlices} size={130} />
                 <div className="flex flex-col gap-1.5 flex-1 min-w-0">
@@ -253,7 +256,7 @@ export default function ProgressView() {
 
           {/* Difficulty breakdown */}
           <div className="border border-outline/10 shadow-sm p-6">
-            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">Difficulty Breakdown</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mb-6">{t('progress.diffBreakdown')}</p>
             <div className="flex flex-col gap-5">
               {(['easy', 'medium', 'hard', 'extreme'] as const).map(d => {
                 const stat = diffMap[d];
@@ -279,13 +282,13 @@ export default function ProgressView() {
         {topics.length > 0 && (
           <div className="border border-outline/10 shadow-sm mb-10">
             <div className="px-6 py-4 border-b border-outline/10 flex items-center justify-between">
-              <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">All Topics</p>
-              <span className="font-sans text-[9px] opacity-25">{topics.length} topics explored</span>
+              <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">{t('progress.allTopics')}</p>
+              <span className="font-sans text-[9px] opacity-25">{topics.length} {t('progress.topicsExplored2')}</span>
             </div>
             <div className="divide-y divide-outline/8">
               {topics.map(t => {
                 const color = t.rate >= 70 ? '#4A7C59' : t.rate >= 40 ? '#C5A059' : '#823B18';
-                const status = t.rate >= 70 ? 'Mastered' : t.rate >= 40 ? 'Improving' : 'Struggling';
+                const status = t.rate >= 70 ? t('progress.statusMastered') : t.rate >= 40 ? t('progress.statusImproving') : t('progress.statusStruggling');
                 return (
                   <div key={t.name} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container-highest/30 transition-colors">
                     <span className="font-sans text-sm text-on-surface opacity-75 flex-1 min-w-0 truncate">{t.name}</span>
@@ -307,15 +310,15 @@ export default function ProgressView() {
           <div className="flex justify-center pb-6">
             <button onClick={() => setShowClear(true)}
               className="font-sans text-[10px] uppercase tracking-[2px] opacity-20 hover:opacity-50 transition-opacity flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-[13px]">delete</span>Clear progress data
+              <span className="material-symbols-outlined text-[13px]">delete</span>{t('progress.clearData')}
             </button>
           </div>
         ) : (
           <div className="flex justify-center gap-4 pb-6">
-            <button onClick={() => setShowClear(false)} className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity">Cancel</button>
+            <button onClick={() => setShowClear(false)} className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity">{t('common.cancel')}</button>
             <button onClick={() => { clearProgress(activeTab || undefined); setRecords([]); setShowClear(false); }}
               className="font-sans text-[10px] uppercase tracking-[2px] text-red-500 hover:text-red-700 transition-colors flex items-center gap-1">
-              <span className="material-symbols-outlined text-[12px]">warning</span>Confirm clear
+              <span className="material-symbols-outlined text-[12px]">warning</span>{t('progress.confirmClear')}
             </button>
           </div>
         )}

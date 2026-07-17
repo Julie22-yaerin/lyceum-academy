@@ -231,6 +231,18 @@ class DataAccessAuditMiddleware(BaseHTTPMiddleware):
         "/ai/voice-fallback",
         "/ai/clean-question",
         "/ai/onboarding-analyze",
+        "/ai/agents/content-analyzer/analyze",
+        "/ai/agents/path-generator/generate",
+        "/ai/agents/progress-tracker/analyze",
+        "/ai/agents/dev-patrol/backend/scan",
+        "/ai/agents/dev-patrol/frontend/scan",
+        "/ai/agents/dev-patrol/integration/scan",
+        "/ai/agents/dev-patrol/report",
+        "/ai/agents/dev-patrol/report-bug",
+        "/ai/agents/dev-patrol/scan-all",
+        "/commander/triage",
+        "/commander/safety/check-text",
+        "/commander/safety/check-file",
         "/profile/event",
         "/profile/baseline",
         "/profile/subject-activity",
@@ -266,10 +278,15 @@ from app.routers  import auth       as auth_router
 from app.routers  import subscriptions as subscriptions_router
 from app.routers  import ux_metrics   as ux_metrics_router
 from app.routers  import personas    as personas_router
+from app.routers  import ai_agents   as ai_agents_router
+from app.routers  import dev_patrol  as dev_patrol_router
+from app.routers  import support_chat as support_chat_router
+from app.routers  import commander   as commander_router
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    logger = logging.getLogger("pclick.startup")
     ft_svc.init_db()          # create SQLite tables if not present
     from app.services import activity_log as activity_log_svc
     activity_log_svc.init_db()
@@ -278,13 +295,53 @@ async def lifespan(_app: FastAPI):
     from app.services import feedback as feedback_svc
     feedback_svc.init_db()
 
+    # ── Start background AI agents ─────────────────────────────────────────
+    from app.services.ai_agents import AGENTS as _ai_agents
+    for _aid, _agent in _ai_agents.items():
+        try:
+            await _agent.start()
+            logger.info("AI agent %s started ✓", _aid)
+        except Exception as _ae:
+            logger.warning("AI agent %s failed to start: %s", _aid, _ae)
+
+    # The dev-patrol router (and Commander's dispatch) submit tasks to
+    # DEV_AGENTS — a separate set of instances from the backend-dev/
+    # frontend-dev/security-dev entries above. They must be started too,
+    # otherwise submitted tasks queue forever and never execute.
+    from app.services.ai_agents.dev_patrol import DEV_AGENTS as _dev_agents
+    for _aid, _agent in _dev_agents.items():
+        try:
+            await _agent.start()
+            logger.info("Dev Patrol agent %s started ✓", _aid)
+        except Exception as _ae:
+            logger.warning("Dev Patrol agent %s failed to start: %s", _aid, _ae)
+
+    # ── Commander: restore persisted queue + start the 4-day batch loop ───
+    from app.services import commander as commander_svc
+    commander_svc.init_db()
+    commander_svc.load_pending()
+
+    async def _commander_batch_loop() -> None:
+        """Every 6h, check whether the 4-day minor-bug batch is due and
+        dispatch it. Coarse enough interval for a multi-day cadence, cheap
+        enough to just let run for the life of the process."""
+        while True:
+            try:
+                await asyncio.sleep(6 * 3600)
+                if commander_svc.should_run_batch():
+                    await commander_svc.pop_batch()
+                    logger.info("Commander: minor-bug batch dispatched")
+            except asyncio.CancelledError:
+                break
+            except Exception as _be:
+                logger.warning("Commander batch loop error: %s", _be)
+
+    _commander_batch_task = asyncio.create_task(_commander_batch_loop())
+
     # Pre-warm the embedding model so the first upload doesn't time out.
     # all-MiniLM-L6-v2 (~80 MB) is downloaded from HuggingFace on first run.
-    import logging
-    logger = logging.getLogger("pclick.startup")
     logger.info("Loading embedding model (may download ~80 MB on first run)…")
     try:
-        import asyncio
         from app.services.embeddings import embed
         loop = asyncio.get_running_loop()
         await asyncio.wait_for(
@@ -300,6 +357,25 @@ async def lifespan(_app: FastAPI):
         logger.warning("Uploads will still work — model loads on first request.")
 
     yield
+
+    # ── Shutdown background AI agents ──────────────────────────────────────
+    _commander_batch_task.cancel()
+    try:
+        await _commander_batch_task
+    except asyncio.CancelledError:
+        pass
+
+    for _aid, _agent in _ai_agents.items():
+        try:
+            await _agent.stop()
+        except Exception:
+            pass
+
+    for _aid, _agent in _dev_agents.items():
+        try:
+            await _agent.stop()
+        except Exception:
+            pass
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -317,6 +393,10 @@ app.include_router(subscriptions_router.router)
 app.include_router(subscriptions_router.webhook_router)
 app.include_router(ux_metrics_router.router)
 app.include_router(personas_router.router)
+app.include_router(ai_agents_router.router)
+app.include_router(dev_patrol_router.router)
+app.include_router(support_chat_router.router)
+app.include_router(commander_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
@@ -578,6 +658,10 @@ class ChatRequest(BaseModel):
     # Optional: set to a persona_id (e.g. "einstein") to have the AI
     # respond in the style and epistemological voice of that scientist.
     persona_id: str | None = None
+    # Optional: student's preferred language code (e.g. "en", "vi", "ko").
+    # When set, a language directive is injected into the system prompt so the
+    # AI responds in that language.
+    language: str | None = None
 
 
 class VoiceFallbackRequest(BaseModel):
@@ -669,6 +753,27 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
                     messages = persona_messages + messages
             except Exception as _pe:
                 pass  # persona injection failure must never break the main chat path
+
+        # ── Language directive: ensure AI responds in the student's chosen language ─
+        if req.language and req.language != 'en':
+            _LANG_NAMES = {
+                'vi': 'Vietnamese', 'ko': 'Korean', 'ja': 'Japanese',
+                'zh': 'Chinese', 'es': 'Spanish', 'fr': 'French',
+                'de': 'German', 'pt': 'Portuguese', 'ru': 'Russian',
+                'th': 'Thai', 'hi': 'Hindi', 'ar': 'Arabic',
+            }
+            _lang_name = _LANG_NAMES.get(req.language, req.language)
+            _lang_directive = (
+                f"\n\n=== LANGUAGE DIRECTIVE (mandatory) ===\n"
+                f"The student's preferred language is {_lang_name} ({req.language}).\n"
+                f"ALWAYS respond in {_lang_name}. Mirror the student's language only if they explicitly switch languages themselves.\n"
+                f"If the student writes in another language, keep your reply in {_lang_name} unless they explicitly ask for something else.\n"
+                f"All explanations, feedback, hints, and dialogue must be in {_lang_name}."
+            )
+            if messages and messages[0].get('role') == 'system':
+                messages[0] = {**messages[0], 'content': messages[0]['content'] + _lang_directive}
+            else:
+                messages.insert(0, {'role': 'system', 'content': f'You are a helpful educational assistant.{_lang_directive}'})
 
         resp = await ai_svc.chat(
             messages,
@@ -1230,6 +1335,15 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
 
+        # ── Commander file safety check ────────────────────────────────────
+        from app.services import commander as cmd_svc
+        file_safety = cmd_svc.check_file_safety(fname, content, mime)
+        if not file_safety.get("safe", True):
+            raise HTTPException(
+                status_code=400,
+                detail=file_safety.get("reason", "File failed safety check"),
+            )
+
         # ── Step 1: Quick difficulty scan ─────────────────────────────────
         difficulty_info = {"difficulty": "medium", "rationale": "skipped", "subject_area": "other"}
         try:
@@ -1501,6 +1615,15 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
         content  = await check_upload(file, max_bytes=20 * 1024 * 1024)
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
+
+        # ── Commander file safety check ────────────────────────────────────
+        from app.services import commander as cmd_svc
+        file_safety = cmd_svc.check_file_safety(fname, content, mime)
+        if not file_safety.get("safe", True):
+            raise HTTPException(
+                status_code=400,
+                detail=file_safety.get("reason", "File failed safety check"),
+            )
 
         if mime == "application/pdf" or fname.lower().endswith(".pdf"):
             raw_text = await ai_svc.extract_pdf_text(content)

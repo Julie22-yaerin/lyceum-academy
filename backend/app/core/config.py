@@ -127,6 +127,27 @@ class Settings(BaseSettings):
     # nvidia_primary_model); override via NVIDIA_FEEDBACK_MODEL if needed.
     nvidia_feedback_model: str = "google/gemma-2-2b-it"
 
+    # ── Dev Patrol — background bug-finding & fixing team ──────────
+    # Key 1: poolside/laguna-xs-2.1 — backend Python dev
+    dev_patrol_backend_key: str = ""
+    dev_patrol_backend_model: str = "poolside/laguna-xs-2.1"
+    # Key 2: minimaxai/minimax-m3 — frontend TypeScript/React dev
+    dev_patrol_frontend_key: str = ""
+    dev_patrol_frontend_model: str = "minimaxai/minimax-m3"
+    # Key 3: z-ai/glm-5.2 — security dev
+    dev_patrol_integration_key: str = ""
+    dev_patrol_integration_model: str = "z-ai/glm-5.2"
+
+    # ── Customer Support Chat (always-on,热情 tư vấn viên) ──────────
+    support_chat_key: str = ""
+    support_chat_model: str = "nvidia/nemotron-mini-4b-instruct"
+
+    # ── Commander / Coordinator — chỉ huy đội dev + chống content độc hại ──
+    # Classifies bugs (critical → fix now, minor → batch every 4 days)
+    # Blocks profanity, virus uploads, unauthorized extensions
+    commander_key: str = ""
+    commander_model: str = "nvidia/nemotron-3.5-content-safety"
+
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""
     openrouter_primary_model: str = "nvidia/nemotron-3-super-120b-a12b:free"

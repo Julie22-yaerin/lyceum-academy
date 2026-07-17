@@ -1,0 +1,16 @@
+Scenario,Month,Visits,ConversionRate,NewTrialUsers,CumulativeActive,CostPerUser_Best,CostPerUser_Worst,MonthlyBill_Best,MonthlyBill_Worst
+Mid,1,50,0.125,6,6.0,0.014,0.0215,0.084,0.129
+Mid,2,58,0.125,7,12.4,0.014,0.0215,0.098,0.1505
+Mid,3,72,0.125,9,20.16,0.014,0.0215,0.126,0.1935
+Low,1,50,0.10,5,5.0,0.014,0.0215,0.07,0.1075
+Low,2,50,0.10,5,9.5,0.014,0.0215,0.07,0.1075
+Low,3,65,0.10,7,15.55,0.014,0.0215,0.098,0.1505
+High,1,50,0.15,8,8.0,0.014,0.0215,0.112,0.172
+High,2,65,0.15,10,17.2,0.014,0.0215,0.14,0.215
+High,3,80,0.15,12,27.48,0.014,0.0215,0.168,0.258
+
+ScaleSensitivity,NewTrialUsersPerMonth,CostPerUser_Best,CostPerUser_Worst,MonthlyBill_Best,MonthlyBill_Worst
+Scale,100,0.014,0.0215,1.4,2.15
+Scale,1000,0.014,0.0215,14,21.5
+Scale,10000,0.014,0.0215,140,215
+Scale,100000,0.014,0.0215,1400,2150

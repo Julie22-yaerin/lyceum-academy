@@ -4,8 +4,10 @@ import SmartImage from '../components/SmartImage';
 import { useReferenceLibraryGate } from '../lib/useSubscription';
 import UpgradePrompt from '../components/UpgradePrompt';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry; onDelete: () => void; onOpenImage: (url: string) => void }) {
+  const { t } = useTranslation();
   const date = new Date(entry.savedAt);
   const dateStr = date.toLocaleDateString('en-US', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const images = entry.imageUrls?.length ? entry.imageUrls : (entry.imageUrl ? [entry.imageUrl] : []);
@@ -49,7 +51,7 @@ function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry
               rel="noreferrer"
               className="font-sans text-[10px] text-blue-300/70 hover:text-blue-300 transition-colors"
             >
-              {isCitable ? 'Source ↗' : 'Search ↗'}
+              {isCitable ? t('references.sourceLink') : t('references.searchLink')}
             </a>
           )}
         </div>
@@ -59,6 +61,7 @@ function ReferenceCard({ entry, onDelete, onOpenImage }: { entry: ReferenceEntry
 }
 
 export default function ReferenceBankView() {
+  const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [refs, setRefs] = useState<ReferenceEntry[]>([]);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
@@ -72,7 +75,7 @@ export default function ReferenceBankView() {
     setRefs(loadReferences(activeTab || undefined));
   }
 
-  const limitText = limit === Infinity ? 'Unlimited' : `${used} / ${limit}`;
+  const limitText = limit === Infinity ? t('references.unlimited') : `${used} / ${limit}`;
   const nearLimit = limit !== Infinity && used >= limit * 0.8;
   const atLimit = !canUse;
 
@@ -87,7 +90,7 @@ export default function ReferenceBankView() {
 
       <div className="mb-6">
         <div className="flex items-center justify-between mb-1">
-          <h1 className="font-serif text-2xl text-white/90">Reference Bank</h1>
+          <h1 className="font-serif text-2xl text-white/90">{t('references.title')}</h1>
           <div className="flex items-center gap-2">
             <span className={`font-sans text-xs ${atLimit ? 'text-red-400' : nearLimit ? 'text-yellow-400' : 'text-white/50'}`}>
               {limitText}
@@ -97,20 +100,20 @@ export default function ReferenceBankView() {
                 onClick={() => setShowUpgradePrompt(true)}
                 className="px-3 py-1 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-sans uppercase tracking-wider"
               >
-                Upgrade
+                {t('common.upgrade')}
               </button>
             )}
           </div>
         </div>
         <p className="font-sans text-xs text-white/40">
-          Everything Gemma has researched for you, sorted by topic{atLimit ? ' — limit reached' : ''}.
+          {t('references.desc')}{atLimit ? t('references.limitReached') : ''}.
         </p>
       </div>
 
       {refs.length === 0 ? (
         <div className="glass-strong rounded-2xl p-10 text-center">
           <p className="font-sans text-sm text-white/40">
-            Nothing here yet for this subject. Ask ARI to look something up and it'll show up in this bank automatically.
+            {t('references.empty')}
           </p>
         </div>
       ) : (

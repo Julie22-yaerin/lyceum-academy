@@ -8,6 +8,7 @@ import {
   type MistakeEntry,
 } from '../lib/mistakes';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 interface ChatMsg {
   role: 'user' | 'assistant';
@@ -15,6 +16,7 @@ interface ChatMsg {
 }
 
 function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEntry; selected: boolean; onToggle?: () => void; onDelete: () => void }) {
+  const { t } = useTranslation();
   const date = new Date(entry.createdAt);
   const dateStr = date.toLocaleDateString('en-US', {
     day: '2-digit', month: '2-digit', year: 'numeric',
@@ -67,7 +69,7 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
                     rel="noopener noreferrer"
                     className="font-sans text-[10px] text-sky-300/80 hover:text-sky-200 underline truncate"
                   >
-                    🔗 {entry.attachedSourceLabel || 'Reference source'}
+                    🔗 {entry.attachedSourceLabel || t('mistakes.refSource')}
                   </a>
                 )}
               </div>
@@ -92,6 +94,7 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
 }
 
 function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry[]; onClose: () => void }) {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -133,7 +136,7 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
       const result = await chatMessage(apiMessages);
       setMessages(prev => [...prev, { role: 'assistant', content: result.reply }]);
     } catch (e: any) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ ' + (e.message || 'Connection error') }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ ' + (e.message || t('dialogue.connectionError')) }]);
     } finally {
       setThinking(false);
     }
@@ -151,8 +154,8 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-[18px] text-rose-300/60">auto_awesome</span>
-          <span className="font-sans text-xs font-medium text-white/70">AI Chat</span>
-          <span className="font-sans text-[9px] text-white/30">· {selectedEntries.length} mistakes</span>
+          <span className="font-sans text-xs font-medium text-white/70">{t('mistakes.aiChat')}</span>
+          <span className="font-sans text-[9px] text-white/30">· {t('mistakes.mistakeCount', { count: selectedEntries.length })}</span>
         </div>
         <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/5 hover:bg-white/20 text-white/30 hover:text-white/70 transition-all">
           <span className="material-symbols-outlined text-[14px]">close</span>
@@ -193,7 +196,7 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about a mistake..."
+            placeholder={t('mistakes.askAbout')}
             rows={1}
             className="flex-1 glass-input rounded-xl px-4 py-2.5 text-xs resize-none leading-relaxed"
           />
@@ -211,6 +214,7 @@ function ChatPanel({ selectedEntries, onClose }: { selectedEntries: MistakeEntry
 }
 
 export default function MistakeBankView() {
+  const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [entries, setEntries] = useState<MistakeEntry[]>([]);
   const [showClear, setShowClear] = useState(false);
@@ -261,9 +265,9 @@ export default function MistakeBankView() {
         <div className="flex items-center justify-center gap-3 mb-3">
           <span className="material-symbols-outlined text-3xl text-rose-300/60">report</span>
         </div>
-        <h1 className="font-serif text-3xl text-white mb-2 tracking-tight">Mistake Bank</h1>
+        <h1 className="font-serif text-3xl text-white mb-2 tracking-tight">{t('mistakes.title')}</h1>
         <p className="font-sans text-xs text-white/40 italic">
-          "A mistake is a signal that you're learning something new."
+          {t('mistakes.quote')}
         </p>
       </div>
 
@@ -275,27 +279,27 @@ export default function MistakeBankView() {
               onClick={() => { setSelectMode(true); setSelectedIds(new Set()); }}
               className="flex items-center gap-1.5 glass-btn rounded-xl px-3 py-2 text-xs font-medium transition-all"
             >
-              <span className="material-symbols-outlined text-[15px]">checklist</span>Select
+              <span className="material-symbols-outlined text-[15px]">checklist</span>{t('mistakes.select')}
             </button>
           )}
         </div>
         <div className="flex items-center gap-2">
           <span className="font-sans text-[10px] text-white/30">
-            {totalMistakes} mistake{totalMistakes !== 1 ? 's' : ''}
+            {t('mistakes.mistakeCount', { count: totalMistakes })}
           </span>
           {totalMistakes > 0 && !selectMode && (
             !showClear ? (
               <button onClick={() => setShowClear(true)}
                 className="font-sans text-[10px] uppercase tracking-[2px] text-white/20 hover:text-white/50 transition-opacity flex items-center gap-1">
-                <span className="material-symbols-outlined text-[12px]">delete</span>Clear
+                <span className="material-symbols-outlined text-[12px]">delete</span>{t('common.close')}
               </button>
             ) : (
               <div className="flex items-center gap-2">
                 <button onClick={() => setShowClear(false)}
-                  className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 hover:text-white/80 transition-opacity">Cancel</button>
+                  className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 hover:text-white/80 transition-opacity">{t('common.cancel')}</button>
                 <button onClick={() => { clearMistakes(activeTab || undefined); setShowClear(false); refresh(); }}
                   className="font-sans text-[9px] uppercase tracking-[2px] text-red-400 hover:text-red-300 transition-colors flex items-center gap-1">
-                  <span className="material-symbols-outlined text-[11px]">warning</span>Confirm
+                  <span className="material-symbols-outlined text-[11px]">warning</span>{t('common.confirm')}
                 </button>
               </div>
             )
@@ -314,16 +318,16 @@ export default function MistakeBankView() {
               <span className="material-symbols-outlined text-[15px]">
                 {selectedIds.size === entries.length ? 'deselect' : 'select_all'}
               </span>
-              {selectedIds.size === entries.length ? 'Deselect all' : 'Select all'}
+              {selectedIds.size === entries.length ? t('mistakes.deselectAll') : t('mistakes.selectAll')}
             </button>
-            <span className="font-sans text-[10px] text-white/40">{selectedIds.size} selected</span>
+            <span className="font-sans text-[10px] text-white/40">{selectedIds.size} {t('mistakes.selected')}</span>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setSelectMode(false); setSelectedIds(new Set()); }}
               className="font-sans text-[10px] uppercase tracking-[2px] text-white/40 hover:text-white/80 transition-opacity"
             >
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               onClick={openChat}
@@ -331,7 +335,7 @@ export default function MistakeBankView() {
               className="flex items-center gap-1.5 glass-btn rounded-xl px-4 py-2 text-xs font-medium disabled:opacity-30 transition-all"
             >
               <span className="material-symbols-outlined text-[15px]">auto_awesome</span>
-              Talk with AI
+              {t('mistakes.talkWithAi')}
             </button>
           </div>
         </div>
@@ -341,9 +345,9 @@ export default function MistakeBankView() {
       {entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12">
           <span className="material-symbols-outlined text-4xl text-white/10 mb-3">check_circle</span>
-          <p className="font-serif text-lg text-white/25 mb-1">No mistakes logged yet</p>
+          <p className="font-serif text-lg text-white/25 mb-1">{t('mistakes.noEntriesTitle')}</p>
           <p className="font-sans text-xs text-white/20 text-center max-w-xs">
-            Whenever AI grading marks an answer wrong in Problem Sets, it shows up here automatically.
+            {t('mistakes.noEntriesDesc')}
           </p>
         </div>
       ) : (

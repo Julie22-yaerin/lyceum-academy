@@ -5,6 +5,8 @@
 
 import React from 'react';
 import { ARI_COPY, detectLocale } from '../lib/locale';
+import { useTranslation } from '../i18n/I18nContext';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 interface UpgradePromptProps {
   feature: 'voice' | 'mindmap' | 'reference' | 'roadmap';
@@ -12,27 +14,11 @@ interface UpgradePromptProps {
   onClose?: () => void;
 }
 
-const FEATURE_MESSAGES = {
-  voice: {
-    title: 'Voice ARI Limit Reached',
-    description: 'You\'ve used all your voice minutes for this month. Upgrade to get more!',
-    icon: '🎙️',
-  },
-  mindmap: {
-    title: 'Daily Mind Map Limit Reached',
-    description: 'Your daily AI mind map checks are used up for today. Free users get 2/day, Compass users get 6/day, and higher tiers get unlimited checks.',
-    icon: '🧠',
-  },
-  reference: {
-    title: 'Reference Library Full',
-    description: 'You\'ve reached your reference library limit. Upgrade for more storage!',
-    icon: '📚',
-  },
-  roadmap: {
-    title: 'Daily Roadmap Limit Reached',
-    description: 'You\'ve regenerated your roadmap the maximum times today. Upgrade for unlimited regenerations!',
-    icon: '🗺️',
-  },
+const FEATURE_ICONS: Record<string, string> = {
+  voice: '🎙️',
+  mindmap: '🧠',
+  reference: '📚',
+  roadmap: '🗺️',
 };
 
 const RECOMMENDED_TIERS = {
@@ -44,8 +30,12 @@ const RECOMMENDED_TIERS = {
 
 export default function UpgradePrompt({ feature, currentTier = 'compass', onClose }: UpgradePromptProps) {
   const locale = detectLocale();
-  const message = FEATURE_MESSAGES[feature];
+  const { t } = useTranslation();
+  const icon = FEATURE_ICONS[feature];
   const recommendedTiers = RECOMMENDED_TIERS[feature];
+
+  const titleKey = `upgrade.${feature}Title` as const;
+  const descKey = `upgrade.${feature}Desc` as const;
 
   const handleUpgrade = () => {
     window.location.href = '/pricing';
@@ -68,20 +58,20 @@ export default function UpgradePrompt({ feature, currentTier = 'compass', onClos
 
         {/* Icon */}
         <div className="text-center mb-4">
-          <div className="text-6xl mb-4">{message.icon}</div>
+          <div className="text-6xl mb-4">{icon}</div>
           <h2 className="text-2xl font-bold text-gray-900">
-            {feature === 'voice' ? ARI_COPY[locale].voiceLimitTitle : message.title}
+            {feature === 'voice' ? ARI_COPY[locale].voiceLimitTitle : t(titleKey)}
           </h2>
         </div>
 
         {/* Description */}
         <p className="text-gray-600 text-center mb-6">
-          {feature === 'voice' ? ARI_COPY[locale].voiceLimitDescription : message.description}
+          {feature === 'voice' ? ARI_COPY[locale].voiceLimitDescription : t(descKey)}
         </p>
 
         {/* Recommended upgrade */}
         <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <p className="text-sm font-semibold text-blue-900 mb-2">Recommended Plans:</p>
+          <p className="text-sm font-semibold text-blue-900 mb-2">{t('upgrade.recommendedPlans')}</p>
           <div className="space-y-1">
             {recommendedTiers.map((tier) => (
               <div key={tier} className="flex items-center text-sm text-blue-800">
@@ -101,15 +91,16 @@ export default function UpgradePrompt({ feature, currentTier = 'compass', onClos
               onClick={onClose}
               className="flex-1 px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 font-medium"
             >
-              Not Now
+              {t('upgrade.notNow')}
             </button>
           )}
-          <button
-            onClick={handleUpgrade}
-            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-          >
-            View Plans
-          </button>
+          <div className={onClose ? 'flex-1' : 'w-full'}>
+            <LiquidMetalButton
+              label={t('upgrade.viewPlans')}
+              onClick={handleUpgrade}
+              fullWidth
+            />
+          </div>
         </div>
       </div>
     </div>

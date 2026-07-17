@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useTranslation } from '../i18n/I18nContext';
 import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion } from '../lib/api';
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
@@ -94,6 +95,7 @@ function AnswerPanel({
   onClean?: () => Promise<void>;
   onOK?: (answer: string) => void;
 }) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'text' | 'canvas'>('text');
   const [answer, setAnswer] = useState('');
   const [showMathKb, setShowMathKb] = useState(false);

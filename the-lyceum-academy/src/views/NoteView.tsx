@@ -4,10 +4,12 @@ import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { sanitizeSvg } from '../lib/sanitize';
 import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 // ── ConceptCard ───────────────────────────────────────────────────────────
 function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applications?: string; why?: string } }) {
   const [imgErr, setImgErr] = useState(false);
+  const { t } = useTranslation();
 
   return (
     <div className="border border-outline/10 overflow-hidden">
@@ -33,7 +35,7 @@ function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applicat
         {/* Formal definition */}
         {kc.definition && (
           <>
-            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">Definition</p>
+            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">{t('notes.definition')}</p>
             <p className="font-sans text-xs text-on-surface opacity-80 leading-relaxed italic border-l-2 border-outline/20 pl-3"
               dangerouslySetInnerHTML={{ __html: renderMath(kc.definition) }} />
           </>
@@ -48,7 +50,7 @@ function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applicat
         {/* The WHY */}
         {(kc as any).why && (
           <>
-            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">The Why</p>
+            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">{t('notes.theWhy')}</p>
             <p className="font-sans text-sm opacity-75 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderMath((kc as any).why) }} />
           </>
@@ -57,7 +59,7 @@ function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applicat
         {/* How to use */}
         {(kc as any).how_to_use && (
           <>
-            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">How to Use</p>
+            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">{t('notes.howToUse')}</p>
             <p className="font-sans text-sm opacity-75 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderMath((kc as any).how_to_use) }} />
           </>
@@ -66,7 +68,7 @@ function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applicat
         {/* Applications */}
         {(kc as any).applications && (
           <>
-            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">Applications</p>
+            <p className="font-sans text-[10px] uppercase tracking-[1px] opacity-40">{t('notes.applications')}</p>
             <p className="font-sans text-sm opacity-75 leading-relaxed"
               dangerouslySetInnerHTML={{ __html: renderMath((kc as any).applications) }} />
           </>
@@ -84,9 +86,10 @@ function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applicat
 
 // ── DiagramCard — renders an AI-generated SVG diagram ───────────────────
 function DiagramCard({ diagram }: { diagram: { type: string; title: string; svg: string } }) {
+  const { t } = useTranslation();
   const TYPE_LABEL: Record<string, string> = {
-    pyramid: '▲ Pyramid', flowchart: '→ Flowchart', mindmap: '◉ Mind Map',
-    timeline: '── Timeline', cycle: '↻ Cycle', diagram: '◈ Diagram',
+    pyramid: t('notes.diagramPyramid'), flowchart: t('notes.diagramFlowchart'), mindmap: t('notes.diagramMindmap'),
+    timeline: t('notes.diagramTimeline'), cycle: t('notes.diagramCycle'), diagram: t('notes.diagramDiagram'),
   };
   return (
     <div className="border border-outline/10 overflow-hidden">
@@ -111,6 +114,7 @@ function DiagramCard({ diagram }: { diagram: { type: string; title: string; svg:
 type FeynmanState = 'idle' | 'recording' | 'processing' | 'result';
 
 function FeynmanPanel({ note }: { note: NoteResult }) {
+  const { t } = useTranslation();
   const [phase, setPhase]   = useState<FeynmanState>('idle');
   const [result, setResult] = useState<FeynmanResult | null>(null);
   const [error, setError]   = useState('');
@@ -135,7 +139,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
       setPhase('recording'); setSeconds(0);
       timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000);
     } catch {
-      setError('Could not access the microphone — check your browser permissions.');
+      setError(t('notes.micError'));
     }
   }
 
@@ -162,7 +166,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
     ? result.score >= 8 ? 'text-emerald-600' : result.score >= 5 ? 'text-amber-500' : 'text-red-500'
     : '';
   const scoreLabel = result
-    ? result.score >= 8 ? 'You really get it! 🎉' : result.score >= 5 ? 'Pretty good! 🤔' : 'Not quite clear yet 😅'
+    ? result.score >= 8 ? t('notes.scoreGreat') : result.score >= 5 ? t('notes.scoreGood') : t('notes.scoreWeak')
     : '';
 
   return (
@@ -171,9 +175,9 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
       <div className="px-8 py-5 border-b border-outline/10 bg-surface-container-lowest/30 flex items-center gap-3">
         <span className="text-xl">🧠</span>
         <div>
-          <p className="font-serif text-base font-medium">Feynman Test</p>
+          <p className="font-serif text-base font-medium">{t('notes.feynmanTitle')}</p>
           <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-            Explain it like they're 5 years old
+            {t('notes.feynmanSubtitle')}
           </p>
         </div>
       </div>
@@ -183,14 +187,14 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
         {phase === 'idle' && (
           <div className="flex flex-col items-center gap-5 py-4 text-center">
             <p className="font-sans text-sm opacity-55 leading-relaxed max-w-sm">
-              Explain what you just learned out loud. The AI will play a curious 5-year-old — asking the most naive questions it can. If you can explain it clearly, you really understand it.
+              {t('notes.feynmanInstruction')}
             </p>
             <button
               onClick={startRecording}
               className="flex items-center gap-3 px-8 py-4 bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[18px]">mic</span>
-              Start explaining
+              {t('notes.startExplaining')}
             </button>
           </div>
         )}
@@ -204,14 +208,14 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
               <span className="material-symbols-outlined text-red-500 text-3xl relative z-10">mic</span>
             </div>
             <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-45">
-              {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')} · Recording
+              {String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')} · {t('notes.recording')}
             </p>
             <button
               onClick={stopRecording}
               className="flex items-center gap-2 px-6 py-3 border border-red-400/50 text-red-600 font-sans text-[10px] uppercase tracking-[2px] hover:bg-red-50 transition-colors"
             >
               <span className="material-symbols-outlined text-[14px]">stop_circle</span>
-              Done, send to AI
+              {t('notes.doneSend')}
             </button>
           </div>
         )}
@@ -226,7 +230,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
                   style={{ animationDelay: `${i * 0.15}s` }} />
               ))}
             </div>
-            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">AI is listening and thinking…</p>
+            <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">{t('notes.aiListening')}</p>
           </div>
         )}
 
@@ -274,7 +278,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
             {/* Gaps — words/concepts child didn't get */}
             {result.gaps.length > 0 && (
               <div>
-                <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mb-2">Words I didn't understand</p>
+                <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mb-2">{t('notes.gapsLabel')}</p>
                 <div className="flex flex-wrap gap-2">
                   {result.gaps.map((g, i) => (
                     <span key={i} className="font-sans text-[11px] px-2.5 py-1 border border-outline/15 bg-surface-container-highest/30 opacity-70">
@@ -288,7 +292,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
             {/* Transcript (collapsible) */}
             <details className="border-t border-outline/10 pt-4">
               <summary className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-35 cursor-pointer hover:opacity-60 transition-opacity select-none">
-                View the transcript
+                {t('notes.viewTranscript')}
               </summary>
               <p className="font-sans text-xs opacity-55 leading-relaxed mt-3 italic">"{result.transcript}"</p>
             </details>
@@ -300,7 +304,7 @@ function FeynmanPanel({ note }: { note: NoteResult }) {
                 className="flex items-center gap-2 px-5 py-2.5 border border-outline/25 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors"
               >
                 <span className="material-symbols-outlined text-[14px]">replay</span>
-                Try again
+                {t('notes.tryAgain')}
               </button>
             </div>
           </div>
@@ -325,6 +329,7 @@ const QUICK_PROMPTS = [
 interface ChatBubble { role: 'user' | 'assistant'; content: string; }
 
 function NoteChatPanel({ note }: { note: NoteResult }) {
+  const { t } = useTranslation();
   const [messages, setMessages] = useState<ChatBubble[]>([]);
   const [input, setInput]       = useState('');
   const [loading, setLoading]   = useState(false);
@@ -371,9 +376,9 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
     <div className="flex flex-col h-full bg-surface border-l border-outline/10">
       {/* Header */}
       <div className="px-6 py-5 border-b border-outline/10 bg-surface-container-lowest/40 shrink-0">
-        <p className="font-serif text-xl font-medium">Hey, I'm Lyceum</p>
+        <p className="font-serif text-xl font-medium">{t('notes.chatHeading')}</p>
         <p className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-          Ask me anything about this note
+          {t('notes.chatSubtitle')}
         </p>
       </div>
 
@@ -442,7 +447,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Ask something about this note... (Enter to send)"
+            placeholder={t('notes.chatPlaceholder')}
             className="flex-1 border border-outline/20 px-4 py-3 font-sans text-sm bg-surface-container-lowest outline-none focus:border-on-surface/40 transition-colors resize-none leading-relaxed"
             style={{ minHeight: '60px', maxHeight: '120px' }}
           />
@@ -459,7 +464,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
             onClick={() => setMessages([])}
             className="mt-2 font-sans text-[9px] uppercase tracking-[1.5px] opacity-25 hover:opacity-50 transition-opacity"
           >
-            Clear conversation
+            {t('notes.clearChat')}
           </button>
         )}
       </div>
@@ -469,6 +474,7 @@ function NoteChatPanel({ note }: { note: NoteResult }) {
 
 // ── NoteCard — rendered output ────────────────────────────────────────────
 function NoteCard({ note }: { note: NoteResult }) {
+  const { t } = useTranslation();
   const [, setKatexTick] = useState(0);
   useEffect(() => { loadKaTeX(() => setKatexTick(t => t + 1)); }, []);
 
@@ -488,7 +494,7 @@ function NoteCard({ note }: { note: NoteResult }) {
             {note.source_type}
             {note.video_id && (
               <a href={`https://youtu.be/${note.video_id}`} target="_blank" rel="noopener noreferrer"
-                className="ml-2 underline opacity-60 hover:opacity-100">Watch ↗</a>
+                className="ml-2 underline opacity-60 hover:opacity-100">{t('notes.watchLink')}</a>
             )}
           </span>
         )}
@@ -496,7 +502,7 @@ function NoteCard({ note }: { note: NoteResult }) {
 
       {/* Summary — full rich markdown document */}
       <div className="px-8 py-7 border-b border-outline/10">
-        <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-4">Summary</span>
+        <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-4">{t('notes.summary')}</span>
         <div className="note-body text-on-surface"
           dangerouslySetInnerHTML={{ __html: renderNote(note.summary) }} />
       </div>
@@ -504,7 +510,7 @@ function NoteCard({ note }: { note: NoteResult }) {
       {/* Key Concepts — card grid */}
       {note.key_concepts?.length > 0 && (
         <div className="px-8 py-7 border-b border-outline/10">
-          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">Key Concepts</span>
+          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">{t('notes.keyConcepts')}</span>
           <div className="flex flex-col gap-4">
             {note.key_concepts.map((kc, i) => (
               <ConceptCard key={i} kc={kc} />
@@ -516,7 +522,7 @@ function NoteCard({ note }: { note: NoteResult }) {
       {/* AI-generated diagrams */}
       {(note as any).diagrams?.length > 0 && (
         <div className="px-8 py-7 border-b border-outline/10">
-          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">Diagrams</span>
+          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">{t('notes.diagrams')}</span>
           <div className="flex flex-col gap-4">
             {((note as any).diagrams as { type: string; title: string; svg: string }[]).map((d, i) => (
               <DiagramCard key={i} diagram={d} />
@@ -528,7 +534,7 @@ function NoteCard({ note }: { note: NoteResult }) {
       {/* Socratic Questions */}
       {note.socratic_questions?.length > 0 && (
         <div className="px-8 py-7 border-b border-outline/10 bg-surface-container-lowest/40">
-          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">Socratic Questions</span>
+          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-5">{t('notes.socraticQuestions')}</span>
           <div className="flex flex-col gap-3">
             {note.socratic_questions.map((q, i) => (
               <p key={i} className="font-serif text-base leading-snug italic"
@@ -541,7 +547,7 @@ function NoteCard({ note }: { note: NoteResult }) {
       {/* Key Insight */}
       {note.key_insight && (
         <div className="px-8 py-7">
-          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-3">Key Insight</span>
+          <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 block mb-3">{t('notes.keyInsight')}</span>
           <p className="font-serif text-lg leading-relaxed"
             dangerouslySetInnerHTML={{ __html: renderMath(note.key_insight) }} />
         </div>
@@ -552,6 +558,7 @@ function NoteCard({ note }: { note: NoteResult }) {
 
 // ── Main NoteView ─────────────────────────────────────────────────────────
 export default function NoteView() {
+  const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [note, setNote] = useState<NoteResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -602,9 +609,9 @@ export default function NoteView() {
     <div className={`flex-grow flex flex-col bg-surface min-h-screen ${note && !loading ? 'px-4 py-4' : 'items-center py-12 px-4'}`}>
       {!note && (
         <div className="text-center mb-12 max-w-2xl">
-          <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">Notes</h1>
+          <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">{t('notes.pageTitle')}</h1>
           <p className="font-sans text-sm text-on-surface opacity-60 italic tracking-wide">
-            "The mind is not a vessel to be filled, but a fire to be kindled." — Plutarch
+            {t('notes.quote')}
           </p>
         </div>
       )}
@@ -628,7 +635,7 @@ export default function NoteView() {
                 ))}
               </div>
               <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">
-                AI synthesizing note…
+                {t('notes.aiSynthesizing')}
               </p>
             </div>
           ) : (
@@ -636,9 +643,9 @@ export default function NoteView() {
               <span className="material-symbols-outlined text-on-surface opacity-30 text-4xl mb-4 block group-hover:opacity-50 transition-opacity">
                 upload_file
               </span>
-              <p className="font-serif text-xl text-on-surface mb-1">Upload PDF or Image</p>
+              <p className="font-serif text-xl text-on-surface mb-1">{t('notes.uploadDraft')}</p>
               <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40">
-                Drag & drop or click · PDF, PNG, JPG, WebP
+                {t('notes.uploadDrag')}
               </p>
             </>
           )}
@@ -670,12 +677,12 @@ export default function NoteView() {
               className="flex items-center gap-1.5 font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[13px]">arrow_back</span>
-              New note
+              {t('notes.newNote2')}
             </button>
             {saved ? (
               <div className="flex items-center gap-2 font-sans text-[10px] uppercase tracking-[2px] text-emerald-600 opacity-80">
                 <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                Saved · 24h left
+                {t('notes.savedStatus')}
               </div>
             ) : (
               <button
@@ -683,7 +690,7 @@ export default function NoteView() {
                 className="flex items-center gap-2 px-4 py-2 border border-outline/30 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors"
               >
                 <span className="material-symbols-outlined text-[15px]">bookmark_add</span>
-                Save · 24h
+                {t('notes.save24h')}
               </button>
             )}
           </div>
@@ -709,7 +716,7 @@ export default function NoteView() {
       {/* Empty state hint */}
       {!note && !loading && !savedNotes.length && (
         <div className="w-full max-w-3xl opacity-40 text-center py-4">
-          <p className="font-sans text-sm italic">Upload a PDF or image to generate a study note.</p>
+          <p className="font-sans text-sm italic">{t('notes.uploadHint')}</p>
         </div>
       )}
 
@@ -718,8 +725,8 @@ export default function NoteView() {
         <div className="w-full max-w-3xl mb-16">
           <div className="flex items-center gap-3 mb-4">
             <span className="material-symbols-outlined text-[16px] opacity-40">folder_open</span>
-            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Saved notes</span>
-            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">kept for 24h</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">{t('notes.savedNotes')}</span>
+            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">{t('notes.keptFor24h')}</span>
           </div>
           <div className="flex flex-col gap-2">
             {savedNotes.map(sn => {
@@ -744,7 +751,7 @@ export default function NoteView() {
                       className="border border-amber-400/50 bg-amber-50 px-4 py-1.5 font-sans text-[9px] uppercase tracking-[1.5px] text-amber-700 hover:bg-amber-100 transition-colors flex items-center gap-1.5"
                     >
                       <span className="material-symbols-outlined text-[13px]">open_in_new</span>
-                      Review
+                      {t('notes.review')}
                     </button>
                     <button
                       onClick={() => { deleteNote(sn.id); setSavedNotes(loadNotes(activeTab || undefined)); }}

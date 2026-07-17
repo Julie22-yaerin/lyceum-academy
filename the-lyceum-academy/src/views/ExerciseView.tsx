@@ -1,3 +1,5 @@
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
+
 export default function ExerciseView() {
   const symbols = [
     'α','β','γ','δ','ε','ζ','η','θ','ι','κ','λ','μ',
@@ -53,9 +55,10 @@ export default function ExerciseView() {
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 pt-6">
-            <button className="flex-1 bg-on-surface text-surface font-sans text-[10px] font-semibold py-4 px-8 uppercase tracking-[2px] hover:opacity-80 transition-opacity">
-              Submit Response
-            </button>
+            <LiquidMetalButton
+              label="Submit Response"
+              fullWidth
+            />
             <button className="flex-1 border border-on-surface/30 text-on-surface font-sans text-[10px] font-semibold py-4 px-8 uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors flex items-center justify-center gap-3">
               <span className="material-symbols-outlined text-[16px]">psychology</span>
               Request Hint

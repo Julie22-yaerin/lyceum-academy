@@ -2,6 +2,7 @@ import { useRef, useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import { inspectMindMap, validateToolMap } from '../lib/api';
 import { useMindMapGate } from '../lib/useSubscription';
+import { useTranslation } from '../i18n/I18nContext';
 import UpgradePrompt from './UpgradePrompt';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -143,6 +144,7 @@ function layoutToolItems(columns: { id: string; label: string; color: string; it
 //  COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════
 export default function MindMapTool({ context = '', documentId = '' }: { context?: string; documentId?: string }) {
+  const { t } = useTranslation();
   const { canUse, tier, used, limit, remaining, loading, refetch } = useMindMapGate(documentId);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<'tool' | 'free'>('tool');
@@ -210,7 +212,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
     setMmNodes(nodes);
     setMmLinks([]);
     setTab('free');
-    setToastMsg(`Map built with ${nodes.length} nodes. Drag, connect, and customize freely.`);
+    setToastMsg(t('mindmap.mapBuilt', { count: nodes.length }));
   }
 
   // ── Mind map: node operations ─────────────────────────────────────────
@@ -465,7 +467,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   onClick={() => setTab(t)}
                   className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1.5px] transition-colors ${tab === t ? 'bg-on-surface text-surface' : 'text-on-surface opacity-60 hover:opacity-100'}`}
                 >
-                  {t === 'tool' ? 'Tool' : 'Map'}
+                  {t === 'tool' ? t('mindmap.tool') : t('mindmap.map')}
                 </button>
               ))}
             </div>
@@ -486,7 +488,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   {columns.map(col => (
                     <div key={col.id} className="flex flex-col rounded-2xl overflow-hidden min-w-[160px] max-w-[190px]" style={{ background: col.color + '22' }}>
                       <div className="px-3 py-2 border-b border-outline-variant/10">
-                        <span className="font-sans text-[9px] uppercase tracking-[1.5px] text-on-surface opacity-80 font-semibold">{col.label}</span>
+                        <span className="font-sans text-[9px] uppercase tracking-[1.5px] text-on-surface opacity-80 font-semibold">{t(`mindmap.${col.id}`)}</span>
                       </div>
                       <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
                         {col.items.map((item, i) => (
@@ -503,7 +505,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                             value={toolInput[col.id] || ''}
                             onChange={e => setToolInput(ti => ({ ...ti, [col.id]: e.target.value.slice(0, MAX_LABEL) }))}
                             onKeyDown={e => e.key === 'Enter' && addItem(col.id)}
-                            placeholder="Add..."
+                            placeholder={t('mindmap.addPlaceholder')}
                             maxLength={MAX_LABEL}
                             className="flex-1 glass-input rounded-lg px-2 py-1.5 font-sans text-[11px] min-w-0"
                           />
@@ -523,14 +525,14 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   {validating
                     ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
                     : <span className="material-symbols-outlined text-[14px]">check_circle</span>}
-                  Validate
+                  {t('mindmap.validate')}
                 </button>
                 <button
                   onClick={buildMapFromTool}
                   className="rounded-xl bg-on-surface text-surface px-5 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-2 hover:opacity-90 transition-opacity"
                 >
                   <span className="material-symbols-outlined text-[14px]">account_tree</span>
-                  Build Map
+                  {t('mindmap.buildMap')}
                 </button>
               </div>
             </div>
@@ -543,7 +545,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                 {linkingFrom && (
                   <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10 glass-strong rounded-xl px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1px] text-on-surface/80 flex items-center gap-2">
                     <span className="material-symbols-outlined text-[13px] text-violet-400">link</span>
-                    Click another node to connect
+                    {t('mindmap.clickConnect')}
                     <button onClick={() => setLinkingFrom(null)} className="ml-2 opacity-50 hover:opacity-100">✕</button>
                   </div>
                 )}
@@ -571,7 +573,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                 {mmNodes.length === 0 && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none gap-3">
                     <span className="material-symbols-outlined text-[40px] text-on-surface opacity-15">account_tree</span>
-                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">Build from Tool tab or add nodes</p>
+                    <p className="font-sans text-xs text-on-surface opacity-30 uppercase tracking-[2px]">{t('mindmap.emptyHint')}</p>
                   </div>
                 )}
               </div>
@@ -579,13 +581,13 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
               {/* Bottom toolbar */}
               <div className="flex-shrink-0 px-4 py-2.5 border-t border-outline-variant/20 flex items-center gap-2 flex-wrap">
                 <button onClick={addNode} className="glass-btn rounded-xl px-3 py-2 font-sans text-[10px] uppercase tracking-[2px] flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-[13px]">add</span> Node
+                  <span className="material-symbols-outlined text-[13px]">add</span> {t('mindmap.addNode')}
                 </button>
 
                 {linkingFrom && (
                   <div className="flex items-center gap-1.5 text-violet-400 font-sans text-[10px]">
                     <span className="material-symbols-outlined text-[13px] animate-pulse">link</span>
-                    Select target…
+                    {t('mindmap.selectTarget')}
                   </div>
                 )}
 
@@ -599,7 +601,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                     {inspecting
                       ? <div className="w-3 h-3 border border-current/30 border-t-current rounded-full animate-spin" />
                       : <span className="material-symbols-outlined text-[13px]">visibility</span>}
-                    AI see
+                    {t('mindmap.aiSee')}
                   </button>
                   <span className="font-sans text-[10px] text-on-surface opacity-30">{aiQuotaLabel}</span>
                 </div>
@@ -623,7 +625,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                 onClick={() => { onNodeDblClick(contextMenu.nodeId!); setContextMenu(null); }}
                 className="w-full text-left px-3 py-2 rounded-xl hover:bg-on-surface/10 flex items-center gap-2 transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">edit</span> Edit label
+                <span className="material-symbols-outlined text-[14px]">edit</span> {t('mindmap.editLabel')}
               </button>
 
               {/* Color */}
@@ -631,11 +633,11 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                 onClick={() => { setColorPickerNode(contextMenu.nodeId); setContextMenu(null); }}
                 className="w-full text-left px-3 py-2 rounded-xl hover:bg-on-surface/10 flex items-center gap-2 transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">palette</span> Change color
+                <span className="material-symbols-outlined text-[14px]">palette</span> {t('mindmap.changeColor')}
               </button>
 
               {/* Size submenu */}
-              <div className="px-3 py-1.5 text-[9px] uppercase tracking-[1.5px] text-on-surface/40 mt-1">Size</div>
+              <div className="px-3 py-1.5 text-[9px] uppercase tracking-[1.5px] text-on-surface/40 mt-1">{t('mindmap.size')}</div>
               {(['s', 'm', 'l'] as const).map(sz => (
                 <button
                   key={sz}
@@ -645,7 +647,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                   <span className="material-symbols-outlined text-[13px]">
                     {sz === 's' ? 'zoom_out' : sz === 'm' ? 'crop_square' : 'zoom_in'}
                   </span>
-                  {sz === 's' ? 'Small' : sz === 'm' ? 'Medium' : 'Large'}
+                  {sz === 's' ? t('mindmap.small') : sz === 'm' ? t('mindmap.medium') : t('mindmap.large')}
                 </button>
               ))}
 
@@ -656,7 +658,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
                 onClick={() => deleteNode(contextMenu.nodeId!)}
                 className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/15 text-red-400 flex items-center gap-2 transition-colors"
               >
-                <span className="material-symbols-outlined text-[14px]">delete</span> Delete node
+                <span className="material-symbols-outlined text-[14px]">delete</span> {t('mindmap.deleteNode')}
               </button>
             </>
           )}
@@ -666,7 +668,7 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
               onClick={() => deleteLink(contextMenu.linkId!)}
               className="w-full text-left px-3 py-2 rounded-xl hover:bg-red-500/15 text-red-400 flex items-center gap-2 transition-colors"
             >
-              <span className="material-symbols-outlined text-[14px]">link_off</span> Remove connection
+              <span className="material-symbols-outlined text-[14px]">link_off</span> {t('mindmap.removeConn')}
             </button>
           )}
         </div>

@@ -94,3 +94,18 @@ export function getLangDisplayName(code: string): string {
 export function getLangFlag(code: string): string {
   return LANGUAGES.find(l => l.code === code)?.flag || '';
 }
+
+/**
+ * Read the current language directly from localStorage.
+ * Use this in non-component modules (e.g. api.ts) where the React hook is unavailable.
+ */
+export function getCurrentLang(): AppLanguage {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const match = LANGUAGES.find(l => l.code === stored);
+      if (match) return match.code;
+    }
+  } catch { /* ignore */ }
+  return DEFAULT_LANG;
+}

@@ -1,0 +1,100 @@
+<svg viewBox="0 0 1600 950" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .serif { font-family: Georgia, 'Times New Roman', serif; }
+      .sans { font-family: 'PingFang SC', 'Microsoft YaHei', Arial, Helvetica, sans-serif; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="950" fill="#12142A"/>
+
+  <text x="60" y="42" class="sans" font-size="14" letter-spacing="3" fill="#A78BFA">THE LYCEUM ACADEMY</text>
+  <text x="60" y="82" class="serif" font-size="28" font-weight="700" fill="#F5F6FA">第一季度增长情景与投资回报率</text>
+  <text x="60" y="106" class="sans" font-size="14" fill="#9CA3C4">假设:初始资金1000万越南盾 · 全部用户注册Scholar套餐 · 每月访问量60人次</text>
+
+  <text x="60" y="165" class="sans" font-size="20" font-weight="700" fill="#F5F6FA">月度收入 — 三种情景</text>
+
+  <rect x="100" y="188" width="16" height="16" rx="3" fill="#5EEAD4"/>
+  <text x="122" y="201" class="sans" font-size="14" fill="#F5F6FA">Low(低,转化率10%)</text>
+  <rect x="330" y="188" width="16" height="16" rx="3" fill="#8B5CF6"/>
+  <text x="352" y="201" class="sans" font-size="14" fill="#F5F6FA">Base(基准,转化率15%)</text>
+  <rect x="570" y="188" width="16" height="16" rx="3" fill="#F5B942"/>
+  <text x="592" y="201" class="sans" font-size="14" fill="#F5F6FA">High(高,转化率20%)</text>
+
+  <line x1="100" y1="680" x2="860" y2="680" stroke="#3A3F63" stroke-width="1.5"/>
+  <line x1="100" y1="548.6" x2="860" y2="548.6" stroke="#2A2E52" stroke-width="1"/>
+  <line x1="100" y1="417.1" x2="860" y2="417.1" stroke="#2A2E52" stroke-width="1"/>
+  <line x1="100" y1="285.7" x2="860" y2="285.7" stroke="#2A2E52" stroke-width="1"/>
+  <text x="90" y="684" class="sans" font-size="12" fill="#6B7299" text-anchor="end">$0</text>
+  <text x="90" y="552" class="sans" font-size="12" fill="#6B7299" text-anchor="end">$100</text>
+  <text x="90" y="421" class="sans" font-size="12" fill="#6B7299" text-anchor="end">$200</text>
+  <text x="90" y="289" class="sans" font-size="12" fill="#6B7299" text-anchor="end">$300</text>
+
+  <rect x="139.65" y="574.86" width="50" height="105.14" fill="#5EEAD4"/>
+  <text x="164.65" y="566.86" class="sans" font-size="12" fill="#5EEAD4" text-anchor="middle">$80</text>
+  <rect x="201.65" y="522.29" width="50" height="157.71" fill="#8B5CF6"/>
+  <text x="226.65" y="514.29" class="sans" font-size="12" fill="#C7B8FA" text-anchor="middle">$120</text>
+  <rect x="263.65" y="469.71" width="50" height="210.29" fill="#F5B942"/>
+  <text x="288.65" y="461.71" class="sans" font-size="12" fill="#F5B942" text-anchor="middle">$160</text>
+
+  <rect x="392.95" y="522.29" width="50" height="157.71" fill="#5EEAD4"/>
+  <text x="417.95" y="514.29" class="sans" font-size="12" fill="#5EEAD4" text-anchor="middle">$120</text>
+  <rect x="454.95" y="443.43" width="50" height="236.57" fill="#8B5CF6"/>
+  <text x="479.95" y="435.43" class="sans" font-size="12" fill="#C7B8FA" text-anchor="middle">$180</text>
+  <rect x="516.95" y="364.57" width="50" height="315.43" fill="#F5B942"/>
+  <text x="541.95" y="356.57" class="sans" font-size="12" fill="#F5B942" text-anchor="middle">$240</text>
+
+  <rect x="646.25" y="469.71" width="50" height="210.29" fill="#5EEAD4"/>
+  <text x="671.25" y="461.71" class="sans" font-size="12" fill="#5EEAD4" text-anchor="middle">$160</text>
+  <rect x="708.25" y="364.57" width="50" height="315.43" fill="#8B5CF6"/>
+  <text x="733.25" y="356.57" class="sans" font-size="12" fill="#C7B8FA" text-anchor="middle">$240</text>
+  <rect x="770.25" y="259.43" width="50" height="420.57" fill="#F5B942"/>
+  <text x="795.25" y="251.43" class="sans" font-size="12" fill="#F5B942" text-anchor="middle">$320</text>
+
+  <text x="226.65" y="705" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第1个月</text>
+  <text x="479.95" y="705" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第2个月</text>
+  <text x="733.25" y="705" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第3个月</text>
+
+  <text x="60" y="745" class="sans" font-size="13" fill="#6B7299">季度总额:Low $360 · Base $540 · High $720</text>
+
+  <text x="940" y="165" class="sans" font-size="18" font-weight="700" fill="#F5F6FA">月度投资回报率增长(基准情景)</text>
+
+  <line x1="980" y1="520" x2="1500" y2="520" stroke="#3A3F63" stroke-width="1.5"/>
+  <line x1="980" y1="436.7" x2="1500" y2="436.7" stroke="#2A2E52" stroke-width="1"/>
+  <line x1="980" y1="353.3" x2="1500" y2="353.3" stroke="#2A2E52" stroke-width="1"/>
+  <line x1="980" y1="270" x2="1500" y2="270" stroke="#2A2E52" stroke-width="1"/>
+  <text x="970" y="524" class="sans" font-size="12" fill="#6B7299" text-anchor="end">0%</text>
+  <text x="970" y="440.7" class="sans" font-size="12" fill="#6B7299" text-anchor="end">50%</text>
+  <text x="970" y="357.3" class="sans" font-size="12" fill="#6B7299" text-anchor="end">100%</text>
+  <text x="970" y="274" class="sans" font-size="12" fill="#6B7299" text-anchor="end">150%</text>
+
+  <polyline points="1040,353.3 1240,292 1440,253.8" fill="none" stroke="#8B5CF6" stroke-width="4"/>
+  <circle cx="1040" cy="353.3" r="7" fill="#8B5CF6"/>
+  <circle cx="1240" cy="292" r="7" fill="#8B5CF6"/>
+  <circle cx="1440" cy="253.8" r="7" fill="#8B5CF6"/>
+  <text x="1040" y="330" class="sans" font-size="16" font-weight="700" fill="#F5F6FA" text-anchor="middle">100%</text>
+  <text x="1240" y="269" class="sans" font-size="16" font-weight="700" fill="#F5F6FA" text-anchor="middle">136.8%</text>
+  <text x="1440" y="231" class="sans" font-size="16" font-weight="700" fill="#F5F6FA" text-anchor="middle">159.7%</text>
+  <text x="1040" y="545" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第1月</text>
+  <text x="1240" y="545" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第2月</text>
+  <text x="1440" y="545" class="sans" font-size="14" fill="#9CA3C4" text-anchor="middle">第3月</text>
+
+  <rect x="980" y="580" width="250" height="75" rx="12" fill="#1B1F3D"/>
+  <text x="1005" y="605" class="sans" font-size="13" fill="#9CA3C4">季度收入</text>
+  <text x="1005" y="635" class="serif" font-size="26" font-weight="700" fill="#F5F6FA">$540</text>
+
+  <rect x="1250" y="580" width="250" height="75" rx="12" fill="#1B1F3D"/>
+  <text x="1275" y="605" class="sans" font-size="13" fill="#9CA3C4">季度成本</text>
+  <text x="1275" y="635" class="serif" font-size="26" font-weight="700" fill="#F5F6FA">$228.4</text>
+
+  <rect x="980" y="670" width="250" height="75" rx="12" fill="#1B1F3D"/>
+  <text x="1005" y="695" class="sans" font-size="13" fill="#9CA3C4">净现金流</text>
+  <text x="1005" y="725" class="serif" font-size="26" font-weight="700" fill="#F5F6FA">$311.6</text>
+
+  <rect x="1250" y="670" width="250" height="75" rx="12" fill="#211947"/>
+  <text x="1275" y="695" class="sans" font-size="13" fill="#C7B8FA">季度投资回报率(总)</text>
+  <text x="1275" y="725" class="serif" font-size="26" font-weight="700" fill="#F5B942">136.42%</text>
+
+  <text x="60" y="890" class="sans" font-size="12" font-style="italic" fill="#6B7299">收入与转化率(10/15/20%)成正比,基于固定每月60人次访问。运营成本随使用量递增($60→$76→$92.4/月,基准情景;Low/High情景比例相同)。</text>
+  <text x="60" y="912" class="sans" font-size="12" font-style="italic" fill="#6B7299">流失率假设为50-75%(第一个月)→第一季度平均50-65%。投资回报率不随情景规模变化,因为每用户成本单价保持不变——仅绝对金额发生变化。</text>
+</svg>

@@ -1,10 +1,49 @@
-export type AppLocale = 'en' | 'vi';
+import type { AppLanguage } from '../i18n/I18nContext';
 
-const SUPPORTED_LOCALES: AppLocale[] = ['en', 'vi'];
-const DEFAULT_LOCALE: AppLocale = 'en';
+export type AppLocale = AppLanguage;
+export type { AppLanguage };
+
+export const SUPPORTED_LOCALES: AppLanguage[] = [
+  'en', 'vi', 'ko', 'ja', 'zh', 'es', 'fr', 'de', 'pt', 'ru', 'th', 'hi', 'ar',
+];
+const DEFAULT_LOCALE: AppLanguage = 'en';
 const STORAGE_KEY = 'lyceum_locale';
 
-export const ARI_COPY: Record<AppLocale, {
+// Language display names (English labels for AI system prompts)
+const LANGUAGE_NAMES: Record<AppLanguage, string> = {
+  en: 'English',
+  vi: 'Vietnamese',
+  ko: 'Korean',
+  ja: 'Japanese',
+  zh: 'Chinese',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  pt: 'Portuguese',
+  ru: 'Russian',
+  th: 'Thai',
+  hi: 'Hindi',
+  ar: 'Arabic',
+};
+
+// Speech recognition locale codes
+const SPEECH_LOCALES: Record<AppLanguage, string> = {
+  en: 'en-US',
+  vi: 'vi-VN',
+  ko: 'ko-KR',
+  ja: 'ja-JP',
+  zh: 'zh-CN',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  de: 'de-DE',
+  pt: 'pt-BR',
+  ru: 'ru-RU',
+  th: 'th-TH',
+  hi: 'hi-IN',
+  ar: 'ar-SA',
+};
+
+export const ARI_COPY: Record<'en' | 'vi', {
   settingsTitle: string;
   settingsPrompt: string;
   alwaysListeningTitle: string;
@@ -36,69 +75,74 @@ export const ARI_COPY: Record<AppLocale, {
   },
 };
 
-export function normalizeLocale(value?: string | null): AppLocale {
+export function normalizeLocale(value?: string | null): AppLanguage {
   const raw = String(value || '').trim().toLowerCase();
-  if (raw.startsWith('vi')) return 'vi';
-  if (raw.startsWith('en')) return 'en';
+  const base = raw.split('-')[0];
+  if (SUPPORTED_LOCALES.includes(base as AppLanguage)) return base as AppLanguage;
   return DEFAULT_LOCALE;
 }
 
-/**
- * Resolves the active locale: explicit ?lang= param, then a saved Settings
- * choice, then the browser/OS language, then DEFAULT_LOCALE as last resort.
- * A user's own pick in Settings always overrides auto-detection.
- */
-export function detectLocale(): AppLocale {
+export function detectLocale(): AppLanguage {
   if (typeof window === 'undefined') return DEFAULT_LOCALE;
-
   try {
     const urlLocale = new URLSearchParams(window.location.search).get('lang');
     if (urlLocale) return normalizeLocale(urlLocale);
-
+    const i18nStored = window.localStorage.getItem('lyceum_lang');
+    if (i18nStored) return normalizeLocale(i18nStored);
     const stored = window.localStorage.getItem(STORAGE_KEY);
     if (stored) return normalizeLocale(stored);
-
     const browserLocale = window.navigator?.language || (window.navigator as unknown as { userLanguage?: string })?.userLanguage;
     if (browserLocale) return normalizeLocale(browserLocale);
-  } catch {
-    // ignore
-  }
-
+  } catch { /* ignore */ }
   return DEFAULT_LOCALE;
 }
 
-export function getSupportedLocales(): AppLocale[] {
+export function getSupportedLocales(): AppLanguage[] {
   return SUPPORTED_LOCALES;
 }
 
-export function setDocumentLocale(locale: AppLocale) {
+export function setDocumentLocale(locale: AppLanguage) {
   if (typeof document === 'undefined') return;
   document.documentElement.lang = locale;
-  document.documentElement.dir = 'ltr';
+  document.documentElement.dir = locale === 'ar' ? 'rtl' : 'ltr';
 }
 
-export function saveLocale(locale: AppLocale) {
+export function saveLocale(locale: AppLanguage) {
   try {
     window.localStorage.setItem(STORAGE_KEY, locale);
-  } catch {
-    // ignore
-  }
+    window.localStorage.setItem('lyceum_lang', locale);
+  } catch { /* ignore */ }
 }
 
-export function getSpeechLocale(locale: AppLocale) {
-  return locale === 'vi' ? 'vi-VN' : 'en-US';
+export function getSpeechLocale(locale: AppLanguage): string {
+  return SPEECH_LOCALES[locale] || 'en-US';
 }
 
-export function getLocaleDisplayName(locale: AppLocale) {
-  return locale === 'vi' ? 'tiếng Việt' : 'English';
+export function getLocaleDisplayName(locale: AppLanguage): string {
+  return LANGUAGE_NAMES[locale] || LANGUAGE_NAMES.en;
 }
 
-export function buildAriSystemInstruction(locale: AppLocale, context?: string) {
+/**
+ * Build a language directive string for injection into AI system prompts.
+ * Ensures the AI responds in the student's chosen language.
+ *
+ * Usage: append `buildLanguageDirective(lang)` to any system prompt before sending.
+ */
+export function buildLanguageDirective(locale: AppLanguage): string {
+  const languageName = getLocaleDisplayName(locale);
+  return (
+    `\n\n=== LANGUAGE DIRECTIVE (mandatory) ===\n` +
+    `The student's preferred language is ${languageName} (${locale}).\n` +
+    `ALWAYS respond in ${languageName}. Mirror the student's language only if they explicitly switch languages themselves.\n` +
+    `If the student writes in another language, keep your reply in ${languageName} unless they explicitly ask for something else.\n` +
+    `All explanations, feedback, hints, and dialogue must be in ${languageName}.`
+  );
+}
+
+export function buildAriSystemInstruction(locale: AppLanguage, context?: string) {
   const languageName = getLocaleDisplayName(locale);
   const languageDirective =
-    locale === 'vi'
-      ? 'ALWAYS speak and respond in Vietnamese. Mirror the student\'s language only if they explicitly switch languages.'
-      : 'ALWAYS speak and respond in English. Mirror the student\'s language only if they explicitly switch languages.';
+    `ALWAYS speak and respond in ${languageName}. Mirror the student's language only if they explicitly switch languages.`;
 
   return [
     `Your name is Ari — Lyceum's 24/7 background research assistant. You are ALWAYS connected and listening in parallel while the student uses other tools on the site (Problem Sets, Notes, Mistake Bank, Knowledge Tree) — the student never has to press a button or say your name first, just speak and you'll hear and respond right away. You can see the content the student is currently viewing as well as their saved data (notes, mistakes, progress) — use that to advise instantly, specifically, and in context, instead of asking again what you already know. If asked your name, say you're Ari.`,

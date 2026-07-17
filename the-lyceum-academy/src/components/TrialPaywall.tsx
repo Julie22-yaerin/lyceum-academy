@@ -7,6 +7,8 @@
 import { useEffect, useState } from 'react';
 import { createCheckoutSession, getSubscriptionPlans, type SubscriptionPlan } from '../lib/subscriptionApi';
 import { getLemonCheckoutUrl } from '../lib/lemonsqueezy';
+import { useTranslation } from '../i18n/I18nContext';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 interface Props {
   daysRemaining: number;
@@ -42,56 +44,10 @@ function useCountdown(endMs: number) {
   return { days, hours, minutes, seconds, expired: remaining <= 0 };
 }
 
-const TIER_META: Record<string, { name: string; emoji: string; color: string; flagship?: boolean; features: string[] }> = {
-  free: {
-    name: 'Free',
-    emoji: '🌾',
-    color: '#6B7280',
-    features: [
-      '2 tool calls a day',
-      'Access to every tool',
-      '1 reverse-building hint',
-      'Upload up to 2 documents a day',
-    ],
-  },
-  compass: {
-    name: 'Compass',
-    emoji: '🧭',
-    color: '#4A7C59',
-    features: [
-      '10 tool calls a day',
-      '3 reverse-building hints per PDF',
-      'Upload up to 3 documents a day',
-    ],
-  },
-  scholar: {
-    name: 'Scholar',
-    emoji: '🎓',
-    color: '#C5A059',
-    flagship: true,
-    features: [
-      '2x Compass\'s daily tool calls (20/day)',
-      '6 reverse-building hints per PDF',
-      'Upload up to 5 documents a day',
-      'Higher priority than Compass in the AI response queue',
-    ],
-  },
-  mentor: {
-    name: 'STEM Focus',
-    emoji: '🎯',
-    color: '#7C3AED',
-    features: [
-      '30 tool calls a day',
-      'Upload up to 10 documents a day',
-      'Higher priority than Scholar in the AI response queue',
-      'Unlocks Ari voice assistant (5 calls a day)',
-    ],
-  },
-};
-
 const TIER_ORDER = ['free', 'compass', 'scholar', 'mentor'];
 
 export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: Props) {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState(true);
@@ -99,10 +55,57 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
   const [error, setError] = useState('');
   const countdown = useCountdown(getPromoEnd());
 
+  const TIER_META: Record<string, { name: string; emoji: string; color: string; flagship?: boolean; features: string[] }> = {
+    free: {
+      name: t('tier.compass'),
+      emoji: '🌾',
+      color: '#6B7280',
+      features: [
+        t('paywall.feature2Calls'),
+        t('paywall.featureAllTools'),
+        t('paywall.feature1Hint'),
+        t('paywall.feature2Uploads'),
+      ],
+    },
+    compass: {
+      name: t('tier.compass'),
+      emoji: '🧭',
+      color: '#4A7C59',
+      features: [
+        t('paywall.feature10Calls'),
+        t('paywall.feature3Hints'),
+        t('paywall.feature3Uploads'),
+      ],
+    },
+    scholar: {
+      name: t('tier.scholar'),
+      emoji: '🎓',
+      color: '#C5A059',
+      flagship: true,
+      features: [
+        t('paywall.feature20Calls'),
+        t('paywall.feature6Hints'),
+        t('paywall.feature5Uploads'),
+        t('paywall.featureHigherPriorityScholar'),
+      ],
+    },
+    mentor: {
+      name: t('tier.stemFocus'),
+      emoji: '🎯',
+      color: '#7C3AED',
+      features: [
+        t('paywall.feature30Calls'),
+        t('paywall.feature10Uploads'),
+        t('paywall.featureHighestPriority'),
+        t('paywall.featureVoiceAri'),
+      ],
+    },
+  };
+
   useEffect(() => {
     getSubscriptionPlans()
       .then(all => setPlans(all.filter(p => TIER_ORDER.includes(p.tier))))
-      .catch(() => setError('Could not load plans — please refresh.'))
+      .catch(() => setError(t('paywall.couldNotLoad')))
       .finally(() => setLoading(false));
   }, []);
 
@@ -120,7 +123,7 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
       const { checkout_url } = await createCheckoutSession(plan.id, window.location.href, window.location.href);
       window.location.href = checkout_url;
     } catch (e: any) {
-      setError(e?.message || 'Could not start checkout.');
+      setError(e?.message || t('paywall.couldNotCheckout'));
       setBusyId(null);
     }
   }
@@ -139,18 +142,18 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
         )}
         <div className="text-5xl mb-4">{daysRemaining <= 0 ? '⏰' : '🚀'}</div>
         <h2 className="font-serif text-2xl text-white mb-2">
-          {daysRemaining <= 0 ? 'Your free trial has ended' : 'Upgrade your plan'}
+          {daysRemaining <= 0 ? t('paywall.trialEnded') : t('paywall.upgradePlan')}
         </h2>
         <p className="text-sm text-white/50 mb-1">
           {daysRemaining <= 0
-            ? 'Your 3-day trial has expired.'
-            : `You still have ${Math.max(0, Math.ceil(daysRemaining))} trial day${Math.ceil(daysRemaining) === 1 ? '' : 's'} left — upgrade any time.`}
+            ? t('paywall.trialExpired')
+            : t('paywall.trialRemaining', { n: Math.max(0, Math.ceil(daysRemaining)) })}
         </p>
-        <p className="text-xs text-white/40 mb-4">Choose a plan to continue learning with The Lyceum — or stay on Free with reduced limits.</p>
+        <p className="text-xs text-white/40 mb-4">{t('paywall.choosePlan')}</p>
 
         {!countdown.expired && (
           <div className="inline-flex items-center gap-2 rounded-full glass px-4 py-2 mb-4 border border-amber-400/30">
-            <span className="text-amber-300 text-xs font-semibold uppercase tracking-wider">40% off ends in</span>
+            <span className="text-amber-300 text-xs font-semibold uppercase tracking-wider">{t('paywall.promoEndsIn')}</span>
             <span className="text-white text-sm font-mono tabular-nums">
               {countdown.days}d {String(countdown.hours).padStart(2, '0')}h {String(countdown.minutes).padStart(2, '0')}m {String(countdown.seconds).padStart(2, '0')}s
             </span>
@@ -162,18 +165,18 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
             onClick={() => setCycle('monthly')}
             className={`rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-wider transition-all ${cycle === 'monthly' ? 'glass-pill-active' : 'glass-pill'}`}
           >
-            Monthly
+            {t('paywall.monthly')}
           </button>
           <button
             onClick={() => setCycle('annual')}
             className={`rounded-full px-4 py-1.5 text-xs font-medium uppercase tracking-wider transition-all ${cycle === 'annual' ? 'glass-pill-active' : 'glass-pill'}`}
           >
-            Yearly
+            {t('paywall.yearly')}
           </button>
         </div>
 
         {loading ? (
-          <div className="py-8 text-white/40 text-sm">Loading plans…</div>
+          <div className="py-8 text-white/40 text-sm">{t('paywall.loadingPlans')}</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 mb-4">
             {ordered.map(plan => {
@@ -193,7 +196,7 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
                   <span className="text-sm font-medium text-white">{meta.name}</span>
 
                   {isFree ? (
-                    <span className="text-lg font-bold text-white">Free</span>
+                    <span className="text-lg font-bold text-white">{t('tier.compass')}</span>
                   ) : (
                     <div className="flex flex-col items-center">
                       {!countdown.expired && (
@@ -206,10 +209,10 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
                   )}
 
                   {meta.flagship && (
-                    <span className="text-[8px] uppercase tracking-widest text-amber-300 bg-amber-400/10 rounded-full px-2 py-0.5">Popular</span>
+                    <span className="text-[8px] uppercase tracking-widest text-amber-300 bg-amber-400/10 rounded-full px-2 py-0.5">{t('paywall.popular')}</span>
                   )}
                   {!isFree && !countdown.expired && (
-                    <span className="text-[8px] uppercase tracking-widest text-emerald-300 bg-emerald-400/10 rounded-full px-2 py-0.5">40% off</span>
+                    <span className="text-[8px] uppercase tracking-widest text-emerald-300 bg-emerald-400/10 rounded-full px-2 py-0.5">{t('paywall.discount40')}</span>
                   )}
 
                   <ul className="text-[10px] text-white/40 text-left space-y-1 mt-1">
@@ -222,7 +225,7 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
                   </ul>
 
                   {isFree && (
-                    <span className="text-[9px] text-white/30 mt-1 uppercase tracking-wider">Continue with Free</span>
+                    <span className="text-[9px] text-white/30 mt-1 uppercase tracking-wider">{t('paywall.continueFree')}</span>
                   )}
                 </>
               );
@@ -258,7 +261,7 @@ export default function TrialPaywall({ daysRemaining, onChooseFree, onClose }: P
 
         {error && <p className="text-xs text-red-300/80 mb-3">{error}</p>}
 
-        <p className="text-[10px] text-white/25">Secure checkout · Cancel anytime</p>
+        <p className="text-[10px] text-white/25">{t('paywall.secureCheckout')}</p>
       </div>
     </div>
   );

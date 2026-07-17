@@ -13,10 +13,13 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { checkLoginAttempt } from '../lib/api';
 import { getRecaptchaToken } from '../lib/recaptcha';
+import { useTranslation } from '../i18n/I18nContext';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password';
 
 export default function AuthPage({ onNavigate }: NavigationProps) {
+  const { t } = useTranslation();
   const [isLogin, setIsLogin] = useState(true);
   const [screen, setScreen] = useState<Screen>('auth');
   const [email, setEmail] = useState('');
@@ -45,7 +48,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
         await signInWithRedirect(auth, googleProvider);
       } else {
-        setError(e.message || 'Google sign-in failed');
+        setError(e.message || t('auth.googleFailed'));
       }
     } finally {
       setBusy(false);
@@ -69,8 +72,8 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
       }
     } catch (err: any) {
       const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')
-        ? 'Invalid email or password.'
-        : err.message || 'Authentication failed.';
+        ? t('auth.invalidCredentials')
+        : err.message || t('auth.authFailed');
       setError(msg);
     } finally {
       setBusy(false);
@@ -81,9 +84,9 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       await resendVerificationEmail();
-      setInfo('Verification email sent. Check your inbox.');
+      setInfo(t('auth.verificationSent'));
     } catch (e: any) {
-      setError(e.message || 'Could not send email.');
+      setError(e.message || t('auth.couldNotSend'));
     } finally {
       setBusy(false);
     }
@@ -94,9 +97,9 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     setError(''); setBusy(true);
     try {
       await sendPasswordResetEmail(auth, email);
-      setInfo('Password reset email sent. Check your inbox.');
+      setInfo(t('auth.resetSent'));
     } catch (err: any) {
-      setError(err.message || 'Could not send reset email.');
+      setError(err.message || t('auth.couldNotReset'));
     } finally {
       setBusy(false);
     }
@@ -109,7 +112,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         <header className="w-full">
           <div className="flex justify-between items-baseline w-full px-10 py-8 mx-auto">
             <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer" onClick={() => onNavigate('landing')}>
-              The Lyceum
+              {t('landing.title')}
             </div>
           </div>
         </header>
@@ -122,10 +125,10 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
               <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-on-surface/20" />
 
               <div className="text-4xl mb-6">✉️</div>
-              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-3">VERIFY YOUR EMAIL</h1>
+              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-3">{t('auth.verifyEmail')}</h1>
               <p className="font-sans text-xs text-on-surface/60 uppercase tracking-[1px] mb-8">
-                We sent a verification link to your inbox.<br />
-                Open it, then come back here.
+                {t('auth.verifySent')}<br />
+                {t('auth.verifyOpen')}
               </p>
 
               {error && (
@@ -135,19 +138,18 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                 <p className="text-green-700 text-xs text-center mb-4 font-sans border border-green-200 bg-green-50 px-4 py-2">{info}</p>
               )}
 
-              <button
-                onClick={handleResend}
+              <LiquidMetalButton
+                label={busy ? t('auth.sending') : t('auth.resendEmail')}
                 disabled={busy}
-                className="w-full border border-outline/20 py-3 px-6 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-all mb-4 disabled:opacity-40"
-              >
-                {busy ? 'Sending…' : 'Resend Email'}
-              </button>
+                fullWidth
+                onClick={handleResend}
+              />
 
               <button
                 onClick={() => { setScreen('auth'); setError(''); setInfo(''); }}
                 className="font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
               >
-                ← Back to Sign In
+                {t('auth.backToSignIn')}
               </button>
             </div>
           </div>
@@ -163,7 +165,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         <header className="w-full">
           <div className="flex justify-between items-baseline w-full px-10 py-8 mx-auto">
             <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer" onClick={() => onNavigate('landing')}>
-              The Lyceum
+              {t('landing.title')}
             </div>
           </div>
         </header>
@@ -175,9 +177,9 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
               <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-on-surface/20" />
               <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-on-surface/20" />
 
-              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-2 text-center">RESET PASSWORD</h1>
+              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-2 text-center">{t('auth.resetPassword')}</h1>
               <p className="font-sans text-xs text-on-surface/60 uppercase tracking-[1px] text-center mb-8">
-                Enter your email — we'll send a reset link.
+                {t('auth.resetDesc')}
               </p>
 
               {error && (
@@ -189,7 +191,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
 
               <form className="space-y-6" onSubmit={handleForgotPassword}>
                 <div className="space-y-1">
-                  <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">Email Address</label>
+                  <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">{t('auth.emailAddress')}</label>
                   <input
                     type="email"
                     value={email}
@@ -199,13 +201,12 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                     className="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/50 py-3 font-sans text-sm focus:border-on-surface transition-colors placeholder:text-outline-variant/80 outline-none"
                   />
                 </div>
-                <button
-                  type="submit"
+                <LiquidMetalButton
+                  label={busy ? t('auth.sending') : t('auth.sendResetLink')}
                   disabled={busy}
-                  className="w-full bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] py-4 hover:opacity-80 transition-opacity disabled:opacity-40"
-                >
-                  {busy ? 'Sending…' : 'Send Reset Link'}
-                </button>
+                  fullWidth
+                  type="submit"
+                />
               </form>
 
               <div className="mt-6 text-center">
@@ -213,7 +214,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                   onClick={() => { setScreen('auth'); setError(''); setInfo(''); }}
                   className="font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
                 >
-                  ← Back to Sign In
+                  {t('auth.backToSignIn')}
                 </button>
               </div>
             </div>
@@ -232,7 +233,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
             className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer"
             onClick={() => onNavigate('landing')}
           >
-            The Lyceum
+            {t('landing.title')}
           </div>
         </div>
       </header>
@@ -254,12 +255,12 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                 />
               </div>
               <h1 className="font-serif text-3xl text-on-surface text-center tracking-[2px]">
-                {isLogin ? 'ENTER ACADEMY' : 'ENROLLMENT'}
+                {isLogin ? t('auth.enterAcademy') : t('auth.enrollment')}
               </h1>
               <p className="font-sans text-xs text-on-surface opacity-60 text-center mt-3 uppercase tracking-[1px]">
                 {isLogin
-                  ? 'The unexamined life is not worth living.'
-                  : 'Begin your journey into the realm of forms.'}
+                  ? t('auth.loginQuote')
+                  : t('auth.signupQuote')}
               </p>
             </div>
 
@@ -281,20 +282,20 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
               </svg>
               <span className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface">
-                {busy ? 'Signing in…' : 'Continue with Google'}
+                {busy ? t('auth.signingIn') : t('auth.google')}
               </span>
             </button>
 
             <div className="flex items-center gap-4 mb-8">
               <div className="h-[1px] bg-outline-variant/50 flex-grow" />
-              <span className="font-sans text-[10px] text-on-surface/50 uppercase tracking-[2px]">or</span>
+              <span className="font-sans text-[10px] text-on-surface/50 uppercase tracking-[2px]">{t('auth.orContinueWith')}</span>
               <div className="h-[1px] bg-outline-variant/50 flex-grow" />
             </div>
 
             <form className="space-y-6" onSubmit={handleEmail}>
               <div className="space-y-1">
                 <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">
-                  Email Address
+                  {t('auth.emailAddress')}
                 </label>
                 <input
                   type="email"
@@ -308,7 +309,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
               <div className="space-y-1">
                 <div className="flex items-baseline justify-between">
                   <label className="font-sans text-[10px] text-on-surface uppercase tracking-[2px] block opacity-70">
-                    Password
+                    {t('auth.password')}
                   </label>
                   {isLogin && (
                     <button
@@ -316,7 +317,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                       onClick={() => { setScreen('forgot-password'); setError(''); setInfo(''); }}
                       className="font-sans text-[9px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
                     >
-                      Forgot?
+                      {t('auth.forgot')}
                     </button>
                   )}
                 </div>
@@ -330,23 +331,22 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                   className="w-full bg-transparent border-t-0 border-x-0 border-b border-outline-variant/50 py-3 font-sans text-sm focus:border-on-surface transition-colors placeholder:text-outline-variant/80 outline-none"
                 />
               </div>
-              <button
-                type="submit"
+              <LiquidMetalButton
+                label={busy ? t('common.loading') : isLogin ? t('auth.signInBtn') : t('auth.enrollBtn')}
                 disabled={busy}
-                className="w-full bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] py-4 hover:opacity-80 transition-opacity disabled:opacity-40"
-              >
-                {busy ? 'Please wait…' : isLogin ? 'Sign In' : 'Enroll'}
-              </button>
+                fullWidth
+                type="submit"
+              />
             </form>
 
             <div className="mt-8 text-center">
               <p className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-70">
-                {isLogin ? 'New seeker? ' : 'Already a scholar? '}
+                {isLogin ? t('auth.newSeeker') : t('auth.alreadyScholar')}
                 <button
                   onClick={() => { setIsLogin(!isLogin); setError(''); }}
                   className="text-on-surface font-bold hover:opacity-80 ml-1 border-b border-on-surface pb-[1px]"
                 >
-                  {isLogin ? 'Enroll' : 'Sign In'}
+                  {isLogin ? t('auth.enrollBtn') : t('auth.signInBtn')}
                 </button>
               </p>
             </div>

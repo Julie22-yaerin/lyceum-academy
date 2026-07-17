@@ -7,6 +7,7 @@ import { startVoiceSession, endVoiceSession, logFeatureUsage } from '../lib/subs
 import { getSpeechLocale, type AppLocale } from '../lib/locale';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { getApiBaseUrl } from '../lib/apiBase';
+import { useTranslation } from '../i18n/I18nContext';
 
 // Gemini 2.0 Flash + v1alpha BidiGenerateContent were shut down 2026-06-01.
 // Live voice now runs on the native-audio Live model over v1beta (see backend/app/main.py).
@@ -42,6 +43,7 @@ export default function S2SVoiceOverlay({
   locale = 'en',
   startMuted = false,
 }: S2SVoiceOverlayProps) {
+  const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [status, setStatus] = useState<'connecting' | 'idle' | 'listening' | 'speaking' | 'paused' | 'error' | 'fallback'>('connecting');
   const [isMuted, setIsMuted] = useState(startMuted);
@@ -196,7 +198,7 @@ export default function S2SVoiceOverlay({
   function handleAttach(targetType: string, targetText: string): boolean {
     const research = lastResearchRef.current;
     if (!research) {
-      showToastMsg('Nothing researched yet to attach — ask ARI to look something up first.', 'attach');
+      showToastMsg(t('voice.noRef'), 'attach');
       return false;
     }
     const patch = { imageUrl: research.imageUrl, sourceUrl: research.sourceUrl, sourceLabel: research.topic };
@@ -207,7 +209,7 @@ export default function S2SVoiceOverlay({
     else if (type.startsWith('node') || type.startsWith('graph')) ok = attachToGraphNode(targetText, patch);
 
     showToastMsg(
-      ok ? `Attached to "${targetText}".` : `Couldn't find "${targetText}" to attach to — try saying the name more precisely.`,
+      ok ? t('voice.attached', { target: targetText }) : t('voice.attachFailed', { target: targetText }),
       'attach',
     );
     return ok;
@@ -384,7 +386,7 @@ export default function S2SVoiceOverlay({
                 takeaways: [content]
               }
             });
-            showToastMsg(`Saved note: "${title}"`, 'note');
+            showToastMsg(t('voice.savedNote', { title }), 'note');
           } catch (err) {
             console.error('Failed to save note from S2S:', err);
           }
@@ -402,7 +404,7 @@ export default function S2SVoiceOverlay({
               explanation: explanationText,
               subject: activeTab || undefined,
             });
-            showToastMsg(`Logged mistake: "${mistakeText}"`, 'mistake');
+            showToastMsg(t('voice.loggedMistake', { text: mistakeText }), 'mistake');
           } catch (err) {
             console.error('Failed to save mistake from S2S:', err);
           }
@@ -638,19 +640,19 @@ export default function S2SVoiceOverlay({
                       const { text, imageUrls } = await runResearch(String(call.args?.topic || ''));
                       response = text
                         ? { result: text, has_image: imageUrls.length > 0 }
-                        : { result: 'No reference material found for that topic.' };
+                        : { result: t('voice.noRefFound') };
                     } else if (call.name === 'attach_reference') {
                       const ok = handleAttach(String(call.args?.target_type || ''), String(call.args?.target_text || ''));
                       response = { attached: ok };
                     } else if (call.name === 'compute_math') {
                       const { result, configured } = await computeMath(String(call.args?.query || ''));
                       response = configured
-                        ? { result: result ?? 'WolframAlpha had no exact answer for that.' }
-                        : { result: 'Computation plugin is not configured yet — reason it through yourself.' };
+                        ? { result: result ?? t('voice.noWolfram') }
+                        : { result: t('voice.noPlugin') };
                     }
                   } catch (e) {
                     console.error(`Tool call ${call.name} failed:`, e);
-                    response = { error: 'Lookup failed.' };
+                    response = { error: t('voice.lookupFailed') };
                   }
                   return { id: call.id, name: call.name, response };
                 })
@@ -668,14 +670,14 @@ export default function S2SVoiceOverlay({
           console.error('WebSocket Error:', err);
           clearSilenceTimer();
           if (active) {
-            enterFallbackMode('Gemini Live could not connect — switched ARI to the GPT fallback (text + browser voice only).');
+            enterFallbackMode(t('voice.gemmaFallback'));
           }
         };
 
         ws.onclose = (evt) => {
           clearSilenceTimer();
           if (active && statusRef.current !== 'fallback') {
-            let reason = evt.reason || 'Gemini Live connection closed.';
+            let reason = evt.reason || t('voice.connectionClosed');
             try {
               const parsed = JSON.parse(evt.reason);
               reason = parsed.error || parsed.message || reason;
@@ -688,7 +690,7 @@ export default function S2SVoiceOverlay({
         console.error('S2S Init failed:', e);
         if (active) {
           setStatus('error');
-          setErrorMessage(e.message || 'Could not initialize microphone or audio.');
+          setErrorMessage(e.message || t('voice.micError'));
         }
       }
     }
@@ -829,9 +831,9 @@ export default function S2SVoiceOverlay({
             )}
             <div className="min-w-0">
               <span className="font-sans text-[9px] uppercase tracking-[2px] text-white/40 block mb-1">
-                {toast.type === 'research' ? '🔎 Gemma researched' :
-                 toast.type === 'attach' ? '📎 Attached' :
-                 toast.type === 'mistake' ? '⚠️ Mistake Bank' : '📝 Notes'}
+                {toast.type === 'research' ? t('voice.toastResearch') :
+                 toast.type === 'attach' ? t('voice.toastAttached') :
+                 toast.type === 'mistake' ? t('voice.toastMistake') : t('voice.toastNote')}
               </span>
               <p className="font-sans text-xs text-white/85 leading-relaxed line-clamp-4">{toast.message}</p>
             </div>
@@ -890,7 +892,7 @@ export default function S2SVoiceOverlay({
               ? 'bg-red-500/20 border-red-500/40 text-red-400'
               : 'glass hover:bg-white/10 border-white/10 text-white/80'
           }`}
-          title={isMuted ? 'Turn mic on' : 'Turn mic off'}
+          title={isMuted ? t('voice.micOn') : t('voice.micOff')}
         >
           <span className="material-symbols-outlined text-[16px]">{isMuted ? 'mic_off' : 'mic'}</span>
         </button>
@@ -902,7 +904,7 @@ export default function S2SVoiceOverlay({
               ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
               : 'glass hover:bg-white/10 border-white/10 text-white/80'
           }`}
-          title={status === 'paused' ? 'Resume' : 'Pause'}
+          title={status === 'paused' ? t('voice.resume') : t('voice.pause')}
         >
           <span className="material-symbols-outlined text-[18px]">{status === 'paused' ? 'play_arrow' : 'pause'}</span>
         </button>
@@ -912,12 +914,12 @@ export default function S2SVoiceOverlay({
           className="w-16 h-16 rounded-full glass-strong flex items-center justify-center flex-shrink-0 transition-shadow duration-500"
           style={{ boxShadow: `0 8px 32px rgba(0,0,0,0.5), 0 0 24px ${ringColor}` }}
           title={
-            status === 'speaking' ? 'ARI is speaking...' :
-            status === 'listening' ? 'ARI is listening...' :
-            status === 'paused' ? 'ARI paused' :
-            status === 'error' ? 'Connection error' :
-            status === 'fallback' ? 'ARI (GPT fallback mode)' :
-            'ARI listening in the background'
+            status === 'speaking' ? t('voice.speaking') :
+            status === 'listening' ? t('voice.listening') :
+            status === 'paused' ? t('voice.paused') :
+            status === 'error' ? t('voice.connError') :
+            status === 'fallback' ? t('voice.gptFallback') :
+            t('voice.bgListening')
           }
         >
           <span className="voice-orb-ring absolute inset-0 rounded-full pointer-events-none" style={{ borderColor: ringColor, animationDelay: '0s' }} />

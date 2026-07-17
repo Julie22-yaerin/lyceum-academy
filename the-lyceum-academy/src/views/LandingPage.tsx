@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { useEffect, useState, useRef } from 'react';
+import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
 import {
   ArrowDown,
   AudioLines,
@@ -16,7 +16,10 @@ import {
 } from 'lucide-react';
 import { NavigationProps } from '../types';
 import FeedbackWidget from '../components/FeedbackWidget';
+import SupportChatWidget from '../components/SupportChatWidget';
 import { useTheme } from '../context/ThemeContext';
+import { ShaderAnimation } from '../components/ui/shader-lines';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 // ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
 const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
@@ -166,17 +169,90 @@ const stagger = {
   show: { transition: { staggerChildren: 0.12 } },
 };
 
+// ── Headline word-reveal — splits into words, each rises + sharpens into
+// focus. Short headline only (per motion guidance: reserve for <8 words). ──
+const wordContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.1 } },
+};
+
+const wordUp = {
+  hidden: { opacity: 0, y: 18, filter: 'blur(6px)' },
+  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
+};
+
+function HeadlineReveal({ text }: { text: string }) {
+  const words = text.split(' ');
+  return (
+    <motion.span variants={wordContainer} initial="hidden" animate="show" className="inline">
+      {words.map((w, i) => (
+        <motion.span key={i} variants={wordUp} className="inline-block mr-[0.28em] will-change-transform">
+          {w}
+        </motion.span>
+      ))}
+    </motion.span>
+  );
+}
+
+// ── Light burst — a radial flash that expands and fades behind the
+// headline once on mount, like the "spark" the copy talks about. ──────────
+function LightBurst() {
+  return (
+    <motion.div
+      aria-hidden
+      className="pointer-events-none absolute -z-10"
+      style={{
+        left: '-10%', top: '-40%', width: '70%', height: '180%',
+        background: 'radial-gradient(circle, rgba(216,204,255,0.9) 0%, rgba(167,139,250,0.5) 22%, rgba(139,92,246,0.15) 45%, transparent 70%)',
+      }}
+      initial={{ opacity: 0, scale: 0.2 }}
+      animate={{ opacity: [0, 1, 0.55], scale: [0.2, 1.15, 1] }}
+      transition={{ duration: 1.1, times: [0, 0.4, 1], ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+    />
+  );
+}
+
+// ── Mascot — pinned in the corner and turns to face wherever you've
+// scrolled to, via a scroll-linked 3D perspective tilt (not a real 3D
+// model — a cheap, GPU-only transform on a single image, tracked across
+// the hero + method sections so the "turn" reads clearly as you scroll). ──
+function ScrollMascot() {
+  const ref = useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
+  const rotateY = useTransform(scrollYProgress, [0, 1], [-25, 25]);
+  const rotateX = useTransform(scrollYProgress, [0, 1], [8, -12]);
+
+  return (
+    <div ref={ref} className="hidden lg:block absolute right-8 top-0 w-56 h-[160vh] pointer-events-none z-10" aria-hidden>
+      <div className="sticky top-32 flex justify-end" style={{ perspective: 1000 }}>
+        <motion.img
+          src="/mascot-cat.png"
+          alt=""
+          className="w-48 drop-shadow-[0_20px_60px_rgba(139,92,246,0.35)] select-none"
+          style={{ rotateY, rotateX, transformStyle: 'preserve-3d' }}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
+          draggable={false}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function LandingPage({ onNavigate }: NavigationProps) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <div className="bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500">
+    <div className="relative bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500">
       {/* Ambient background orbs */}
       <div className="ambient-orbs">
         <div className="orb-1" />
         <div className="orb-2" />
         <div className="orb-3" />
       </div>
+
+      <ScrollMascot />
 
       <FeedbackWidget context="landing" />
 
@@ -217,20 +293,21 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                 </motion.span>
               </AnimatePresence>
             </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
+            <LiquidMetalButton
+              label="Launch Workspace"
               onClick={() => onNavigate('auth')}
-              className="px-6 py-2 rounded-full text-sm font-medium text-white glass-btn"
-            >
-              Launch Workspace
-            </motion.button>
+            />
           </div>
         </div>
       </motion.nav>
 
       {/* Hero */}
       <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-24 min-h-screen flex items-center">
+        <div className="hero-shader pointer-events-none absolute inset-0 -z-0 overflow-hidden flex items-center justify-center">
+          <div className="relative w-full max-w-6xl aspect-[16/10]">
+            <ShaderAnimation />
+          </div>
+        </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
           {/* Left: headline + CTA */}
           <motion.div
@@ -239,20 +316,29 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             variants={stagger}
             className="space-y-7 z-10"
           >
-            <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse-glow" />
+            <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="flex items-center gap-3">
+              <div className="relative w-14 h-14 flex-shrink-0">
+                <LightBurst />
+                <motion.img
+                  src="/mascot-cat.png"
+                  alt="Lyceum mascot"
+                  className="relative w-14 h-14 object-contain drop-shadow-[0_4px_18px_rgba(139,92,246,0.5)]"
+                  initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
+                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                  transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                  draggable={false}
+                />
+              </div>
               <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">An AI Tutor That Asks Questions</span>
             </motion.div>
 
-            <motion.h1
-              variants={fadeUp}
-              transition={{ duration: 0.6 }}
-              className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic"
-            >
-              Great minds aren&rsquo;t filled up.
-              <br />
-              They&rsquo;re sparked.
-            </motion.h1>
+            <div className="relative">
+              <h1 className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic">
+                <HeadlineReveal text="Great minds aren’t filled," />
+                <br />
+                <HeadlineReveal text="they’re sparked." />
+              </h1>
+            </div>
 
             <motion.p
               variants={fadeUp}
@@ -263,14 +349,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
-              <motion.button
-                whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(167,139,250,0.35)' }}
-                whileTap={{ scale: 0.97 }}
+              <LiquidMetalButton
+                label="Start Learning"
                 onClick={() => onNavigate('auth')}
-                className="inline-block px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
-              >
-                Start Learning
-              </motion.button>
+              />
               <a
                 href="#method"
                 className="text-sm font-medium text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
@@ -421,14 +503,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         >
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic">Start asking questions.</h2>
           <p className="text-slate-400 max-w-md">Ten subjects. One method. No lectures — just the right question, at the right time.</p>
-          <motion.button
-            whileHover={{ scale: 1.04, boxShadow: '0 0 40px rgba(167,139,250,0.35)' }}
-            whileTap={{ scale: 0.97 }}
+          <LiquidMetalButton
+            label="Get Started"
             onClick={() => onNavigate('auth')}
-            className="px-8 py-4 rounded-full text-sm font-semibold tracking-wide text-white uppercase glass-btn shadow-[0_0_30px_rgba(167,139,250,0.25)]"
-          >
-            Get Started
-          </motion.button>
+          />
         </motion.div>
       </section>
 
@@ -439,6 +517,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <span className="text-xs text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; named after the school Aristotle founded</span>
         </div>
       </footer>
+
+      <SupportChatWidget context="landing" />
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { scopedGateKey } from './lib/persist';
 import { shouldShowPaywall, trialDaysRemaining, getTrialStart, chooseFree } from './lib/trial';
 import { useSubscription } from './lib/useSubscription';
 import TrialPaywall from './components/TrialPaywall';
+import SupportChatWidget from './components/SupportChatWidget';
 
 
 function AppInner() {
@@ -175,6 +176,7 @@ function AppInner() {
         {view === 'progress' && <ProgressView />}
         {view === 'settings' && <SettingsView onUpgrade={() => setManualUpgradeOpen(true)} />}
       </MainLayout>
+      <SupportChatWidget context="workspace" />
     </>
   );
 }

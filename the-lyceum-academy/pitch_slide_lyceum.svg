@@ -1,0 +1,131 @@
+<svg viewBox="0 0 1600 900" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <style>
+      .serif { font-family: Georgia, 'Times New Roman', serif; }
+      .sans { font-family: Arial, Helvetica, sans-serif; }
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="900" fill="#12142A"/>
+
+  <!-- Header -->
+  <text x="60" y="42" class="sans" font-size="14" letter-spacing="3" fill="#A78BFA">THE LYCEUM ACADEMY</text>
+  <text x="60" y="82" class="serif" font-size="30" font-weight="700" fill="#F5F6FA">Pitch Snapshot — Vấn đề · Mô hình · Tăng trưởng · Vốn</text>
+  <circle cx="1540" cy="50" r="28" fill="#211947" stroke="#8B5CF6" stroke-width="1.5"/>
+  <text x="1540" y="50" class="serif" font-size="26" fill="#C7B8FA" text-anchor="middle" dominant-baseline="central">&#923;</text>
+
+  <!-- Row 1: Problem / Solution (20%) -->
+  <rect x="60" y="112" width="720" height="154" rx="14" fill="#1B1F3D"/>
+  <circle cx="100" cy="150" r="22" fill="#3A2A2A"/>
+  <text x="100" y="150" class="sans" font-size="22" font-weight="700" fill="#F5B942" text-anchor="middle" dominant-baseline="central">!</text>
+  <text x="138" y="157" class="sans" font-size="20" font-weight="700" letter-spacing="1" fill="#F5F6FA">VẤN ĐỀ</text>
+  <text x="90" class="sans" font-size="16" fill="#9CA3C4">
+    <tspan x="90" y="188">Học thụ động, thi xong là quên — chatbot AI phổ thông chỉ đưa</tspan>
+    <tspan x="90" y="212">đáp án, không rèn tư duy, không theo dõi lỗ hổng kiến thức.</tspan>
+    <tspan x="90" y="236">Gia sư 1-kèm-1 hiệu quả nhưng đắt đỏ, không mở rộng được.</tspan>
+  </text>
+
+  <rect x="820" y="112" width="720" height="154" rx="14" fill="#1B1F3D"/>
+  <circle cx="860" cy="150" r="22" fill="#20362E"/>
+  <text x="860" y="150" class="sans" font-size="20" font-weight="700" fill="#5EEAD4" text-anchor="middle" dominant-baseline="central">&#10003;</text>
+  <text x="898" y="157" class="sans" font-size="20" font-weight="700" letter-spacing="1" fill="#F5F6FA">GIẢI PHÁP — LYCEUM</text>
+  <text x="850" class="sans" font-size="16" fill="#9CA3C4">
+    <tspan x="850" y="188">AI gia sư kiểu Socratic — không đưa đáp án, chỉ đặt câu hỏi dẫn</tspan>
+    <tspan x="850" y="212">dắt tới khi học sinh tự tìm ra. Kèm Knowledge Map + Mistake Vault</tspan>
+    <tspan x="850" y="236">để lấp lỗ hổng. Có mặt 24/7, chi phí vận hành/user cực thấp.</tspan>
+  </text>
+
+  <!-- Row 2: B2C model (45%) -->
+  <text x="60" y="318" class="serif" font-size="26" font-weight="700" fill="#F5F6FA">Mô hình kinh doanh B2C</text>
+  <text x="1540" y="318" class="sans" font-size="14" fill="#A78BFA" text-anchor="end">Tự phục vụ · Không đội sales</text>
+
+  <text class="sans" font-size="17" fill="#C7CCE6">
+    <tspan x="60" y="384">– Dùng thử miễn phí 7 ngày (6.000 token),</tspan>
+    <tspan x="76" y="410">tự động chuyển đổi sang gói trả phí</tspan>
+    <tspan x="60" y="444">– 4 gói thuê bao: Compass · Scholar ·</tspan>
+    <tspan x="76" y="470">Mentor · Researcher</tspan>
+    <tspan x="60" y="504">– Thanh toán theo tháng hoặc năm</tspan>
+    <tspan x="76" y="530">(tiết kiệm 17%/năm)</tspan>
+    <tspan x="60" y="564">– Tăng trưởng: landing page + truyền miệng</tspan>
+    <tspan x="76" y="590">trong cộng đồng học sinh, sinh viên ôn thi</tspan>
+  </text>
+
+  <!-- Tier cards -->
+  <!-- Compass -->
+  <rect x="560" y="350" width="227" height="246" rx="12" fill="#1B1F3D"/>
+  <circle cx="590" cy="380" r="16" fill="#2A2E52"/>
+  <text x="590" y="380" class="sans" font-size="13" font-weight="700" fill="#C7B8FA" text-anchor="middle" dominant-baseline="central">01</text>
+  <text x="580" y="428" class="sans" font-size="19" font-weight="700" fill="#F5F6FA">Compass</text>
+  <text class="sans" font-size="13.5" fill="#9CA3C4">
+    <tspan x="580" y="452">Công cụ thiết yếu</tspan>
+    <tspan x="580" y="472">cho học tập trung</tspan>
+  </text>
+  <text x="580" y="558" class="sans" font-size="11" font-style="italic" fill="#A78BFA">Tháng / Năm –17%</text>
+
+  <!-- Scholar -->
+  <rect x="811" y="350" width="227" height="246" rx="12" fill="#1B1F3D"/>
+  <circle cx="841" cy="380" r="16" fill="#2A2E52"/>
+  <text x="841" y="380" class="sans" font-size="13" font-weight="700" fill="#C7B8FA" text-anchor="middle" dominant-baseline="central">02</text>
+  <text x="831" y="428" class="sans" font-size="19" font-weight="700" fill="#F5F6FA">Scholar</text>
+  <text class="sans" font-size="13.5" fill="#9CA3C4">
+    <tspan x="831" y="452">Tính năng nâng cao</tspan>
+    <tspan x="831" y="472">cho học sinh nghiêm túc</tspan>
+  </text>
+  <text x="831" y="558" class="sans" font-size="11" font-style="italic" fill="#A78BFA">Tháng / Năm –17%</text>
+
+  <!-- Mentor -->
+  <rect x="1062" y="350" width="227" height="246" rx="12" fill="#1B1F3D"/>
+  <circle cx="1092" cy="380" r="16" fill="#2A2E52"/>
+  <text x="1092" y="380" class="sans" font-size="13" font-weight="700" fill="#C7B8FA" text-anchor="middle" dominant-baseline="central">03</text>
+  <text x="1082" y="428" class="sans" font-size="19" font-weight="700" fill="#F5F6FA">Mentor</text>
+  <text class="sans" font-size="13.5" fill="#9CA3C4">
+    <tspan x="1082" y="452">Truy cập đầy đủ</tspan>
+    <tspan x="1082" y="472">cho người học tận tâm</tspan>
+  </text>
+  <text x="1082" y="558" class="sans" font-size="11" font-style="italic" fill="#A78BFA">Tháng / Năm –17%</text>
+
+  <!-- Researcher (premium tint) -->
+  <rect x="1313" y="350" width="227" height="246" rx="12" fill="#211947"/>
+  <circle cx="1343" cy="380" r="16" fill="#3A2E6B"/>
+  <text x="1343" y="380" class="sans" font-size="13" font-weight="700" fill="#F5B942" text-anchor="middle" dominant-baseline="central">04</text>
+  <text x="1333" y="428" class="sans" font-size="19" font-weight="700" fill="#F5F6FA">Researcher</text>
+  <text class="sans" font-size="13.5" fill="#C7B8FA">
+    <tspan x="1333" y="452">Tài nguyên không giới hạn</tspan>
+    <tspan x="1333" y="472">cho nghiên cứu chuyên sâu</tspan>
+  </text>
+  <text x="1333" y="558" class="sans" font-size="11" font-style="italic" fill="#F5B942">Tháng / Năm –17%</text>
+
+  <!-- Row 3: Growth + Capital -->
+  <text x="60" y="655" class="sans" font-size="14" letter-spacing="2" fill="#A78BFA">TĂNG TRƯỞNG DOANH THU</text>
+  <text x="60" y="712" class="serif" font-size="46" font-weight="700" fill="#F5F6FA">10–20 triệu VNĐ</text>
+  <text x="60" y="738" class="sans" font-size="15" fill="#9CA3C4">Doanh thu mục tiêu · Quý 1 (3 tháng đầu)</text>
+
+  <line x1="100" y1="860" x2="460" y2="860" stroke="#3A3F63" stroke-width="1.5"/>
+  <polyline points="140,828 280,798 420,758" fill="none" stroke="#8B5CF6" stroke-width="3"/>
+  <circle cx="140" cy="828" r="5" fill="#8B5CF6"/>
+  <circle cx="280" cy="798" r="5" fill="#8B5CF6"/>
+  <circle cx="420" cy="758" r="5" fill="#8B5CF6"/>
+  <text x="140" y="880" class="sans" font-size="13" fill="#9CA3C4" text-anchor="middle">T1</text>
+  <text x="280" y="880" class="sans" font-size="13" fill="#9CA3C4" text-anchor="middle">T2</text>
+  <text x="420" y="880" class="sans" font-size="13" fill="#9CA3C4" text-anchor="middle">T3</text>
+  <text x="440" y="750" class="sans" font-size="11" font-style="italic" fill="#6B7299">· minh họa</text>
+
+  <text x="800" y="655" class="sans" font-size="14" letter-spacing="2" fill="#A78BFA">VỐN CẦN CHO QUÝ 1</text>
+  <text x="800" y="700" class="serif" font-size="30" font-weight="700" fill="#F5F6FA">3–5 triệu VNĐ</text>
+
+  <!-- Donut chart -->
+  <path d="M920,685 A95,95 0 0,1 996.855,835.84 L964.5,812.33 A55,55 0 0,0 920,725 Z" fill="#8B5CF6"/>
+  <path d="M996.855,835.84 A95,95 0 0,1 864.16,856.855 L887.67,824.5 A55,55 0 0,0 964.5,812.33 Z" fill="#C7B8FA"/>
+  <path d="M864.16,856.855 A95,95 0 0,1 843.145,724.16 L875.5,747.67 A55,55 0 0,0 887.67,824.5 Z" fill="#F5B942"/>
+  <path d="M843.145,724.16 A95,95 0 0,1 920,685 L920,725 A55,55 0 0,0 875.5,747.67 Z" fill="#6B7299"/>
+
+  <!-- Legend -->
+  <rect x="1050" y="698" width="16" height="16" rx="3" fill="#8B5CF6"/>
+  <text x="1076" y="711" class="sans" font-size="14" fill="#F5F6FA">API — 35%</text>
+  <rect x="1050" y="738" width="16" height="16" rx="3" fill="#C7B8FA"/>
+  <text x="1076" y="751" class="sans" font-size="14" fill="#F5F6FA">Hạ tầng — 25%</text>
+  <rect x="1050" y="778" width="16" height="16" rx="3" fill="#F5B942"/>
+  <text x="1076" y="791" class="sans" font-size="14" fill="#F5F6FA">Cloud &amp; tài khoản DN — 25%</text>
+  <rect x="1050" y="818" width="16" height="16" rx="3" fill="#6B7299"/>
+  <text x="1076" y="831" class="sans" font-size="14" fill="#F5F6FA">Dự phòng rủi ro — 15%</text>
+</svg>

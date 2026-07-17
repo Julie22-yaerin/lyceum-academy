@@ -14,6 +14,7 @@ import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Perso
 import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
 // The advisor gathers the same 8 signals the old multiple-choice form did
@@ -49,25 +50,25 @@ const JSON_END = '[[/ONBOARDING_JSON]]';
 // ── Pricing plans (client-side display config) ──────────────────────────────
 
 interface Plan {
-  id: string; name: string; price: number; emoji: string;
-  tagline: string; color: string; features: string[]; flagship?: boolean;
+  id: string; nameKey: string; price: number; emoji: string;
+  taglineKey: string; color: string; featureKeys: string[]; flagship?: boolean;
 }
 
 const PLANS: Plan[] = [
   {
-    id: 'compass', name: 'Compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
-    tagline: '"I feel lost."',
-    features: ['10 tool calls a day', '3 reverse-building hints per PDF', 'Upload up to 3 documents a day'],
+    id: 'compass', nameKey: 'tier.compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
+    taglineKey: 'onboard.compassTagline',
+    featureKeys: ['onboard.compassFeatures'],
   },
   {
-    id: 'scholar', name: 'Scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
-    tagline: 'Flagship — 80% users', flagship: true,
-    features: ['20 tool calls a day (2x Compass)', '6 reverse-building hints per PDF', 'Upload up to 5 documents a day', 'Higher AI response priority than Compass'],
+    id: 'scholar', nameKey: 'tier.scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
+    taglineKey: 'onboard.scholarTagline', flagship: true,
+    featureKeys: ['onboard.scholarFeatures'],
   },
   {
-    id: 'mentor', name: 'STEM Focus', price: 34, emoji: '🎯', color: '#7C3AED',
-    tagline: '"Total focus."',
-    features: ['30 tool calls a day', 'Upload up to 10 documents a day', 'Higher AI response priority than Scholar', 'Unlocks Ari voice assistant (5 calls a day)'],
+    id: 'mentor', nameKey: 'tier.stemFocus', price: 34, emoji: '🎯', color: '#7C3AED',
+    taglineKey: 'onboard.stemTagline',
+    featureKeys: ['onboard.stemFeatures'],
   },
 ];
 
@@ -132,12 +133,15 @@ function PayPalButtons({ plan, onSuccess }: { plan: Plan; onSuccess: (planId: st
 }
 
 function PlanCard({
-  plan, recommended, isAlt, onSelect, selected, onSuccess,
+  plan, recommended, isAlt, onSelect, selected, onSuccess, t,
 }: {
   plan: Plan; recommended: boolean; isAlt: boolean; onSelect: () => void;
-  selected: boolean; onSuccess: (planId: string) => void;
+  selected: boolean; onSuccess: (planId: string) => void; t: (key: string) => string;
 }) {
   const dim = !recommended && !isAlt;
+  const planName = t(plan.nameKey);
+  const planTagline = t(plan.taglineKey);
+  const planFeatures = plan.featureKeys.map(k => t(k));
   return (
     <div
       onClick={onSelect}
@@ -163,7 +167,7 @@ function PlanCard({
           background: plan.color, color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 10px',
           borderRadius: 10, whiteSpace: 'nowrap',
-        }}>✦ Recommended for you</div>
+        }}>{t('onboard.recommended')}</div>
       )}
       {isAlt && !recommended && (
         <div style={{
@@ -171,24 +175,24 @@ function PlanCard({
           background: 'rgba(0,0,0,0.5)', color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 8px',
           borderRadius: 10, whiteSpace: 'nowrap',
-        }}>Also a good fit</div>
+        }}>{t('onboard.goodFit')}</div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 22 }}>{plan.emoji}</span>
-        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: 'rgba(0,0,0,0.85)' }}>{plan.name}</span>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: 'rgba(0,0,0,0.85)' }}>{planName}</span>
         {plan.flagship && (
-          <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>★ Best</span>
+          <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>{t('onboard.best')}</span>
         )}
       </div>
 
       <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
-        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>/month</span>
+        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>{t('onboard.perMonth')}</span>
       </div>
-      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{plan.tagline}</p>
+      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{planTagline}</p>
 
       <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {plan.features.map(f => (
+        {planFeatures.map(f => (
           <li key={f} style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
             <span style={{ color: plan.color, flexShrink: 0 }}>✓</span>{f}
           </li>
@@ -208,7 +212,7 @@ function PlanCard({
           letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center',
           color: plan.color, background: 'transparent',
         }}>
-          Choose this plan
+          {t('onboard.chooseThisPlan')}
         </div>
       )}
     </div>
@@ -296,43 +300,45 @@ function GoalCalendar({ selected, onSelect }: { selected: string | null; onSelec
 // 10 sliders that map to persona cognitive indices.
 
 const SLIDER_CONFIG = [
-  { key: 'visual',       label: 'Hình ảnh & Trực quan',    left: 'Text-based',    right: 'Visual thinker' },
-  { key: 'exploration',  label: 'Khám phá',                 left: 'Guided steps',  right: 'Self-explore' },
-  { key: 'concrete',     label: 'Thực hành',                left: 'Theory first',  right: 'Hands-on' },
-  { key: 'pace',         label: 'Tốc độ',                   left: 'Slow & deep',   right: 'Fast & broad' },
-  { key: 'challenge',    label: 'Thử thách',                left: 'Gentle',        right: 'Push me hard' },
-  { key: 'depth',        label: 'Chiều sâu',                left: 'Overview',      right: 'Deep mastery' },
-  { key: 'structure',    label: 'Cấu trúc',                 left: 'Flexible',      right: 'Structured' },
-  { key: 'practice',     label: 'Luyện tập',                left: 'Conceptual',    right: 'Drill practice' },
-  { key: 'ai_proactive', label: 'AI chủ động',              left: 'AI hands-off',  right: 'AI guides me' },
-  { key: 'critique',     label: 'Phê bình tư duy',          left: 'Supportive',    right: 'Challenge me' },
+  { key: 'visual',       labelKey: 'onboard.sliderVisual',    leftKey: 'onboard.sliderVisualLeft',    rightKey: 'onboard.sliderVisualRight' },
+  { key: 'exploration',  labelKey: 'onboard.sliderExploration', leftKey: 'onboard.sliderExplorationLeft', rightKey: 'onboard.sliderExplorationRight' },
+  { key: 'concrete',     labelKey: 'onboard.sliderConcrete',   leftKey: 'onboard.sliderConcreteLeft',  rightKey: 'onboard.sliderConcreteRight' },
+  { key: 'pace',         labelKey: 'onboard.sliderPace',       leftKey: 'onboard.sliderPaceLeft',      rightKey: 'onboard.sliderPaceRight' },
+  { key: 'challenge',    labelKey: 'onboard.sliderChallenge',  leftKey: 'onboard.sliderChallengeLeft',  rightKey: 'onboard.sliderChallengeRight' },
+  { key: 'depth',        labelKey: 'onboard.sliderDepth',      leftKey: 'onboard.sliderDepthLeft',     rightKey: 'onboard.sliderDepthRight' },
+  { key: 'structure',    labelKey: 'onboard.sliderStructure',  leftKey: 'onboard.sliderStructureLeft',  rightKey: 'onboard.sliderStructureRight' },
+  { key: 'practice',     labelKey: 'onboard.sliderPractice',   leftKey: 'onboard.sliderPracticeLeft',  rightKey: 'onboard.sliderPracticeRight' },
+  { key: 'ai_proactive', labelKey: 'onboard.sliderAi',         leftKey: 'onboard.sliderAiLeft',        rightKey: 'onboard.sliderAiRight' },
+  { key: 'critique',     labelKey: 'onboard.sliderCritique',   leftKey: 'onboard.sliderCritiqueLeft',  rightKey: 'onboard.sliderCritiqueRight' },
 ];
 
 function LearningStyleSliders({
   value,
   onChange,
+  t,
 }: {
   value: Record<string, number>;
   onChange: (v: Record<string, number>) => void;
+  t: (key: string) => string;
 }) {
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧠</span>
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What's your brain's fav?</p>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>{t('onboard.favHeading')}</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
-          Drag each bar toward the style you prefer. This helps us pair you with the right AI study partner.
+          {t('onboard.favDesc')}
         </p>
       </div>
 
       {SLIDER_CONFIG.map(s => (
         <div key={s.key}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.7)', fontWeight: 500 }}>{s.label}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 12, color: 'rgba(0,0,0,0.7)', fontWeight: 500 }}>{t(s.labelKey)}</span>
             <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: '#C5A059', fontWeight: 700 }}>{value[s.key] ?? 50}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, textAlign: 'right', flexShrink: 0 }}>{s.left}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, textAlign: 'right', flexShrink: 0 }}>{t(s.leftKey)}</span>
             <input
               type="range"
               min={0}
@@ -345,7 +351,7 @@ function LearningStyleSliders({
                 borderRadius: 2, outline: 'none', cursor: 'pointer',
               }}
             />
-            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, flexShrink: 0 }}>{s.right}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', width: 70, flexShrink: 0 }}>{t(s.rightKey)}</span>
           </div>
         </div>
       ))}
@@ -361,11 +367,13 @@ function PersonaSelection({
   learningStyle,
   selected,
   onReorder,
+  t,
 }: {
   personas: Persona[];
   learningStyle: Record<string, number>;
   selected: string[];
   onReorder: (ids: string[]) => void;
+  t: (key: string) => string;
 }) {
   const [dragIdx, setDragIdx] = useState<number | null>(null);
   const [overIdx, setOverIdx] = useState<number | null>(null);
@@ -445,9 +453,9 @@ function PersonaSelection({
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🧪</span>
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Choose your 3 AI study partners</p>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>{t('onboard.partnersHeading')}</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
-          Ranked by how well they match your style. Drag to reorder, or click to select. Pick exactly 3.
+          {t('onboard.partnersDesc')}
         </p>
       </div>
 
@@ -549,17 +557,19 @@ function PersonaSelection({
 function SubjectSelection({
   selected,
   onToggle,
+  t,
 }: {
   selected: string[];
   onToggle: (key: string) => void;
+  t: (key: string) => string;
 }) {
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>📚</span>
-        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>What are you studying?</p>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>{t('onboard.subjectsHeading')}</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
-          Pick every subject you want your own workspace for — you can open more later.
+          {t('onboard.subjectsDesc')}
         </p>
       </div>
 
@@ -592,6 +602,7 @@ function SubjectSelection({
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [phase, setPhase] = useState<'chat' | 'subjects' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const { seedTabs } = useWorkspace();
@@ -732,12 +743,12 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     Math.min(userTurnCount / 6, 0.38);
 
   const phaseLabel =
-    phase === 'chat'     ? 'The Lyceum — Talk to your advisor' :
-    phase === 'subjects' ? 'The Lyceum — Your subjects' :
-    phase === 'sliders'  ? "The Lyceum — What's your brain's fav?" :
-    phase === 'personas' ? 'The Lyceum — Choose your partners' :
-    phase === 'goal'     ? 'The Lyceum — Set your target' :
-                           'The Lyceum — Plans for you';
+    phase === 'chat'     ? t('onboard.talkToAdvisor') :
+    phase === 'subjects' ? t('onboard.yourSubjects') :
+    phase === 'sliders'  ? t('onboard.brainsFav') :
+    phase === 'personas' ? t('onboard.choosePartners') :
+    phase === 'goal'     ? t('onboard.setTarget') :
+                           t('onboard.plansForYou');
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -786,19 +797,19 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {paid && (
             <div className="ob-enter" style={{ textAlign: 'center', padding: '40px 0' }}>
               <div style={{ fontSize: 48, marginBottom: 16, color: '#C5A059' }}>✦</div>
-              <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(0,0,0,0.85)' }}>Welcome to The Lyceum</p>
-              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>Starting up your study workspace…</p>
+              <p style={{ fontSize: 22, marginBottom: 8, color: 'rgba(0,0,0,0.85)' }}>{t('onboard.welcomeTitle')}</p>
+              <p style={{ fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.5)' }}>{t('onboard.startingUp')}</p>
             </div>
           )}
 
           {/* ── Subject Selection screen ── */}
           {!paid && phase === 'subjects' && (
-            <SubjectSelection selected={selectedSubjects} onToggle={toggleSubject} />
+            <SubjectSelection selected={selectedSubjects} onToggle={toggleSubject} t={t} />
           )}
 
           {/* ── Learning Style Sliders screen ── */}
           {!paid && phase === 'sliders' && (
-            <LearningStyleSliders value={learningStyle} onChange={setLearningStyle} />
+            <LearningStyleSliders value={learningStyle} onChange={setLearningStyle} t={t} />
           )}
 
           {/* ── Persona Selection screen ── */}

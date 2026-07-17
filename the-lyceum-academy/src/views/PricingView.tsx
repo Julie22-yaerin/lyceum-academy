@@ -6,27 +6,30 @@
 import React, { useState, useEffect } from 'react';
 import { getSubscriptionPlans, createCheckoutSession, type SubscriptionPlan } from '../lib/subscriptionApi';
 import { useSubscription } from '../lib/useSubscription';
+import { useTranslation } from '../i18n/I18nContext';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 type BillingCycle = 'monthly' | 'annual';
 
-const TIER_NAMES: Record<string, string> = {
-  compass: 'Compass',
-  scholar: 'Scholar',
-  mentor: 'STEM Focus',
-};
-
-const TIER_DESCRIPTIONS: Record<string, string> = {
-  compass: 'Essential tools for focused learning',
-  scholar: 'Advanced features for serious students',
-  mentor: 'Total focus with unlimited AI power',
-};
-
 export default function PricingView() {
+  const { t } = useTranslation();
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const { subscription } = useSubscription();
+
+  const TIER_NAMES: Record<string, string> = {
+    compass: t('tier.compass'),
+    scholar: t('tier.scholar'),
+    mentor: t('tier.stemFocus'),
+  };
+
+  const TIER_DESCRIPTIONS: Record<string, string> = {
+    compass: t('pricing.descCompass'),
+    scholar: t('pricing.descScholar'),
+    mentor: t('pricing.descMentor'),
+  };
 
   useEffect(() => {
     const loadPlans = async () => {
@@ -68,7 +71,7 @@ export default function PricingView() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-lg">Loading pricing...</div>
+        <div className="text-lg">{t('pricing.loading')}</div>
       </div>
     );
   }
@@ -78,8 +81,8 @@ export default function PricingView() {
       <div className="max-w-5xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">Choose Your Plan</h1>
-          <p className="text-xl text-gray-600">Unlock your learning potential with The Lyceum Academy</p>
+          <h1 className="text-4xl font-bold text-gray-900 mb-4">{t('pricing.title')}</h1>
+          <p className="text-xl text-gray-600">{t('pricing.subtitle')}</p>
         </div>
 
         {/* Billing cycle toggle */}
@@ -93,7 +96,7 @@ export default function PricingView() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Monthly
+              {t('pricing.monthly')}
             </button>
             <button
               onClick={() => setBillingCycle('annual')}
@@ -103,9 +106,9 @@ export default function PricingView() {
                   : 'text-gray-600 hover:text-gray-900'
               }`}
             >
-              Annual
+              {t('pricing.annual')}
               <span className="ml-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
-                Save 17%
+                {t('pricing.save17')}
               </span>
             </button>
           </div>
@@ -126,7 +129,7 @@ export default function PricingView() {
               >
                 {plan.tier === 'scholar' && (
                   <div className="absolute top-0 right-0 bg-amber-500 text-white px-3 py-1 text-xs font-semibold">
-                    POPULAR
+                    {t('pricing.popular')}
                   </div>
                 )}
 
@@ -152,8 +155,8 @@ export default function PricingView() {
                       </svg>
                       <span className="text-sm text-gray-700">
                         {plan.voice_minutes_monthly === null
-                          ? 'Unlimited voice ARI'
-                          : `${plan.voice_minutes_monthly} min voice ARI/month`}
+                          ? t('pricing.unlimitedVoice')
+                          : t('pricing.limitedVoice', { n: plan.voice_minutes_monthly })}
                       </span>
                     </li>
 
@@ -163,8 +166,8 @@ export default function PricingView() {
                       </svg>
                       <span className="text-sm text-gray-700">
                         {plan.mind_map_ai_see_document_limit === null
-                          ? 'Unlimited AI mind map checks'
-                          : `${plan.mind_map_ai_see_document_limit} AI mind map checks per problem set`}
+                          ? t('pricing.unlimitedMindMap')
+                          : t('pricing.limitedMindMap', { n: plan.mind_map_ai_see_document_limit })}
                       </span>
                     </li>
 
@@ -174,8 +177,8 @@ export default function PricingView() {
                       </svg>
                       <span className="text-sm text-gray-700">
                         {plan.reference_library_limit === null
-                          ? 'Unlimited references'
-                          : `${plan.reference_library_limit} references`}
+                          ? t('pricing.unlimitedReferences')
+                          : t('pricing.limitedReferences', { n: plan.reference_library_limit })}
                       </span>
                     </li>
 
@@ -183,27 +186,20 @@ export default function PricingView() {
                       <svg className="w-5 h-5 text-green-500 mr-2 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
-                      <span className="text-sm text-gray-700">Unlimited chat & exercises</span>
+                      <span className="text-sm text-gray-700">{t('pricing.unlimitedChat')}</span>
                     </li>
                   </ul>
 
-                  <button
-                    onClick={() => handleSelectPlan(plan.id)}
-                    disabled={checkoutLoading === plan.id || isCurrentPlan}
-                    className={`w-full py-3 px-4 rounded-md font-medium transition-colors ${
-                      isCurrentPlan
-                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                        : plan.tier === 'scholar'
-                        ? 'bg-amber-500 text-white hover:bg-amber-600'
-                        : 'bg-gray-800 text-white hover:bg-gray-900'
-                    }`}
-                  >
-                    {checkoutLoading === plan.id
-                      ? 'Loading...'
+                  <LiquidMetalButton
+                    label={checkoutLoading === plan.id
+                      ? `${t('pricing.loading')}...`
                       : isCurrentPlan
-                      ? 'Current Plan'
-                      : 'Select Plan'}
-                  </button>
+                      ? t('pricing.currentPlan')
+                      : t('pricing.selectPlan')}
+                    disabled={checkoutLoading === plan.id || isCurrentPlan}
+                    fullWidth
+                    onClick={() => handleSelectPlan(plan.id)}
+                  />
                 </div>
               </div>
             );
@@ -213,10 +209,10 @@ export default function PricingView() {
         {/* Feature comparison note */}
         <div className="mt-12 text-center text-gray-600">
           <p className="text-sm">
-            All plans include unlimited chat, exercises, mistake bank, and notes.
+            {t('pricing.allPlansNote')}
           </p>
           <p className="text-sm mt-2">
-            Need help choosing? Contact us at support@thelyceumacademy.com
+            {t('pricing.needHelp')}
           </p>
         </div>
       </div>

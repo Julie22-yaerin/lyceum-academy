@@ -3,6 +3,9 @@ import { chatMessage } from '../lib/api';
 import { loadHistory, saveMessage } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { loadKaTeX, renderMath } from '../lib/math';
+import { getCurrentLang, useTranslation } from '../i18n/I18nContext';
+import { buildLanguageDirective } from '../lib/locale';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 // ── Math keyboard symbols ──────────────────────────────────────────────────
 const MATH_SYMBOLS = [
@@ -45,6 +48,7 @@ export default function DialogueView() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user, devMode } = useAuth();
+  const { t } = useTranslation();
 
   const userId = user?.uid || (devMode ? 'dev' : 'anon');
 
@@ -110,10 +114,11 @@ export default function DialogueView() {
     }
 
     try {
+      const lang = getCurrentLang();
       const apiMessages = [
         {
           role: 'system',
-          content: 'You are Lyceum AI, a Socratic learning assistant. When the student asks something, do NOT answer it directly first — ask what THEY think or would guess, one short direct question, then build a real discussion from their answer (react to what they specifically said, push back, ask a follow-up). If they say they don\'t know: give the basic background info first, then gradually open up follow-up questions that lead back into discussion instead of just lecturing at them. Keep the discussion short by default — only go longer/deeper if the student explicitly asks for a longer discussion. Use LaTeX for math (wrap in $...$ or $$...$$). Be concise and insightful.',
+          content: 'You are Lyceum AI, a Socratic learning assistant. When the student asks something, do NOT answer it directly first — ask what THEY think or would guess, one short direct question, then build a real discussion from their answer (react to what they specifically said, push back, ask a follow-up). If they say they don\'t know: give the basic background info first, then gradually open up follow-up questions that lead back into discussion instead of just lecturing at them. Keep the discussion short by default — only go longer/deeper if the student explicitly asks for a longer discussion. Use LaTeX for math (wrap in $...$ or $$...$$). Be concise and insightful.' + buildLanguageDirective(lang),
         },
         ...history.map(m => ({ role: m.role, content: m.content })),
       ];
@@ -125,7 +130,7 @@ export default function DialogueView() {
         await saveMessage({ user_id: userId, role: 'assistant', content: result.reply, model: result.model });
       }
     } catch (e: any) {
-      setError(e.message || 'Connection error — is the backend running?');
+      setError(e.message || t('dialogue.connectionError'));
     } finally {
       setThinking(false);
     }
@@ -156,10 +161,10 @@ export default function DialogueView() {
       {/* Header quote */}
       <div className="px-8 py-8 text-center border-b border-outline-variant/30 flex-shrink-0">
         <h1 className="font-serif text-2xl text-on-surface italic mb-2">
-          "The unexamined life is not worth living."
+          {t('dialogue.quote')}
         </h1>
         <p className="font-sans text-xs text-on-surface opacity-50 uppercase tracking-[2px]">
-          — Socrates, as recorded by Plato
+          {t('dialogue.attribution')}
         </p>
       </div>
 
@@ -168,10 +173,10 @@ export default function DialogueView() {
         {messages.length === 0 && (
           <div className="flex gap-6 max-w-3xl">
             <div className="flex flex-col gap-3 flex-1">
-              <span className="font-sans text-[10px] font-semibold text-on-surface uppercase tracking-[2px] opacity-50">Hermes</span>
+              <span className="font-sans text-[10px] font-semibold text-on-surface uppercase tracking-[2px] opacity-50">{t('dialogue.hermes')}</span>
               <div className="p-8 bg-surface border border-outline-variant/30 shadow-sm">
                 <p className="font-sans text-sm leading-relaxed">
-                  Welcome, seeker. I am Lyceum AI — your Socratic companion. Ask me anything: mathematics, philosophy, science, or any subject you wish to examine. I will guide you through reasoning with questions, not just answers.
+                  {t('dialogue.welcome')}
                 </p>
               </div>
             </div>
@@ -185,7 +190,7 @@ export default function DialogueView() {
           >
             <div className={`flex flex-col gap-3 flex-1 ${msg.role === 'user' ? 'items-end' : ''}`}>
               <span className={`font-sans text-[10px] font-semibold uppercase tracking-[2px] opacity-50 ${msg.role === 'user' ? 'text-secondary' : 'text-on-surface'}`}>
-                {msg.role === 'user' ? 'Seeker' : 'Hermes'}
+                {msg.role === 'user' ? t('dialogue.seeker') : t('dialogue.hermes')}
                 {msg.model && <span className="ml-2 opacity-60 normal-case font-normal">· {msg.model}</span>}
               </span>
               {msg.role === 'assistant' ? (
@@ -205,7 +210,7 @@ export default function DialogueView() {
         {thinking && (
           <div className="flex gap-6 max-w-3xl">
             <div className="flex flex-col gap-3 flex-1">
-              <span className="font-sans text-[10px] font-semibold text-on-surface uppercase tracking-[2px] opacity-50">Hermes</span>
+              <span className="font-sans text-[10px] font-semibold text-on-surface uppercase tracking-[2px] opacity-50">{t('dialogue.hermes')}</span>
               <div className="p-6 bg-surface border border-outline-variant/30 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="flex gap-1">
@@ -217,7 +222,7 @@ export default function DialogueView() {
                       />
                     ))}
                   </div>
-                  <span className="font-sans text-xs text-on-surface opacity-50">thinking…</span>
+                  <span className="font-sans text-xs text-on-surface opacity-50">{t('dialogue.thinking2')}</span>
                 </div>
               </div>
             </div>
@@ -259,7 +264,7 @@ export default function DialogueView() {
             <textarea
               ref={textareaRef}
               className="flex-1 bg-transparent border-none focus:ring-0 resize-none font-sans text-sm min-h-[48px] max-h-32 outline-none p-2 placeholder:text-outline-variant/80"
-              placeholder="Ask anything…"
+              placeholder={t('dialogue.placeholder')}
               rows={1}
               value={input}
               onChange={e => setInput(e.target.value)}
@@ -269,25 +274,23 @@ export default function DialogueView() {
               <button
                 onClick={() => setShowMathKb(v => !v)}
                 className={`p-2 transition-opacity ${showMathKb ? 'opacity-100' : 'opacity-40 hover:opacity-100'}`}
-                title="Math keyboard"
+                title={t('dialogue.mathKeyboard')}
               >
                 <span className="material-symbols-outlined text-[20px]">functions</span>
               </button>
-              <button
-                onClick={sendMessage}
+              <LiquidMetalButton
+                label={t('dialogue.send')}
                 disabled={!input.trim() || thinking}
-                className="bg-on-surface text-surface px-6 py-2 hover:opacity-80 transition-opacity disabled:opacity-30"
-              >
-                <span className="font-sans text-[10px] font-semibold uppercase tracking-[2px]">Send</span>
-              </button>
+                onClick={sendMessage}
+              />
             </div>
           </div>
           <div className="flex justify-center gap-8">
             <span className="text-[9px] text-on-surface opacity-30 uppercase tracking-[2px] font-sans">
-              Shift+Enter for newline
+              {t('dialogue.shiftHint')}
             </span>
             <span className="text-[9px] text-on-surface opacity-30 uppercase tracking-[2px] font-sans">
-              LaTeX: $...$ or $$...$$
+              {t('dialogue.latexHint')}
             </span>
           </div>
         </div>

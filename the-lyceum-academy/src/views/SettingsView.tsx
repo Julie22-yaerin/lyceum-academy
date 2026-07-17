@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslation, type AppLanguage } from '../i18n/I18nContext';
-import { LANGUAGES } from '../i18n/translations';
 import { useTheme, type AppTheme } from '../context/ThemeContext';
 import {
   getCurrentSubscription, getSubscriptionPlans, createPortalSession, createCheckoutSession,
   type CurrentSubscription, type SubscriptionPlan,
 } from '../lib/subscriptionApi';
 import { getLemonCheckoutUrl } from '../lib/lemonsqueezy';
+import LanguagePicker from '../components/LanguagePicker';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 const TIER_LABELS: Record<string, string> = {
   free: 'Free',
@@ -15,50 +16,6 @@ const TIER_LABELS: Record<string, string> = {
   mentor: 'STEM Focus',
   researcher: 'Researcher',
 };
-
-function LanguageSection() {
-  const { lang, setLang, t } = useTranslation();
-  const [showAll, setShowAll] = useState(false);
-
-  const visibleLangs = showAll ? LANGUAGES : LANGUAGES.slice(0, 8);
-
-  return (
-    <div className="glass-card rounded-3xl p-6">
-      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">{t('settings.language')}</p>
-      <p className="text-xs text-white/30 mb-5">{t('settings.languageDesc')}</p>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-        {visibleLangs.map(l => (
-          <button
-            key={l.code}
-            onClick={() => setLang(l.code as AppLanguage)}
-            className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm transition-all ${
-              lang === l.code ? 'glass-pill-active shadow-lg shadow-purple-500/10' : 'glass-pill'
-            }`}
-          >
-            <span className="text-lg">{l.flag}</span>
-            <div className="text-left min-w-0">
-              <div className="text-xs font-medium truncate">{l.label}</div>
-              <div className="text-[9px] text-white/30 uppercase">{l.code}</div>
-            </div>
-            {lang === l.code && (
-              <span className="ml-auto material-symbols-outlined text-[14px] text-purple-300">check</span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {LANGUAGES.length > 8 && (
-        <button
-          onClick={() => setShowAll(v => !v)}
-          className="mt-3 text-[10px] text-white/30 hover:text-white/60 transition-colors uppercase tracking-wider"
-        >
-          {showAll ? '← Show less' : `+ ${LANGUAGES.length - 8} more languages`}
-        </button>
-      )}
-    </div>
-  );
-}
 
 const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
   { value: 'dark', label: 'Dark', icon: 'dark_mode' },
@@ -159,19 +116,15 @@ function PlanSection({ onUpgrade }: { onUpgrade: () => void }) {
               )}
             </div>
             {sub ? (
-              <button
+              <LiquidMetalButton
+                label={t('settings.manageBilling')}
                 onClick={handleManageBilling}
-                className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
-              >
-                {t('settings.manageBilling')}
-              </button>
+              />
             ) : (
-              <button
+              <LiquidMetalButton
+                label="Upgrade now"
                 onClick={onUpgrade}
-                className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
-              >
-                Upgrade now
-              </button>
+              />
             )}
           </div>
 
@@ -232,7 +185,7 @@ export default function SettingsView({ onUpgrade }: { onUpgrade: () => void }) {
         <p className="text-sm text-white/40">{t('settings.subtitle')}</p>
       </div>
       <AppearanceSection />
-      <LanguageSection />
+      <LanguagePicker mode="inline" />
       <PlanSection onUpgrade={onUpgrade} />
     </div>
   );

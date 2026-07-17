@@ -6,6 +6,7 @@ import FeedbackWidget from './FeedbackWidget';
 import { NavigationProps } from '../types';
 import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
 import { recordSubjectActivity } from '../lib/profile';
+import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 interface MainLayoutProps extends NavigationProps {
   children: ReactNode;
@@ -108,15 +109,10 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
                 }}>
                 Skip
               </button>
-              <button onClick={handleSubjectSubmit}
-                className="glass-btn"
-                style={{
-                  padding: '9px 24px', border: 'none',
-                  cursor: 'pointer', fontSize: 10, letterSpacing: 2,
-                  textTransform: 'uppercase', fontWeight: 600,
-                }}>
-                Start
-              </button>
+              <LiquidMetalButton
+                label="Start"
+                onClick={handleSubjectSubmit}
+              />
             </div>
           </div>
         </div>

@@ -226,6 +226,22 @@ body {
   opacity: 0.12;
 }
 
+/* Hero shader-lines background — screen blend + saturation boost keeps the
+   violet/blue strokes glowing against the near-black dark hero; light theme
+   swaps to a darken/multiply blend and turns opacity up so the same strokes
+   read as vivid ink on the pale background instead of washing out. */
+.hero-shader {
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  filter: saturate(1.35) brightness(1.05);
+  /* Biased right-of-center and faded hard on the left: the headline and
+     body copy live in the left column, the dialogue demo card (which has
+     its own opaque glass backdrop) lives on the right, so the brightest
+     part of the effect should sit where there's no text to wash out. */
+  mask-image: radial-gradient(ellipse 48% 62% at 68% 50%, black 25%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 48% 62% at 68% 50%, black 25%, transparent 80%);
+}
+
 .orb-1 {
   width: 600px; height: 600px;
   background: radial-gradient(circle, #7c3aed, transparent);
@@ -432,6 +448,12 @@ body {
 
 .theme-light .ambient-orbs > div {
   opacity: 0.4;
+}
+
+.theme-light .hero-shader {
+  opacity: 0.8;
+  mix-blend-mode: multiply;
+  filter: saturate(1.8) brightness(0.95) contrast(1.1);
 }
 
 .theme-light .orb-1 { background: radial-gradient(circle, #7dd3fc, transparent); }

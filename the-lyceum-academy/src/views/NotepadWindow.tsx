@@ -19,6 +19,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { checkMastery, describeDrawing } from '../lib/api';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { detectSubject } from '../lib/persist';
+import { useTranslation } from '../i18n/I18nContext';
 
 const MATH_SYMBOLS = [
   '÷','×','±','∓','√','∛','∜','∞','≈','≠','≤','≥',
@@ -60,6 +61,7 @@ function useNotepadTheme() {
 }
 
 export default function NotepadWindow() {
+  const { t } = useTranslation();
   const isLight = useNotepadTheme();
   const C = isLight ? {
     bg: '#FAF7F0', bar: '#EFE9DA', text: '#2A2620',
@@ -134,9 +136,9 @@ export default function NotepadWindow() {
   // Update window title
   useEffect(() => {
     if (qData) {
-      document.title = `Q${qData.idx + 1}/${qData.total} — Lyceum Notepad`;
+      document.title = `Q${qData.idx + 1}/${qData.total} — ${t('notepad.lyceumNotepad')}`;
     } else {
-      document.title = 'Lyceum Notepad';
+      document.title = t('notepad.lyceumNotepad');
     }
   }, [qData]);
 
@@ -224,7 +226,7 @@ export default function NotepadWindow() {
     try {
       const result = await describeDrawing(c.toDataURL('image/png'));
       setCanvasTranscript(result.text);
-    } catch (err: any) { setCanvasTranscript('Could not transcribe: ' + err.message); }
+    }     catch (err: any) { setCanvasTranscript(t('notepad.transcriptionError') + err.message); }
     finally { setBusy(false); }
   }
 
@@ -290,9 +292,9 @@ export default function NotepadWindow() {
     return (
       <div style={{ background: C.bg, height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: C.textDim, fontFamily: 'sans-serif' }}>
         <style>{`body{margin:0;background:${C.bg};} @keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
-        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', fontFamily: 'Georgia, serif', color: C.textFaint }}>THE LYCEUM</div>
-        <p style={{ fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>Notepad</p>
-        <p style={{ fontSize: 10, letterSpacing: 1, opacity: 0.5, marginTop: 24 }}>Waiting for PDF to open in main window…</p>
+        <div style={{ fontSize: 28, letterSpacing: 6, marginBottom: 16, animation: 'pulse 2s infinite', fontFamily: 'Georgia, serif', color: C.textFaint }}>{t('notepad.brandTitle')}</div>
+        <p style={{ fontSize: 11, letterSpacing: 3, textTransform: 'uppercase', marginBottom: 8 }}>{t('notepad.title')}</p>
+        <p style={{ fontSize: 10, letterSpacing: 1, opacity: 0.5, marginTop: 24 }}>{t('notepad.waiting')}</p>
       </div>
     );
   }
@@ -338,7 +340,7 @@ export default function NotepadWindow() {
             border: 'none', borderBottom: mode === m ? '2px solid rgba(251,191,36,0.8)' : '2px solid transparent',
             color: mode === m ? C.text : C.textFaint, cursor: 'pointer',
           }}>
-            {m === 'text' ? '✍ Write' : '🖊 Draw'}
+            {m === 'text' ? t('notepad.write') : t('notepad.draw')}
           </button>
         ))}
       </div>
@@ -349,12 +351,12 @@ export default function NotepadWindow() {
         {masteryResult ? (
           <div style={{ border: `1px solid ${masteryResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(251,191,36,0.4)'}`, padding: 12, background: masteryResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(251,191,36,0.06)', borderRadius: 10 }}>
             <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 6, color: masteryResult.passed ? '#4A7C59' : '#C5A059' }}>
-              {masteryResult.passed ? '✓ Mastered' : '◯ Keep Exploring'}
+              {masteryResult.passed ? t('notepad.mastered') : t('notepad.keepExploring')}
             </span>
             <p style={{ margin: 0, fontSize: 12, lineHeight: 1.6, color: C.text, opacity: 0.85 }}
               dangerouslySetInnerHTML={{ __html: renderMath(masteryResult.feedback) }} />
             <button onClick={() => setMasteryResult(null)} style={{ marginTop: 8, fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: C.textFaint, background: 'none', border: 'none', cursor: 'pointer' }}>
-              Try Again
+              {t('notepad.tryAgain')}
             </button>
           </div>
         ) : mode === 'text' ? (
@@ -362,7 +364,7 @@ export default function NotepadWindow() {
             ref={textareaRef}
             value={answer}
             onChange={e => setAnswer(e.target.value)}
-            placeholder="Write your solution here…"
+            placeholder={t('notepad.solutionPlaceholder')}
             style={{
               flex: 1, background: C.inputBg, border: `1px solid ${C.border}`,
               color: C.text, padding: '14px 16px', fontSize: 14, lineHeight: 1.7,
@@ -381,7 +383,7 @@ export default function NotepadWindow() {
             </div>
             {canvasTranscript && (
               <div style={{ border: `1px solid ${C.border}`, padding: '8px 12px', background: C.inputBg, borderRadius: 10, flexShrink: 0 }}>
-                <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: C.textFaint, display: 'block', marginBottom: 4 }}>Transcription</span>
+                <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 2, textTransform: 'uppercase', color: C.textFaint, display: 'block', marginBottom: 4 }}>{t('notepad.transcription')}</span>
                 <p style={{ margin: 0, fontSize: 12, color: C.text, opacity: 0.8, lineHeight: 1.5 }}>{canvasTranscript}</p>
               </div>
             )}
@@ -409,7 +411,7 @@ export default function NotepadWindow() {
       {gradeResult && (
         <div style={{ margin: '0 14px 10px', border: `1px solid ${gradeResult.passed ? 'rgba(74,124,89,0.5)' : 'rgba(220,38,38,0.4)'}`, padding: '10px 12px', background: gradeResult.passed ? 'rgba(74,124,89,0.12)' : 'rgba(220,38,38,0.08)', borderRadius: 10 }}>
           <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', display: 'block', marginBottom: 5, color: gradeResult.passed ? '#4A7C59' : 'rgba(220,38,38,0.8)' }}>
-            {gradeResult.passed ? '✓ Correct' : '✗ Wrong'}
+            {gradeResult.passed ? t('notepad.correct') : t('notepad.wrong')}
           </span>
           <p style={{ margin: 0, fontSize: 11, lineHeight: 1.55, color: C.text, opacity: 0.75 }}
             dangerouslySetInnerHTML={{ __html: renderMath(gradeResult.feedback) }} />
@@ -425,7 +427,7 @@ export default function NotepadWindow() {
             border: `1px solid ${C.borderStrong}`, borderRadius: 8, padding: '4px 10px',
             fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase',
             color: showMathKb ? C.text : C.textDim, cursor: 'pointer',
-          }}>∑ Math</button>
+          }}>{t('notepad.math')}</button>
         )}
 
         {/* Canvas controls */}
@@ -434,18 +436,18 @@ export default function NotepadWindow() {
             {/* Tools: pen, eraser, ruler (straight line), basic shapes */}
             <div style={{ display: 'flex', gap: 2 }}>
               {([
-                { id: 'pen',      label: '✎', title: 'Pen' },
-                { id: 'eraser',   label: '⌫', title: 'Eraser' },
-                { id: 'line',     label: '📏', title: 'Ruler — straight line' },
-                { id: 'rect',     label: '▭', title: 'Square / rectangle' },
-                { id: 'circle',   label: '◯', title: 'Circle' },
-                { id: 'triangle', label: '△', title: 'Triangle' },
-              ] as const).map(t => (
-                <button key={t.id} onClick={() => setDrawTool(t.id)} title={t.title} style={{
-                  width: 26, height: 26, border: `1px solid ${drawTool === t.id ? C.borderStrong : C.border}`,
-                  background: drawTool === t.id ? C.inputBg : 'none', color: C.text,
+                { id: 'pen',      label: '✎', title: t('notepad.pen') },
+                { id: 'eraser',   label: '⌫', title: t('notepad.eraser') },
+                { id: 'line',     label: '📏', title: t('notepad.ruler') },
+                { id: 'rect',     label: '▭', title: t('notepad.rect') },
+                { id: 'circle',   label: '◯', title: t('notepad.circle') },
+                { id: 'triangle', label: '△', title: t('notepad.triangle') },
+              ] as const).map(tool => (
+                <button key={tool.id} onClick={() => setDrawTool(tool.id)} title={tool.title} style={{
+                  width: 26, height: 26, border: `1px solid ${drawTool === tool.id ? C.borderStrong : C.border}`,
+                  background: drawTool === tool.id ? C.inputBg : 'none', color: C.text,
                   fontSize: 13, cursor: 'pointer', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0,
-                }}>{t.label}</button>
+                }}>{tool.label}</button>
               ))}
             </div>
 
@@ -457,7 +459,7 @@ export default function NotepadWindow() {
                 width: 18, height: 18, borderRadius: '50%', background: c, border: brushColor === c ? `2px solid ${C.text}` : '2px solid transparent', cursor: 'pointer', padding: 0,
               }} />
             ))}
-            <input type="color" value={brushColor} onChange={e => setBrushColor(e.target.value)} title="Custom color"
+            <input type="color" value={brushColor} onChange={e => setBrushColor(e.target.value)} title={t('notepad.customColor')}
               style={{ width: 22, height: 22, padding: 0, border: 'none', background: 'none', cursor: 'pointer', borderRadius: 6 }} />
 
             <div style={{ width: 1, height: 14, background: C.borderStrong, margin: '0 4px' }} />
@@ -469,8 +471,8 @@ export default function NotepadWindow() {
 
             <div style={{ width: 1, height: 14, background: C.borderStrong, margin: '0 4px' }} />
 
-            <button onClick={clearCanvas} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}>Clear</button>
-            <button onClick={transcribeCanvas} disabled={busy} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textDim, cursor: 'pointer' }}>Read</button>
+            <button onClick={clearCanvas} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer' }}>{t('notepad.clear')}</button>
+            <button onClick={transcribeCanvas} disabled={busy} style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textDim, cursor: 'pointer' }}>{t('notepad.read')}</button>
           </>
         )}
 
@@ -479,7 +481,7 @@ export default function NotepadWindow() {
         {/* Check mastery */}
         <button onClick={handleCheck} disabled={busy || !!masteryResult || !canAnswer}
           style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', background: 'none', border: 'none', color: C.textFaint, cursor: 'pointer', opacity: canAnswer ? 1 : 0.3 }}>
-          {busy ? '…' : 'Check'}
+          {busy ? '…' : t('notepad.check')}
         </button>
 
         {/* OK */}
@@ -490,7 +492,7 @@ export default function NotepadWindow() {
             color: canAnswer ? '#1a1a1a' : C.textFaint,
             border: 'none', cursor: canAnswer ? 'pointer' : 'not-allowed', borderRadius: 10, transition: 'all 0.15s',
           }}>
-          {tearing ? '…' : 'OK'}
+          {tearing ? '…' : t('notepad.ok')}
         </button>
       </div>
     </div>

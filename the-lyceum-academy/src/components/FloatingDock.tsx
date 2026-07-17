@@ -5,16 +5,18 @@ import { useTheme } from '../context/ThemeContext';
 import { auth, signOut } from '../lib/firebase';
 import { getUsage, UsageData } from '../lib/api';
 import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
+import { useTranslation } from '../i18n/I18nContext';
+import ReportBugButton from './ReportBugButton';
 
 // ── Dock items ──────────────────────────────────────────────────────────
-const DOCK_ITEMS: { view: View; label: string; icon: string }[] = [
-  { view: 'dialogue',      label: 'Dialogue',       icon: 'forum' },
-  { view: 'knowledge-map', label: 'Knowledge Tree', icon: 'hub' },
-  { view: 'problem-sets',  label: 'Problem Sets',   icon: 'library_books' },
-  { view: 'notes',         label: 'Notes',          icon: 'edit_note' },
-  { view: 'mistake-bank',  label: 'Mistake Vault',  icon: 'error_outline' },
+const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
+  { view: 'dialogue',      labelKey: 'nav.dialogue',       icon: 'forum' },
+  { view: 'knowledge-map', labelKey: 'nav.knowledgeTree', icon: 'hub' },
+  { view: 'problem-sets',  labelKey: 'nav.problemSets',   icon: 'library_books' },
+  { view: 'notes',         labelKey: 'nav.notes',          icon: 'edit_note' },
+  { view: 'mistake-bank',  labelKey: 'nav.mistakeVault',  icon: 'error_outline' },
   // { view: 'reference-bank', label: 'Reference Bank', icon: 'auto_stories' },  // disabled, coming soon
-  { view: 'progress',      label: 'Progress',       icon: 'bar_chart' },
+  { view: 'progress',      labelKey: 'nav.progress',       icon: 'bar_chart' },
 ];
 
 const PROVIDERS: { key: string; label: string; color: string }[] = [
@@ -26,6 +28,7 @@ const PROVIDERS: { key: string; label: string; color: string }[] = [
 ];
 
 function UsagePanel({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
   const [data, setData] = useState<UsageData | null>(null);
   const [loading, setLoading] = useState(true);
   const ref = useRef<HTMLDivElement>(null);
@@ -55,7 +58,7 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
       <style>{`@keyframes fadeDown { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
 
       <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-        <span className="text-[10px] uppercase tracking-wider text-white/50">AI Usage — This Session</span>
+        <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.aiUsage')}</span>
         <button onClick={onClose} className="opacity-30 hover:opacity-80 transition-opacity">
           <span className="material-symbols-outlined text-[14px]">close</span>
         </button>
@@ -65,10 +68,10 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
         {loading ? (
           <div className="flex items-center gap-3 py-2">
             <div className="w-3 h-3 border border-white/20 border-t-white rounded-full animate-spin" />
-            <span className="text-xs text-white/40">Loading…</span>
+            <span className="text-xs text-white/40">{t('common.loading')}</span>
           </div>
         ) : totalReq === 0 ? (
-          <p className="text-xs text-white/40 text-center py-2">No AI calls yet this session.</p>
+          <p className="text-xs text-white/40 text-center py-2">{t('dock.noCalls')}</p>
         ) : (
           <>
             {PROVIDERS.map(({ key, label, color }) => {
@@ -84,7 +87,7 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
                       <span className="text-[11px] text-white/70">{label}</span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-[10px] text-white/40">{p.requests} calls</span>
+                      <span className="text-[10px] text-white/40">{t('dock.calls', { count: p.requests })}</span>
                       <span className="text-[11px] font-semibold text-white/60" style={{ minWidth: 36, textAlign: 'right' }}>
                         {pctReq.toFixed(0)}%
                       </span>
@@ -94,16 +97,16 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
                     <div className="h-full transition-all duration-500 rounded-full" style={{ width: `${pctReq}%`, background: color, opacity: 0.85 }} />
                   </div>
                   {tok > 0 && (
-                    <p className="text-[9px] text-white/30 mt-0.5 text-right">{tok.toLocaleString()} tokens</p>
+                    <p className="text-[9px] text-white/30 mt-0.5 text-right">{t('dock.tokens', { count: tok.toLocaleString() })}</p>
                   )}
                 </div>
               );
             })}
             <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider text-white/50">Total</span>
+              <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.total')}</span>
               <div className="flex items-center gap-4">
-                <span className="text-[10px] text-white/40">{totalReq} calls</span>
-                <span className="text-[10px] text-white/40">{totalTok.toLocaleString()} tokens</span>
+                <span className="text-[10px] text-white/40">{t('dock.calls', { count: totalReq })}</span>
+                <span className="text-[10px] text-white/40">{t('dock.tokens', { count: totalTok.toLocaleString() })}</span>
               </div>
             </div>
           </>
@@ -115,6 +118,7 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
 
 /** Glassy chess-piece streak badge: pawn while chasing the goal date, king once reached. */
 function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => void }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const remaining = daysUntilGoal(state);
 
@@ -139,15 +143,15 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
             {state.goalAchieved ? '♚' : '♟'}
           </span>
           <div>
-            <div className="text-lg font-semibold text-white/90">{state.streakCount}-day streak</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">Longest: {state.longestStreak}</div>
+            <div className="text-lg font-semibold text-white/90">{t('dock.dayStreak', { count: state.streakCount })}</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/40">{t('dock.longest', { count: state.longestStreak })}</div>
           </div>
         </div>
         <div className="border-t border-white/10 pt-3">
           <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">
-            {state.goalAchieved ? 'Goal reached' : 'Target'}
+            {state.goalAchieved ? t('dock.goalReached') : t('dock.target')}
           </div>
-          <div className="text-xs text-white/70">{state.goalLabel || 'Study goal'}</div>
+          <div className="text-xs text-white/70">{state.goalLabel || t('dock.studyGoal')}</div>
           <div className="text-[10px] text-white/40 mt-0.5">
             {state.goalDate}{!state.goalAchieved && (remaining >= 0 ? ` — ${remaining}d left` : ' — passed')}
           </div>
@@ -159,6 +163,7 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
 
 /** Top-right corner utility capsule: brand mark + usage stats + auth */
 function CornerMenu({ onNavigate }: NavigationProps) {
+  const { t } = useTranslation();
   const { user, devMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [showStats, setShowStats] = useState(false);
@@ -179,7 +184,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
         className="glass rounded-full px-4 py-2 text-xs font-medium tracking-wider uppercase text-white/80 cursor-pointer hover:bg-white/10 transition-colors"
         onClick={() => onNavigate('problem-sets')}
       >
-        Lyceum
+        {t('nav.lyceum')}
       </div>
 
       {streak && (
@@ -188,7 +193,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
             data-tour="corner-streak"
             onClick={() => setShowStreak(v => !v)}
             className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
-            title={`${streak.streakCount}-day streak`}
+            title={t('dock.dayStreak', { count: streak.streakCount })}
           >
             <span className="text-[16px] leading-none">{streak.goalAchieved ? '♚' : '♟'}</span>
             <span className="text-[11px] font-semibold text-white/80">{streak.streakCount}</span>
@@ -202,16 +207,18 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           data-tour="corner-usage"
           onClick={() => setShowStats(v => !v)}
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-          title="AI Usage"
+          title={t('dock.aiUsage')}
         >
           <span className="material-symbols-outlined text-[16px]">analytics</span>
         </button>
         {showStats && <UsagePanel onClose={() => setShowStats(false)} />}
 
+        <ReportBugButton onNavigate={onNavigate} />
+
         <button
           onClick={toggleTheme}
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? t('dock.switchToLight') : t('dock.switchToDark')}
         >
           <span className="material-symbols-outlined text-[16px]">{theme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
         </button>
@@ -219,7 +226,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
         <button
           onClick={() => onNavigate('settings')}
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-          title="Settings"
+          title={t('nav.settings')}
         >
           <span className="material-symbols-outlined text-[16px]">settings</span>
         </button>
@@ -228,17 +235,17 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           <button
             onClick={handleSignOut}
             className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-            title={user.displayName || user.email || 'Sign out'}
+            title={user.displayName || user.email || t('dock.signOut')}
           >
             <span className="material-symbols-outlined text-[16px]">logout</span>
           </button>
         ) : devMode ? (
-          <span className="text-[9px] text-white/30 px-2">DEV</span>
+          <span className="text-[9px] text-white/30 px-2">{t('dock.dev')}</span>
         ) : (
           <button
             onClick={() => onNavigate('auth')}
             className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-            title="Sign in"
+            title={t('dock.signIn')}
           >
             <span className="material-symbols-outlined text-[16px]">login</span>
           </button>
@@ -249,6 +256,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
 }
 
 export default function FloatingDock({ currentView, onNavigate }: NavigationProps) {
+  const { t } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
@@ -257,7 +265,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
 
       {/* Desktop floating dock — bottom center, visionOS style */}
       <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 dock rounded-3xl px-3 py-3 items-end gap-1">
-        {DOCK_ITEMS.map(({ view, label, icon }) => {
+        {DOCK_ITEMS.map(({ view, labelKey, icon }) => {
           const active = currentView === view;
           return (
             <button
@@ -265,7 +273,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
               data-tour={`dock-${view}`}
               onClick={() => onNavigate(view)}
               className="dock-icon group relative flex flex-col items-center justify-center w-12 h-12 rounded-2xl"
-              title={label}
+              title={t(labelKey)}
             >
               <span
                 className="material-symbols-outlined text-[22px] transition-colors"
@@ -286,7 +294,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
 
               {/* Hover label tooltip */}
               <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap glass-strong rounded-lg px-2.5 py-1 text-[10px] text-white/80 opacity-0 group-hover:opacity-100 transition-opacity">
-                {label}
+                {t(labelKey)}
               </span>
             </button>
           );
@@ -297,7 +305,9 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
       <div className="md:hidden fixed bottom-4 left-4 right-4 z-50">
         <div className="dock rounded-2xl flex items-center justify-between px-4 py-3">
           <span className="text-xs uppercase tracking-widest text-white/70">
-            {DOCK_ITEMS.find(i => i.view === currentView)?.label || 'Lyceum'}
+            {DOCK_ITEMS.find(i => i.view === currentView)
+              ? t(DOCK_ITEMS.find(i => i.view === currentView)!.labelKey)
+              : t('nav.lyceum')}
           </span>
           <button onClick={() => setMobileOpen(v => !v)} className="opacity-70">
             <span className="material-symbols-outlined text-[20px]">{mobileOpen ? 'close' : 'apps'}</span>
@@ -305,7 +315,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
         </div>
         {mobileOpen && (
           <div className="dock rounded-2xl mt-2 grid grid-cols-3 gap-1 p-2">
-            {DOCK_ITEMS.map(({ view, label, icon }) => (
+            {DOCK_ITEMS.map(({ view, labelKey, icon }) => (
               <button
                 key={view}
                 onClick={() => { onNavigate(view); setMobileOpen(false); }}
@@ -314,7 +324,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
                 }`}
               >
                 <span className="material-symbols-outlined text-[20px]">{icon}</span>
-                <span className="text-[8px] uppercase tracking-wide">{label}</span>
+                <span className="text-[8px] uppercase tracking-wide">{t(labelKey)}</span>
               </button>
             ))}
           </div>
