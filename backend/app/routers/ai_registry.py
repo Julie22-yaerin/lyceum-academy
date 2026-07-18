@@ -90,9 +90,12 @@ async def chat(agent_id: str, body: ChatIn, _: None = Depends(_admin_auth)) -> d
     critique-pos3. (support-chat has its own always-on endpoint, /support/chat.)
     """
     if agent_id == "commander":
-        reply = await commander_svc.admin_chat(body.session_id, body.message)
+        # Commander's admin_chat can execute real tool calls (dispatch/scan/
+        # resolve/run-batch) — surface which ones ran for admin transparency.
+        result = await commander_svc.admin_chat(body.session_id, body.message)
+        return {"reply": result["reply"], "tool_calls": result.get("tool_calls", [])}
     elif agent_id in _CRITIQUE_POS:
         reply = await critique_svc.admin_chat(_CRITIQUE_POS[agent_id], body.session_id, body.message)
+        return {"reply": reply, "tool_calls": []}
     else:
         raise HTTPException(404, f"Unknown or non-chattable agent '{agent_id}'")
-    return {"reply": reply}

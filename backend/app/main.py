@@ -241,8 +241,8 @@ class DataAccessAuditMiddleware(BaseHTTPMiddleware):
         "/ai/agents/dev-patrol/report-bug",
         "/ai/agents/dev-patrol/scan-all",
         "/commander/triage",
-        "/commander/safety/check-text",
-        "/commander/safety/check-file",
+        "/content-guard/check-text",
+        "/content-guard/check-file",
         "/profile/event",
         "/profile/baseline",
         "/profile/subject-activity",
@@ -282,6 +282,7 @@ from app.routers  import ai_agents   as ai_agents_router
 from app.routers  import dev_patrol  as dev_patrol_router
 from app.routers  import support_chat as support_chat_router
 from app.routers  import commander   as commander_router
+from app.routers  import content_guard as content_guard_router
 from app.routers  import ai_registry as ai_registry_router
 
 
@@ -401,6 +402,7 @@ app.include_router(ai_agents_router.router)
 app.include_router(dev_patrol_router.router)
 app.include_router(support_chat_router.router)
 app.include_router(commander_router.router)
+app.include_router(content_guard_router.router)
 app.include_router(ai_registry_router.router)
 
 _cors_origins = settings.cors_origins_list
@@ -500,7 +502,7 @@ async def media_proxy(request: Request, url: str):
     # 403s requests without a contact URL, especially from cloud/datacenter
     # IPs — confirmed live: a generic "Pclick/1.0 (educational app)" UA got
     # 403'd from Railway's IP while working fine from a residential IP.
-    headers = {"User-Agent": "LyceumAcademy/1.0 (https://lyceum-academy.vercel.app) httpx"}
+    headers = {"User-Agent": "LyceumAcademy/1.0 (https://www.thelyceum.site) httpx"}
     try:
         async with httpx.AsyncClient(timeout=10, follow_redirects=False) as client:
             current = url
@@ -1340,9 +1342,9 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
 
-        # ── Commander file safety check ────────────────────────────────────
-        from app.services import commander as cmd_svc
-        file_safety = cmd_svc.check_file_safety(fname, content, mime)
+        # ── Safety Guard file safety check ──────────────────────────────────
+        from app.services import content_guard as guard_svc
+        file_safety = guard_svc.check_file_safety(fname, content, mime)
         if not file_safety.get("safe", True):
             raise HTTPException(
                 status_code=400,
@@ -1621,9 +1623,9 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
         mime     = file.content_type or "application/octet-stream"
         fname    = file.filename or "upload"
 
-        # ── Commander file safety check ────────────────────────────────────
-        from app.services import commander as cmd_svc
-        file_safety = cmd_svc.check_file_safety(fname, content, mime)
+        # ── Safety Guard file safety check ──────────────────────────────────
+        from app.services import content_guard as guard_svc
+        file_safety = guard_svc.check_file_safety(fname, content, mime)
         if not file_safety.get("safe", True):
             raise HTTPException(
                 status_code=400,

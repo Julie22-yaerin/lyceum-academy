@@ -526,23 +526,27 @@ async function renderAiSystem() {
         ${agents.map(a => renderAgentCard(a, agents)).join('')}
       </div>
 
-      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-3">
+      <div style="border:1px solid var(--border);border-radius:14px;background:var(--surface)" class="p-5 space-y-4">
         <div>
-          <div class="font-semibold text-sm">Credits per plan</div>
-          <div class="text-xs mt-0.5" style="color:var(--muted)">Admin-editable credit allotment per subscription tier. Data model only for now — not yet wired to a real Stripe payment (see backend note).</div>
+          <div class="font-semibold text-sm">Tokens per feature (per plan)</div>
+          <div class="text-xs mt-0.5" style="color:var(--muted)">Admin-editable token allotment per plan, per feature (e.g. note=500, chat=2000/month). Data model only for now — not yet wired to a real Stripe payment (see backend note).</div>
         </div>
-        <div class="space-y-2">
-          ${plans.length === 0
-            ? `<p class="text-xs" style="color:var(--muted)">No plans found — is Postgres reachable?</p>`
-            : plans.map(p => `
-              <div class="flex items-center gap-3">
-                <span class="text-xs w-40 shrink-0">${esc(p.tier)} · ${esc(p.billing_cycle)}</span>
-                <input id="credits-${esc(p.id)}" type="number" min="0" value="${p.credits_monthly ?? ''}" placeholder="unset" style="width:140px" />
-                <button onclick="saveCredits('${esc(p.id)}')" class="btn btn-ghost text-xs">Save</button>
-              </div>`).join('')}
-        </div>
+        ${plans.length === 0
+          ? `<p class="text-xs" style="color:var(--muted)">No plans found — is Postgres reachable?</p>`
+          : plans.map(p => `
+            <div style="border-top:1px solid var(--border);padding-top:12px" class="space-y-2">
+              <div class="text-xs font-medium">${esc(p.tier)} · ${esc(p.billing_cycle)}</div>
+              <div id="tokens-rows-${esc(p.id)}" class="space-y-1.5"><div class="text-xs" style="color:var(--muted)">Loading…</div></div>
+              <div class="flex items-center gap-2">
+                <input id="new-feat-name-${esc(p.id)}" placeholder="feature name (e.g. note)" style="width:180px" />
+                <input id="new-feat-tokens-${esc(p.id)}" type="number" min="0" placeholder="tokens/mo" style="width:110px" />
+                <button onclick="addFeatureToken('${esc(p.id)}')" class="btn btn-ghost text-xs">+ Add</button>
+              </div>
+            </div>`).join('')}
       </div>
     </div>`;
+
+  plans.forEach(p => loadPlanTokens(p.id));
 }
 
 function renderAgentCard(a, allAgents) {
@@ -594,16 +598,61 @@ async function saveAgent(id) {
   } catch (e) { toast('Save failed: '+e.message, 'err'); }
 }
 
-async function saveCredits(planId) {
-  const val = document.getElementById('credits-'+planId)?.value;
+async function loadPlanTokens(planId) {
+  const el = document.getElementById('tokens-rows-'+planId);
+  if (!el) return;
+  try {
+    const r = await api(`/admin/plans/${encodeURIComponent(planId)}/tokens`);
+    const tokens = (await r.json()).tokens || [];
+    el.innerHTML = tokens.length === 0
+      ? `<p class="text-xs" style="color:var(--muted)">No feature tokens set yet.</p>`
+      : tokens.map(t => `
+        <div class="flex items-center gap-2 text-xs">
+          <span class="w-32 shrink-0 truncate">${esc(t.feature_name)}</span>
+          <input type="number" min="0" value="${t.tokens_monthly}" id="feat-${esc(planId)}-${esc(t.feature_name)}" style="width:110px" />
+          <button onclick="saveFeatureToken('${esc(planId)}','${esc(t.feature_name)}')" class="btn btn-ghost text-xs">Save</button>
+          <button onclick="deleteFeatureToken('${esc(planId)}','${esc(t.feature_name)}')" class="btn btn-danger text-xs">✕</button>
+        </div>`).join('');
+  } catch (e) {
+    el.innerHTML = `<p class="text-xs" style="color:#f85149">Failed to load</p>`;
+  }
+}
+
+async function saveFeatureToken(planId, featureName) {
+  const val = document.getElementById(`feat-${planId}-${featureName}`)?.value;
   if (val === '' || val == null) { toast('Enter a number first', 'err'); return; }
   try {
-    await api(`/admin/plans/${encodeURIComponent(planId)}/credits`, {
+    await api(`/admin/plans/${encodeURIComponent(planId)}/tokens/${encodeURIComponent(featureName)}`, {
       method: 'PUT', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ credits_monthly: parseInt(val, 10) }),
+      body: JSON.stringify({ tokens_monthly: parseInt(val, 10) }),
     });
-    toast('✓ Credits saved');
+    toast('✓ Saved');
   } catch (e) { toast('Save failed: '+e.message, 'err'); }
+}
+
+async function deleteFeatureToken(planId, featureName) {
+  try {
+    await api(`/admin/plans/${encodeURIComponent(planId)}/tokens/${encodeURIComponent(featureName)}`, { method: 'DELETE' });
+    toast('Deleted');
+    loadPlanTokens(planId);
+  } catch (e) { toast('Delete failed: '+e.message, 'err'); }
+}
+
+async function addFeatureToken(planId) {
+  const nameEl = document.getElementById('new-feat-name-'+planId);
+  const tokEl = document.getElementById('new-feat-tokens-'+planId);
+  const name = nameEl?.value.trim();
+  const tok = tokEl?.value;
+  if (!name || tok === '' || tok == null) { toast('Enter a feature name and token count', 'err'); return; }
+  try {
+    await api(`/admin/plans/${encodeURIComponent(planId)}/tokens/${encodeURIComponent(name)}`, {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ tokens_monthly: parseInt(tok, 10) }),
+    });
+    nameEl.value = ''; tokEl.value = '';
+    toast('✓ Added');
+    loadPlanTokens(planId);
+  } catch (e) { toast('Add failed: '+e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -652,8 +701,9 @@ function renderAiChat() {
         <div id="ai-chat-messages" class="flex-1 overflow-y-auto p-4 space-y-3">
           ${history.length === 0
             ? `<p class="text-xs text-center py-8" style="color:var(--muted)">Say hi to ${esc(HEAD_AGENTS.find(a=>a.id===_aiChatActive)?.name||'')}.</p>`
-            : history.map(m => `
-              <div class="flex ${m.role==='user'?'justify-end':'justify-start'}">
+            : history.map(m => m.role === 'tool'
+              ? `<div class="flex justify-start"><div class="text-[10px] font-mono px-2.5 py-1.5 rounded-lg" style="background:rgba(255,255,255,.04);color:var(--muted);border:1px dashed var(--border)">${esc(m.text)}</div></div>`
+              : `<div class="flex ${m.role==='user'?'justify-end':'justify-start'}">
                 <div class="max-w-[75%] px-3.5 py-2 text-xs ${m.role==='user'?'chat-bubble-user':'chat-bubble-ai'}">${esc(m.text)}</div>
               </div>`).join('')}
         </div>
@@ -690,6 +740,9 @@ async function sendAiChat() {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     });
     const data = await r.json();
+    for (const tc of (data.tool_calls || [])) {
+      history.push({ role: 'tool', text: `→ ran ${tc.name}(${JSON.stringify(tc.args)})` });
+    }
     history.push({ role: 'assistant', text: data.reply || '(no response)' });
   } catch (e) {
     history.push({ role: 'assistant', text: 'Error: ' + e.message });

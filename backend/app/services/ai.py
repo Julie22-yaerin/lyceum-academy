@@ -1267,7 +1267,7 @@ async def _fetch_wiki_media(query: str) -> dict:
     log = logging.getLogger("pclick")
     # Must include a contact URL per Wikimedia's User-Agent policy — a
     # generic UA gets 403'd from cloud/datacenter IPs (confirmed live).
-    headers = {"User-Agent": "LyceumAcademy/1.0 (https://lyceum-academy.vercel.app) httpx"}
+    headers = {"User-Agent": "LyceumAcademy/1.0 (https://www.thelyceum.site) httpx"}
 
     def _article_url(title: str) -> str:
         return f"https://en.wikipedia.org/wiki/{urllib.parse.quote(title.replace(' ', '_'))}"
@@ -3050,7 +3050,7 @@ async def _wiki_image(concept: str) -> str | None:
         async with httpx.AsyncClient(timeout=5) as client:
             r = await client.get(
                 f"https://en.wikipedia.org/api/rest_v1/page/summary/{slug}",
-                headers={"User-Agent": "LyceumAcademy/1.0 (https://lyceum-academy.vercel.app) httpx"},
+                headers={"User-Agent": "LyceumAcademy/1.0 (https://www.thelyceum.site) httpx"},
                 follow_redirects=True,
             )
             if r.status_code == 200:

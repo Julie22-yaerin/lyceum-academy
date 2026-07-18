@@ -2,16 +2,17 @@
 Commander API Router
 ════════════════════
 
-Chỉ huy đội dev + chống content độc hại.
+Chỉ huy đội dev.
 
 Endpoints:
   POST /commander/triage              — Classify a bug (critical/minor)
   GET  /commander/bugs/critical       — List critical bugs (fix now)
   GET  /commander/bugs/minor          — List minor bugs (batch every 4 days)
+  GET  /commander/bugs/all            — Full bug history (admin Error Log)
+  POST /commander/bugs/{id}/resolve   — Mark a bug fixed
   POST /commander/bugs/batch          — Trigger batch processing now
-  POST /commander/safety/check-text   — AI text safety check
-  POST /commander/safety/check-file   — File safety check
-  GET  /commander/safety/blocked      — Admin: recent blocked content
+
+Content-safety endpoints live at /content-guard/* (app/routers/content_guard.py).
 """
 
 from __future__ import annotations
@@ -123,76 +124,4 @@ async def trigger_batch(
         "batch": batch,
         "count": len(batch),
         "message": f"Batch of {len(batch)} minor bugs dispatched to dev agents.",
-    }
-
-
-# ── Content Safety ─────────────────────────────────────────────────────────
-
-class TextSafetyRequest(BaseModel):
-    text: str
-    context: str = ""
-
-
-@router.post("/safety/check-text")
-async def check_text_safety(
-    req: TextSafetyRequest,
-) -> dict[str, Any]:
-    """
-    AI-powered text safety check.
-    Detects profanity, hate speech, harmful content.
-    """
-    result = await cmd_svc.check_text_safety(req.text, req.context)
-    return result
-
-
-class FileSafetyRequest(BaseModel):
-    filename: str
-    mime: str = ""
-    # Note: actual file content check is done via check_file_safety()
-    # with raw bytes — this endpoint is for pre-upload validation info
-
-
-@router.post("/safety/check-file")
-async def check_file_safety_info(
-    filename: str = "",
-    mime: str = "",
-) -> dict[str, Any]:
-    """
-    Quick file safety check (extension + MIME validation).
-    For full content scan, use the upload endpoints which call
-    commander.check_file_safety() internally.
-    """
-    import os
-    ext = os.path.splitext(filename)[1].lower() if filename else ""
-
-    dangerous_exts = {
-        '.exe', '.dll', '.so', '.dylib', '.bat', '.cmd', '.sh', '.ps1',
-        '.vbs', '.js', '.msi', '.app', '.dmg', '.pkg', '.deb', '.rpm',
-        '.py', '.rb', '.php', '.pl', '.jar', '.class', '.elf',
-        '.zip', '.tar', '.gz', '.rar', '.7z',
-        '.html', '.htm', '.svg', '.xml',
-        '.lnk', '.scr', '.pif',
-    }
-
-    safe_exts = {
-        '.pdf', '.png', '.jpg', '.jpeg', '.webp',
-        '.txt', '.md', '.webm', '.ogg', '.mp3', '.mp4', '.wav',
-    }
-
-    if ext in dangerous_exts:
-        return {"safe": False, "reason": f"Extension '{ext}' not allowed", "category": "unauthorized-extension"}
-    if ext and ext not in safe_exts:
-        return {"safe": False, "reason": f"Extension '{ext}' not in whitelist", "category": "unknown-extension"}
-    return {"safe": True, "reason": "passed", "category": "none"}
-
-
-@router.get("/safety/blocked")
-async def get_blocked_content(
-    limit: int = 50,
-    _: dict = Depends(require_auth),
-) -> dict[str, Any]:
-    """Admin: return recent blocked content events."""
-    return {
-        "blocked": cmd_svc.get_blocked_content(limit),
-        "total": len(cmd_svc._blocked_content),
     }

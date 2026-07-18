@@ -29,7 +29,8 @@ CREATE TABLE IF NOT EXISTS ai_registry (
 
 # (id, name, description, category, parent_id) — the "as of now" snapshot.
 _SEED: list[tuple[str, str, str, str, str | None]] = [
-    ("commander", "Commander", "Dev-team commander / coordinator — triages bug reports (critical vs minor) and dispatches them to the right dev; also runs content-safety checks.", "head", None),
+    ("commander", "Commander", "Dev-team commander — triages bug reports (critical vs minor), dispatches them to the right dev, and takes direct function-calling commands from admin chat.", "head", None),
+    ("content-guard", "Safety Guard", "Content intake gate — blocks profanity, malware uploads, and unauthorized file extensions before they enter the pipeline. A peer to Commander, not a subordinate.", "head", None),
     ("support-chat", "Support Consultant", "Always-on customer support chat. Answers platform questions and auto-detects technical complaints, forwarding them to the Commander for triage.", "head", "commander"),
     ("critique-pos1", "Critic 1 (OpenAI GPT-4o)", "Team Phản Biện, Position 1 — reviews 100% of the draft response for factual accuracy and logical soundness before it reaches a student.", "head", "critique-pos3"),
     ("critique-pos2", "Critic 2 (Groq qwen3-32b)", "Team Phản Biện, Position 2 — reviews ~50% core focus: is the response teachable (Socratic), does the student understand.", "head", "critique-pos3"),
@@ -62,6 +63,17 @@ def init_db() -> None:
                 "INSERT INTO ai_registry (id, name, description, category, parent_id) VALUES (?,?,?,?,?)",
                 _SEED,
             )
+        else:
+            # Backfill: the Safety Guard split was added after some
+            # deployments already seeded the table — insert it if missing,
+            # without touching any row an admin may have since edited.
+            row = c.execute("SELECT 1 FROM ai_registry WHERE id = 'content-guard'").fetchone()
+            if not row:
+                seed_row = next(r for r in _SEED if r[0] == "content-guard")
+                c.execute(
+                    "INSERT INTO ai_registry (id, name, description, category, parent_id) VALUES (?,?,?,?,?)",
+                    seed_row,
+                )
 
 
 def list_agents() -> list[dict[str, Any]]:

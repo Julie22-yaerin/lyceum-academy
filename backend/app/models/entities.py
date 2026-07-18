@@ -435,14 +435,32 @@ class SubscriptionPlan(Base, TimestampMixin):
     ai_queue_priority: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # higher = served first
     ari_voice_daily_call_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)  # NULL = unlimited, 0 = locked out
     stripe_price_id: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
-    # Migration 007: admin-editable credit allotment per plan (NULL = not set
-    # yet). Data model only — auto-granting on a real Stripe payment is a
-    # separate follow-up once the (currently broken) user_subscriptions
-    # pipeline is fixed; see migrations/007_plan_credits.sql.
-    credits_monthly: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("tier", "billing_cycle", name="uq_plan_tier_cycle"),
+    )
+
+
+class PlanFeatureToken(Base, TimestampMixin):
+    """
+    Admin-editable per-feature token allotment per plan (migration 008,
+    replaces the single credits_monthly number from migration 007) — e.g.
+    note=500, chat=2000 tokens/month. Data model only — auto-granting on a
+    real Stripe payment is a separate follow-up once the (currently broken)
+    user_subscriptions pipeline is fixed.
+    """
+
+    __tablename__ = "plan_feature_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    plan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("subscription_plans.id", ondelete="CASCADE"), nullable=False
+    )
+    feature_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    tokens_monthly: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("plan_id", "feature_name", name="uq_plan_feature"),
     )
 
 

@@ -142,11 +142,20 @@ class Settings(BaseSettings):
     support_chat_key: str = ""
     support_chat_model: str = "nvidia/nemotron-mini-4b-instruct"
 
-    # ── Commander / Coordinator — chỉ huy đội dev + chống content độc hại ──
-    # Classifies bugs (critical → fix now, minor → batch every 4 days)
-    # Blocks profanity, virus uploads, unauthorized extensions
+    # ── Commander — chỉ huy đội dev ──────────────────────────────
+    # Classifies bugs (critical → fix now, minor → batch every 4 days),
+    # dispatches to the right dev, and takes direct admin commands
+    # (function-calling — see app/services/commander.py).
     commander_key: str = ""
-    commander_model: str = "nvidia/nemotron-3.5-content-safety"
+    commander_model: str = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
+
+    # ── Safety Guard (content intake) — blocks profanity, virus uploads,
+    # unauthorized extensions in user-submitted text/files. Not to be
+    # confused with app/services/safety_guard.py (scans outgoing AI
+    # responses) or app/services/content_safety.py (prompt/upload size
+    # + type validation) — this is a third, distinct gate.
+    content_guard_key: str = ""
+    content_guard_model: str = "nvidia/nemotron-3.5-content-safety"
 
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""

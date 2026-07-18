@@ -1,18 +1,16 @@
 """
-Commander / Coordinator — chỉ huy đội dev + chống content độc hại.
+Commander — chỉ huy đội dev.
 
-Two roles:
-  1. Dev Triage: classify reported bugs
-     - CRITICAL (affects entire feature) → dispatch to dev immediately
-     - MINOR (LaTeX, fonts, images) → batch every 4 days
+Triages reported bugs (critical → dispatch immediately, minor → batch
+every 4 days), dispatches to the right dev, and takes direct commands
+from admin chat via function-calling (dispatch/scan/resolve/run-batch —
+see admin_chat()).
 
-  2. Content Safety: AI-powered harmful content detection
-     - Profanity / offensive language
-     - Virus / malware in uploads
-     - Unauthorized file extensions
-     - Harmful/inappropriate content in AI responses
+Content safety (profanity/malware/blocked-content log) has moved to
+app.services.content_guard ("Safety Guard" in the admin UI) — that is no
+longer this module's job.
 
-Powered by: nvidia/nemotron-3.5-content-safety
+Powered by: nvidia/llama-3.3-nemotron-super-49b-v1.5
 """
 
 from __future__ import annotations
@@ -167,12 +165,8 @@ def _set_meta(key: str, value: str) -> None:
             (key, value),
         )
 
-# ── Content safety log ─────────────────────────────────────────────────────
-_blocked_content: list[dict[str, Any]] = []
-_MAX_BLOCKED = 300
 
-
-# ── VAI TRÒ 1: BUG TRIAGE ─────────────────────────────────────────────────
+# ── Bug triage ────────────────────────────────────────────────────────────
 
 async def triage_bug(
     bug_report: str,
@@ -297,52 +291,6 @@ async def _dispatch_to_dev(bug_entry: dict[str, Any]) -> None:
     })
 
 
-# ── Admin chat — talk directly to the Commander ──────────────────────────────
-_admin_sessions: dict[str, list[dict[str, str]]] = {}
-_ADMIN_MAX_HISTORY = 20
-
-
-async def admin_chat(session_id: str, message: str) -> str:
-    """
-    Open-ended admin chat with the Commander — same NVIDIA model used for
-    triage, but conversational. Folds in a live queue summary so the admin
-    can ask things like "what's in your critical queue right now?".
-    """
-    api_key = settings.commander_key or settings.nvidia_api_key
-    if not api_key:
-        return "Commander has no API key configured."
-    model = settings.commander_model
-
-    queue_summary = (
-        f"Current queue: {len(_critical_bugs)} critical bug(s) pending immediate "
-        f"dispatch, {len(_minor_bugs)} minor bug(s) queued for the next 4-day batch."
-    )
-    system = (
-        "You are the Commander — dev-team coordinator and content-safety gate "
-        "for The Lyceum Academy. You triage bug reports (critical vs minor) and "
-        "dispatch them to backend-dev/frontend-dev/security-dev. You are now "
-        "talking directly with an admin, not triaging a report — answer their "
-        "questions about your role, current queue, and decisions plainly and "
-        f"conversationally, in the language they write in.\n\n{queue_summary}"
-    )
-
-    history = _admin_sessions.setdefault(session_id, [])
-    history.append({"role": "user", "content": message})
-    if len(history) > _ADMIN_MAX_HISTORY:
-        history[:] = history[-_ADMIN_MAX_HISTORY:]
-
-    messages = [{"role": "system", "content": system}] + history
-
-    try:
-        result = await _nvidia_call(api_key, model, messages, temperature=0.4, max_tokens=1024)
-        reply = result.get("raw") or result.get("reply") or json.dumps(result, ensure_ascii=False)
-    except Exception as e:
-        return f"Sorry, I'm unavailable right now ({type(e).__name__})."
-
-    history.append({"role": "assistant", "content": reply})
-    return reply
-
-
 def _keyword_classify(text: str) -> dict[str, Any]:
     """Fallback keyword-based classification when AI is unavailable."""
     lower = text.lower()
@@ -424,157 +372,193 @@ async def pop_batch() -> list[dict[str, Any]]:
     return batch
 
 
-# ── VAI TRÒ 2: CONTENT SAFETY ─────────────────────────────────────────────
+# ── Admin chat — talk directly to the Commander, with function-calling ──────
+# The admin can give the Commander direct operational commands ("dispatch
+# this to backend-dev", "run the minor batch now") and it actually executes
+# them via tool-calling, rather than just describing what it would do.
 
-# Profanity patterns (Vietnamese + English)
-_PROFANITY_PATTERNS = [
-    # English
-    r'(?i)\b(f+u+c+k|s+h+i+t|a+s+s|h+e+l+l|d+a+m+n|b+i+t+c+h|d+i+c+k|c+r+a+p)\b',
-    r'(?i)\b(bullshit|asshole|motherfucker|dumbass|jackass|bastard)\b',
-    # Vietnamese (common offensive)
-    r'(?i)\b(ch+ử+ [+f]+ụ+|đ+m+|l+ụ+|c+ặ+c|đ+i+ê+n|ch+ó+|l+ợ+n)\b',
-    r'(?i)\b(cl+|đ*m|ocl|lol|dm|vc|cc|l+c)\b',
+_admin_sessions: dict[str, list[dict[str, Any]]] = {}
+_ADMIN_MAX_HISTORY = 20
+
+_TOOLS: list[dict[str, Any]] = [
+    {
+        "type": "function",
+        "function": {
+            "name": "dispatch_bug",
+            "description": "Directly assign a bug report to a specific dev, bypassing automatic triage.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "bug_report": {"type": "string", "description": "Description of the bug"},
+                    "target": {"type": "string", "enum": ["backend-dev", "frontend-dev", "security-dev"]},
+                },
+                "required": ["bug_report", "target"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "trigger_scan",
+            "description": "Trigger a full codebase scan by one of the dev-patrol agents.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "target": {"type": "string", "enum": ["backend-dev", "frontend-dev", "security-dev"]},
+                },
+                "required": ["target"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_minor_batch",
+            "description": "Immediately dispatch all queued minor bugs to their assigned devs instead of waiting for the 4-day batch.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "resolve_bug",
+            "description": "Mark a bug as fixed by its numeric id.",
+            "parameters": {
+                "type": "object",
+                "properties": {"bug_id": {"type": "integer"}},
+                "required": ["bug_id"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_queue_status",
+            "description": "Get the live count of critical/minor bugs queued and each dev agent's current worker status.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
 ]
 
-import re as _re
-_PROFANITY_RE = [_re.compile(p) for p in _PROFANITY_PATTERNS]
 
-# Dangerous file indicators in content
-_DANGEROUS_CONTENT_MARKERS = [
-    b'X5O!P%@AP[4\\PZX54(P^)7CC)7}$EICAR',  # EICAR test
-    b'MZ\x90\x00',   # PE header
-    b'\x7fELF',      # ELF binary
-    b'#!/bin/sh',     # Shell script
-    b'#!/bin/bash',
-    b'<script',       # XSS
-    b'javascript:',   # JS URI
-]
+async def _execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Execute one Commander tool call against the real functions/agents."""
+    from app.services.ai_agents.dev_patrol import DEV_AGENTS
 
+    if name == "dispatch_bug":
+        target = args.get("target", "backend-dev")
+        entry = {
+            "bug_report": args.get("bug_report", ""),
+            "assign_to": target,
+            "endpoint": "",
+            "file_path": "",
+        }
+        await _dispatch_to_dev(entry)
+        return {"ok": True, "dispatched_to": target}
 
-async def check_text_safety(text: str, context: str = "") -> dict[str, Any]:
-    """
-    AI-powered text safety check.
-    Returns { safe: bool, reason: str, category: str }
-    """
-    if not text or not text.strip():
-        return {"safe": True, "reason": "empty", "category": "none"}
+    if name == "trigger_scan":
+        target = args.get("target", "backend-dev")
+        agent = DEV_AGENTS.get(target)
+        if not agent:
+            return {"ok": False, "error": f"unknown target '{target}'"}
+        task = await agent.submit({"mode": "full_scan"})
+        return {"ok": True, "task_id": task.task_id}
 
-    # Quick regex profanity check first (no API call needed)
-    for pattern in _PROFANITY_RE:
-        if pattern.search(text):
-            return {
-                "safe": False,
-                "reason": "Content contains offensive language",
-                "category": "profanity",
-            }
+    if name == "run_minor_batch":
+        batch = await pop_batch()
+        return {"ok": True, "dispatched_count": len(batch)}
 
-    # AI deep check for subtle harmful content
-    api_key = settings.commander_key or settings.nvidia_api_key
-    model = settings.commander_model
+    if name == "resolve_bug":
+        try:
+            bug_id = int(args.get("bug_id", -1))
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "bug_id must be an integer"}
+        return {"ok": mark_resolved(bug_id)}
 
-    if not api_key:
-        return {"safe": True, "reason": "no-api-key", "category": "none"}
-
-    system = """You are a content safety classifier. Analyze the text and determine if it's safe.
-
-Check for:
-- Profanity, hate speech, harassment
-- Harmful instructions (how to harm self/others)
-- Inappropriate sexual content
-- Discrimination / hate targeting groups
-- Threats or intimidation
-
-Return JSON:
-{
-  "safe": true/false,
-  "category": "none|profanity|hate|harmful|sexual|discrimination|threat",
-  "reason": "brief explanation if unsafe",
-  "confidence": 0.0-1.0
-}"""
-
-    messages = [
-        {"role": "system", "content": system},
-        {"role": "user", "content": f"Check this text for safety:\n\n{text[:2000]}"},
-    ]
-
-    try:
-        result = await _nvidia_call(api_key, model, messages, temperature=0.1, max_tokens=256)
-        if not result.get("safe", True):
-            _log_blocked("text", result.get("category", "unknown"), text[:200], context)
-        return result
-    except Exception:
-        # If AI fails, let it through (fail-open for text, but log it)
-        return {"safe": True, "reason": "ai-unavailable", "category": "none"}
-
-
-def check_file_safety(filename: str, content: bytes, mime: str) -> dict[str, Any]:
-    """
-    Synchronous file safety check — virus/malware indicators.
-    Returns { safe: bool, reason: str, category: str }
-    """
-    import os
-
-    # Check extension
-    ext = os.path.splitext(filename or "")[1].lower()
-    dangerous_exts = {
-        '.exe', '.dll', '.so', '.dylib', '.bat', '.cmd', '.sh', '.ps1',
-        '.vbs', '.js', '.msi', '.app', '.dmg', '.pkg', '.deb', '.rpm',
-        '.py', '.rb', '.php', '.pl', '.jar', '.class', '.elf',
-        '.zip', '.tar', '.gz', '.rar', '.7z',
-        '.html', '.htm', '.svg', '.xml',
-        '.lnk', '.scr', '.pif',
-    }
-    if ext in dangerous_exts:
-        _log_blocked("file", "unauthorized-extension", filename, "")
+    if name == "get_queue_status":
         return {
-            "safe": False,
-            "reason": f"File extension '{ext}' is not authorized",
-            "category": "unauthorized-extension",
+            "critical_count": len(_critical_bugs),
+            "minor_count": len(_minor_bugs),
+            "dev_status": {aid: a.get_status() for aid, a in DEV_AGENTS.items()},
         }
 
-    # Check for dangerous content markers
-    for marker in _DANGEROUS_CONTENT_MARKERS:
-        if marker in content[:4096]:
-            _log_blocked("file", "malware-indicator", filename, f"Contains {marker[:20]}")
-            return {
-                "safe": False,
-                "reason": "File contains potentially dangerous content",
-                "category": "malware",
-            }
-
-    # Check for suspiciously large executables disguised as other types
-    if mime and not mime.startswith(('image/', 'audio/', 'application/pdf', 'text/')):
-        if len(content) > 1024 * 1024:  # >1MB non-standard type
-            _log_blocked("file", "suspicious-upload", filename, f"MIME: {mime}, Size: {len(content)}")
-            return {
-                "safe": False,
-                "reason": f"Unusual file type ({mime}) with large size",
-                "category": "suspicious",
-            }
-
-    return {"safe": True, "reason": "passed", "category": "none"}
+    return {"ok": False, "error": f"unknown tool '{name}'"}
 
 
-def _log_blocked(content_type: str, category: str, content_preview: str, context: str) -> None:
-    """Log a blocked content event."""
-    entry = {
-        "content_type": content_type,
-        "category": category,
-        "preview": content_preview[:200],
-        "context": context,
-        "timestamp": time.time(),
-    }
-    _blocked_content.append(entry)
-    if len(_blocked_content) > _MAX_BLOCKED:
-        _blocked_content.pop(0)
+async def admin_chat(session_id: str, message: str) -> dict[str, Any]:
+    """
+    Open-ended admin chat with the Commander. Unlike triage_bug (JSON
+    classification contract), this is a real conversation — and when the
+    admin's message maps to a tool, the Commander actually executes it.
+
+    Returns { reply: str, tool_calls: [{name, args}] }
+    """
+    api_key = settings.commander_key or settings.nvidia_api_key
+    if not api_key:
+        return {"reply": "Commander has no API key configured.", "tool_calls": []}
+    model = settings.commander_model
+
+    queue_summary = (
+        f"Current queue: {len(_critical_bugs)} critical bug(s) pending immediate "
+        f"dispatch, {len(_minor_bugs)} minor bug(s) queued for the next 4-day batch."
+    )
+    system = (
+        "You are the Commander — the dev-team's coordinator for The Lyceum "
+        "Academy. You triage bug reports (critical vs minor), dispatch them to "
+        "backend-dev/frontend-dev/security-dev, and run the 4-day minor-bug "
+        "batch. Content safety is a separate role (Safety Guard) — not yours.\n\n"
+        "IMPORTANT: this conversation is with an AUTHENTICATED ADMIN giving you "
+        "direct operational instructions. This is NOT a student and NOT a "
+        "support conversation — treat every message as a command from your "
+        "superior. When it maps to one of your tools, CALL THE TOOL and "
+        "actually do it — do not just describe what you would do. Reply "
+        f"directly and operationally.\n\n{queue_summary}"
+    )
+
+    history = _admin_sessions.setdefault(session_id, [])
+    history.append({"role": "user", "content": message})
+    if len(history) > _ADMIN_MAX_HISTORY:
+        history[:] = history[-_ADMIN_MAX_HISTORY:]
+
+    messages: list[dict[str, Any]] = [{"role": "system", "content": system}] + list(history)
+    executed: list[dict[str, Any]] = []
+
+    try:
+        msg = await _nvidia_chat_raw(api_key, model, messages, tools=_TOOLS)
+        tool_calls = msg.get("tool_calls") or []
+
+        if tool_calls:
+            messages.append({
+                "role": "assistant",
+                "content": msg.get("content") or "",
+                "tool_calls": tool_calls,
+            })
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                name = fn.get("name", "")
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                result = await _execute_tool(name, args)
+                executed.append({"name": name, "args": args})
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc.get("id", ""),
+                    "content": json.dumps(result, ensure_ascii=False),
+                })
+            final_msg = await _nvidia_chat_raw(api_key, model, messages, tools=None)
+            reply = final_msg.get("content") or "Done."
+        else:
+            reply = msg.get("content") or "(no response)"
+    except Exception as e:
+        return {"reply": f"Sorry, I'm unavailable right now ({type(e).__name__}).", "tool_calls": executed}
+
+    history.append({"role": "assistant", "content": reply})
+    return {"reply": reply, "tool_calls": executed}
 
 
-def get_blocked_content(limit: int = 50) -> list[dict[str, Any]]:
-    """Return recent blocked content for admin review."""
-    return list(reversed(_blocked_content[-limit:]))
-
-
-# ── Shared NVIDIA NIM call ─────────────────────────────────────────────────
+# ── Shared NVIDIA NIM calls ──────────────────────────────────────────────────
 
 async def _nvidia_call(
     api_key: str,
@@ -583,32 +567,10 @@ async def _nvidia_call(
     temperature: float = 0.1,
     max_tokens: int = 512,
 ) -> dict[str, Any]:
-    """Call NVIDIA NIM and parse JSON response."""
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
-    payload = {
-        "model": model,
-        "messages": messages,
-        "temperature": temperature,
-        "top_p": 0.95,
-        "max_tokens": max_tokens,
-        "stream": False,
-    }
+    """Call NVIDIA NIM and parse the response content as JSON (triage contract)."""
+    msg = await _nvidia_chat_raw(api_key, model, messages, temperature=temperature, max_tokens=max_tokens)
+    raw = msg.get("content") or ""
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(NVIDIA_URL, headers=headers, json=payload)
-        resp.raise_for_status()
-        data = resp.json()
-
-    choices = data.get("choices", [])
-    if not choices:
-        return {"error": "no choices"}
-
-    raw = choices[0].get("message", {}).get("content", "")
-
-    # Parse JSON, strip markdown fences if present
     text = raw.strip()
     if text.startswith("```"):
         lines = text.split("\n")
@@ -620,3 +582,39 @@ async def _nvidia_call(
         return json.loads(text)
     except json.JSONDecodeError:
         return {"raw": raw[:1000], "_parse_error": True}
+
+
+async def _nvidia_chat_raw(
+    api_key: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None,
+    temperature: float = 0.4,
+    max_tokens: int = 1024,
+) -> dict[str, Any]:
+    """Call NVIDIA NIM and return the raw assistant message (role/content/tool_calls)."""
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": messages,
+        "temperature": temperature,
+        "top_p": 0.95,
+        "max_tokens": max_tokens,
+        "stream": False,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+
+    async with httpx.AsyncClient(timeout=45.0) as client:
+        resp = await client.post(NVIDIA_URL, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+
+    choices = data.get("choices", [])
+    if not choices:
+        return {"content": "", "tool_calls": []}
+    return choices[0].get("message", {})

@@ -25,7 +25,7 @@ from app.services import ai               as ai_svc
 from app.services.content_safety import check_upload
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
-from app.models.entities import UserProfile, AuthProviderEnum, SubscriptionPlan
+from app.models.entities import UserProfile, AuthProviderEnum, SubscriptionPlan, PlanFeatureToken
 
 router      = APIRouter(prefix="/admin", tags=["admin"])
 ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "pclick-admin-dev")
@@ -287,40 +287,76 @@ def get_profile(user_id: str, db: Session = Depends(get_db), _: None = Depends(_
     }
 
 
-# ── Plan credits — admin-editable credit allotment per subscription plan ────
-# Data model only (see migrations/007_plan_credits.sql): NOT wired to a real
-# Stripe payment yet — user_subscriptions/users don't exist in production,
-# so there's nothing to auto-grant onto. This just lets the admin view/set
-# the per-plan number ahead of that follow-up.
+# ── Plan feature tokens — admin-editable token allotment per plan, per
+# feature (migration 008: note=500, chat=2000, etc.) ────────────────────────
+# Data model only — NOT wired to a real Stripe payment yet —
+# user_subscriptions/users don't exist in production, so there's nothing
+# to auto-grant onto. This just lets the admin view/set the per-plan,
+# per-feature numbers ahead of that follow-up.
 
 @router.get("/plans")
-def list_plan_credits(db: Session = Depends(get_db), _: None = Depends(_auth)):
+def list_plans(db: Session = Depends(get_db), _: None = Depends(_auth)):
     rows = db.execute(select(SubscriptionPlan)).scalars().all()
     return {
         "plans": [
-            {
-                "id": str(p.id),
-                "tier": p.tier.value,
-                "billing_cycle": p.billing_cycle.value,
-                "credits_monthly": p.credits_monthly,
-            }
+            {"id": str(p.id), "tier": p.tier.value, "billing_cycle": p.billing_cycle.value}
             for p in rows
         ]
     }
 
 
-class PlanCreditsIn(BaseModel):
-    credits_monthly: int
+@router.get("/plans/{plan_id}/tokens")
+def list_plan_tokens(plan_id: str, db: Session = Depends(get_db), _: None = Depends(_auth)):
+    rows = db.execute(
+        select(PlanFeatureToken).where(PlanFeatureToken.plan_id == plan_id)
+    ).scalars().all()
+    return {
+        "tokens": [
+            {"feature_name": r.feature_name, "tokens_monthly": r.tokens_monthly}
+            for r in rows
+        ]
+    }
 
 
-@router.put("/plans/{plan_id}/credits")
-def set_plan_credits(plan_id: str, body: PlanCreditsIn, db: Session = Depends(get_db), _: None = Depends(_auth)):
+class PlanFeatureTokenIn(BaseModel):
+    tokens_monthly: int
+
+
+@router.put("/plans/{plan_id}/tokens/{feature_name}")
+def set_plan_feature_token(
+    plan_id: str, feature_name: str, body: PlanFeatureTokenIn,
+    db: Session = Depends(get_db), _: None = Depends(_auth),
+):
     plan = db.get(SubscriptionPlan, plan_id)
     if not plan:
         raise HTTPException(404, "Plan not found")
-    plan.credits_monthly = body.credits_monthly
+    row = db.execute(
+        select(PlanFeatureToken)
+        .where(PlanFeatureToken.plan_id == plan_id, PlanFeatureToken.feature_name == feature_name)
+    ).scalar_one_or_none()
+    if row:
+        row.tokens_monthly = body.tokens_monthly
+    else:
+        row = PlanFeatureToken(plan_id=plan_id, feature_name=feature_name, tokens_monthly=body.tokens_monthly)
+        db.add(row)
     db.commit()
-    return {"ok": True, "id": plan_id, "credits_monthly": plan.credits_monthly}
+    return {"ok": True, "feature_name": feature_name, "tokens_monthly": body.tokens_monthly}
+
+
+@router.delete("/plans/{plan_id}/tokens/{feature_name}")
+def delete_plan_feature_token(
+    plan_id: str, feature_name: str,
+    db: Session = Depends(get_db), _: None = Depends(_auth),
+):
+    row = db.execute(
+        select(PlanFeatureToken)
+        .where(PlanFeatureToken.plan_id == plan_id, PlanFeatureToken.feature_name == feature_name)
+    ).scalar_one_or_none()
+    if not row:
+        raise HTTPException(404, "Feature token not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
 
 
 # ── Fine-tuning — OpenAI job pipeline ────────────────────────────────────────
