@@ -11,10 +11,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Header, HTTPException, Request
 from pydantic import BaseModel
 
-from app.api.deps import require_auth
 from app.services import support_chat as support_svc
 
 router = APIRouter(prefix="/support", tags=["support"])
@@ -28,15 +27,21 @@ class SupportChatRequest(BaseModel):
 @router.post("/chat")
 async def support_chat_endpoint(
     req: SupportChatRequest,
-    auth: dict | None = None,
+    request: Request,
 ) -> dict[str, Any]:
     """
     Send a message to the support chat.
     Returns { reply, complaint_reported, complaint_data? }
     """
     user_id = "anonymous"
-    if auth:
-        user_id = auth.get("user_id") or auth.get("sub") or "anonymous"
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from app.services.firebase_auth import verify_firebase_id_token
+            payload = await verify_firebase_id_token(auth_header[7:].strip())
+            user_id = payload.get("user_id") or payload.get("sub") or "anonymous"
+        except Exception:
+            pass
 
     result = await support_svc.support_chat(
         session_id=req.session_id,

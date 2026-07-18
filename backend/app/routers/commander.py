@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.api.deps import require_auth
@@ -41,7 +41,7 @@ class TriageRequest(BaseModel):
 @router.post("/triage")
 async def triage_bug(
     req: TriageRequest,
-    auth: dict | None = None,
+    request: Request,
 ) -> dict[str, Any]:
     """
     Classify a bug report as CRITICAL or MINOR.
@@ -50,8 +50,14 @@ async def triage_bug(
     MINOR → batched, processed every 4 days
     """
     reported_by = "anonymous"
-    if auth:
-        reported_by = auth.get("user_id") or auth.get("sub") or "anonymous"
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.startswith("Bearer "):
+        try:
+            from app.services.firebase_auth import verify_firebase_id_token
+            payload = await verify_firebase_id_token(auth_header[7:].strip())
+            reported_by = payload.get("user_id") or payload.get("sub") or "anonymous"
+        except Exception:
+            pass
 
     result = await cmd_svc.triage_bug(
         bug_report=req.bug_report,
