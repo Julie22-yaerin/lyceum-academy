@@ -12,6 +12,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { View } from '../types';
 import { useTranslation } from '../i18n/I18nContext';
+import { getApiBaseUrl } from '../lib/apiBase';
 
 export default function ReportBugButton({ onNavigate }: { onNavigate: (view: View) => void }) {
   const { t } = useTranslation();
@@ -41,7 +42,7 @@ export default function ReportBugButton({ onNavigate }: { onNavigate: (view: Vie
     setSubmitting(true);
 
     try {
-      const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+      const API_BASE = getApiBaseUrl();
       await fetch(`${API_BASE}/ai/agents/dev-patrol/report-bug`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

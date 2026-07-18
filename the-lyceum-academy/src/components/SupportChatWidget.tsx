@@ -6,6 +6,7 @@
  * Automatically reports technical complaints to admin.
  */
 import { useState, useRef, useEffect } from 'react';
+import { getApiBaseUrl } from '../lib/apiBase';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -50,7 +51,7 @@ export default function SupportChatWidget({ context = 'workspace' }: { context?:
     setSending(true);
 
     try {
-      const API_BASE = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
+      const API_BASE = getApiBaseUrl();
       const res = await fetch(`${API_BASE}/support/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
