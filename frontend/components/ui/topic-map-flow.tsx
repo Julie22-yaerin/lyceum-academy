@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, useRef, useEffect } from "react";
 import {
   ReactFlow,
   Background,
@@ -17,6 +17,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { TopicMap, MapNode } from "@/lib/topic-map";
 import { NODE_COLORS } from "@/lib/topic-map";
+import { Plus, Sparkles, Loader2 } from "lucide-react";
 
 // ── Layout: simple radial layout ─────────────────────────────────────────────
 
@@ -116,9 +117,75 @@ function TopicNode({ data, selected }: NodeProps<Node<NodeData>>) {
 
 const nodeTypes = { topicNode: TopicNode };
 
+// ── "+" add-topic button ──────────────────────────────────────────────────────
+
+function AddTopicButton({ onAdd }: { onAdd: (topic: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [value, setValue] = useState("")
+  const [loading, setLoading] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus()
+  }, [open])
+
+  const submit = () => {
+    if (!value.trim() || loading) return
+    setLoading(true)
+    onAdd(value.trim())
+    setValue("")
+    setOpen(false)
+    setLoading(false)
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="group flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-300 backdrop-blur-md transition-all hover:border-emerald-400/50 hover:bg-emerald-500/20 hover:text-emerald-200 hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+      >
+        <Plus className="h-3.5 w-3.5 transition-transform group-hover:rotate-90" />
+        <span>Add topic</span>
+      </button>
+    )
+  }
+
+  return (
+    <form
+      onSubmit={(e) => { e.preventDefault(); submit() }}
+      className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-[#0a1525]/90 p-1.5 backdrop-blur-xl shadow-[0_0_30px_rgba(16,185,129,0.15)]"
+    >
+      <Sparkles className="ml-2 h-4 w-4 text-emerald-400" />
+      <input
+        ref={inputRef}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
+        placeholder="Type a topic…"
+        className="w-56 bg-transparent px-2 py-1.5 text-sm text-white placeholder-zinc-500 outline-none"
+      />
+      <button
+        type="submit"
+        disabled={!value.trim() || loading}
+        className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500 text-black transition hover:bg-emerald-400 disabled:opacity-30"
+      >
+        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+      </button>
+      <button
+        type="button"
+        onClick={() => { setOpen(false); setValue("") }}
+        className="px-2 text-xs text-zinc-500 hover:text-zinc-300"
+      >
+        ✕
+      </button>
+    </form>
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function TopicMapFlow({ map }: { map: TopicMap }) {
+export function TopicMapFlow({ map, onNewTopic }: { map: TopicMap; onNewTopic?: (topic: string) => void }) {
   const [selectedNode, setSelectedNode] = useState<MapNode | null>(null);
 
   const positions = useMemo(() => layoutNodes(map.nodes), [map.nodes]);
@@ -196,6 +263,13 @@ export function TopicMapFlow({ map }: { map: TopicMap }) {
           maskColor="rgba(0,0,0,0.6)"
         />
       </ReactFlow>
+
+      {/* "+" Add topic button — top-right */}
+      {onNewTopic && (
+        <div className="absolute right-4 top-4 z-10">
+          <AddTopicButton onAdd={onNewTopic} />
+        </div>
+      )}
 
       {/* Node detail panel */}
       {selectedNode && (

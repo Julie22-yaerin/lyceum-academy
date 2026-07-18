@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Loader2, Network, Search } from "lucide-react";
 
 import { NODE_COLORS, type TopicMap } from "@/lib/topic-map";
+import { MetalLiquidCursor } from "@/components/ui/metal-liquid-cursor";
+import { DraggableFab } from "@/components/ui/draggable-fab";
 
 // Lazy-load the graph (ReactFlow needs browser APIs)
 const TopicMapFlow = dynamic(
@@ -40,6 +42,7 @@ export default function TopicMapPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [map, setMap] = useState<TopicMap | null>(null);
+  const [fabAction, setFabAction] = useState(0);
 
   async function generate(topic: string) {
     if (!topic.trim()) return;
@@ -74,11 +77,31 @@ export default function TopicMapPage() {
     generate(input);
   }
 
+  // DraggableFab triggers the same "+" flow — scroll to top input or open inline
+  function handleFabClick() {
+    setFabAction((n) => n + 1)
+    setInput("")
+    setMap(null)
+    // Focus the search input after state update
+    setTimeout(() => {
+      document.querySelector<HTMLInputElement>('#topic-search-input')?.focus()
+    }, 100)
+  }
+
   return (
     <div
       className="flex min-h-screen flex-col"
       style={{ background: "#050816" }}
     >
+      {/* Metal liquid cursor */}
+      <MetalLiquidCursor />
+
+      {/* Draggable floating action button */}
+      <DraggableFab
+        onAction={handleFabClick}
+        label="New topic"
+      />
+
       {/* ── Header ── */}
       <header className="border-b border-white/5 bg-[#050816]/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-4xl items-center gap-3 px-6 py-4">
@@ -103,6 +126,7 @@ export default function TopicMapPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
             <input
+              id="topic-search-input"
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -182,7 +206,7 @@ export default function TopicMapPage() {
 
           {/* Graph canvas */}
           <div className="h-[600px] w-full overflow-hidden rounded-2xl border border-white/8 bg-[#080f20]">
-            <TopicMapFlow map={map} />
+            <TopicMapFlow map={map} onNewTopic={(t) => generate(t)} />
           </div>
 
           {/* Retry / new topic */}
