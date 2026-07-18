@@ -1,9 +1,8 @@
 'use client'
 
-import { SplineScene } from "@/components/ui/splite";
 import { Card } from "@/components/ui/card";
 import { Spotlight } from "@/components/ui/spotlight";
-import Image from "next/image";
+import { InteractiveCat } from "@/components/ui/interactive-cat";
 
 export function SplineSceneBasic() {
   return (
@@ -22,15 +21,10 @@ export function SplineSceneBasic() {
           </p>
         </div>
 
-        {/* Right content - Using local image instead of Spline 3D scene */}
+        {/* Right content - interactive cat (mouse-tilt + idle bob) standing in
+            for a full 3D scene until a real rigged model is generated */}
         <div className="flex-1 relative">
-          <Image
-            src="/chibi_cat_closeup_portrait.webp"
-            alt="Chibi cat portrait"
-            fill
-            className="object-contain"
-            priority
-          />
+          <InteractiveCat src="/chibi_cat_closeup_portrait.webp" alt="Chibi cat portrait" />
         </div>
       </div>
     </Card>
