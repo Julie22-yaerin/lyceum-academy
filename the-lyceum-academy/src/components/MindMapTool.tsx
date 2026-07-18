@@ -461,13 +461,13 @@ export default function MindMapTool({ context = '', documentId = '' }: { context
           <span className="font-serif text-lg text-on-surface tracking-wide">Mind Map</span>
           <div className="flex items-center gap-3">
             <div className="flex gap-0 rounded-xl overflow-hidden border border-outline-variant/30">
-              {(['tool', 'free'] as const).map(t => (
+              {(['tool', 'free'] as const).map(tabKey => (
                 <button
-                  key={t}
-                  onClick={() => setTab(t)}
-                  className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1.5px] transition-colors ${tab === t ? 'bg-on-surface text-surface' : 'text-on-surface opacity-60 hover:opacity-100'}`}
+                  key={tabKey}
+                  onClick={() => setTab(tabKey)}
+                  className={`px-4 py-1.5 font-sans text-[10px] uppercase tracking-[1.5px] transition-colors ${tab === tabKey ? 'bg-on-surface text-surface' : 'text-on-surface opacity-60 hover:opacity-100'}`}
                 >
-                  {t === 'tool' ? t('mindmap.tool') : t('mindmap.map')}
+                  {tabKey === 'tool' ? t('mindmap.tool') : t('mindmap.map')}
                 </button>
               ))}
             </div>

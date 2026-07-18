@@ -339,6 +339,7 @@ function LensView({
   analysis?: PsetAnalysis | null;
   onAllQuestionsDone?: (rescuedQuestions: Question[]) => void;
 }) {
+  const { activeTab } = useWorkspace();
   const [idx, setIdx] = useState(startIdx);
   const [mode, setMode] = useState<'text' | 'canvas'>('text');
   const [answer, setAnswer] = useState('');

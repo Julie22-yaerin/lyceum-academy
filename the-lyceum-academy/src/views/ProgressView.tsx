@@ -286,18 +286,18 @@ export default function ProgressView() {
               <span className="font-sans text-[9px] opacity-25">{topics.length} {t('progress.topicsExplored2')}</span>
             </div>
             <div className="divide-y divide-outline/8">
-              {topics.map(t => {
-                const color = t.rate >= 70 ? '#4A7C59' : t.rate >= 40 ? '#C5A059' : '#823B18';
-                const status = t.rate >= 70 ? t('progress.statusMastered') : t.rate >= 40 ? t('progress.statusImproving') : t('progress.statusStruggling');
+              {topics.map(topic => {
+                const color = topic.rate >= 70 ? '#4A7C59' : topic.rate >= 40 ? '#C5A059' : '#823B18';
+                const status = topic.rate >= 70 ? t('progress.statusMastered') : topic.rate >= 40 ? t('progress.statusImproving') : t('progress.statusStruggling');
                 return (
-                  <div key={t.name} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container-highest/30 transition-colors">
-                    <span className="font-sans text-sm text-on-surface opacity-75 flex-1 min-w-0 truncate">{t.name}</span>
+                  <div key={topic.name} className="px-6 py-3 flex items-center gap-4 hover:bg-surface-container-highest/30 transition-colors">
+                    <span className="font-sans text-sm text-on-surface opacity-75 flex-1 min-w-0 truncate">{topic.name}</span>
                     <span className="font-sans text-[8px] uppercase tracking-[1px] px-2 py-0.5 flex-shrink-0" style={{ color, border: `1px solid ${color}40`, background: `${color}12` }}>{status}</span>
                     <div className="w-20 h-1 bg-outline-variant/15 flex-shrink-0 hidden md:block">
-                      <div className="h-full" style={{ width: `${t.rate}%`, background: color }} />
+                      <div className="h-full" style={{ width: `${topic.rate}%`, background: color }} />
                     </div>
-                    <span className="font-sans text-[10px] opacity-45 w-10 text-right flex-shrink-0">{t.rate}%</span>
-                    <span className="font-sans text-[9px] opacity-25 w-14 text-right flex-shrink-0">{t.passed}/{t.total}</span>
+                    <span className="font-sans text-[10px] opacity-45 w-10 text-right flex-shrink-0">{topic.rate}%</span>
+                    <span className="font-sans text-[9px] opacity-25 w-14 text-right flex-shrink-0">{topic.passed}/{topic.total}</span>
                   </div>
                 );
               })}
