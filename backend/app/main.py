@@ -326,6 +326,9 @@ async def lifespan(_app: FastAPI):
     from app.services import ai_registry as ai_registry_svc
     ai_registry_svc.init_db()
 
+    from app.services import chat_history as chat_history_svc
+    chat_history_svc.init_db()
+
     async def _commander_batch_loop() -> None:
         """Every 6h, check whether the 4-day minor-bug batch is due and
         dispatch it. Coarse enough interval for a multi-day cadence, cheap

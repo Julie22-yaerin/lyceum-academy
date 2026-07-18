@@ -27,6 +27,12 @@ CREATE TABLE IF NOT EXISTS ai_registry (
 );
 """
 
+# custom_instructions: live-editable text appended to this agent's system
+# prompt on every real call (triage/review/admin_chat) — either edited
+# directly here or set by the agent itself via its update_instructions
+# tool when an admin asks it to change how it behaves. Distinct from
+# `notes`, which is just descriptive text for the org-chart UI.
+
 # (id, name, description, category, parent_id) — the "as of now" snapshot.
 _SEED: list[tuple[str, str, str, str, str | None]] = [
     ("commander", "Commander", "Dev-team commander — triages bug reports (critical vs minor), dispatches them to the right dev, and takes direct function-calling commands from admin chat.", "head", None),
@@ -57,6 +63,9 @@ def init_db() -> None:
     """Create the table and seed it (once) if empty. Safe to call multiple times."""
     with _conn() as c:
         c.executescript(_DDL)
+        cols = {row["name"] for row in c.execute("PRAGMA table_info(ai_registry)")}
+        if "custom_instructions" not in cols:
+            c.execute("ALTER TABLE ai_registry ADD COLUMN custom_instructions TEXT NOT NULL DEFAULT ''")
         count = c.execute("SELECT COUNT(*) FROM ai_registry").fetchone()[0]
         if count == 0:
             c.executemany(
@@ -95,18 +104,25 @@ def create_agent(
     category: str = "",
     parent_id: str | None = None,
     notes: str = "",
+    custom_instructions: str = "",
 ) -> dict[str, Any]:
     with _conn() as c:
         c.execute(
-            "INSERT INTO ai_registry (id, name, description, category, parent_id, notes) VALUES (?,?,?,?,?,?)",
-            (agent_id, name, description, category, parent_id, notes),
+            "INSERT INTO ai_registry (id, name, description, category, parent_id, notes, custom_instructions) VALUES (?,?,?,?,?,?,?)",
+            (agent_id, name, description, category, parent_id, notes, custom_instructions),
         )
     return get_agent(agent_id)  # type: ignore[return-value]
 
 
+def get_custom_instructions(agent_id: str) -> str:
+    """Convenience accessor for callers building a system prompt."""
+    agent = get_agent(agent_id)
+    return (agent or {}).get("custom_instructions", "") or ""
+
+
 def update_agent(agent_id: str, **fields: Any) -> dict[str, Any] | None:
-    """Edit name/description/category/parent_id/notes. Unknown keys are ignored."""
-    allowed = {"name", "description", "category", "parent_id", "notes"}
+    """Edit name/description/category/parent_id/notes/custom_instructions. Unknown keys are ignored."""
+    allowed = {"name", "description", "category", "parent_id", "notes", "custom_instructions"}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return get_agent(agent_id)

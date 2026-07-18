@@ -25,6 +25,8 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.services import ai_registry as registry_svc
+from app.services import chat_history as history_svc
 
 NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
 
@@ -215,6 +217,13 @@ Return JSON:
   "dispatch_action": "immediate|batch-4-day",
   "assign_to": "backend-dev|frontend-dev|security-dev"
 }"""
+
+    custom_instructions = registry_svc.get_custom_instructions("commander")
+    if custom_instructions:
+        system = (
+            f"{system}\n\nAdditional instructions from admin (apply these, but "
+            f"the JSON schema above is still mandatory — never break format):\n{custom_instructions}"
+        )
 
     context_parts = [f"Bug report: {bug_report}"]
     if endpoint:
@@ -438,6 +447,23 @@ _TOOLS: list[dict[str, Any]] = [
             "parameters": {"type": "object", "properties": {}},
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "update_instructions",
+            "description": "Permanently update your own standing instructions when the admin tells you to change how you behave going forward (e.g. 'be more concise', 'prioritize security over performance'). Saved and re-applied to every future triage/admin-chat call, not just this conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "instructions": {
+                        "type": "string",
+                        "description": "The new standing instructions, written as a direct directive to yourself.",
+                    },
+                },
+                "required": ["instructions"],
+            },
+        },
+    },
 ]
 
 
@@ -482,6 +508,11 @@ async def _execute_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
             "dev_status": {aid: a.get_status() for aid, a in DEV_AGENTS.items()},
         }
 
+    if name == "update_instructions":
+        instructions = args.get("instructions", "")
+        registry_svc.update_agent("commander", custom_instructions=instructions)
+        return {"ok": True, "saved": instructions}
+
     return {"ok": False, "error": f"unknown tool '{name}'"}
 
 
@@ -511,14 +542,21 @@ async def admin_chat(session_id: str, message: str) -> dict[str, Any]:
         "direct operational instructions. This is NOT a student and NOT a "
         "support conversation — treat every message as a command from your "
         "superior. When it maps to one of your tools, CALL THE TOOL and "
-        "actually do it — do not just describe what you would do. Reply "
+        "actually do it — do not just describe what you would do. If the admin "
+        "tells you to change how you behave going forward (tone, priorities, "
+        "style), call update_instructions to save it permanently. Reply "
         f"directly and operationally.\n\n{queue_summary}"
     )
+
+    custom_instructions = registry_svc.get_custom_instructions("commander")
+    if custom_instructions:
+        system += f"\n\nYour current standing instructions from admin:\n{custom_instructions}"
 
     history = _admin_sessions.setdefault(session_id, [])
     history.append({"role": "user", "content": message})
     if len(history) > _ADMIN_MAX_HISTORY:
         history[:] = history[-_ADMIN_MAX_HISTORY:]
+    history_svc.save_message("commander", "user", message)
 
     messages: list[dict[str, Any]] = [{"role": "system", "content": system}] + list(history)
     executed: list[dict[str, Any]] = []
@@ -547,6 +585,10 @@ async def admin_chat(session_id: str, message: str) -> dict[str, Any]:
                     "tool_call_id": tc.get("id", ""),
                     "content": json.dumps(result, ensure_ascii=False),
                 })
+            messages.append({
+                "role": "system",
+                "content": "Now reply to the admin in plain natural language confirming what you did. Do not output tool-call syntax, tags, or JSON.",
+            })
             final_msg = await _nvidia_chat_raw(api_key, model, messages, tools=None)
             reply = final_msg.get("content") or "Done."
         else:
@@ -555,6 +597,7 @@ async def admin_chat(session_id: str, message: str) -> dict[str, Any]:
         return {"reply": f"Sorry, I'm unavailable right now ({type(e).__name__}).", "tool_calls": executed}
 
     history.append({"role": "assistant", "content": reply})
+    history_svc.save_message("commander", "assistant", reply)
     return {"reply": reply, "tool_calls": executed}
 
 

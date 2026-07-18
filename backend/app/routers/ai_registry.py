@@ -22,6 +22,7 @@ from pydantic import BaseModel
 
 from app.routers.admin import _auth as _admin_auth
 from app.services import ai_registry as registry_svc
+from app.services import chat_history as history_svc
 from app.services import commander as commander_svc
 from app.services import critique as critique_svc
 
@@ -40,6 +41,7 @@ class AgentIn(BaseModel):
     category: str = ""
     parent_id: str | None = None
     notes: str = ""
+    custom_instructions: str = ""
 
 
 @router.post("/agents", status_code=201)
@@ -55,6 +57,7 @@ class AgentUpdateIn(BaseModel):
     category: str | None = None
     parent_id: str | None = None
     notes: str | None = None
+    custom_instructions: str | None = None
 
 
 @router.put("/agents/{agent_id}")
@@ -90,12 +93,18 @@ async def chat(agent_id: str, body: ChatIn, _: None = Depends(_admin_auth)) -> d
     critique-pos3. (support-chat has its own always-on endpoint, /support/chat.)
     """
     if agent_id == "commander":
-        # Commander's admin_chat can execute real tool calls (dispatch/scan/
-        # resolve/run-batch) — surface which ones ran for admin transparency.
         result = await commander_svc.admin_chat(body.session_id, body.message)
-        return {"reply": result["reply"], "tool_calls": result.get("tool_calls", [])}
     elif agent_id in _CRITIQUE_POS:
-        reply = await critique_svc.admin_chat(_CRITIQUE_POS[agent_id], body.session_id, body.message)
-        return {"reply": reply, "tool_calls": []}
+        result = await critique_svc.admin_chat(_CRITIQUE_POS[agent_id], body.session_id, body.message)
     else:
         raise HTTPException(404, f"Unknown or non-chattable agent '{agent_id}'")
+    # Both admin_chat implementations can execute real tool calls (dispatch/
+    # scan/resolve/run-batch, update_instructions) — surface which ones ran.
+    return {"reply": result["reply"], "tool_calls": result.get("tool_calls", [])}
+
+
+@router.get("/chat/{agent_id}/history")
+async def chat_history(agent_id: str, limit: int = 200, _: None = Depends(_admin_auth)) -> dict[str, Any]:
+    """Auto-saved transcript for this agent — used to restore the admin's
+    conversation across page reloads/devices."""
+    return {"messages": history_svc.list_messages(agent_id, limit)}

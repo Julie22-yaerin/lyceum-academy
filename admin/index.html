@@ -578,6 +578,11 @@ function renderAgentCard(a, allAgents) {
 
       <textarea id="notes-${esc(a.id)}" rows="2" style="font-size:12px" placeholder="Notes">${esc(a.notes)}</textarea>
 
+      <div>
+        <div class="text-[10px] uppercase tracking-wider mb-1" style="color:var(--muted)">Standing instructions (applied to every real call)</div>
+        <textarea id="instr-${esc(a.id)}" rows="2" style="font-size:12px" placeholder="e.g. Be more concise. Prioritize security over performance.">${esc(a.custom_instructions)}</textarea>
+      </div>
+
       <div class="flex justify-end">
         <button onclick="saveAgent('${esc(a.id)}')" class="btn btn-primary text-xs">Save</button>
       </div>
@@ -588,10 +593,11 @@ async function saveAgent(id) {
   const description = document.getElementById('desc-'+id)?.value ?? '';
   const parent_id   = document.getElementById('parent-'+id)?.value || null;
   const notes       = document.getElementById('notes-'+id)?.value ?? '';
+  const custom_instructions = document.getElementById('instr-'+id)?.value ?? '';
   try {
     await api(`/ai-registry/agents/${encodeURIComponent(id)}`, {
       method: 'PUT', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ description, parent_id, notes }),
+      body: JSON.stringify({ description, parent_id, notes, custom_instructions }),
     });
     toast('✓ Saved');
     renderAiSystem();
@@ -668,18 +674,33 @@ const HEAD_AGENTS = [
 ];
 
 let _aiChatActive = 'commander';
-const _aiChatSessions = {};   // agentId -> session_id
-const _aiChatHistory  = {};   // agentId -> [{role, text}]
+const _aiChatHistory  = {};   // agentId -> [{role, text}], auto-saved server-side
+const _aiChatLoaded   = {};   // agentId -> true once persisted history has been fetched
+const _AGENTS_WITH_HISTORY = new Set(['commander', 'critique-pos1', 'critique-pos2', 'critique-pos3']);
 
+// One durable thread per agent (not per browser tab) — matches the backend's
+// auto-save-per-agent model, so reopening the panel picks up where it left off.
 function _aiChatSessionId(agentId) {
-  if (!_aiChatSessions[agentId]) _aiChatSessions[agentId] = 'admin_'+agentId+'_'+Date.now().toString(36);
-  return _aiChatSessions[agentId];
+  return 'admin-' + agentId;
+}
+
+async function _ensureChatHistoryLoaded(agentId) {
+  if (_aiChatLoaded[agentId] || !_AGENTS_WITH_HISTORY.has(agentId)) return;
+  _aiChatLoaded[agentId] = true;
+  try {
+    const r = await api(`/ai-registry/chat/${encodeURIComponent(agentId)}/history`);
+    const messages = (await r.json()).messages || [];
+    _aiChatHistory[agentId] = messages.map(m => ({ role: m.role, text: m.content }));
+  } catch (e) {
+    _aiChatLoaded[agentId] = false; // allow retry next time
+  }
 }
 
 async function viewAiChat() {
   hideAllViews();
   setActiveNav('nav-ai-chat');
   show('view-ai-chat');
+  await _ensureChatHistoryLoaded(_aiChatActive);
   renderAiChat();
 }
 
@@ -718,9 +739,11 @@ function renderAiChat() {
   if (box) box.scrollTop = box.scrollHeight;
 }
 
-function selectAiChatAgent(id) {
+async function selectAiChatAgent(id) {
   _aiChatActive = id;
   renderAiChat();
+  await _ensureChatHistoryLoaded(id);
+  if (_aiChatActive === id) renderAiChat();
 }
 
 async function sendAiChat() {

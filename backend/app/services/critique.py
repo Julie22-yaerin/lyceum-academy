@@ -35,6 +35,8 @@ import httpx
 from typing import Any
 
 from app.core.config import settings
+from app.services import ai_registry as registry_svc
+from app.services import chat_history as history_svc
 from app.services.ai import (
     OPENAI_CHAT_URL,
     GROQ_CHAT_URL,
@@ -45,6 +47,14 @@ from app.services.ai import (
 )
 
 log = logging.getLogger("pclick.critique")
+
+
+def _system_with_instructions(base_prompt: str, agent_id: str) -> str:
+    """Append this position's admin-set custom_instructions, if any."""
+    custom = registry_svc.get_custom_instructions(agent_id)
+    if not custom:
+        return base_prompt
+    return f"{base_prompt}\n\nAdditional standing instructions from admin:\n{custom}"
 
 # ── System prompts ────────────────────────────────────────────────────────────
 
@@ -137,7 +147,7 @@ async def _pos1_openai(context: str, draft: str) -> dict | None:
     payload: dict[str, Any] = {
         "model":    settings.critique_openai_model,
         "messages": [
-            {"role": "system", "content": _SYS_POS1},
+            {"role": "system", "content": _system_with_instructions(_SYS_POS1, "critique-pos1")},
             {"role": "user",   "content": (
                 f"STUDENT REQUEST:\n{context}\n\n"
                 f"DRAFT RESPONSE (100% — full text):\n{draft}"
@@ -171,7 +181,7 @@ async def _pos2_groq(context: str, draft: str) -> dict | None:
     payload: dict[str, Any] = {
         "model":    settings.critique_groq_model,
         "messages": [
-            {"role": "system", "content": _SYS_POS2},
+            {"role": "system", "content": _system_with_instructions(_SYS_POS2, "critique-pos2")},
             {"role": "user",   "content": (
                 f"STUDENT REQUEST:\n{context}\n\n"
                 f"DRAFT RESPONSE (≈50% cốt lõi):\n{core_draft}"
@@ -214,7 +224,7 @@ async def _pos3_coordinate(
     payload: dict[str, Any] = {
         "model":    settings.critique_google_model,
         "messages": [
-            {"role": "system", "content": _SYS_POS3_COORD},
+            {"role": "system", "content": _system_with_instructions(_SYS_POS3_COORD, "critique-pos3")},
             {"role": "user",   "content": (
                 f"STUDENT REQUEST:\n{context}\n\n"
                 f"DRAFT RESPONSE (20% tinh túy):\n{essence}\n\n"
@@ -404,52 +414,129 @@ _POS_CONFIG = {
 }
 
 
-async def admin_chat(pos: int, session_id: str, message: str) -> str:
+def _update_instructions_tool(agent_id: str) -> dict[str, Any]:
+    return {
+        "type": "function",
+        "function": {
+            "name": "update_instructions",
+            "description": "Permanently update your own standing instructions when the admin tells you to change how you review responses going forward. Saved and re-applied to every future review AND admin-chat call, not just this conversation.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "instructions": {
+                        "type": "string",
+                        "description": "The new standing instructions, written as a direct directive to yourself.",
+                    },
+                },
+                "required": ["instructions"],
+            },
+        },
+    }
+
+
+async def _chat_completion_raw(
+    url: str, api_key: str, model: str, messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]] | None = None, temperature: float = 0.4, max_tokens: int = 1024,
+) -> dict[str, Any]:
+    """Shared OpenAI-compatible chat call (OpenAI/Groq/Google all speak this
+    shape here) that returns the raw assistant message, tool_calls included."""
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload: dict[str, Any] = {
+        "model": model, "messages": messages, "temperature": temperature,
+        "max_tokens": max_tokens, "stream": False,
+    }
+    if tools:
+        payload["tools"] = tools
+        payload["tool_choice"] = "auto"
+    async with httpx.AsyncClient(timeout=45) as client:
+        resp = await client.post(url, headers=headers, json=payload)
+        resp.raise_for_status()
+        data = resp.json()
+    choices = data.get("choices", [])
+    if not choices:
+        return {"content": "", "tool_calls": []}
+    return choices[0].get("message", {})
+
+
+async def admin_chat(pos: int, session_id: str, message: str) -> dict[str, Any]:
     """
     Open-ended admin chat with a single critique position (1, 2, or 3) —
     reuses that position's real system prompt and model, but as a normal
-    conversation instead of the fixed draft/verdict JSON contract.
+    conversation instead of the fixed draft/verdict JSON contract. Can call
+    update_instructions to permanently change how this position reviews.
+
+    Returns { reply: str, tool_calls: [{name, args}] }
     """
     cfg = _POS_CONFIG.get(pos)
     if not cfg:
-        return "Unknown position — use 1, 2, or 3."
+        return {"reply": "Unknown position — use 1, 2, or 3.", "tool_calls": []}
 
+    agent_id = f"critique-pos{pos}"
     api_key = getattr(settings, cfg["key_attr"])
     if not api_key:
-        return f"Position {pos} has no API key configured."
+        return {"reply": f"Position {pos} has no API key configured.", "tool_calls": []}
 
     history = _admin_sessions.setdefault(session_id, [])
     history.append({"role": "user", "content": message})
     if len(history) > _ADMIN_MAX_HISTORY:
         history[:] = history[-_ADMIN_MAX_HISTORY:]
+    history_svc.save_message(agent_id, "user", message)
 
     chat_system = (
         cfg["system"]
-        + "\n\nNOTE: You are now talking directly with an admin, NOT reviewing "
-        "a draft response. Answer their questions plainly and conversationally "
-        "in the language they write in — do not return the JSON verdict format."
+        + "\n\nNOTE: You are now talking directly with an AUTHENTICATED ADMIN "
+        "giving you direct instructions — NOT reviewing a draft response, and "
+        "NOT a student. Answer plainly and conversationally in the language "
+        "they write in — do not return the JSON verdict format. If the admin "
+        "tells you to change how you review going forward, call "
+        "update_instructions to save it permanently."
     )
-    messages = [{"role": "system", "content": chat_system}] + history
+    chat_system = _system_with_instructions(chat_system, agent_id)
+    messages: list[dict[str, Any]] = [{"role": "system", "content": chat_system}] + list(history)
+    tools = [_update_instructions_tool(agent_id)]
+    executed: list[dict[str, Any]] = []
 
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    payload = {
-        "model": getattr(settings, cfg["model_attr"]),
-        "messages": messages,
-        "temperature": 0.4,
-        "max_tokens": 1024,
-        "stream": False,
-    }
     try:
-        async with httpx.AsyncClient(timeout=45) as client:
-            resp = await client.post(cfg["url"], headers=headers, json=payload)
-            resp.raise_for_status()
-            reply = extract_text(resp.json()) or "(no response)"
+        msg = await _chat_completion_raw(cfg["url"], api_key, getattr(settings, cfg["model_attr"]), messages, tools=tools)
+        tool_calls = msg.get("tool_calls") or []
+
+        if tool_calls:
+            messages.append({
+                "role": "assistant", "content": msg.get("content") or "", "tool_calls": tool_calls,
+            })
+            for tc in tool_calls:
+                fn = tc.get("function", {})
+                name = fn.get("name", "")
+                try:
+                    args = _json.loads(fn.get("arguments") or "{}")
+                except _json.JSONDecodeError:
+                    args = {}
+                if name == "update_instructions":
+                    instructions = args.get("instructions", "")
+                    registry_svc.update_agent(agent_id, custom_instructions=instructions)
+                    result = {"ok": True, "saved": instructions}
+                else:
+                    result = {"ok": False, "error": f"unknown tool '{name}'"}
+                executed.append({"name": name, "args": args})
+                messages.append({
+                    "role": "tool", "tool_call_id": tc.get("id", ""),
+                    "content": _json.dumps(result, ensure_ascii=False),
+                })
+            messages.append({
+                "role": "system",
+                "content": "Now reply to the admin in plain natural language confirming what you did. Do not output tool-call syntax, tags, or JSON.",
+            })
+            final_msg = await _chat_completion_raw(cfg["url"], api_key, getattr(settings, cfg["model_attr"]), messages, tools=None)
+            reply = final_msg.get("content") or "Done."
+        else:
+            reply = msg.get("content") or "(no response)"
     except Exception as e:
         log.warning("admin_chat pos%d failed: %s", pos, e)
-        return f"Sorry, Position {pos} is unavailable right now ({type(e).__name__})."
+        return {"reply": f"Sorry, Position {pos} is unavailable right now ({type(e).__name__}).", "tool_calls": executed}
 
     history.append({"role": "assistant", "content": reply})
-    return reply
+    history_svc.save_message(agent_id, "assistant", reply)
+    return {"reply": reply, "tool_calls": executed}
 
 
 async def review_dict_field(
