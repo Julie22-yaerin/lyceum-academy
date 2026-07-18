@@ -12,7 +12,13 @@ export default function ExerciseView() {
   return (
     <div className="flex flex-col items-center justify-center min-h-[calc(100vh-100px)] py-12 px-4 relative overflow-hidden bg-surface">
       <div className="absolute left-0 bottom-0 opacity-[0.03] pointer-events-none select-none hidden lg:block transform -translate-x-1/4 grayscale">
-        <img className="w-[600px]" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8y6w93hY05oH-ZzjgyizzN7Ixj_rftc99NXm_ThToG-FDPyniX535eekvTgFipT0ra_UDOGPgqQXg8k7-nHspE3BS_X3PdPgEBlgXQlzQXDYh8YHfG7-Pj0ujgAbjQD5sURwa8VheJ5leVTAJhl87m9M6j8rv17QXo9GisUgovInIcJVvtCnVWGT60mo2Q5lLgdD3cwXPy55KvUIFahrlq5fG3KipbGQFjr08PJWr1umGbODetmXSvlJW1doNY1lxXS0zHPckTGzF" alt="Bust" />
+        <img
+          className="w-[600px]"
+          src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8y6w93hY05oH-ZzjgyizzN7Ixj_rftc99NXm_ThToG-FDPyniX535eekvTgFipT0ra_UDOGPgqQXg8k7-nHspE3BS_X3PdPgEBlgXQlzQXDYh8YHfG7-Pj0ujgAbjQD5sURwa8VheJ5leVTAJhl87m9M6j8rv17QXo9GisUgovInIcJVvtCnVWGT60mo2Q5lLgdD3cwXPy55KvUIFahrlq5fG3KipbGQFjr08PJWr1umGbODetmXSvlJW1doNY1lxXS0zHPckTGzF"
+          alt="Bust"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          loading="lazy"
+        />
       </div>
       
       <div className="w-full max-w-3xl bg-surface border border-outline/10 shadow-sm flex flex-col z-10 p-10">

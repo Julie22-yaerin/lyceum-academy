@@ -252,6 +252,7 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                   className="w-full h-full object-contain grayscale opacity-80"
                   src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrMRMQplboPg8Qif0otOm4qABvXmkxRZ69RL-kGUcFczQIcwCp6cSMCM0xAZ1DYLvMoqtCoeL0FUO_Qe8YpL04WKUkwXkBQiTEoXY1jZ2jHHA8RyUl2EhTPbNt1jXyyG-QsSGq3cPgdMehqixoS6-zBZbISveX2FG51SIG0G4hHOGyc27OVDOH56nDeGqLSa2kGeluwq1pQaLqKbuTMKXqA1DX1hGAyeLsAJuz82PmgvUADiG--GM_7YypoynYC7oLzARQEvHQVSdt"
                   alt="Hermes"
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
               </div>
               <h1 className="font-serif text-3xl text-on-surface text-center tracking-[2px]">

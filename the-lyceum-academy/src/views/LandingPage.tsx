@@ -226,7 +226,7 @@ function ScrollMascot() {
     <div ref={ref} className="hidden lg:block absolute right-8 top-0 w-56 h-[160vh] pointer-events-none z-10" aria-hidden>
       <div className="sticky top-32 flex justify-end" style={{ perspective: 1000 }}>
         <motion.img
-          src="/mascot-cat.png"
+          src="/chibi_cat_closeup_portrait.webp"
           alt=""
           className="w-48 drop-shadow-[0_20px_60px_rgba(139,92,246,0.35)] select-none"
           style={{ rotateY, rotateX, transformStyle: 'preserve-3d' }}
@@ -320,7 +320,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               <div className="relative w-14 h-14 flex-shrink-0">
                 <LightBurst />
                 <motion.img
-                  src="/mascot-cat.png"
+                  src="/chibi_cat_closeup_portrait.webp"
                   alt="Lyceum mascot"
                   className="relative w-14 h-14 object-contain drop-shadow-[0_4px_18px_rgba(139,92,246,0.5)]"
                   initial={{ opacity: 0, scale: 0.6, rotate: -8 }}

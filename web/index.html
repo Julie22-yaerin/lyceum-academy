@@ -1603,7 +1603,7 @@ function renderPset(data) {
       </div>
       ${cpts?`<div class="q-concepts">${cpts}</div>`:''}
       ${p.image_crop
-        ? `<img class="q-crop" src="data:image/jpeg;base64,${p.image_crop}" alt="Question ${esc(p.id||String(i+1))}" />`
+        ? `<img class="q-crop" src="data:image/jpeg;base64,${p.image_crop}" alt="Question ${esc(p.id||String(i+1))}" loading="lazy" />`
         : `<div><div class="q-prompt-lbl">QUESTION</div><div class="q-prompt" id="qprompt-${i}">${renderMd(p.prompt||'')}</div></div>`
       }
       <div class="q-ans-wrap">

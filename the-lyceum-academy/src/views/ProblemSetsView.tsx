@@ -1110,6 +1110,7 @@ function LensView({
                   alt={`Page ${page.index + 1}`}
                   className="w-full block"
                   draggable={false}
+                  loading="lazy"
                 />
 
                 {/* ── Saved highlights (above image, below dim) ── */}
@@ -1301,7 +1302,8 @@ function LensView({
                     {noteImg ? (
                       <div className="flex flex-col gap-1.5">
                         <img src={noteImg} alt={`Q${oi + 1} handwritten answer`}
-                          className="w-full border border-white/10 bg-white" style={{ maxHeight: 120, objectFit: 'contain' }} />
+                          className="w-full border border-white/10 bg-white" style={{ maxHeight: 120, objectFit: 'contain' }}
+                          loading="lazy" />
                         <button onClick={() => { setIdx(oi); setMode('canvas'); }}
                           className="self-start font-sans text-[9px] uppercase tracking-[1px] text-white/40 hover:text-white/80 transition-colors">
                           Redraw

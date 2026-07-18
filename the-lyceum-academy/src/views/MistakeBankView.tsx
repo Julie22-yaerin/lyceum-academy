@@ -60,7 +60,13 @@ function MistakeCard({ entry, selected, onToggle, onDelete }: { entry: MistakeEn
             {(entry.attachedImage || entry.attachedSourceUrl) && (
               <div className="mt-2 flex items-center gap-2">
                 {entry.attachedImage && (
-                  <img src={entry.attachedImage} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                  <img
+                    src={entry.attachedImage}
+                    alt=""
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    loading="lazy"
+                  />
                 )}
                 {entry.attachedSourceUrl && (
                   <a
