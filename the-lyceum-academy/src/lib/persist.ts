@@ -122,6 +122,43 @@ export function deletePSet(id: string): void {
   try { localStorage.setItem(PSETS_KEY, JSON.stringify(loadPSets().filter(p => p.id !== id))); } catch {}
 }
 
+// ── Exercise Cards (24h TTL) ────────────────────────────────────────────────
+const EXERCISE_TTL = 24 * 60 * 60 * 1000;
+const EXERCISES_KEY = 'lyceum_exercises_v1';
+
+export interface SavedExerciseSession {
+  id: string;
+  subject: string;
+  topic: string;
+  savedAt: number;
+  expiresAt: number;
+  cards: any[];
+  currentIdx: number;
+  grades: Record<string, { passed: boolean; feedback: string }>;
+  rescuesUsed: number;
+  rescuedCards: any[];
+}
+
+export function loadExerciseSessions(subjectFilter?: string): SavedExerciseSession[] {
+  const all = parse<SavedExerciseSession>(EXERCISES_KEY);
+  const live = all.filter(e => e.expiresAt > Date.now());
+  if (live.length !== all.length) {
+    try { localStorage.setItem(EXERCISES_KEY, JSON.stringify(live)); } catch {}
+  }
+  return subjectFilter ? live.filter(e => e.subject === subjectFilter) : live;
+}
+
+export function saveExerciseSession(session: Omit<SavedExerciseSession, 'expiresAt'> & { expiresAt?: number }): void {
+  const full: SavedExerciseSession = { ...session, expiresAt: session.expiresAt ?? (Date.now() + EXERCISE_TTL) };
+  const list = loadExerciseSessions().filter(e => e.id !== full.id);
+  list.unshift(full);
+  try { localStorage.setItem(EXERCISES_KEY, JSON.stringify(list.slice(0, 10))); } catch {}
+}
+
+export function deleteExerciseSession(id: string): void {
+  try { localStorage.setItem(EXERCISES_KEY, JSON.stringify(loadExerciseSessions().filter(e => e.id !== id))); } catch {}
+}
+
 // ── Saved Notes (24h TTL) ────────────────────────────────────────────────
 const NOTE_TTL   = 24 * 60 * 60 * 1000;
 const NOTES_KEY  = 'lyceum_notes_v1';

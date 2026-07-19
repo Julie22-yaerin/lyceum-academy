@@ -150,7 +150,7 @@ def _calc_cohort_metrics(
     return_7d = _calc_return_rate(db, uid_strs, window_end, _RETENTION_WINDOWS["7d"])
     return_30d = _calc_return_rate(db, uid_strs, window_end, _RETENTION_WINDOWS["30d"])
 
-    # ── 5. Active users & completed psets ────────────────────────────────
+    # ── 5. Active users & completed playgrounds ──────────────────────────
     active_users = db.execute(
         select(func.count(func.distinct(Attempt.user_id))).where(
             Attempt.user_id.in_(uid_strs),
@@ -182,7 +182,7 @@ def _calc_cohort_metrics(
         "total_users_in_cohort": len(user_ids),
         "active_users_in_window": int(active_users),
         "total_attempts": int(total_attempts),
-        "completed_psets": int(completed_count),
+        "completed_playgrounds": int(completed_count),
     }
 
 
@@ -288,7 +288,7 @@ def _empty_metrics() -> dict[str, Any]:
         "total_users_in_cohort": 0,
         "active_users_in_window": 0,
         "total_attempts": 0,
-        "completed_psets": 0,
+        "completed_playgrounds": 0,
     }
 
 
@@ -341,7 +341,7 @@ def create_metrics_snapshot(
                 total_users_in_cohort=metrics["total_users_in_cohort"],
                 active_users_in_window=metrics["active_users_in_window"],
                 total_attempts=metrics["total_attempts"],
-                completed_psets=metrics["completed_psets"],
+                completed_playgrounds=metrics["completed_playgrounds"],
             )
             db.add(snapshot)
             snapshots_created += 1
@@ -400,7 +400,7 @@ def get_metrics_chart_data(
         dependency_rate, avg_accuracy,
         return_rate_7d, return_rate_30d,
         total_users_in_cohort, active_users_in_window,
-        total_attempts, completed_psets
+        total_attempts, completed_playgrounds
     }
     """
     if window_end is None:
@@ -436,7 +436,7 @@ def get_metrics_chart_data(
                 "total_users_in_cohort": s.total_users_in_cohort,
                 "active_users_in_window": s.active_users_in_window,
                 "total_attempts": s.total_attempts,
-                "completed_psets": s.completed_psets,
+                "completed_playgrounds": s.completed_playgrounds,
             }
             for s in snapshots
         ]
@@ -472,7 +472,7 @@ def get_latest_snapshot() -> dict[str, Any] | None:
             "total_users_in_cohort": s.total_users_in_cohort,
             "active_users_in_window": s.active_users_in_window,
             "total_attempts": s.total_attempts,
-            "completed_psets": s.completed_psets,
+            "completed_playgrounds": s.completed_playgrounds,
         }
     except Exception as e:
         log.error("get_latest_snapshot failed: %s", e)

@@ -5006,3 +5006,107 @@ async def analyze_feedback_themes(feedback_items: list[dict]) -> dict:
     except Exception as e:
         log.error("analyze_feedback_themes NVIDIA error: %s", e)
         return {"themes": [], "summary": "", "error": str(e)}
+
+
+# ── Exercise Card Generation (second brain → AI-generated cards) ─────────────
+
+@_tag_task
+async def generate_exercises(
+    subject: str,
+    topic: str = "",
+    count: int = 10,
+    difficulty_mix: str = "mixed",
+) -> dict:
+    """
+    Generate exercise cards on-the-fly from second brain curriculum content.
+
+    Uses RAG to pull relevant notes, then asks the AI to generate
+    exercise questions grounded in real curriculum material.
+
+    Returns: { cards: [{ id, question, difficulty, concepts, subject, topic, source }] }
+    """
+    # Build a query from subject + topic for RAG retrieval
+    query = f"{subject} {topic}".strip() if topic else subject
+    rag_context = _rag.context_for(query, n=5)
+
+    system = (
+        "You are an expert curriculum designer for the Lyceum learning platform.\n"
+        "Generate exercise cards that test understanding of the subject material.\n"
+        "Each card should be a self-contained question suitable for a student to answer.\n\n"
+        "Rules:\n"
+        "- Questions should be grounded in the provided reference material\n"
+        "- Mix difficulties: easy (30%), medium (40%), hard (25%), extreme (5%)\n"
+        "- Each question should test a specific concept\n"
+        "- Include the concept tags for mastery tracking\n"
+        "- Questions should be clear and unambiguous\n"
+        "- For math/science: include specific values and scenarios\n"
+        "- For humanities: pose analytical questions with evidence requirements\n\n"
+        "Return ONLY a JSON array of exercise cards. No other text.\n"
+        "Format: [{\"question\": \"...\", \"difficulty\": \"easy|medium|hard|extreme\", "
+        "\"concepts\": [\"concept1\", \"concept2\"], \"topic\": \"...\", "
+        "\"source\": \"brief reference to curriculum content used\"}]"
+    )
+
+    user_msg = (
+        f"Generate {count} exercise cards for {subject}"
+        f"{' — topic: ' + topic if topic else ''}.\n"
+    )
+    if rag_context:
+        user_msg += f"\nReference curriculum content:\n{rag_context}\n"
+
+    # Try Groq first (fast, cheap), then fallback
+    raw_text = ""
+    try:
+        data = await _groq_call(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": user_msg}],
+            model=settings.groq_primary_model,
+            temperature=0.7,
+            max_tokens=4096,
+        )
+        raw_text = extract_text(data)
+    except Exception:
+        pass
+
+    if not raw_text:
+        try:
+            data = await _google_call(
+                [{"role": "system", "content": system},
+                 {"role": "user", "content": user_msg}],
+                model=settings.google_primary_model,
+                temperature=0.7,
+                max_tokens=4096,
+            )
+            raw_text = extract_text(data)
+        except Exception as e:
+            log.error("generate_exercises: all providers failed: %s", e)
+            return {"cards": [], "error": str(e)}
+
+    # Parse the JSON array from the response
+    parsed = _parse_json_robust(raw_text)
+    if not parsed or not isinstance(parsed, list):
+        # Try to extract JSON array from markdown code block
+        import re as _re2
+        m = _re2.search(r'\[[\s\S]*\]', raw_text)
+        if m:
+            parsed = _parse_json_robust(m.group(0))
+        if not parsed or not isinstance(parsed, list):
+            log.warning("generate_exercises: JSON parse failed. Raw: %s", raw_text[:500])
+            return {"cards": [], "error": "parse_failed"}
+
+    # Normalize and add IDs
+    cards = []
+    for i, card in enumerate(parsed):
+        if not isinstance(card, dict) or "question" not in card:
+            continue
+        cards.append({
+            "id": f"ex-{i+1}",
+            "question": card.get("question", ""),
+            "difficulty": card.get("difficulty", "medium"),
+            "concepts": card.get("concepts", []),
+            "subject": subject,
+            "topic": card.get("topic", topic),
+            "source": card.get("source", ""),
+        })
+
+    return {"cards": cards[:count]}

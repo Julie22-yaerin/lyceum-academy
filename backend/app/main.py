@@ -700,7 +700,7 @@ class VoiceFallbackRequest(BaseModel):
 
 
 class HintRequest(BaseModel):
-    problem: str
+    exercise: str
     level: int = 1   # 1 = vague, 2 = name concept, 3 = first step
 
 
@@ -709,7 +709,7 @@ class ComputeRequest(BaseModel):
 
 
 class MasteryRequest(BaseModel):
-    problem: str
+    exercise: str
     solution: str
     concepts: list[str] = []   # feeds the personalization profile — see app/services/mastery_profile.py
     subject: str = ""
@@ -717,13 +717,13 @@ class MasteryRequest(BaseModel):
 
 class ReverseBuildRequest(BaseModel):
     student_explanation: str
-    original_problem: str
+    original_exercise: str
     required_tools: list[str] = []
     subject_area: str = "math"
 
 
 class DecomposeRequest(BaseModel):
-    pset_text: str
+    playground_text: str
 
 
 class TopicMapRequest(BaseModel):
@@ -920,17 +920,17 @@ async def ai_voice_fallback(request: Request, req: VoiceFallbackRequest, _: dict
 @app.post("/ai/hint")
 @limiter.limit("3/minute")
 async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_auth)):
-    """Return a Socratic hint for a problem at level 1–3."""
-    check_prompt(req.problem, "problem")
+    """Return a Socratic hint for an exercise at level 1–3."""
+    check_prompt(req.exercise, "exercise")
     try:
-        hint = await ai_svc.get_hint(req.problem, req.level)
+        hint = await ai_svc.get_hint(req.exercise, req.level)
         # ── Team Phản Biện ─────────────────────────────────────────────────
-        hint = await critique_svc.review(hint, context=req.problem)
+        hint = await critique_svc.review(hint, context=req.exercise)
         # ──────────────────────────────────────────────────────────────────
         # ── Safety Guard ──────────────────────────────────────────────────
         hint = await _with_safety_check(
             hint,
-            user_message=req.problem,
+            user_message=req.exercise,
             endpoint="/ai/hint",
             request=request,
         )
@@ -982,11 +982,11 @@ async def ai_reverse_build_eval(
       }
     """
     check_prompt(req.student_explanation, "student_explanation")
-    check_prompt(req.original_problem, "original_problem")
+    check_prompt(req.original_exercise, "original_exercise")
     try:
         result = await ai_svc.evaluate_reverse_build(
             student_explanation=req.student_explanation,
-            original_problem=req.original_problem,
+            original_problem=req.original_exercise,
             required_tools=req.required_tools,
             subject_area=req.subject_area,
         )
@@ -1007,15 +1007,15 @@ async def ai_reverse_build_eval(
 @app.post("/ai/decompose")
 @limiter.limit("3/minute")
 async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depends(require_auth)):
-    """Decompose a problem set into a reasoning tree."""
-    check_prompt(req.pset_text, "pset_text")
+    """Decompose a playground into a reasoning tree."""
+    check_prompt(req.playground_text, "playground_text")
     try:
-        result = await ai_svc.decompose_pset(req.pset_text)
+        result = await ai_svc.decompose_pset(req.playground_text)
         # ── Safety Guard ──────────────────────────────────────────────────
         if result.get("summary"):
             result["summary"] = await _with_safety_check(
                 result["summary"],
-                user_message=req.pset_text[:800],
+                user_message=req.playground_text[:800],
                 endpoint="/ai/decompose",
                 request=request,
             )
@@ -1029,10 +1029,10 @@ async def ai_decompose(request: Request, req: DecomposeRequest, _: dict = Depend
 @limiter.limit("3/minute")
 async def ai_mastery(request: Request, req: MasteryRequest, auth: dict = Depends(require_auth)):
     """Evaluate a student's solution and return mastery delta."""
-    check_prompt(req.problem, "problem")
+    check_prompt(req.exercise, "exercise")
     check_prompt(req.solution, "solution")
     try:
-        result = await ai_svc.check_mastery(req.problem, req.solution)
+        result = await ai_svc.check_mastery(req.exercise, req.solution)
         # Feed the personalization profile — never blocks the actual response.
         try:
             from app.services import mastery_profile as mp_svc
@@ -1050,7 +1050,7 @@ async def ai_mastery(request: Request, req: MasteryRequest, auth: dict = Depends
         if feedback_text:
             result["feedback"] = await _with_safety_check(
                 feedback_text,
-                user_message=req.problem,
+                user_message=req.exercise,
                 endpoint="/ai/mastery",
                 request=request,
             )
@@ -1076,15 +1076,15 @@ class AnalyzePsetItem(BaseModel):
     difficulty: str = "medium"
     concepts: list[str] = []
 
-class AnalyzePsetRequest(BaseModel):
+class AnalyzePlaygroundRequest(BaseModel):
     questions: list[AnalyzePsetItem]
 
 
 @app.post("/ai/analyze-pset-questions")
 @limiter.limit("3/minute")
-async def ai_analyze_pset_questions(request: Request, req: AnalyzePsetRequest, _: dict = Depends(require_auth)):
+async def ai_analyze_pset_questions(request: Request, req: AnalyzePlaygroundRequest, _: dict = Depends(require_auth)):
     """
-    Analyze all questions in a problem set — topic, question types, difficulty
+    Analyze all questions in a playground — topic, question types, difficulty
     distribution, and estimated time per question.
     Returns { overall_topic, question_types, difficulty_distribution,
              estimated_time_per_question, total_estimated_time }
@@ -1098,7 +1098,7 @@ async def ai_analyze_pset_questions(request: Request, req: AnalyzePsetRequest, _
 
 
 class RevealSolutionRequest(BaseModel):
-    problem: str
+    exercise: str
     concepts: list[str] = []
     subject: str = ""
 
@@ -1107,13 +1107,13 @@ class RevealSolutionRequest(BaseModel):
 @limiter.limit("3/minute")
 async def ai_reveal_solution(request: Request, req: RevealSolutionRequest, _: dict = Depends(require_auth)):
     """
-    REVERSE_BUILD rescue (problem sets): after 3 wrong attempts on the same
+    REVERSE_BUILD rescue (playgrounds): after 3 wrong attempts on the same
     question, reveal the worked solution so the student can rebuild the
     reasoning from scratch. Returns { solution, required_tools }.
     """
-    check_prompt(req.problem, "problem")
+    check_prompt(req.exercise, "exercise")
     try:
-        result = await ai_svc.reveal_solution(req.problem, req.concepts, req.subject)
+        result = await ai_svc.reveal_solution(req.exercise, req.concepts, req.subject)
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -1133,13 +1133,38 @@ class GenerateVariantsRequest(BaseModel):
 @limiter.limit("3/minute")
 async def ai_generate_variants(request: Request, req: GenerateVariantsRequest, _: dict = Depends(require_auth)):
     """
-    Bonus round after a problem set: one fresh practice question per source
+    Bonus round after a playground: one fresh practice question per source
     question the student had to REVERSE_BUILD-rescue, same concept/difficulty.
     Returns { questions: [{id, prompt, difficulty, concepts}] }.
     """
     try:
         sources = [{"prompt": s.prompt, "concepts": s.concepts, "difficulty": s.difficulty} for s in req.source_questions]
         result = await ai_svc.generate_variant_questions(sources)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class GenerateExercisesRequest(BaseModel):
+    subject: str
+    topic: str = ""
+    count: int = 10
+
+
+@app.post("/ai/generate-exercises")
+@limiter.limit("3/minute")
+async def ai_generate_exercises(request: Request, req: GenerateExercisesRequest, _: dict = Depends(require_auth)):
+    """
+    Generate exercise cards on-the-fly from second brain curriculum content.
+    Uses RAG to pull relevant notes, then AI generates grounded questions.
+    Returns { cards: [{ id, question, difficulty, concepts, subject, topic, source }] }.
+    """
+    try:
+        result = await ai_svc.generate_exercises(
+            subject=req.subject,
+            topic=req.topic,
+            count=min(req.count, 20),
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
@@ -1350,7 +1375,7 @@ async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(requir
 @limiter.limit("3/minute")
 async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
     """
-    Upload a PDF or PNG/JPG image containing a problem set.
+    Upload a PDF or PNG/JPG image containing a playground.
     1. Quick difficulty scan (title + overview only, Gemini Flash)
     2. Full analysis via vision + decompose
     3. Critique routing based on difficulty:
@@ -1603,7 +1628,7 @@ async def ai_mind_map_inspect(
 
 class CleanQuestionRequest(BaseModel):
     prompt: str
-    context: str = ""   # optional: surrounding text / problem set title
+    context: str = ""   # optional: surrounding text / playground title
 
 
 @app.post("/ai/clean-question")

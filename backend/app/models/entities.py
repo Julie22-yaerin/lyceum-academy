@@ -55,7 +55,7 @@ class CognitiveDepthEnum(str, enum.Enum):
     level_5 = "level_5"
 
 
-class PsetStatusEnum(str, enum.Enum):
+class PlaygroundStatusEnum(str, enum.Enum):
     uploaded = "uploaded"
     analyzing = "analyzing"
     ready = "ready"
@@ -102,7 +102,7 @@ class UserProfile(Base, TimestampMixin):
     headline: Mapped[str | None] = mapped_column(String(255))
     is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    psets: Mapped[list["Pset"]] = relationship(back_populates="owner")
+    playgrounds: Mapped[list["Playground"]] = relationship(back_populates="owner")
     subscription: Mapped["UserSubscription | None"] = relationship(uselist=False)
 
     __table_args__ = (UniqueConstraint("auth_provider", "auth_subject", name="uq_user_auth_identity"),)
@@ -121,8 +121,8 @@ class StoredAsset(Base, TimestampMixin):
     checksum: Mapped[str | None] = mapped_column(String(128))
 
 
-class Pset(Base, TimestampMixin):
-    __tablename__ = "psets"
+class Playground(Base, TimestampMixin):
+    __tablename__ = "playgrounds"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     owner_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
@@ -136,22 +136,22 @@ class Pset(Base, TimestampMixin):
     topic_weights: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[PsetStatusEnum] = mapped_column(
-        Enum(PsetStatusEnum), default=PsetStatusEnum.uploaded, nullable=False
+    status: Mapped[PlaygroundStatusEnum] = mapped_column(
+        Enum(PlaygroundStatusEnum), default=PlaygroundStatusEnum.uploaded, nullable=False
     )
 
-    owner: Mapped["UserProfile"] = relationship(back_populates="psets")
-    problems: Mapped[list["Problem"]] = relationship(back_populates="pset", cascade="all, delete-orphan")
-    reasoning_trees: Mapped[list["ReasoningTree"]] = relationship(back_populates="pset")
-    reports: Mapped[list["PDFReport"]] = relationship(back_populates="pset")
-    shares: Mapped[list["PsetShare"]] = relationship(back_populates="pset")
+    owner: Mapped["UserProfile"] = relationship(back_populates="playgrounds")
+    exercises: Mapped[list["Exercise"]] = relationship(back_populates="playground", cascade="all, delete-orphan")
+    reasoning_trees: Mapped[list["ReasoningTree"]] = relationship(back_populates="playground")
+    reports: Mapped[list["PDFReport"]] = relationship(back_populates="playground")
+    shares: Mapped[list["PlaygroundShare"]] = relationship(back_populates="playground")
 
 
-class Problem(Base, TimestampMixin):
-    __tablename__ = "problems"
+class Exercise(Base, TimestampMixin):
+    __tablename__ = "exercises"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psets.id"), nullable=False)
+    playground_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("playgrounds.id"), nullable=False)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     title: Mapped[str | None] = mapped_column(String(255))
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
@@ -164,16 +164,16 @@ class Problem(Base, TimestampMixin):
         Enum(CognitiveDepthEnum), nullable=False
     )
 
-    pset: Mapped["Pset"] = relationship(back_populates="problems")
-    concepts: Mapped[list["ProblemConcept"]] = relationship(
-        back_populates="problem", cascade="all, delete-orphan"
+    playground: Mapped["Playground"] = relationship(back_populates="exercises")
+    concepts: Mapped[list["ExerciseConcept"]] = relationship(
+        back_populates="exercise", cascade="all, delete-orphan"
     )
     reasoning_tree: Mapped["ReasoningTree | None"] = relationship(
-        back_populates="problem", uselist=False, cascade="all, delete-orphan"
+        back_populates="exercise", uselist=False, cascade="all, delete-orphan"
     )
-    attempts: Mapped[list["Attempt"]] = relationship(back_populates="problem")
+    attempts: Mapped[list["Attempt"]] = relationship(back_populates="exercise")
 
-    __table_args__ = (UniqueConstraint("pset_id", "ordinal", name="uq_problem_pset_ordinal"),)
+    __table_args__ = (UniqueConstraint("playground_id", "ordinal", name="uq_exercise_playground_ordinal"),)
 
 
 class Concept(Base, TimestampMixin):
@@ -186,16 +186,16 @@ class Concept(Base, TimestampMixin):
     subfield: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
 
-    problems: Mapped[list["ProblemConcept"]] = relationship(back_populates="concept")
+    exercises: Mapped[list["ExerciseConcept"]] = relationship(back_populates="concept")
     mastery_records: Mapped[list["KnowledgeMastery"]] = relationship(back_populates="concept")
 
 
-class ProblemConcept(Base, TimestampMixin):
-    __tablename__ = "problem_concepts"
+class ExerciseConcept(Base, TimestampMixin):
+    __tablename__ = "exercise_concepts"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id"), nullable=False
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=False
     )
     concept_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("concepts.id"), nullable=False
@@ -203,24 +203,24 @@ class ProblemConcept(Base, TimestampMixin):
     role: Mapped[str] = mapped_column(String(64), nullable=False)
     confidence: Mapped[float] = mapped_column(Float, default=0.8, nullable=False)
 
-    problem: Mapped["Problem"] = relationship(back_populates="concepts")
-    concept: Mapped["Concept"] = relationship(back_populates="problems")
+    exercise: Mapped["Exercise"] = relationship(back_populates="concepts")
+    concept: Mapped["Concept"] = relationship(back_populates="exercises")
 
-    __table_args__ = (UniqueConstraint("problem_id", "concept_id", name="uq_problem_concept"),)
+    __table_args__ = (UniqueConstraint("exercise_id", "concept_id", name="uq_exercise_concept"),)
 
 
 class ReasoningTree(Base, TimestampMixin):
     __tablename__ = "reasoning_trees"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psets.id"), nullable=False)
-    problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id"), nullable=False, unique=True
+    playground_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("playgrounds.id"), nullable=False)
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=False, unique=True
     )
     overview: Mapped[str] = mapped_column(Text, nullable=False)
 
-    pset: Mapped["Pset"] = relationship(back_populates="reasoning_trees")
-    problem: Mapped["Problem"] = relationship(back_populates="reasoning_tree")
+    playground: Mapped["Playground"] = relationship(back_populates="reasoning_trees")
+    exercise: Mapped["Exercise"] = relationship(back_populates="reasoning_tree")
     nodes: Mapped[list["ReasoningNode"]] = relationship(
         back_populates="tree", cascade="all, delete-orphan"
     )
@@ -250,8 +250,8 @@ class Attempt(Base, TimestampMixin):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    problem_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("problems.id"), nullable=False
+    exercise_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("exercises.id"), nullable=False
     )
     mode: Mapped[AttemptModeEnum] = mapped_column(Enum(AttemptModeEnum), nullable=False)
     response_payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
@@ -260,7 +260,7 @@ class Attempt(Base, TimestampMixin):
     accuracy_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    problem: Mapped["Problem"] = relationship(back_populates="attempts")
+    exercise: Mapped["Exercise"] = relationship(back_populates="attempts")
     hints: Mapped[list["AttemptHint"]] = relationship(
         back_populates="attempt", cascade="all, delete-orphan"
     )
@@ -337,7 +337,7 @@ class WeeklyLeaderboardEntry(Base, TimestampMixin):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
-    problems_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    exercises_completed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     concepts_mastered: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     study_consistency: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
 
@@ -346,23 +346,23 @@ class WeeklyLeaderboardEntry(Base, TimestampMixin):
     __table_args__ = (UniqueConstraint("leaderboard_id", "user_id", name="uq_leaderboard_user"),)
 
 
-class PsetShare(Base, TimestampMixin):
-    __tablename__ = "pset_shares"
+class PlaygroundShare(Base, TimestampMixin):
+    __tablename__ = "playground_shares"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psets.id"), nullable=False)
+    playground_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("playgrounds.id"), nullable=False)
     share_slug: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     visibility: Mapped[str] = mapped_column(String(32), default="public", nullable=False)
     summary: Mapped[str | None] = mapped_column(Text)
 
-    pset: Mapped["Pset"] = relationship(back_populates="shares")
+    playground: Mapped["Playground"] = relationship(back_populates="shares")
 
 
 class PDFReport(Base, TimestampMixin):
     __tablename__ = "pdf_reports"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psets.id"), nullable=False)
+    playground_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("playgrounds.id"), nullable=False)
     generated_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     status: Mapped[ReportStatusEnum] = mapped_column(
         Enum(ReportStatusEnum), default=ReportStatusEnum.pending, nullable=False
@@ -370,14 +370,14 @@ class PDFReport(Base, TimestampMixin):
     file_url: Mapped[str | None] = mapped_column(String(512))
     payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
-    pset: Mapped["Pset"] = relationship(back_populates="reports")
+    playground: Mapped["Playground"] = relationship(back_populates="reports")
 
 
 class AIAnalysisJob(Base, TimestampMixin):
     __tablename__ = "ai_analysis_jobs"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    pset_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("psets.id"), nullable=False)
+    playground_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("playgrounds.id"), nullable=False)
     requested_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     status: Mapped[JobStatusEnum] = mapped_column(
         Enum(JobStatusEnum), default=JobStatusEnum.queued, nullable=False
@@ -551,4 +551,4 @@ class UXMetricsSnapshot(Base, TimestampMixin):
     total_users_in_cohort: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     active_users_in_window: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    completed_psets: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    completed_playgrounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

@@ -806,6 +806,33 @@ export async function generateVariantQuestions(
   return res.json() as Promise<{ questions: VariantQuestion[] }>;
 }
 
+export interface ExerciseCard {
+  id: string;
+  question: string;
+  difficulty: 'easy' | 'medium' | 'hard' | 'extreme';
+  concepts: string[];
+  subject: string;
+  topic: string;
+  source: string;
+}
+
+export async function generateExercises(
+  subject: string,
+  topic: string = '',
+  count: number = 10,
+): Promise<{ cards: ExerciseCard[] }> {
+  const res = await authFetch(`${API_BASE}/ai/generate-exercises`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ subject, topic, count }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── User feedback (anonymous — star rating + optional comment) ─────────────
 
 export async function submitFeedback(rating: number, comment = '', context = ''): Promise<void> {

@@ -4,7 +4,7 @@ Data Retention & Deletion Service (SOC-16)
 
 Automated data retention enforcement:
   • AI interaction logs → deleted after 90 days
-  • Old problem sets    → archived after 2 years, deleted after +1 year
+  • Old playgrounds      → archived after 2 years, deleted after +1 year
   • Voice usage records → deleted 1 year after billing period end
   • Feature usage logs  → anonymized after 1 year
   • Deleted accounts    → hard-deleted after 30 days
@@ -241,8 +241,8 @@ def anonymize_feature_usage_logs(dry_run: bool = False) -> dict[str, Any]:
 def hard_delete_stale_assets(dry_run: bool = False) -> dict[str, Any]:
     """
     Hard-delete stored assets (PDFs, images) that belong to:
-      - Psets that were soft-deleted more than 30 days ago
-      - Orphaned assets (no associated pset)
+      - Playgrounds that were soft-deleted more than 30 days ago
+      - Orphaned assets (no associated playground)
     
     Returns: { deleted_assets, freed_bytes }
     """
@@ -254,26 +254,26 @@ def hard_delete_stale_assets(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         db = SessionLocal()
-        from app.models.entities import StoredAsset, Pset, PsetStatusEnum
+        from app.models.entities import StoredAsset, Playground, PlaygroundStatusEnum
 
-        # Find orphaned assets (no associated pset)
+        # Find orphaned assets (no associated playground)
         orphaned = (
             db.query(StoredAsset)
-            .outerjoin(Pset, StoredAsset.id == Pset.asset_id)
-            .filter(Pset.id.is_(None))
+            .outerjoin(Playground, StoredAsset.id == Playground.asset_id)
+            .filter(Playground.id.is_(None))
             .all()
         )
 
-        # Find assets for deleted psets
-        deleted_pset_assets = (
+        # Find assets for deleted playgrounds
+        deleted_playground_assets = (
             db.query(StoredAsset)
-            .join(Pset, StoredAsset.id == Pset.asset_id)
-            .filter(Pset.status == PsetStatusEnum.archived)
-            .filter(Pset.updated_at < cutoff)
+            .join(Playground, StoredAsset.id == Playground.asset_id)
+            .filter(Playground.status == PlaygroundStatusEnum.archived)
+            .filter(Playground.updated_at < cutoff)
             .all()
         )
 
-        to_delete = list(set(orphaned + deleted_pset_assets))
+        to_delete = list(set(orphaned + deleted_playground_assets))
 
         if dry_run:
             result["would_delete"] = len(to_delete)
@@ -286,8 +286,8 @@ def hard_delete_stale_assets(dry_run: bool = False) -> dict[str, Any]:
             result["deleted_assets"] = len(to_delete)
             if to_delete:
                 log.info(
-                    "hard_delete_stale_assets: deleted %d assets (%d orphaned, %d from deleted psets)",
-                    len(to_delete), len(orphaned), len(deleted_pset_assets),
+                    "hard_delete_stale_assets: deleted %d assets (%d orphaned, %d from deleted playgrounds)",
+                    len(to_delete), len(orphaned), len(deleted_playground_assets),
                 )
 
         db.close()
