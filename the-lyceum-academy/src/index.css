@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..600;1,500&display=swap');
 
@@ -44,6 +45,19 @@
   --radius-xl: 20px;
   --radius-2xl: 24px;
   --radius-3xl: 28px;
+
+  --color-sparkles-color: var(--sparkles-color);
+  --color-gradient-color: var(--gradient-color);
+}
+
+:root {
+  --gradient-color: #8350e8;
+  --sparkles-color: #8350e8;
+}
+
+.dark {
+  --gradient-color: #8350e8;
+  --sparkles-color: #ffffff;
 }
 
 body {

@@ -1,12 +1,9 @@
-import { LiquidMetalButton } from "./liquid-metal-button";
+import PricingSection6 from "@/components/ui/pricing-section-4";
 
-export default function LiquidMetalButtonDemo() {
+export default function DemoOne() {
   return (
-    <div className="flex flex-col items-center justify-center gap-8 p-8">
-      <div className="flex items-center gap-8">
-        <LiquidMetalButton label="Get Started" />
-        <LiquidMetalButton viewMode="icon" />
-      </div>
+    <div className="w-full">
+      <PricingSection6 />
     </div>
   );
 }
