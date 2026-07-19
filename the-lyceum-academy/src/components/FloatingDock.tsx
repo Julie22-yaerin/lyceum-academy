@@ -7,6 +7,8 @@ import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
 import { useTranslation } from '../i18n/I18nContext';
 import ReportBugButton from './ReportBugButton';
 import { getCurrentSubscription, getUsageStats, type CurrentSubscription, type UsageStats } from '../lib/subscriptionApi';
+import { getQuantaProfile, type QuantaProfile, type QuantaAwardResult } from '../lib/quanta';
+import Confetti from './Confetti';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
@@ -209,6 +211,57 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
   );
 }
 
+/** Quanta popover: level, progress to next level, and a short activity feed. */
+function QuantaPanel({ profile, onClose }: { profile: QuantaProfile; onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const span = profile.points_into_level + profile.points_to_next_level;
+  const pct = span > 0 ? Math.min(100, Math.round((profile.points_into_level / span) * 100)) : 0;
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={ref}
+      className="absolute bottom-full right-0 mb-2 w-64 glass-strong rounded-2xl z-[200] overflow-hidden"
+      style={{ animation: 'fadeDown 0.18s ease-out' }}
+    >
+      <div className="px-5 py-4 flex flex-col gap-3">
+        <div className="flex items-center gap-3">
+          <span className="text-[28px] leading-none" style={{ filter: 'drop-shadow(0 0 6px rgba(216,204,255,0.5))' }}>⚡</span>
+          <div>
+            <div className="text-lg font-semibold text-white/90">Level {profile.level}</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/40">{profile.total_points} Quanta</div>
+          </div>
+        </div>
+        <div className="border-t border-white/10 pt-3">
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
+          </div>
+          <div className="text-[10px] text-white/40 mt-1.5">
+            {profile.points_into_level} / {span} to level {profile.level + 1}
+          </div>
+        </div>
+        {profile.recent_events.length > 0 && (
+          <div className="border-t border-white/10 pt-3 flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+            {profile.recent_events.slice(0, 6).map((e, i) => (
+              <div key={i} className="flex items-center justify-between text-[11px] text-white/60">
+                <span className="truncate">{e.event_type.replace(/_/g, ' ')}</span>
+                <span className="text-amber-300/80 shrink-0 ml-2">+{e.points}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** Top-right corner utility capsule: brand mark + usage stats + auth */
 function CornerMenu({ onNavigate }: NavigationProps) {
   const { t } = useTranslation();
@@ -217,8 +270,25 @@ function CornerMenu({ onNavigate }: NavigationProps) {
   const [showStats, setShowStats] = useState(false);
   const [showStreak, setShowStreak] = useState(false);
   const [streak, setStreak] = useState<StreakState | null>(null);
+  const [showQuanta, setShowQuanta] = useState(false);
+  const [quanta, setQuanta] = useState<QuantaProfile | null>(null);
+  const [levelUp, setLevelUp] = useState(false);
 
   useEffect(() => { setStreak(recordDailyVisit()); }, []);
+
+  useEffect(() => {
+    if (user) getQuantaProfile().then(setQuanta);
+  }, [user]);
+
+  useEffect(() => {
+    function onAward(e: Event) {
+      const detail = (e as CustomEvent<QuantaAwardResult>).detail;
+      getQuantaProfile().then(setQuanta);
+      if (detail.leveled_up) { setLevelUp(true); setTimeout(() => setLevelUp(false), 1800); }
+    }
+    window.addEventListener('quanta:awarded', onAward);
+    return () => window.removeEventListener('quanta:awarded', onAward);
+  }, []);
 
   async function handleSignOut() {
     try { await signOut(auth); } catch {}
@@ -249,6 +319,21 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           {showStreak && <StreakPanel state={streak} onClose={() => setShowStreak(false)} />}
         </div>
       )}
+
+      {quanta && (
+        <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
+          <button
+            onClick={() => setShowQuanta(v => !v)}
+            className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
+            title={`Level ${quanta.level} — ${quanta.total_points} Quanta`}
+          >
+            <span className="text-[16px] leading-none">⚡</span>
+            <span className="text-[11px] font-semibold text-white/80">{quanta.level}</span>
+          </button>
+          {showQuanta && <QuantaPanel profile={quanta} onClose={() => setShowQuanta(false)} />}
+        </div>
+      )}
+      {levelUp && <Confetti />}
 
       <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
         <button

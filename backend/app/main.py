@@ -21,7 +21,7 @@ from app.core.config import settings
 from app.core.limiter import limiter
 from app.db.session import get_db
 from app.api.deps import get_current_user, require_auth
-from app.models.entities import FeatureUsageLog
+from app.models.entities import FeatureUsageLog, AuthProviderEnum
 from app.services.content_safety import check_prompt, check_messages, check_upload
 from app.services import pii_filter as pii_svc
 from app.services import critique as critique_svc
@@ -96,6 +96,7 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
         return
     try:
         from app.services import mastery_profile as mp_svc
+        from app.services import quanta as quanta_svc
         by_id = {q.id: q for q in items}
         for g in grades:
             item = by_id.get(g.get("id"))
@@ -104,6 +105,8 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
             passed = bool(g.get("passed"))
             for concept in item.concepts[:3]:
                 mp_svc.record_attempt(uid, concept, item.subject or "other", passed)
+                quanta_svc.award(uid, "exercise_correct" if passed else "exercise_attempt",
+                                  context=f"{item.id}:{concept}")
                 if not passed:
                     mp_svc.record_event(uid, concept, item.subject or "other", "confusion")
     except Exception:
@@ -296,6 +299,8 @@ async def lifespan(_app: FastAPI):
     mastery_profile_svc.init_db()
     from app.services import feedback as feedback_svc
     feedback_svc.init_db()
+    from app.services import quanta as quanta_svc
+    quanta_svc.init_db()
 
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents
@@ -1602,6 +1607,10 @@ async def ai_mind_map_inspect(
         image_b64 = image_b64.split(",", 1)[-1]
     result = await ai_svc.analyze_mind_map_vision(image_b64, req.context)
 
+    if current_user.auth_provider == AuthProviderEnum.firebase and current_user.auth_subject:
+        from app.services import quanta as quanta_svc
+        quanta_svc.award(current_user.auth_subject, "mind_map_ai_reviewed", context=req.document_id or "")
+
     log_entry = FeatureUsageLog(
         user_id=current_user.id,
         feature_name="mindmap_ai_see",
@@ -1986,6 +1995,41 @@ async def profile_get_concept(request: Request, concept: str, auth: dict = Depen
                         "question_frequency_bar": 1,
                         "teaching_style": {"baby_mode_pct": 100, "cross_subject_link_pct": 0, "reverse_hypothesis_pct": 0},
                         "raw": {}}
+
+
+# ── Quanta — XP-like points for learning activity ────────────────────────────
+
+class QuantaAwardRequest(BaseModel):
+    event_type: str
+    context: str = ""
+
+
+@app.post("/quanta/award")
+@limiter.limit("30/minute")
+async def quanta_award(request: Request, req: QuantaAwardRequest, auth: dict = Depends(require_auth)):
+    """Client-reported events only (e.g. a new mind map was saved) — the
+    point amount is always looked up server-side from quanta.POINT_RULES,
+    never accepted from the request, so a client can't award itself for a
+    fabricated grade or AI review (those are awarded from trusted
+    server-side code paths, not this endpoint)."""
+    from app.services import quanta as quanta_svc
+    if req.event_type not in quanta_svc.CLIENT_AWARDABLE_EVENTS:
+        raise HTTPException(status_code=400, detail=f"event_type must be one of {sorted(quanta_svc.CLIENT_AWARDABLE_EVENTS)}")
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    event_key = f"{uid}|{req.event_type}|{req.context}" if req.context else None
+    return quanta_svc.award(uid, req.event_type, context=req.context, event_key=event_key)
+
+
+@app.get("/quanta/me")
+@limiter.limit("30/minute")
+async def quanta_me(request: Request, auth: dict = Depends(require_auth)):
+    uid = _uid(auth)
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    from app.services import quanta as quanta_svc
+    return quanta_svc.get_profile(uid)
 
 
 # ── ARI S2S Voice Proxy (Gemini Live API) ────────────────────────────────────

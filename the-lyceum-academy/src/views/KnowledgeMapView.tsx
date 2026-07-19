@@ -4,6 +4,7 @@ import * as d3 from 'd3';
 import { generateGraph, getNodeSummary } from '../lib/api';
 import { loadKaTeX, renderMath } from '../lib/math';
 import { loadGraphs, saveGraph, deleteGraph, timeAgo, type SavedGraph } from '../lib/persist';
+import { awardMindMapCreated } from '../lib/quanta';
 import { useWorkspace } from '../context/WorkspaceContext';
 
 // ── Types ─────────────────────────────────────────────────────────────────
@@ -212,6 +213,7 @@ export default function KnowledgeMapView() {
         })),
         subject: activeTab || undefined,
       });
+      awardMindMapCreated(id);
       setSavedGraphs(loadGraphs(activeTab || undefined));
     } catch (e: any) {
       setGraphError(e.message || 'Backend is not running. Start it first.');
