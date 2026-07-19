@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.services import rag              as rag_svc
+from app.services import second_brain     as second_brain_svc
 from app.services import finetune_db      as ft_svc
 from app.services import openai_finetune  as ft_openai
 from app.services import activity_log     as activity_svc
@@ -116,6 +117,29 @@ def rag_search(
 ):
     """Test semantic search against the indexed knowledge base."""
     return rag_svc.search(query, n=n, subject=subject or None)
+
+
+# ── Second Brain — shared curriculum vault ─────────────────────────────────────
+
+@router.post("/second-brain/ingest")
+def second_brain_ingest(_: None = Depends(_auth)):
+    """Re-parse the vault, re-index it into RAG, and rebuild the graph tables."""
+    return second_brain_svc.ingest_vault()
+
+
+@router.get("/second-brain/graph")
+def second_brain_graph(_: None = Depends(_auth)):
+    """Nodes + edges for the admin Second Brain graph view."""
+    return second_brain_svc.list_graph()
+
+
+@router.get("/second-brain/notes/{note_id}")
+def second_brain_note(note_id: str, _: None = Depends(_auth)):
+    """One note's full parsed content for the graph's detail panel."""
+    note = second_brain_svc.get_note(note_id)
+    if not note:
+        raise HTTPException(404, "Note not found")
+    return note
 
 
 # ── Fine-tuning — examples CRUD ───────────────────────────────────────────────

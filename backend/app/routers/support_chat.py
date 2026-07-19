@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from app.api.deps import require_auth
 from app.services import support_chat as support_svc
 
 router = APIRouter(prefix="/support", tags=["support"])

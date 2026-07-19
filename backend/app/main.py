@@ -364,6 +364,26 @@ async def lifespan(_app: FastAPI):
         logger.warning("Embedding model warmup skipped: %s", exc)
         logger.warning("Uploads will still work — model loads on first request.")
 
+    # ── Second Brain: auto re-index the curriculum vault on startup ───────
+    # No persistent volume is mounted for this service, so chroma_db/
+    # finetune.db reset on every redeploy — re-running ingest_vault() here
+    # (idempotent: it upserts by note id) keeps the RAG index populated
+    # without depending on someone remembering to click "Re-index" in the
+    # admin panel after every deploy. Runs as a background task so it
+    # doesn't delay readiness.
+    from app.services import second_brain as second_brain_svc
+    second_brain_svc.init_db()
+
+    async def _second_brain_startup_ingest() -> None:
+        try:
+            loop = asyncio.get_running_loop()
+            stats = await loop.run_in_executor(None, second_brain_svc.ingest_vault)
+            logger.info("Second Brain: ingested vault ✓ %s", stats)
+        except Exception as exc:
+            logger.warning("Second Brain: startup ingest failed: %s", exc)
+
+    asyncio.create_task(_second_brain_startup_ingest())
+
     yield
 
     # ── Shutdown background AI agents ──────────────────────────────────────

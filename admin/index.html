@@ -7,6 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
   <style>
     :root {
       --bg:      #0d1117;
@@ -115,6 +116,7 @@
       <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
       <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
+      <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
     </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" referrerpolicy="no-referrer" />
@@ -141,6 +143,7 @@
     <div id="view-profiles" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-second-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
   </main>
 </div>
 
@@ -332,7 +335,7 @@ function setActiveNav(id) {
 
 function hideAllViews() {
   ['view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
-   'view-profile-detail','view-feedback'].forEach(hide);
+   'view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -341,6 +344,149 @@ function timeAgo(iso) {
   if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
   return `${Math.floor(diff/86400)}d ago`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: SECOND BRAIN — the shared curriculum vault every AI agent
+// draws on (RAG-indexed), shown as an Obsidian-style force graph.
+// ════════════════════════════════════════════════════════════════
+const SB_LEVEL_COLOR = { 'IGCSE':'#3fb950', 'GCSE':'#58a6ff', 'A-Level':'#d29922', 'IB':'#f85149', 'AP':'#bc8cff' };
+let _sbGraph = null;
+
+async function viewSecondBrain() {
+  hideAllViews();
+  setActiveNav('nav-second-brain');
+  show('view-second-brain');
+  await renderSecondBrain();
+}
+
+async function renderSecondBrain() {
+  const el = document.getElementById('view-second-brain');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  try {
+    const r = await api('/admin/second-brain/graph');
+    _sbGraph = await r.json();
+  } catch (e) {
+    el.innerHTML = `<div class="text-sm" style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+    return;
+  }
+
+  const nodes = _sbGraph.nodes || [];
+  const edges = _sbGraph.edges || [];
+  const legend = Object.entries(SB_LEVEL_COLOR).map(([lvl,c]) =>
+    `<span class="flex items-center gap-1.5 text-xs" style="color:var(--muted)"><span style="width:9px;height:9px;border-radius:50%;background:${c};display:inline-block"></span>${esc(lvl)}</span>`
+  ).join('');
+
+  el.innerHTML = `
+    <div class="space-y-4 fade-in">
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 class="text-xl font-bold">Second Brain</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Shared curriculum vault (${nodes.length} notes, ${edges.length} links) — the knowledge base every AI agent draws on instead of re-reading raw files or searching externally.</p>
+        </div>
+        <button onclick="reindexSecondBrain()" id="sb-reindex-btn" class="btn btn-primary text-xs">↻ Re-index vault</button>
+      </div>
+
+      <div class="flex gap-4" style="min-height:560px">
+        <div style="width:210px;flex-shrink:0" class="space-y-3">
+          <input id="sb-filter" oninput="sbApplyFilter()" placeholder="Filter notes…" style="width:100%" />
+          <div class="space-y-1.5 pt-1">${legend}</div>
+          <div id="sb-note-detail" class="text-xs" style="color:var(--muted)">Click a node to view its content.</div>
+        </div>
+        <div style="flex:1;border:1px solid var(--border);border-radius:12px;background:var(--surface);overflow:hidden">
+          <svg id="sb-svg" style="width:100%;height:560px;display:block"></svg>
+        </div>
+      </div>
+    </div>`;
+
+  sbDrawGraph(nodes, edges);
+}
+
+function sbDrawGraph(nodes, edges) {
+  const svg = d3.select('#sb-svg');
+  svg.selectAll('*').remove();
+  const box = document.getElementById('sb-svg').getBoundingClientRect();
+  const width = box.width || 800, height = 560;
+
+  const nodeById = new Map(nodes.map(n => [n.id, n]));
+  const links = edges.filter(e => nodeById.has(e.from_id) && nodeById.has(e.to_id))
+    .map(e => ({ source: e.from_id, target: e.to_id }));
+
+  const sim = d3.forceSimulation(nodes)
+    .force('link', d3.forceLink(links).id(d => d.id).distance(46).strength(0.35))
+    .force('charge', d3.forceManyBody().strength(-90))
+    .force('center', d3.forceCenter(width/2, height/2))
+    .force('collide', d3.forceCollide(10));
+
+  const g = svg.append('g');
+  svg.call(d3.zoom().scaleExtent([0.2, 4]).on('zoom', (ev) => g.attr('transform', ev.transform)));
+
+  const link = g.append('g').attr('stroke', 'var(--border)').attr('stroke-opacity', 0.6)
+    .selectAll('line').data(links).join('line');
+
+  const node = g.append('g').selectAll('circle').data(nodes).join('circle')
+    .attr('r', 6)
+    .attr('fill', d => SB_LEVEL_COLOR[d.level] || '#8b949e')
+    .attr('stroke', 'var(--bg)').attr('stroke-width', 1.5)
+    .style('cursor', 'pointer')
+    .on('click', (_, d) => sbShowNote(d.id))
+    .call(d3.drag()
+      .on('start', (ev,d) => { if(!ev.active) sim.alphaTarget(0.25).restart(); d.fx=d.x; d.fy=d.y; })
+      .on('drag', (ev,d) => { d.fx=ev.x; d.fy=ev.y; })
+      .on('end', (ev,d) => { if(!ev.active) sim.alphaTarget(0); d.fx=null; d.fy=null; }));
+
+  node.append('title').text(d => d.title);
+
+  sim.on('tick', () => {
+    link.attr('x1', d=>d.source.x).attr('y1', d=>d.source.y).attr('x2', d=>d.target.x).attr('y2', d=>d.target.y);
+    node.attr('cx', d=>d.x).attr('cy', d=>d.y);
+  });
+
+  window._sbNodeSel = node;
+}
+
+function sbApplyFilter() {
+  const q = document.getElementById('sb-filter').value.trim().toLowerCase();
+  if (!window._sbNodeSel) return;
+  window._sbNodeSel.attr('opacity', d => {
+    if (!q) return 1;
+    const hay = `${d.title} ${d.subject} ${d.code} ${d.board} ${d.level}`.toLowerCase();
+    return hay.includes(q) ? 1 : 0.08;
+  });
+}
+
+async function sbShowNote(id) {
+  const el = document.getElementById('sb-note-detail');
+  el.innerHTML = 'Loading…';
+  try {
+    const r = await api('/admin/second-brain/notes/' + encodeURIComponent(id));
+    const n = await r.json();
+    el.innerHTML = `
+      <div class="space-y-2">
+        <div class="font-semibold text-sm" style="color:var(--text)">${esc(n.title)}</div>
+        <div class="flex flex-wrap gap-1">
+          ${[n.level,n.board,n.code,n.subject].filter(Boolean).map(v=>`<span class="pill text-xs" style="background:rgba(255,255,255,.05);border:1px solid var(--border)">${esc(v)}</span>`).join('')}
+        </div>
+        <div style="max-height:380px;overflow-y:auto;white-space:pre-wrap;font-size:11px;line-height:1.5;color:var(--muted)">${esc(n.body||'').slice(0,4000)}</div>
+      </div>`;
+  } catch (e) {
+    el.innerHTML = `<span style="color:#f85149">Failed to load: ${esc(e.message)}</span>`;
+  }
+}
+
+async function reindexSecondBrain() {
+  const btn = document.getElementById('sb-reindex-btn');
+  btn.disabled = true; btn.textContent = 'Indexing…';
+  try {
+    const r = await api('/admin/second-brain/ingest', { method:'POST' });
+    const s = await r.json();
+    toast(`✓ Indexed ${s.notes_indexed} notes, ${s.chunks_indexed} chunks, ${s.edges} links (${s.unresolved_links} unresolved)`);
+    await renderSecondBrain();
+  } catch (e) {
+    toast('Failed: '+e.message, 'err');
+    btn.disabled = false; btn.textContent = '↻ Re-index vault';
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
