@@ -26,3 +26,9 @@ cryptography>=41.0.0
 firebase-admin==6.5.0
 # Stripe payments (v2)
 stripe>=12.0.0
+# In-process scheduler — batch pre-generation polling (exercise_batch_jobs)
+apscheduler>=3.10
+# Local CPU image generation — Playground game-asset sprite generator
+diffusers>=0.27
+accelerate>=0.30
+safetensors>=0.4

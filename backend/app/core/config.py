@@ -24,10 +24,15 @@ class Settings(BaseSettings):
     supabase_jwt_secret: str = ""
     supabase_jwt_audience: str = "authenticated"
 
-    # ── OpenAI (fine-tuning) ─────────────────────────────────
-    openai_api_key: str = ""
+    # ── OpenAI (fine-tuning + free tier) ─────────────────────────
+    openai_api_key: str = ""          # FREE tier uses this key
     openai_model_analysis: str = "gpt-4o"
     openai_model_hints: str = "gpt-4o-mini"
+
+    # ── OpenAI (paid tiers) ──────────────────────────────────────
+    # Separate key for paid subscribers (compass, scholar, mentor, researcher).
+    # Falls back to openai_api_key if not set.
+    openai_paid_key: str = ""         # OPENAI_PAID_KEY in .env
 
     # ── Persona Mind (GPT-4.1) — multi-agent persona brain ───────
     # The single "brain" that reads the user's question + Firebase persona
@@ -35,17 +40,6 @@ class Settings(BaseSettings):
     # Falls back to openai_api_key if persona_mind_key is not set.
     persona_mind_key: str = ""          # PERSONA_MIND_KEY in .env
     persona_mind_model: str = "gpt-4.1" # PERSONA_MIND_MODEL in .env
-
-    # ── Team Phản Biện (Debate Team) ─────────────────────────────
-    # Pos 1 (OpenAI GPT-4o)  — phân tích 100% nội dung gốc
-    critique_openai_key: str = ""
-    critique_openai_model: str = "gpt-4o"
-    # Pos 2 (Groq)           — tập trung 50% cốt lõi nhất
-    critique_groq_key: str = ""
-    critique_groq_model: str = "qwen/qwen3-32b"
-    # Pos 3 (Google Gemini Pro 2.5) — 20% cốt, chắt lọc + điều phối tranh luận
-    critique_google_key: str = ""
-    critique_google_model: str = "gemini-2.5-pro"
 
     # ── Ollama Cloud (multi-key rotation) ────────────────────
     ollama_api_key:   str = ""   # key 1 (primary)
@@ -156,6 +150,28 @@ class Settings(BaseSettings):
     # + type validation) — this is a third, distinct gate.
     content_guard_key: str = ""
     content_guard_model: str = "nvidia/nemotron-3.5-content-safety"
+
+    # ── Anthropic (Claude — premium real-time roles) ────────────────────────
+    anthropic_api_key: str = ""
+    anthropic_base_url: str = "https://api.anthropic.com/v1"
+    anthropic_claude_sonnet_model: str = "claude-3-5-sonnet-20241022"  # Feynman Listener
+    anthropic_claude_opus_model: str = "claude-3-opus-20240229"       # Lead Concierge
+
+    # ── OpenAI o1 (Coach — deep Chain-of-Thought, batch API) ───────────────
+    openai_o1_model: str = "o1"  # Batch/off-peak execution for Coach role
+
+    # ── Google AI Studio — Gemini 1.5 Pro (Debate Partner, multimodal) ─────
+    google_gemini_pro_model: str = "gemini-1.5-pro"  # Scientific Debate Partner
+
+    # ── Premium Role Configs ───────────────────────────────────────────────
+    # Performance threshold: below this score → Concierge provides foundational
+    # blocks; at or above → initiates theoretical debates.
+    concierge_performance_threshold: float = 0.6
+    # Max Socratic questions per Feynman Listener turn (spec: 3)
+    feynman_max_questions: int = 3
+    # Coach runs at off-peak hours (UTC) — default 03:00
+    coach_batch_hour: int = 3
+    coach_batch_minute: int = 0
 
     # ── OpenRouter (fallback, :free models need no credits) ──────
     openrouter_api_key: str = ""

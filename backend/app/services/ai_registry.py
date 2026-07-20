@@ -38,15 +38,18 @@ _SEED: list[tuple[str, str, str, str, str | None]] = [
     ("commander", "Commander", "Dev-team commander — triages bug reports (critical vs minor), dispatches them to the right dev, and takes direct function-calling commands from admin chat.", "head", None),
     ("content-guard", "Safety Guard", "Content intake gate — blocks profanity, malware uploads, and unauthorized file extensions before they enter the pipeline. A peer to Commander, not a subordinate.", "head", None),
     ("support-chat", "Support Consultant", "Always-on customer support chat. Answers platform questions and auto-detects technical complaints, forwarding them to the Commander for triage.", "head", "commander"),
-    ("critique-pos1", "Critic 1 (OpenAI GPT-4o)", "Team Phản Biện, Position 1 — reviews 100% of the draft response for factual accuracy and logical soundness before it reaches a student.", "head", "critique-pos3"),
-    ("critique-pos2", "Critic 2 (Groq qwen3-32b)", "Team Phản Biện, Position 2 — reviews ~50% core focus: is the response teachable (Socratic), does the student understand.", "head", "critique-pos3"),
-    ("critique-pos3", "Critic 3 / Coordinator (Google Gemini)", "Team Phản Biện, Position 3 — reads Critic 1 & 2's findings, distills up to 6 fatal points, and either approves or rewrites the response.", "head", None),
     ("backend-dev", "Backend Dev", "Silent dev-patrol agent — Python/FastAPI bugs, SQL, async errors. Acts only when Commander or an admin submits a task.", "dev", "commander"),
     ("frontend-dev", "Frontend Dev", "Silent dev-patrol agent — React/TypeScript/CSS bugs. Acts only when Commander or an admin submits a task.", "dev", "commander"),
     ("security-dev", "Security Dev", "Silent dev-patrol agent — auth, injection, CORS, SOC compliance. Acts only when Commander or an admin submits a task.", "dev", "commander"),
     ("content-analyzer", "Content Analyzer", "Background learning agent — extracts concepts and difficulty from uploaded content.", "support", None),
     ("path-generator", "Path Generator", "Background learning agent — builds personalized learning paths.", "support", None),
     ("progress-tracker", "Progress Tracker", "Background learning agent — analyzes mastery signals and predicts readiness.", "support", None),
+    # ── Premium AI Roles ──────────────────────────────────────────────────────
+    ("coach", "Coach (Backend Orchestrator)", "Deep Chain-of-Thought analysis of student knowledge state. Generates personalized next-day curriculum (Markdown notes + progressive problem sets) from Second Brain + error logs. Model: OpenAI o1. Runs as daily off-peak batch.", "role", None),
+    ("feynman", "Feynman Listener", "Real-time EQ persona — simulates a naive 5-year-old child's perspective. Identifies logical vulnerabilities in student explanations and asks max 3 lethal Socratic questions. Detects stuck states → switches to guidance mode. Model: Claude 3.5 Sonnet.", "role", None),
+    ("debate-partner", "Scientific Debate Partner", "Peer-level scientist (AP/IB rigor). Stress-tests student hypotheses with counter-arguments and extreme edge cases. Analyzes visual inputs (sketches, graphs, 3D structures) for geometric/spatial reasoning flaws. Model: Gemini 1.5 Pro. Premium feature.", "role", None),
+    ("concierge", "Lead Concierge & Socratic Chatter", "Master frontline interface. NEVER exposes direct answers. Branches on performance score: below threshold → foundational blocks + micro-questions; above → theoretical debates. Triggers dynamic UI widgets. Model: Claude 3 Opus.", "role", None),
+    ("grader", "Solution Grader & Reverse Builder", "Hybrid verification engine. Grades process correctness via Tool Map analysis, validates math with WolframAlpha, evaluates reverse building (recreating paths from known answers). Model: GPT-4o + Wolfram Alpha.", "role", None),
 ]
 
 # Agents with a live BaseAgent worker (queue/status) behind them.
@@ -73,16 +76,21 @@ def init_db() -> None:
                 _SEED,
             )
         else:
-            # Backfill: the Safety Guard split was added after some
-            # deployments already seeded the table — insert it if missing,
-            # without touching any row an admin may have since edited.
-            row = c.execute("SELECT 1 FROM ai_registry WHERE id = 'content-guard'").fetchone()
-            if not row:
-                seed_row = next(r for r in _SEED if r[0] == "content-guard")
-                c.execute(
-                    "INSERT INTO ai_registry (id, name, description, category, parent_id) VALUES (?,?,?,?,?)",
-                    seed_row,
-                )
+            # Backfill: agents added after initial deployments — insert them
+            # if missing, without touching any row an admin may have since edited.
+            backfill_ids = [
+                "content-guard",
+                "coach", "feynman", "debate-partner", "concierge", "grader",
+            ]
+            for bid in backfill_ids:
+                row = c.execute("SELECT 1 FROM ai_registry WHERE id = ?", (bid,)).fetchone()
+                if not row:
+                    seed_row = next((r for r in _SEED if r[0] == bid), None)
+                    if seed_row:
+                        c.execute(
+                            "INSERT INTO ai_registry (id, name, description, category, parent_id) VALUES (?,?,?,?,?)",
+                            seed_row,
+                        )
 
 
 def list_agents() -> list[dict[str, Any]]:

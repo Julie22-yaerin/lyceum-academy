@@ -552,3 +552,48 @@ class UXMetricsSnapshot(Base, TimestampMixin):
     active_users_in_window: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     completed_playgrounds: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+# ============================================================================
+# Weekly study schedule + exercise pre-generation batch jobs
+# ============================================================================
+
+
+class ScheduleBlock(Base, TimestampMixin):
+    """
+    One drag-and-drop block from the onboarding weekly scheduler: "student
+    X studies subject Y on day D starting at minute M for N minutes."
+    Stored server-side (not just localStorage) so the APScheduler batch job
+    can act on it even when no browser tab is open.
+    """
+
+    __tablename__ = "schedule_blocks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    """Firebase uid — AI endpoints in this app operate without a DB user-row dependency."""
+    day_of_week: Mapped[int] = mapped_column(Integer, nullable=False)
+    """0 = Monday .. 6 = Sunday"""
+    start_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    subject_key: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class ExerciseBatchJob(Base, TimestampMixin):
+    """
+    A queued/running/completed request to pre-generate exercises for a
+    student's upcoming scheduled subject — fired on session-end (sendBeacon)
+    and processed by the APScheduler tick in app/services/scheduler_jobs.py.
+    """
+
+    __tablename__ = "exercise_batch_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    subject_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), default="queued", nullable=False)
+    """queued | running | completed | failed"""
+    source: Mapped[str] = mapped_column(String(16), default="session_end", nullable=False)
+    """session_end | cron"""
+    result_payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

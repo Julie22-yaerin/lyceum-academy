@@ -710,6 +710,32 @@ export async function describeDrawing(imageData: string) {
   return res.json() as Promise<{ text: string }>;
 }
 
+// Local CPU image generation (Playground game-asset sprites) — genuinely
+// slow (tens of seconds to ~2 minutes), runs on the backend's own CPU with
+// no GPU/paid API. Generous timeout, no fake-fast UI expectation.
+export async function generateSpriteImage(prompt: string, width = 384, height = 384): Promise<{ image: string }> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 150_000);
+  try {
+    const res = await authFetch(`${API_BASE}/ai/generate-sprite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, width, height }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+    }
+    return res.json();
+  } catch (e: any) {
+    if (e.name === 'AbortError') throw new Error('Sprite generation timed out — try a simpler prompt or try again.');
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 export interface PsetAnalysis {
   overall_topic: string;
   question_types: Record<string, string>;
@@ -825,6 +851,39 @@ export async function generateExercises(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ subject, topic, count }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Backend ${res.status}: ${body || res.statusText}`);
+  }
+  return res.json();
+}
+
+// ── Schedule-driven tab lock — AI decides whether to auto-open/lock a tab ──
+
+export interface ScheduleDecision {
+  allow_switch: boolean;
+  recommended_subject: string | null;
+  lock_minutes: number;
+  reason: string;
+}
+
+export async function decideScheduleLock(
+  schedule: { subjectKey: string; dayOfWeek: number; startMinute: number; durationMinutes: number }[],
+  currentSubject: string | null,
+  candidateSubject: string,
+): Promise<ScheduleDecision> {
+  const res = await authFetch(`${API_BASE}/ai/schedule-decide`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      schedule: schedule.map(b => ({
+        subject_key: b.subjectKey, day_of_week: b.dayOfWeek,
+        start_minute: b.startMinute, duration_minutes: b.durationMinutes,
+      })),
+      current_subject: currentSubject,
+      candidate_subject: candidateSubject,
+    }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');

@@ -24,8 +24,8 @@ from app.api.deps import get_current_user, require_auth
 from app.models.entities import FeatureUsageLog, AuthProviderEnum
 from app.services.content_safety import check_prompt, check_messages, check_upload
 from app.services import pii_filter as pii_svc
-from app.services import critique as critique_svc
 from app.services import rag as rag_svc
+from app.services import local_image as local_image_svc
 from app.services import wolfram as wolfram_svc
 from app.services import safety_guard as safety_guard_svc
 from app.services import data_retention as data_retention_svc
@@ -287,6 +287,8 @@ from app.routers  import support_chat as support_chat_router
 from app.routers  import commander   as commander_router
 from app.routers  import content_guard as content_guard_router
 from app.routers  import ai_registry as ai_registry_router
+from app.routers  import schedule    as schedule_router
+from app.routers  import ai_roles    as ai_roles_router
 
 
 @asynccontextmanager
@@ -351,6 +353,36 @@ async def lifespan(_app: FastAPI):
 
     _commander_batch_task = asyncio.create_task(_commander_batch_loop())
 
+    # ── Coach: daily off-peak curriculum generation batch loop ────────────
+    async def _coach_batch_loop() -> None:
+        """Every day at coach_batch_hour:coach_batch_minute UTC, generate
+        personalized curricula for all active students. Runs as a background
+        task for the life of the process."""
+        import datetime as _dt
+        while True:
+            try:
+                now = _dt.datetime.now(_dt.timezone.utc)
+                target = now.replace(
+                    hour=settings.coach_batch_hour,
+                    minute=settings.coach_batch_minute,
+                    second=0, microsecond=0,
+                )
+                if target <= now:
+                    target += _dt.timedelta(days=1)
+                wait_sec = (target - now).total_seconds()
+                logger.info("Coach: next batch in %.0fs (at %s UTC)", wait_sec, target.strftime("%H:%M"))
+                await asyncio.sleep(wait_sec)
+                # TODO: iterate active students and call generate_curriculum()
+                # For now, the batch loop is wired — actual student iteration
+                # requires a user query against the DB (out of scope for setup).
+                logger.info("Coach: daily batch tick — ready for student iteration")
+            except asyncio.CancelledError:
+                break
+            except Exception as _ce:
+                logger.warning("Coach batch loop error: %s", _ce)
+
+    _coach_batch_task = asyncio.create_task(_coach_batch_loop())
+
     # Pre-warm the embedding model so the first upload doesn't time out.
     # all-MiniLM-L6-v2 (~80 MB) is downloaded from HuggingFace on first run.
     logger.info("Loading embedding model (may download ~80 MB on first run)…")
@@ -389,7 +421,18 @@ async def lifespan(_app: FastAPI):
 
     asyncio.create_task(_second_brain_startup_ingest())
 
+    # ── Batch pre-generation scheduler — polls exercise_batch_jobs every 5min ─
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from app.services import scheduler_jobs
+
+    _batch_scheduler = AsyncIOScheduler()
+    _batch_scheduler.add_job(scheduler_jobs.poll_and_generate, "interval", minutes=5, id="batch_pregeneration")
+    _batch_scheduler.start()
+    logger.info("Batch pre-generation scheduler started (5min interval) ✓")
+
     yield
+
+    _batch_scheduler.shutdown(wait=False)
 
     # ── Shutdown background AI agents ──────────────────────────────────────
     _commander_batch_task.cancel()
@@ -432,6 +475,8 @@ app.include_router(support_chat_router.router)
 app.include_router(commander_router.router)
 app.include_router(content_guard_router.router)
 app.include_router(ai_registry_router.router)
+app.include_router(schedule_router.router)
+app.include_router(ai_roles_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
@@ -817,12 +862,6 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
             max_tokens=req.max_tokens,
         )
         text = ai_svc.extract_text(resp)
-        # ── Team Phản Biện: review before delivery ─────────────────────────
-        context = " ".join(
-            m.get("content", "") for m in req.messages if m.get("role") == "user"
-        )[-800:]  # last 800 chars of user context
-        text = await critique_svc.review(text, context=context)
-        # ──────────────────────────────────────────────────────────────────
         # ── Safety Guard: final gate before user ──────────────────────────
         last_user = next(
             (m.get("content", "") for m in reversed(req.messages) if m.get("role") == "user"),
@@ -929,9 +968,6 @@ async def ai_hint(request: Request, req: HintRequest, _: dict = Depends(require_
     check_prompt(req.exercise, "exercise")
     try:
         hint = await ai_svc.get_hint(req.exercise, req.level)
-        # ── Team Phản Biện ─────────────────────────────────────────────────
-        hint = await critique_svc.review(hint, context=req.exercise)
-        # ──────────────────────────────────────────────────────────────────
         # ── Safety Guard ──────────────────────────────────────────────────
         hint = await _with_safety_check(
             hint,
@@ -1175,6 +1211,39 @@ async def ai_generate_exercises(request: Request, req: GenerateExercisesRequest,
         raise HTTPException(status_code=502, detail=str(e))
 
 
+class ScheduleBlockPayload(BaseModel):
+    subject_key: str
+    day_of_week: int
+    start_minute: int
+    duration_minutes: int
+
+
+class ScheduleDecideRequest(BaseModel):
+    schedule: list[ScheduleBlockPayload]
+    current_subject: str | None = None
+    candidate_subject: str
+
+
+@app.post("/ai/schedule-decide")
+@limiter.limit("20/minute")
+async def ai_schedule_decide(request: Request, req: ScheduleDecideRequest, _: dict = Depends(require_auth)):
+    """
+    Called by the frontend's ScheduleLockManager (polled every ~60s) whenever
+    a scheduled block goes "live". Asks the AI whether to auto-open/lock the
+    workspace onto that subject. Returns { allow_switch, recommended_subject,
+    lock_minutes, reason }.
+    """
+    try:
+        result = await ai_svc.decide_schedule_lock(
+            schedule=[b.model_dump() for b in req.schedule],
+            current_subject=req.current_subject,
+            candidate_subject=req.candidate_subject,
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 class OnboardingRequest(BaseModel):
     answers: dict[str, str]   # {question_id: answer}
     learning_style: dict[str, float] | None = None   # 10 slider values 0-100
@@ -1383,10 +1452,6 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
     Upload a PDF or PNG/JPG image containing a playground.
     1. Quick difficulty scan (title + overview only, Gemini Flash)
     2. Full analysis via vision + decompose
-    3. Critique routing based on difficulty:
-       easy        → Pos1 + Pos3 package (fast)
-       medium      → Pos1 + Pos2 + Pos3 (standard)
-       hard/v_hard → Full 3-critic debate (thorough)
     Returns { summary, problems, source_file, difficulty_assessment }
     """
     import base64
@@ -1429,21 +1494,10 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
             import logging
             logging.getLogger("pclick").warning("quick_difficulty_scan failed: %s", e)
 
-        difficulty = difficulty_info.get("difficulty", "medium")
-
         # ── Step 2: Full analysis ──────────────────────────────────────────
         # PII filter is applied INSIDE ai.py after text extraction —
         # do NOT strip raw bytes here; that would corrupt binary PDF/image data.
         result = await ai_svc.analyze_file_pset(content, fname, mime)
-
-        # ── Step 3: Route critique based on difficulty ─────────────────────
-        if result.get("summary"):
-            pset_context = f"Problem set: {fname} | Subject: {difficulty_info.get('subject_area','')}"
-            result["summary"] = await critique_svc.routed_review(
-                result["summary"],
-                context=pset_context,
-                difficulty=difficulty,
-            )
 
         result["difficulty_assessment"] = difficulty_info
         return result
@@ -1507,6 +1561,29 @@ async def ai_describe_drawing(request: Request, req: DrawingRequest, _: dict = D
         )
         # ──────────────────────────────────────────────────────────────────
         return {"text": text}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class GenerateSpriteRequest(BaseModel):
+    prompt: str
+    width: int = 384
+    height: int = 384
+
+
+@app.post("/ai/generate-sprite")
+@limiter.limit("3/minute")
+async def ai_generate_sprite(request: Request, req: GenerateSpriteRequest, _: dict = Depends(require_auth)):
+    """
+    Generate a 2D game-asset image (sprite/background) on the backend's own
+    CPU — no external image API, no GPU. Slow (tens of seconds to a couple
+    of minutes) and serialized one-at-a-time server-side; the frontend must
+    show an honest loading state, not a fast spinner.
+    """
+    check_prompt(req.prompt, "prompt")
+    try:
+        png_bytes = await local_image_svc.generate_sprite(req.prompt, width=req.width, height=req.height)
+        return {"image": base64.b64encode(png_bytes).decode()}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -1758,12 +1835,6 @@ async def ai_feynman(
 
         result = await ai_svc.feynman_evaluate(transcript, note_title, concepts)
         result["transcript"] = transcript
-        # ── Team Phản Biện: review reaction + questions before delivery ────
-        if result.get("reaction"):
-            result["reaction"] = await critique_svc.review(
-                result["reaction"], context=f"Feynman evaluation of: {note_title}"
-            )
-        # ──────────────────────────────────────────────────────────────────
         # ── Safety Guard ──────────────────────────────────────────────────
         if result.get("reaction"):
             result["reaction"] = await _with_safety_check(

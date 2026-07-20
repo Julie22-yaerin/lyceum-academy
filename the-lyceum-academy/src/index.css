@@ -46,6 +46,33 @@
   --radius-2xl: 24px;
   --radius-3xl: 28px;
 
+  /* shadcn/ui semantic tokens */
+  --color-background: #050508;
+  --color-foreground: #f0f0f5;
+  --color-card: #0c1120;
+  --color-card-foreground: #f0f0f5;
+  --color-popover: #0c1120;
+  --color-popover-foreground: #f0f0f5;
+  --color-muted: #111828;
+  --color-muted-foreground: #a0a5b8;
+  --color-accent: #161e30;
+  --color-accent-foreground: #f0f0f5;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #050508;
+  --color-border: rgba(255, 255, 255, 0.12);
+  --color-input: rgba(255, 255, 255, 0.08);
+  --color-ring: #a78bfa;
+  --color-chart-1: #a78bfa;
+  --color-chart-2: #818cf8;
+  --color-chart-3: #22d3ee;
+  --color-chart-4: #f59e0b;
+  --color-chart-5: #ec4899;
+
+  /* 3D Folder palette */
+  --folder-back: #0c1120;
+  --folder-tab: #111828;
+  --folder-front: #161e30;
+
   --color-sparkles-color: var(--sparkles-color);
   --color-gradient-color: var(--gradient-color);
 }
@@ -424,7 +451,34 @@ body {
 
 .theme-light {
   background: #f6f8fc;
-  color: #1e293b;
+  color: #0f172a;
+
+  /* shadcn/ui light-mode tokens */
+  --color-background: #f6f8fc;
+  --color-foreground: #0f172a;
+  --color-card: #e7ecf9;
+  --color-card-foreground: #0f172a;
+  --color-popover: #e7ecf9;
+  --color-popover-foreground: #0f172a;
+  --color-muted: #dde3ef;
+  --color-muted-foreground: #475569;
+  --color-accent: #d2d9ea;
+  --color-accent-foreground: #0f172a;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-border: rgba(15, 23, 42, 0.22);
+  --color-input: rgba(15, 23, 42, 0.12);
+  --color-ring: #7c3aed;
+  --color-chart-1: #7c3aed;
+  --color-chart-2: #2563eb;
+  --color-chart-3: #0891b2;
+  --color-chart-4: #b45309;
+  --color-chart-5: #be185d;
+
+  /* 3D Folder palette — light mode */
+  --folder-back: #d9e0f1;
+  --folder-tab: #e7ecf9;
+  --folder-front: #eef2fb;
 
   --color-surface: #f6f8fc;
   --color-surface-dim: #dde3ef;

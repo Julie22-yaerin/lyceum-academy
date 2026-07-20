@@ -10,7 +10,7 @@ Endpoints:
   POST   /ai-registry/agents            — create an agent
   PUT    /ai-registry/agents/{id}       — edit name/description/category/parent_id/notes
   DELETE /ai-registry/agents/{id}       — remove an agent
-  POST   /ai-registry/chat/{agent_id}   — chat with a head AI (commander | critique-pos1/2/3)
+  POST   /ai-registry/chat/{agent_id}   — chat with a head AI (commander)
 """
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from app.routers.admin import _auth as _admin_auth
 from app.services import ai_registry as registry_svc
 from app.services import chat_history as history_svc
 from app.services import commander as commander_svc
-from app.services import critique as critique_svc
 
 router = APIRouter(prefix="/ai-registry", tags=["ai-registry"])
 
@@ -78,9 +77,6 @@ async def delete_agent(agent_id: str, _: None = Depends(_admin_auth)) -> dict[st
 
 # ── Chat with a head AI ──────────────────────────────────────────────────────
 
-_CRITIQUE_POS = {"critique-pos1": 1, "critique-pos2": 2, "critique-pos3": 3}
-
-
 class ChatIn(BaseModel):
     session_id: str
     message: str
@@ -89,13 +85,11 @@ class ChatIn(BaseModel):
 @router.post("/chat/{agent_id}")
 async def chat(agent_id: str, body: ChatIn, _: None = Depends(_admin_auth)) -> dict[str, Any]:
     """
-    Chat with a head AI. agent_id: commander | critique-pos1 | critique-pos2 |
-    critique-pos3. (support-chat has its own always-on endpoint, /support/chat.)
+    Chat with a head AI. agent_id: commander.
+    (support-chat has its own always-on endpoint, /support/chat.)
     """
     if agent_id == "commander":
         result = await commander_svc.admin_chat(body.session_id, body.message)
-    elif agent_id in _CRITIQUE_POS:
-        result = await critique_svc.admin_chat(_CRITIQUE_POS[agent_id], body.session_id, body.message)
     else:
         raise HTTPException(404, f"Unknown or non-chattable agent '{agent_id}'")
     # Both admin_chat implementations can execute real tool calls (dispatch/

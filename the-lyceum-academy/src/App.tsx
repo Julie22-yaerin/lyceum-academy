@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { WorkspaceProvider } from './context/WorkspaceContext';
+import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
+import { getApiBaseUrl } from './lib/apiBase';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './i18n/I18nContext';
 import { migrateLegacySubjectTags } from './lib/workspace';
@@ -33,6 +34,7 @@ import SupportChatWidget from './components/SupportChatWidget';
 function AppInner() {
   const [view, setView] = useState<View>('landing');
   const { user, loading, devMode, emailVerified } = useAuth();
+  const { activeTab } = useWorkspace();
   const { hasActiveSubscription, loading: subLoading } = useSubscription();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -43,6 +45,25 @@ function AppInner() {
 
   useEffect(() => {
     setDocumentLocale(detectLocale());
+  }, []);
+
+  // Tell the backend a study session ended so it can pre-generate exercises
+  // for whatever's next on the schedule. sendBeacon fires reliably even as
+  // the tab is closing (a normal fetch would get cancelled mid-flight).
+  const beaconStateRef = useRef({ uid: '', subject: null as string | null });
+  beaconStateRef.current = { uid: user?.uid || '', subject: activeTab };
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState !== 'hidden') return;
+      const { uid, subject } = beaconStateRef.current;
+      if (!uid) return;
+      navigator.sendBeacon?.(
+        `${getApiBaseUrl()}/session/end`,
+        JSON.stringify({ uid, subject, ts: Date.now() }),
+      );
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
 
   // One-time backfill of subject tags on pre-existing data, once we know

@@ -10,9 +10,10 @@ import { useWorkspace } from '../context/WorkspaceContext';
  * deletes data — it only removes the subject from the open-tabs list.
  */
 export default function SubjectTabBar() {
-  const { openTabs, activeTab, openTab, closeTab, setActiveTab } = useWorkspace();
+  const { openTabs, activeTab, activeLock, openTab, closeTab, setActiveTab } = useWorkspace();
   const [showAdd, setShowAdd] = useState(false);
   const addRef = useRef<HTMLDivElement>(null);
+  const isLocked = !!activeLock && activeLock.until > Date.now();
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -32,18 +33,21 @@ export default function SubjectTabBar() {
         const meta = SUBJECT_META[key];
         if (!meta) return null;
         const active = key === activeTab;
+        const locked = isLocked && activeLock!.subjectKey !== key;
         return (
           <div
             key={key}
             onClick={() => setActiveTab(key)}
-            className={`group flex items-center gap-1.5 px-3 py-2 rounded-t-lg cursor-pointer text-sm flex-shrink-0 transition-colors ${
+            title={locked ? 'Finish or wait out your current scheduled session first' : undefined}
+            className={`group flex items-center gap-1.5 px-3 py-2 rounded-t-lg text-sm flex-shrink-0 transition-colors ${
               active ? 'glass-pill-active' : 'glass-pill'
-            }`}
+            } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
             style={active ? { boxShadow: 'inset 0 2px 0 0 #a78bfa' } : undefined}
           >
             <span className="text-[13px]">{meta.icon}</span>
             <span className="whitespace-nowrap">{meta.label}</span>
-            {openTabs.length > 1 && (
+            {locked && <span className="material-symbols-outlined text-[13px] opacity-70">lock</span>}
+            {!isLocked && openTabs.length > 1 && (
               <button
                 onClick={e => { e.stopPropagation(); closeTab(key); }}
                 className="ml-1 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
@@ -56,7 +60,7 @@ export default function SubjectTabBar() {
         );
       })}
 
-      {addable.length > 0 && (
+      {!isLocked && addable.length > 0 && (
         <div className="relative flex-shrink-0" ref={addRef}>
           <button
             onClick={() => setShowAdd(v => !v)}

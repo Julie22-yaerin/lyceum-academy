@@ -5110,3 +5110,61 @@ async def generate_exercises(
         })
 
     return {"cards": cards[:count]}
+
+
+# ── Schedule-driven tab lock (AI decides whether to auto-open/lock a tab) ────
+
+@_tag_task
+async def decide_schedule_lock(
+    schedule: list[dict],
+    current_subject: str | None,
+    candidate_subject: str,
+) -> dict:
+    """
+    Given the student's weekly study schedule, ask whether the workspace
+    should switch to (and lock onto) `candidate_subject`, which the frontend
+    has determined is "live" right now per the schedule.
+
+    Returns: { allow_switch, recommended_subject, lock_minutes, reason }
+    """
+    system = (
+        "You are Lyceum's workspace scheduler. A student has a weekly study "
+        "schedule and is currently on one workspace tab. Decide whether to "
+        "switch them onto the subject that's scheduled right now.\n\n"
+        "Default to switching unless there's a clear reason not to (e.g. they "
+        "just started a different subject a few minutes ago and switching "
+        "would be disruptive — you don't have that signal here, so normally "
+        "just confirm the switch).\n\n"
+        'Return ONLY valid JSON: {"allow_switch": true, "recommended_subject": "...", '
+        '"lock_minutes": 60, "reason": "one short encouraging sentence"}'
+    )
+    user_msg = (
+        f"Weekly schedule (subject/day/start-minute/duration): {schedule}\n"
+        f"Current active subject: {current_subject or 'none'}\n"
+        f"Subject scheduled right now: {candidate_subject}\n"
+    )
+
+    try:
+        resp = await chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": user_msg}],
+            temperature=0.3, max_tokens=300, prefer_fast=True,
+        )
+        raw = extract_text(resp)
+        parsed = _parse_json_robust(raw)
+        if parsed and isinstance(parsed, dict):
+            return {
+                "allow_switch": bool(parsed.get("allow_switch", True)),
+                "recommended_subject": parsed.get("recommended_subject") or candidate_subject,
+                "lock_minutes": int(parsed.get("lock_minutes") or 60),
+                "reason": parsed.get("reason") or f"It's time for {candidate_subject}.",
+            }
+    except Exception:
+        pass
+
+    # Fallback — never block the schedule feature on an AI hiccup.
+    return {
+        "allow_switch": True,
+        "recommended_subject": candidate_subject,
+        "lock_minutes": 60,
+        "reason": f"It's time for {candidate_subject}.",
+    }

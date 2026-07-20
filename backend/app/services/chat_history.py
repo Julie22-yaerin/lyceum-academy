@@ -1,7 +1,6 @@
 """
 AI Chat History — auto-save for the admin's conversations with the head
-AIs (Commander, the 3 critique positions). SQLite-backed, same pattern as
-commander.py / ai_registry.py.
+AIs (Commander). SQLite-backed, same pattern as commander.py / ai_registry.py.
 
 One durable thread per agent_id (not per browser tab/session) — the point
 is that reopening the admin panel, even on a different device, picks the

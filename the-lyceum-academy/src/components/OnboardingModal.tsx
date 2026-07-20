@@ -9,10 +9,11 @@
  *   localStorage 'lyceum_selected_personas' — top 3 persona IDs
  */
 
-import { useState, useEffect, useRef, useMemo, type DragEvent } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment, type DragEvent } from 'react';
 import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Persona } from '../lib/api';
 import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
+import { saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useTranslation } from '../i18n/I18nContext';
 
@@ -599,12 +600,123 @@ function SubjectSelection({
   );
 }
 
+// ── Weekly Schedule Picker (drag subject pins onto a day/hour grid) ─────────
+// Becomes the ScheduleBlock[] the workspace's ScheduleLockManager later reads
+// to ask the AI whether to auto-open/lock a tab for whatever's "live" now.
+
+const SCHEDULE_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const SCHEDULE_HOURS = Array.from({ length: 16 }, (_, i) => 6 + i); // 6am–9pm start times
+
+function WeeklySchedulePicker({
+  subjectKeys,
+  blocks,
+  onBlocksChange,
+}: {
+  subjectKeys: string[];
+  blocks: ScheduleBlock[];
+  onBlocksChange: (next: ScheduleBlock[]) => void;
+}) {
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+
+  function blockAt(day: number, hour: number) {
+    return blocks.find(b => b.dayOfWeek === day && b.startMinute === hour * 60);
+  }
+
+  function dropOn(day: number, hour: number) {
+    if (!draggingKey) return;
+    const startMinute = hour * 60;
+    const next = blocks.filter(b => !(b.dayOfWeek === day && b.startMinute === startMinute));
+    next.push({ id: `${day}-${startMinute}`, subjectKey: draggingKey, dayOfWeek: day, startMinute, durationMinutes: 60 });
+    onBlocksChange(next);
+    setDraggingKey(null);
+  }
+
+  function removeBlock(id: string) {
+    onBlocksChange(blocks.filter(b => b.id !== id));
+  }
+
+  return (
+    <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🗓️</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>When do you want to study?</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
+          Drag a subject onto the times you're usually free. Optional — skip if you'd rather stay flexible.
+        </p>
+      </div>
+
+      {/* Pin tray */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '4px 0' }}>
+        {subjectKeys.map(key => {
+          const meta = SUBJECT_META[key];
+          if (!meta) return null;
+          return (
+            <div
+              key={key}
+              draggable
+              onDragStart={() => setDraggingKey(key)}
+              onDragEnd={() => setDraggingKey(null)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10,
+                cursor: 'grab', fontFamily: 'sans-serif', fontSize: 12,
+                background: 'rgba(197,160,89,0.14)', border: '1.5px solid rgba(197,160,89,0.55)', color: '#6b5215',
+              }}
+            >
+              <span>{meta.icon}</span>{meta.label}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Weekly grid */}
+      <div style={{ overflowX: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `44px repeat(7, minmax(64px, 1fr))`, gap: 2, minWidth: 560 }}>
+          <div />
+          {SCHEDULE_DAYS.map(d => (
+            <div key={d} style={{ fontFamily: 'sans-serif', fontSize: 10, textAlign: 'center', color: 'rgba(0,0,0,0.45)', paddingBottom: 4 }}>{d}</div>
+          ))}
+          {SCHEDULE_HOURS.map(hour => (
+            <Fragment key={hour}>
+              <div style={{ fontFamily: 'sans-serif', fontSize: 9, color: 'rgba(0,0,0,0.35)', textAlign: 'right', paddingRight: 4, lineHeight: '26px' }}>
+                {hour}:00
+              </div>
+              {SCHEDULE_DAYS.map((_, day) => {
+                const block = blockAt(day, hour);
+                const meta = block ? SUBJECT_META[block.subjectKey] : null;
+                return (
+                  <div
+                    key={`${day}-${hour}`}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={() => dropOn(day, hour)}
+                    onClick={() => block && removeBlock(block.id)}
+                    title={block ? `${meta?.label} — click to remove` : 'Drop a subject here'}
+                    style={{
+                      height: 26, borderRadius: 4, cursor: block ? 'pointer' : 'default',
+                      background: block ? 'rgba(197,160,89,0.22)' : 'rgba(0,0,0,0.03)',
+                      border: block ? '1px solid rgba(197,160,89,0.5)' : '1px dashed rgba(0,0,0,0.08)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, transition: 'background 0.1s',
+                    }}
+                  >
+                    {meta?.icon || ''}
+                  </div>
+                );
+              })}
+            </Fragment>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [phase, setPhase] = useState<'chat' | 'subjects' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'subjects' | 'schedule' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const { seedTabs } = useWorkspace();
   const [turns, setTurns] = useState<ChatMsg[]>([
     { role: 'system', content: ONBOARDING_SYSTEM_PROMPT },
@@ -665,6 +777,12 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     if (selectedSubjects.length === 0) return;
     seedTabs(selectedSubjects);
     if (pendingAnswers) saveOnboardingAnswers({ ...pendingAnswers, subjects: selectedSubjects });
+    setPhase('schedule');
+  }
+
+  function handleScheduleContinue() {
+    saveSchedule(scheduleBlocks);
+    void syncScheduleToServer(scheduleBlocks);
     setPhase('sliders');
   }
 
@@ -739,12 +857,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     phase === 'goal'     ? 0.92 :
     phase === 'personas' ? 0.72 :
     phase === 'sliders'  ? 0.52 :
+    phase === 'schedule' ? 0.48 :
     phase === 'subjects' ? 0.44 :
     Math.min(userTurnCount / 6, 0.38);
 
   const phaseLabel =
     phase === 'chat'     ? t('onboard.talkToAdvisor') :
     phase === 'subjects' ? t('onboard.yourSubjects') :
+    phase === 'schedule' ? 'Your Weekly Schedule' :
     phase === 'sliders'  ? t('onboard.brainsFav') :
     phase === 'personas' ? t('onboard.choosePartners') :
     phase === 'goal'     ? t('onboard.setTarget') :
@@ -805,6 +925,11 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Subject Selection screen ── */}
           {!paid && phase === 'subjects' && (
             <SubjectSelection selected={selectedSubjects} onToggle={toggleSubject} t={t} />
+          )}
+
+          {/* ── Weekly Schedule screen ── */}
+          {!paid && phase === 'schedule' && (
+            <WeeklySchedulePicker subjectKeys={selectedSubjects} blocks={scheduleBlocks} onBlocksChange={setScheduleBlocks} />
           )}
 
           {/* ── Learning Style Sliders screen ── */}
@@ -1008,6 +1133,25 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
                 color: selectedSubjects.length > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
                 fontWeight: 700, transition: 'all 0.15s',
+              }}>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* Schedule footer — Continue button (always enabled, schedule is optional) */}
+        {!paid && phase === 'schedule' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>
+              {scheduleBlocks.length > 0 ? `${scheduleBlocks.length} block${scheduleBlocks.length === 1 ? '' : 's'} scheduled` : 'Optional — skip if you prefer to stay flexible'}
+            </span>
+            <button
+              onClick={handleScheduleContinue}
+              style={{
+                padding: '13px 26px', background: '#C5A059',
+                border: 'none', borderRadius: 8, cursor: 'pointer',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: '#1a1a1a', fontWeight: 700, transition: 'all 0.15s',
               }}>
               Continue
             </button>
