@@ -80,8 +80,11 @@ TOKENS_PER_QUANTA = 5
 POINT_RULES: dict[str, int] = {
     "mind_map_created": 25,
     "mind_map_ai_reviewed": 15,
-    "exercise_attempt": 5,
-    "exercise_correct": 20,
+    # Every correct exercise/quest/lesson card awards 1-2 Quanta — the low
+    # bucket for easy/medium cards, the high bucket for hard/extreme ones.
+    # Wrong answers earn nothing (Quanta rewards mastery, not attempts).
+    "exercise_correct_low": 1,
+    "exercise_correct_high": 2,
     "note_understood": 20,
     # Referral: 1 invited friend who signs up = 5 quanta for the inviter.
     "friend_invited": 5,

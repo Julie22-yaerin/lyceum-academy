@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { useTranslation } from '../i18n/I18nContext';
+import { useTranslation, getCurrentLang } from '../i18n/I18nContext';
 import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion, generateExercises } from '../lib/api';
+import { generateLessonPackage, type BreakGame } from '../lib/lyceumApi';
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
-import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectSubject, type SavedPSet } from '../lib/persist';
+import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectSubject, saveNote, type SavedPSet } from '../lib/persist';
 import { recordProfileEvent } from '../lib/profile';
 import { useWorkspace } from '../context/WorkspaceContext';
 import MindMapTool from '../components/MindMapTool';
@@ -859,8 +860,9 @@ function LensView({
           image_b64: noteImg ? noteImg.replace(/^data:[^;]+;base64,/, '') : undefined,
           concepts: oq.concepts,
           subject: oq.concepts[0] ? detectSubject(oq.concepts[0]) : detectSubject(oq.prompt),
+          difficulty: oq.difficulty,
         };
-      }).filter(Boolean) as { id: string; prompt: string; answer: string; image_b64?: string; concepts: string[]; subject: string }[];
+      }).filter(Boolean) as { id: string; prompt: string; answer: string; image_b64?: string; concepts: string[]; subject: string; difficulty?: string }[];
 
       const result = await gradeDual(items);
       const map: Record<string, { passed: boolean; feedback: string; suggestions?: GradeSuggestion }> = {};
@@ -1683,6 +1685,10 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [pasteText, setPasteText] = useState('');
   const [showPaste, setShowPaste] = useState(false);
   const [sbTopic, setSbTopic] = useState('');
+  const [lessonBusy, setLessonBusy] = useState(false);
+  const [lessonError, setLessonError] = useState('');
+  const [breakGames, setBreakGames] = useState<BreakGame[]>([]);
+  const [gameSeedPrompt, setGameSeedPrompt] = useState('');
   const [rawText, setRawText] = useState('');
   const [usage, setUsage] = useState<{ total_tokens?: number; total_calls?: number } | null>(null);
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
@@ -1848,6 +1854,60 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
     } finally { setLoading(false); }
   }
 
+  // ── Full Coach lesson package: 1 illustrated note (auto-saved to Notes),
+  // 2 quest sets (daily + suggested past-paper, auto-saved), 1-2 break games
+  // (seed the Game Builder). The daily set loads into the workspace right
+  // away so the student can start immediately; the past-paper set and note
+  // wait in their libraries for later.
+  async function handleGenerateLessonPackage() {
+    const topic = sbTopic.trim();
+    if (!topic || lessonBusy || loading) return;
+    setLessonError(''); setLessonBusy(true); setBreakGames([]);
+    try {
+      const subject = activeTab || detectSubject(topic);
+      const pkg = await generateLessonPackage(subject, topic, getCurrentLang());
+
+      if (pkg.note?.title) {
+        saveNote({
+          id: `note_${Date.now()}`, title: pkg.note.title, savedAt: Date.now(),
+          sourceType: 'second-brain', note: pkg.note, subject: activeTab || undefined, folder: 'Lessons',
+        });
+      }
+
+      const toQuestions = (cards: typeof pkg.daily_cards) => cards.map((c, i) => ({
+        id: c.id || `lc_${i + 1}`,
+        prompt: c.question,
+        difficulty: (c.difficulty === 'extreme' ? 'hard' : c.difficulty) as Question['difficulty'],
+        concepts: c.concepts || [],
+      }));
+
+      const dailyQs = toQuestions(pkg.daily_cards);
+      const pastPaperQs = toQuestions(pkg.past_paper_cards);
+
+      if (dailyQs.length) {
+        const id = `pset_${Date.now()}_daily`;
+        savePSet({ id, name: `${topic} — Daily Practice`, savedAt: Date.now(), questions: dailyQs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
+        psetIdRef.current = id;
+        setQuestions(dailyQs);
+        setDocKey(`${topic} — Daily Practice`);
+      }
+      if (pastPaperQs.length) {
+        savePSet({ id: `pset_${Date.now()}_pastpaper`, name: `${topic} — Past Paper (suggested)`, savedAt: Date.now(), questions: pastPaperQs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
+      }
+      setSavedSets(loadPSets(activeTab || undefined));
+      setBreakGames(pkg.break_games || []);
+      setSbTopic('');
+    } catch (e: any) {
+      const msg = e.message || String(e);
+      setLessonError(msg.includes('Failed to fetch') ? 'Cannot reach backend — is it running?' : msg);
+    } finally { setLessonBusy(false); }
+  }
+
+  function handleBuildBreakGame(game: BreakGame) {
+    setGameSeedPrompt(game.concepts[0] || game.title);
+    setShowGameBuilder(true);
+  }
+
   async function handleDecompose() {
     if (!pasteText.trim()) return;
     setError(''); setLoading(true); setRawText('');
@@ -1962,13 +2022,13 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
     return (
       <div className="flex-grow flex flex-col items-center py-12 px-4 bg-surface min-h-screen">
         <button
-          onClick={() => setShowGameBuilder(false)}
+          onClick={() => { setShowGameBuilder(false); setGameSeedPrompt(''); }}
           className="self-start max-w-6xl w-full mx-auto font-sans text-[10px] uppercase tracking-[2px] opacity-50 hover:opacity-100 transition-opacity mb-2 flex items-center gap-2"
         >
           <span className="material-symbols-outlined text-[16px]">arrow_back</span>
           Back to Problem Sets
         </button>
-        <GameBuilder />
+        <GameBuilder seedPrompt={gameSeedPrompt} />
       </div>
     );
   }
@@ -2077,6 +2137,27 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                   Generate
                 </button>
               </div>
+
+              <div className="flex items-center gap-4 w-full">
+                <div className="h-[1px] flex-grow bg-outline/10" />
+                <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">or</span>
+                <div className="h-[1px] flex-grow bg-outline/10" />
+              </div>
+
+              <button
+                onClick={handleGenerateLessonPackage}
+                disabled={!sbTopic.trim() || lessonBusy}
+                className="border border-outline/25 px-6 py-3 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors disabled:opacity-30 flex items-center gap-2"
+              >
+                {lessonBusy && <div className="w-3 h-3 border border-on-surface/30 border-t-on-surface rounded-full animate-spin" />}
+                📦 {lessonBusy ? 'Assembling lesson…' : 'Build Full Lesson Package'}
+              </button>
+              <p className="font-sans text-[10px] opacity-35 text-center max-w-md">
+                A full package: 1 illustrated note with sources, a daily quest set, a suggested
+                past-paper set (up to 15 cards each), and 1-2 break games — all from the Second Brain.
+              </p>
+              {lessonError && <p className="font-sans text-sm text-red-600">{lessonError}</p>}
+
               <p className="font-sans text-[10px] opacity-35 text-center">
                 Want your own material in the mix? Add it once via Settings → Second Brain.
               </p>
@@ -2084,6 +2165,32 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
           )}
         </div>
       </div>
+
+      {/* Break games from the last lesson package */}
+      {breakGames.length > 0 && (
+        <div className="w-full max-w-3xl mb-12">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-base">🎮</span>
+            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Short-break games for this lesson</span>
+          </div>
+          <div className="flex flex-col gap-2">
+            {breakGames.map((g, i) => (
+              <div key={i} className="flex items-center justify-between border border-outline/15 px-5 py-3.5">
+                <div className="min-w-0">
+                  <p className="font-sans text-sm text-on-surface">{g.title}</p>
+                  <p className="font-sans text-xs opacity-50 mt-0.5">{g.description}</p>
+                </div>
+                <button
+                  onClick={() => handleBuildBreakGame(g)}
+                  className="border border-outline/30 px-4 py-2 font-sans text-[9px] uppercase tracking-[1.5px] hover:bg-surface-container-highest transition-colors shrink-0 ml-4"
+                >
+                  Build this game →
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Overall Analysis Panel ── */}
       {questions.length > 0 && !lensOpen && psetAnalysis && (

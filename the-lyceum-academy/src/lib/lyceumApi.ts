@@ -169,6 +169,26 @@ export function synthesizeNoteFromTopic(topic: string, subject = '', language = 
   return postJson('/ai/generate-note', { topic, subject, language });
 }
 
+// ── Coach lesson package (note + 2 card sets + break games) ─────────────────
+
+export interface LessonCard {
+  id: string; question: string; difficulty: 'easy' | 'medium' | 'hard' | 'extreme';
+  concepts: string[]; subject: string; topic: string; source: string; is_past_paper: boolean;
+}
+
+export interface BreakGame { title: string; description: string; concepts: string[]; }
+
+export interface LessonPackage {
+  note: any;
+  daily_cards: LessonCard[];
+  past_paper_cards: LessonCard[];
+  break_games: BreakGame[];
+}
+
+export function generateLessonPackage(subject: string, topic = '', language = 'en'): Promise<LessonPackage> {
+  return postJson('/ai/generate-lesson', { subject, topic, language });
+}
+
 // ── Open-Sora (local video) ─────────────────────────────────────────────────
 
 export function getVideoStatus(): Promise<{ available: boolean; url: string }> {

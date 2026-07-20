@@ -33,6 +33,10 @@ Lyceum ship-day router — the new product surface added for launch:
   Open-Sora (local video generation)
     GET  /ai/video/status        — is the local server reachable
     POST /ai/generate-video      — text → short video via local Open-Sora
+
+  Coach lesson package (the standard content unit for one topic)
+    POST /ai/generate-lesson     — note+images+refs, 2 card sets (≤15 each),
+                                    1-2 break games — see app.services.lesson
 """
 
 from __future__ import annotations
@@ -345,6 +349,48 @@ async def generate_note(request: Request, req: GenerateNoteRequest, auth: dict =
     quanta_svc.spend_tokens(uid, int(usage.get("total_tokens") or 0) or (len(text) // 4 + 50),
                             pool="standard", context="/ai/generate-note")
     return note
+
+
+# ── Coach lesson package ─────────────────────────────────────────────────────
+# The standard content unit for one topic: 1 illustrated note + 2 exercise
+# card sets (daily + suggested past-paper, ≤15 cards each) + 1-2 break games.
+# Correct-answer Quanta is awarded where cards are actually graded
+# (/ai/grade-dual, /ai/grade-all — see main.py _record_grade_results), not
+# here; this endpoint only assembles the package.
+
+
+class GenerateLessonRequest(BaseModel):
+    subject: str
+    topic: str = ""
+    language: str = "en"
+
+
+@router.post("/ai/generate-lesson")
+@limiter.limit("4/minute")
+async def generate_lesson(request: Request, req: GenerateLessonRequest, auth: dict = Depends(require_auth)):
+    from app.services import lesson as lesson_svc
+    from app.services.ai_roles.expertise import expertise_directive
+
+    uid = _uid(auth)
+    subject = (req.subject or "").strip()
+    if not subject and not req.topic.strip():
+        raise HTTPException(status_code=400, detail="subject_or_topic_required")
+
+    plan_id = plans_svc.current_plan(uid)["plan"]["id"]
+    expertise = expertise_directive("coach", plan_id)
+
+    try:
+        package = await lesson_svc.generate_lesson_package(
+            subject=subject, topic=req.topic.strip(), language=req.language, expertise=expertise,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Rough flat estimate — the package makes several AI calls internally
+    # (note + 2 card sets + break games); billed to the standard pool since
+    # it's everyday content generation, not a Coach-only orchestration run.
+    quanta_svc.spend_tokens(uid, tokens=2500, pool="standard", context="/ai/generate-lesson")
+    return package
 
 
 # ── Open-Sora local video generation ────────────────────────────────────────

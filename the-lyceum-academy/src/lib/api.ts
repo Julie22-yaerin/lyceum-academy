@@ -425,7 +425,7 @@ export interface GradeSuggestion {
 }
 
 export async function gradeDual(
-  questions: { id: string; prompt: string; answer: string; image_b64?: string; concepts?: string[]; subject?: string }[]
+  questions: { id: string; prompt: string; answer: string; image_b64?: string; concepts?: string[]; subject?: string; difficulty?: string }[]
 ): Promise<{ grades: { id: string; passed: boolean; feedback: string; suggestions?: GradeSuggestion }[] }> {
   const res = await authFetch(`${API_BASE}/ai/grade-dual`, {
     method: 'POST',
@@ -439,7 +439,7 @@ export async function gradeDual(
   return res.json();
 }
 
-export async function gradeAll(questions: { id: string; prompt: string; answer: string; concepts?: string[]; subject?: string }[]) {
+export async function gradeAll(questions: { id: string; prompt: string; answer: string; concepts?: string[]; subject?: string; difficulty?: string }[]) {
   const res = await authFetch(`${API_BASE}/ai/grade-all`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

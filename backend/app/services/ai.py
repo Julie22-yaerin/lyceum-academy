@@ -5017,6 +5017,7 @@ async def generate_exercises(
     count: int = 10,
     difficulty_mix: str = "mixed",
     expertise: str = "",
+    past_paper: bool = False,
 ) -> dict:
     """
     Generate exercise cards on-the-fly from second brain curriculum content.
@@ -5024,34 +5025,59 @@ async def generate_exercises(
     Uses RAG to pull relevant notes, then asks the AI to generate
     exercise questions grounded in real curriculum material.
 
-    Returns: { cards: [{ id, question, difficulty, concepts, subject, topic, source }] }
+    `past_paper=True` switches the style to suggested past-paper-style
+    questions (exam phrasing, multi-part where natural) — used for the
+    optional "do more" set in a Coach lesson package; cards come back
+    tagged is_past_paper=True.
+
+    Returns: { cards: [{ id, question, difficulty, concepts, subject, topic, source, is_past_paper }] }
     """
     # Build a query from subject + topic for RAG retrieval
     query = f"{subject} {topic}".strip() if topic else subject
     rag_context = _rag.context_for(query, n=5)
 
-    system = (
-        "You are an expert curriculum designer for the Lyceum learning platform.\n"
-        "Generate exercise cards that test understanding of the subject material.\n"
-        "Each card should be a self-contained question suitable for a student to answer.\n\n"
-        "Rules:\n"
-        "- Questions should be grounded in the provided reference material\n"
-        "- Mix difficulties: easy (30%), medium (40%), hard (25%), extreme (5%)\n"
-        "- Each question should test a specific concept\n"
-        "- Include the concept tags for mastery tracking\n"
-        "- Questions should be clear and unambiguous\n"
-        "- For math/science: include specific values and scenarios\n"
-        "- For humanities: pose analytical questions with evidence requirements\n\n"
-        "Return ONLY a JSON array of exercise cards. No other text.\n"
-        "Format: [{\"question\": \"...\", \"difficulty\": \"easy|medium|hard|extreme\", "
-        "\"concepts\": [\"concept1\", \"concept2\"], \"topic\": \"...\", "
-        "\"source\": \"brief reference to curriculum content used\"}]"
-    )
+    if past_paper:
+        system = (
+            "You are an expert exam-paper setter for the Lyceum learning platform.\n"
+            "Generate SUGGESTED PAST-PAPER-STYLE exercise cards: phrase questions the way a real "
+            "exam past paper would (formal command words, realistic mark-scheme scope, occasional "
+            "multi-part structure written as one self-contained question).\n"
+            "Each card should be a self-contained question suitable for a student to answer.\n\n"
+            "Rules:\n"
+            "- Questions should be grounded in the provided reference material\n"
+            "- Mix difficulties: easy (15%), medium (35%), hard (35%), extreme (15%) — past papers skew harder\n"
+            "- Each question should test a specific concept\n"
+            "- Include the concept tags for mastery tracking\n"
+            "- For math/science: include specific values and scenarios\n"
+            "- For humanities: pose analytical questions with evidence requirements\n\n"
+            "Return ONLY a JSON array of exercise cards. No other text.\n"
+            "Format: [{\"question\": \"...\", \"difficulty\": \"easy|medium|hard|extreme\", "
+            "\"concepts\": [\"concept1\", \"concept2\"], \"topic\": \"...\", "
+            "\"source\": \"brief reference to curriculum content used\"}]"
+        )
+    else:
+        system = (
+            "You are an expert curriculum designer for the Lyceum learning platform.\n"
+            "Generate exercise cards that test understanding of the subject material.\n"
+            "Each card should be a self-contained question suitable for a student to answer.\n\n"
+            "Rules:\n"
+            "- Questions should be grounded in the provided reference material\n"
+            "- Mix difficulties: easy (30%), medium (40%), hard (25%), extreme (5%)\n"
+            "- Each question should test a specific concept\n"
+            "- Include the concept tags for mastery tracking\n"
+            "- Questions should be clear and unambiguous\n"
+            "- For math/science: include specific values and scenarios\n"
+            "- For humanities: pose analytical questions with evidence requirements\n\n"
+            "Return ONLY a JSON array of exercise cards. No other text.\n"
+            "Format: [{\"question\": \"...\", \"difficulty\": \"easy|medium|hard|extreme\", "
+            "\"concepts\": [\"concept1\", \"concept2\"], \"topic\": \"...\", "
+            "\"source\": \"brief reference to curriculum content used\"}]"
+        )
     if expertise:
         system += expertise
 
     user_msg = (
-        f"Generate {count} exercise cards for {subject}"
+        f"Generate {count} {'past-paper-style ' if past_paper else ''}exercise cards for {subject}"
         f"{' — topic: ' + topic if topic else ''}.\n"
     )
     if rag_context:
@@ -5103,13 +5129,14 @@ async def generate_exercises(
         if not isinstance(card, dict) or "question" not in card:
             continue
         cards.append({
-            "id": f"ex-{i+1}",
+            "id": f"{'pp' if past_paper else 'ex'}-{i+1}",
             "question": card.get("question", ""),
             "difficulty": card.get("difficulty", "medium"),
             "concepts": card.get("concepts", []),
             "subject": subject,
             "topic": card.get("topic", topic),
             "source": card.get("source", ""),
+            "is_past_paper": past_paper,
         })
 
     return {"cards": cards[:count]}

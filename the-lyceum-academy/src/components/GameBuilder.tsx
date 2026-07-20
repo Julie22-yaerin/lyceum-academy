@@ -19,8 +19,8 @@ function rectsOverlap(a: { x: number; y: number; width: number; height: number }
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
-export default function GameBuilder() {
-  const [prompt, setPrompt] = useState('');
+export default function GameBuilder({ seedPrompt }: { seedPrompt?: string } = {}) {
+  const [prompt, setPrompt] = useState(seedPrompt || '');
   const [generating, setGenerating] = useState(false);
   const [genError, setGenError] = useState('');
   const [assets, setAssets] = useState<Asset[]>([]);

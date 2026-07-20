@@ -91,7 +91,13 @@ async def _with_safety_check(
 def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
     """Feed the personalization profile from a batch grading result — never
     blocks the actual response. `items` is the request's question list
-    (each with .id/.concepts/.subject); `grades` is [{id, passed, ...}]."""
+    (each with .id/.concepts/.subject/.difficulty); `grades` is
+    [{id, passed, ...}].
+
+    Quanta: each correctly-answered card awards 1 Quanta (easy/medium) or 2
+    (hard/extreme) — once per card, not per concept — via event_key dedupe
+    so a re-grade of the same card never double-awards. Wrong answers earn
+    no Quanta (mastery is what's rewarded, not attempts)."""
     if not uid:
         return
     try:
@@ -105,10 +111,12 @@ def _record_grade_results(uid: str, items: list, grades: list[dict]) -> None:
             passed = bool(g.get("passed"))
             for concept in item.concepts[:3]:
                 mp_svc.record_attempt(uid, concept, item.subject or "other", passed)
-                quanta_svc.award(uid, "exercise_correct" if passed else "exercise_attempt",
-                                  context=f"{item.id}:{concept}")
                 if not passed:
                     mp_svc.record_event(uid, concept, item.subject or "other", "confusion")
+            if passed:
+                difficulty = (getattr(item, "difficulty", "") or "medium").lower()
+                event_type = "exercise_correct_high" if difficulty in ("hard", "extreme") else "exercise_correct_low"
+                quanta_svc.award(uid, event_type, context=item.id, event_key=f"{uid}|{event_type}|{item.id}")
     except Exception:
         pass
 
@@ -1122,6 +1130,7 @@ class GradeItem(BaseModel):
     answer: str
     concepts: list[str] = []   # feeds the personalization profile
     subject: str = ""
+    difficulty: str = "medium"  # easy|medium|hard|extreme — scales correct-answer Quanta
 
 class GradeAllRequest(BaseModel):
     questions: list[GradeItem]
@@ -1361,6 +1370,7 @@ class GradeDualItem(BaseModel):
     image_b64: str | None = None   # base64 PNG from canvas (handwriting)
     concepts: list[str] = []   # feeds the personalization profile
     subject: str = ""
+    difficulty: str = "medium"  # easy|medium|hard|extreme — scales correct-answer Quanta
 
 class GradeDualRequest(BaseModel):
     questions: list[GradeDualItem]
