@@ -8,8 +8,6 @@ import { NavigationProps } from '../types';
 import { SUBJECT_META, loadTodayStudySubject, saveTodayStudySubject } from '../lib/persist';
 import { recordSubjectActivity } from '../lib/profile';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
-import { WorkspaceLamp } from '../../components/ui/lamp';
-import { useTheme } from '../context/ThemeContext';
 
 interface MainLayoutProps extends NavigationProps {
   children: ReactNode;
@@ -20,7 +18,6 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
   const [showSubjectPrompt, setShowSubjectPrompt] = useState(false);
   const [subjectInput, setSubjectInput] = useState('');
   const initRef = useRef<string | null>(null);
-  const { theme } = useTheme();
 
   // Once-a-day check-in: which subject is today's focus. Feeds the
   // personalization profile's love/fear bars (lib/profile.ts) — kept
@@ -59,7 +56,6 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
 
   return (
     <div className="bg-[#050508] text-white/90 min-h-screen flex flex-col">
-      {theme === 'dark' && <WorkspaceLamp />}
       <FloatingDock currentView={currentView} onNavigate={onNavigate} />
       <VoiceOrb currentView={currentView} tourActive={tourActive} />
       <main id="lyceum-workspace-content" className={`flex flex-1 w-full ${isFullBleed ? '' : 'max-w-7xl mx-auto px-6 pt-24 pb-32'}`}>
