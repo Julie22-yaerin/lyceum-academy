@@ -299,6 +299,11 @@ async def generate_note(request: Request, req: GenerateNoteRequest, auth: dict =
     except Exception:
         rag_context = ""
 
+    # Note synthesis is native-expert depth on paid plans, competent-senior
+    # on free (ai_roles.expertise), resolved from the student's plan.
+    from app.services.ai_roles.expertise import expertise_directive
+    plan_id = plans_svc.current_plan(uid)["plan"]["id"]
+
     system = (
         "You are the Lyceum's Note Synthesist. Build a rich study note grounded ONLY in the "
         "provided Second Brain curriculum material (plus universally standard knowledge of the topic). "
@@ -307,7 +312,7 @@ async def generate_note(request: Request, req: GenerateNoteRequest, auth: dict =
         "key_concepts (array of {concept, definition, equation (LaTeX or ''), explanation (fun analogy), emoji}), "
         "socratic_questions (array of 3 strings), key_insight (string). "
         f"Write in language code '{req.language}'."
-    )
+    ) + expertise_directive("coach", plan_id)
     user = f"Topic: {topic}\nSubject: {req.subject or 'general'}\n\nSecond Brain material:\n{rag_context or '(no matching vault notes — rely on standard curriculum knowledge)'}"
 
     try:

@@ -155,6 +155,10 @@ async def concierge_respond(
     # Add current message
     messages.append({"role": "user", "content": current_message})
 
+    # Expertise scales with the student's plan — see ai_roles.expertise.
+    from app.services.ai_roles.expertise import expertise_directive
+    system += expertise_directive("concierge", tier)
+
     # Tier-based model selection
     spec = resolve_role_model("concierge", tier)
     log.info("Concierge: tier=%s → model=%s (%s)", tier, spec.model, spec.display_name)

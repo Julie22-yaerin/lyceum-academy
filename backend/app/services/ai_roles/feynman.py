@@ -127,7 +127,8 @@ async def feynman_respond(
     messages.append({"role": "user", "content": current_explanation})
 
     # If stuck, add an explicit instruction override
-    system = FEYNMAN_SYSTEM_PROMPT
+    from app.services.ai_roles.expertise import expertise_directive
+    system = FEYNMAN_SYSTEM_PROMPT + expertise_directive("feynman", tier)
     if stuck:
         system += (
             "\n\n⚠️ IMPORTANT: The student is expressing confusion or being stuck. "

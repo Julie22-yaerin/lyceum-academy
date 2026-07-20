@@ -1209,17 +1209,30 @@ class GenerateExercisesRequest(BaseModel):
 
 @app.post("/ai/generate-exercises")
 @limiter.limit("3/minute")
-async def ai_generate_exercises(request: Request, req: GenerateExercisesRequest, _: dict = Depends(require_auth)):
+async def ai_generate_exercises(request: Request, req: GenerateExercisesRequest, auth: dict = Depends(require_auth)):
     """
     Generate exercise cards on-the-fly from second brain curriculum content.
     Uses RAG to pull relevant notes, then AI generates grounded questions.
     Returns { cards: [{ id, question, difficulty, concepts, subject, topic, source }] }.
+    Question depth scales with the student's plan (native-expert on paid,
+    competent-senior on free) via ai_roles.expertise.
     """
     try:
+        expertise = ""
+        uid = _uid(auth)
+        if uid:
+            try:
+                from app.services import plans as plans_svc
+                from app.services.ai_roles.expertise import expertise_directive
+                plan_id = plans_svc.current_plan(uid)["plan"]["id"]
+                expertise = expertise_directive("grader", plan_id)
+            except Exception:
+                expertise = ""
         result = await ai_svc.generate_exercises(
             subject=req.subject,
             topic=req.topic,
             count=min(req.count, 20),
+            expertise=expertise,
         )
         return result
     except Exception as e:

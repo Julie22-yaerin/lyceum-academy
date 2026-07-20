@@ -5016,6 +5016,7 @@ async def generate_exercises(
     topic: str = "",
     count: int = 10,
     difficulty_mix: str = "mixed",
+    expertise: str = "",
 ) -> dict:
     """
     Generate exercise cards on-the-fly from second brain curriculum content.
@@ -5046,6 +5047,8 @@ async def generate_exercises(
         "\"concepts\": [\"concept1\", \"concept2\"], \"topic\": \"...\", "
         "\"source\": \"brief reference to curriculum content used\"}]"
     )
+    if expertise:
+        system += expertise
 
     user_msg = (
         f"Generate {count} exercise cards for {subject}"

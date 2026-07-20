@@ -127,6 +127,10 @@ async def debate_round(
     else:
         messages.append({"role": "user", "content": thesis_text})
 
+    # Expertise scales with the student's plan — see ai_roles.expertise.
+    from app.services.ai_roles.expertise import expertise_directive
+    system_prompt = DEBATE_SYSTEM_PROMPT + expertise_directive("debate", tier)
+
     # Tier-based model selection
     spec = resolve_role_model("debate", tier)
     log.info("Debate: tier=%s → model=%s (%s)", tier, spec.model, spec.display_name)
@@ -134,7 +138,7 @@ async def debate_round(
     try:
         _, raw = await route_chat(
             messages, provider=spec.provider, model=spec.model,
-            system=DEBATE_SYSTEM_PROMPT, temperature=0.7, max_tokens=4096,
+            system=system_prompt, temperature=0.7, max_tokens=4096,
         )
     except Exception as e:
         log.error("Debate call failed (tier=%s, model=%s): %s", tier, spec.model, e)

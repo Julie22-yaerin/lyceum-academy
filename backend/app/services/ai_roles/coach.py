@@ -140,8 +140,13 @@ async def generate_curriculum(
     user_msg = "\n\n".join(parts)
     user_msg += "\n\n---\nGenerate the personalized curriculum for tomorrow's study session."
 
+    # Expertise scales with the student's plan (native-master on paid,
+    # newly-credentialed senior on free) — see ai_roles.expertise.
+    from app.services.ai_roles.expertise import expertise_directive
+    system_prompt = COACH_SYSTEM_PROMPT + expertise_directive("coach", tier)
+
     messages = [
-        {"role": "system", "content": COACH_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_msg},
     ]
 
@@ -155,7 +160,7 @@ async def generate_curriculum(
             api_key = get_openai_key_for_tier(tier) if spec.provider == "openai" else ""
             _, raw = await route_chat(
                 messages, provider=spec.provider, model=spec.model,
-                system=COACH_SYSTEM_PROMPT, max_tokens=16384,
+                system=system_prompt, max_tokens=16384,
                 api_key=api_key,
             )
         else:

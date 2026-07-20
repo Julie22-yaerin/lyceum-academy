@@ -147,8 +147,12 @@ async def grade_solution(
     user_msg = "\n\n".join(parts)
     user_msg += "\n\n---\nGrade this solution thoroughly. Analyze the process, not just the answer."
 
+    # Expertise scales with the student's plan — see ai_roles.expertise.
+    from app.services.ai_roles.expertise import expertise_directive
+    system_prompt = GRADER_SYSTEM_PROMPT + expertise_directive("grader", tier)
+
     messages = [
-        {"role": "system", "content": GRADER_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_msg},
     ]
 
@@ -160,7 +164,7 @@ async def grade_solution(
         api_key = get_openai_key_for_tier(tier) if spec.provider == "openai" else ""
         _, raw = await route_chat(
             messages, provider=spec.provider, model=spec.model,
-            system=GRADER_SYSTEM_PROMPT, max_tokens=8192,
+            system=system_prompt, max_tokens=8192,
             api_key=api_key,
         )
     except Exception as e:
