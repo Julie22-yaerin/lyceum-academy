@@ -434,6 +434,49 @@ body {
   animation: orb-ring-expand 1.8s ease-out infinite;
 }
 
+/* ── Pegtop Loader ────────────────────────────────────────────────────── */
+
+.pegtop-loader {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pegtop-star {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  animation: pegtop-spin 2.4s linear infinite;
+}
+
+.pegtop-star-1 {
+  animation-delay: 0s;
+}
+
+.pegtop-star-2 {
+  animation-delay: -0.8s;
+}
+
+.pegtop-star-3 {
+  animation-delay: -1.6s;
+}
+
+@keyframes pegtop-spin {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: rotate(180deg) scale(0.6);
+    opacity: 0.4;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 1;
+  }
+}
+
 /* ── Light theme (toggled via .theme-light on <html>, app-wide) ──────────
    Dark mode keeps the original palette untouched. Light mode is a white
    base sprayed with pale sky-blue ambient blobs; every glass/text/border

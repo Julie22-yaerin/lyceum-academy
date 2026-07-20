@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
+import { motion, useMotionValue, useSpring, useTransform, AnimatePresence, type MotionValue } from 'motion/react';
+import { MessagesSquare, Network, BookOpen, FileText, AlertTriangle, BarChart3, X, Menu } from 'lucide-react';
 import { View, NavigationProps } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -11,14 +13,13 @@ import { getQuantaProfile, type QuantaProfile, type QuantaAwardResult } from '..
 import Confetti from './Confetti';
 
 // ── Dock items ──────────────────────────────────────────────────────────
-const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
-  { view: 'dialogue',      labelKey: 'nav.dialogue',       icon: 'forum' },
-  { view: 'knowledge-map', labelKey: 'nav.knowledgeTree', icon: 'hub' },
-  { view: 'problem-sets',  labelKey: 'nav.problemSets',   icon: 'library_books' },
-  { view: 'notes',         labelKey: 'nav.notes',          icon: 'edit_note' },
-  { view: 'mistake-bank',  labelKey: 'nav.mistakeVault',  icon: 'error_outline' },
-  // { view: 'reference-bank', label: 'Reference Bank', icon: 'auto_stories' },  // disabled, coming soon
-  { view: 'progress',      labelKey: 'nav.progress',       icon: 'bar_chart' },
+const DOCK_ITEMS: { view: View; labelKey: string; icon: React.ReactNode }[] = [
+  { view: 'dialogue',      labelKey: 'nav.dialogue',       icon: <MessagesSquare /> },
+  { view: 'knowledge-map', labelKey: 'nav.knowledgeTree', icon: <Network /> },
+  { view: 'problem-sets',  labelKey: 'nav.problemSets',   icon: <BookOpen /> },
+  { view: 'notes',         labelKey: 'nav.notes',          icon: <FileText /> },
+  { view: 'mistake-bank',  labelKey: 'nav.mistakeVault',  icon: <AlertTriangle /> },
+  { view: 'progress',      labelKey: 'nav.progress',       icon: <BarChart3 /> },
 ];
 
 const TIER_LIMITS: Record<string, { voice: number; reference: number; roadmap: number }> = {
@@ -130,7 +131,7 @@ function UsagePanel({ onClose }: { onClose: () => void }) {
           </span>
         </div>
         <button onClick={onClose} className="opacity-30 hover:opacity-80 transition-opacity">
-          <span className="material-symbols-outlined text-[14px]">close</span>
+          <X size={14} />
         </button>
       </div>
 
@@ -342,7 +343,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
           title={t('dock.usage')}
         >
-          <span className="material-symbols-outlined text-[16px]">analytics</span>
+          <BarChart3 size={16} />
         </button>
         {showStats && <UsagePanel onClose={() => setShowStats(false)} />}
 
@@ -388,81 +389,180 @@ function CornerMenu({ onNavigate }: NavigationProps) {
   );
 }
 
-export default function FloatingDock({ currentView, onNavigate }: NavigationProps) {
+// ── Aceternity-style mouse-tracking dock icon ─────────────────────────────
+function DockIcon({
+  mouseX,
+  view,
+  labelKey,
+  icon,
+  active,
+  onNavigate,
+}: {
+  mouseX: MotionValue;
+  view: View;
+  labelKey: string;
+  icon: React.ReactNode;
+  active: boolean;
+  onNavigate: (v: View) => void;
+}) {
   const { t } = useTranslation();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  const distance = useTransform(mouseX, (val) => {
+    const bounds = ref.current?.getBoundingClientRect() ?? { x: 0, width: 0 };
+    return val - bounds.x - bounds.width / 2;
+  });
+
+  const widthSync = useTransform(distance, [-150, 0, 150], [48, 72, 48]);
+  const heightSync = useTransform(distance, [-150, 0, 150], [48, 72, 48]);
+  const iconSync = useTransform(distance, [-150, 0, 150], [20, 28, 20]);
+
+  const width = useSpring(widthSync, { mass: 0.1, stiffness: 150, damping: 12 });
+  const height = useSpring(heightSync, { mass: 0.1, stiffness: 150, damping: 12 });
+  const iconSize = useSpring(iconSync, { mass: 0.1, stiffness: 150, damping: 12 });
+
+  const [hovered, setHovered] = useState(false);
 
   return (
-    <>
-      <CornerMenu currentView={currentView} onNavigate={onNavigate} />
+    <a href="#" onClick={(e) => { e.preventDefault(); onNavigate(view); }}>
+      <motion.div
+        ref={ref}
+        style={{ width, height }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        className="relative flex aspect-square items-center justify-center rounded-full"
+        data-tour={`dock-${view}`}
+      >
+        {/* Active glow background */}
+        {active && (
+          <div className="absolute inset-0 rounded-full bg-violet-500/20" />
+        )}
 
-      {/* Desktop floating dock — bottom center, visionOS style */}
-      <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 dock rounded-3xl px-3 py-3 items-end gap-1">
-        {DOCK_ITEMS.map(({ view, labelKey, icon }) => {
-          const active = currentView === view;
-          return (
-            <button
-              key={view}
-              data-tour={`dock-${view}`}
-              onClick={() => onNavigate(view)}
-              className="dock-icon group relative flex flex-col items-center justify-center w-12 h-12 rounded-2xl"
-              title={t(labelKey)}
+        <AnimatePresence>
+          {hovered && (
+            <motion.div
+              initial={{ opacity: 0, y: 10, x: '-50%' }}
+              animate={{ opacity: 1, y: 0, x: '-50%' }}
+              exit={{ opacity: 0, y: 2, x: '-50%' }}
+              className="absolute -top-10 left-1/2 w-fit glass-strong rounded-lg px-2.5 py-1 text-[10px] whitespace-pre text-white/80 z-10"
             >
-              <span
-                className="material-symbols-outlined text-[22px] transition-colors"
-                style={{ color: active ? '#d8ccff' : 'rgba(255,255,255,0.6)' }}
-              >
-                {icon}
-              </span>
+              {t(labelKey)}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-              {/* Active glowing dot */}
-              <span
-                className="dock-dot absolute -bottom-1.5 w-1 h-1 rounded-full transition-opacity"
-                style={{
-                  background: '#a78bfa',
-                  color: '#a78bfa',
-                  opacity: active ? 1 : 0,
-                }}
-              />
-
-              {/* Hover label tooltip */}
-              <span className="pointer-events-none absolute -top-9 left-1/2 -translate-x-1/2 whitespace-nowrap glass-strong rounded-lg px-2.5 py-1 text-[10px] text-white/80 opacity-0 group-hover:opacity-100 transition-opacity">
-                {t(labelKey)}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
-
-      {/* Mobile: compact bottom bar + expandable sheet */}
-      <div className="md:hidden fixed bottom-4 left-4 right-4 z-50">
-        <div className="dock rounded-2xl flex items-center justify-between px-4 py-3">
-          <span className="text-xs uppercase tracking-widest text-white/70">
-            {DOCK_ITEMS.find(i => i.view === currentView)
-              ? t(DOCK_ITEMS.find(i => i.view === currentView)!.labelKey)
-              : t('nav.lyceum')}
+        <motion.div
+          style={{ width: iconSize, height: iconSize }}
+          className="flex items-center justify-center [&>svg]:w-full [&>svg]:h-full"
+        >
+          <span style={{ color: active ? '#d8ccff' : 'rgba(255,255,255,0.6)' }}>
+            {icon}
           </span>
-          <button onClick={() => setMobileOpen(v => !v)} className="opacity-70">
-            <span className="material-symbols-outlined text-[20px]">{mobileOpen ? 'close' : 'apps'}</span>
-          </button>
-        </div>
-        {mobileOpen && (
-          <div className="dock rounded-2xl mt-2 grid grid-cols-3 gap-1 p-2">
+        </motion.div>
+
+        {/* Active glowing dot */}
+        <span
+          className="dock-dot absolute -bottom-1.5 w-1 h-1 rounded-full transition-opacity"
+          style={{
+            background: '#a78bfa',
+            color: '#a78bfa',
+            opacity: active ? 1 : 0,
+          }}
+        />
+      </motion.div>
+    </a>
+  );
+}
+
+// ── Desktop dock ─────────────────────────────────────────────────────────
+function FloatingDockDesktop({
+  currentView,
+  onNavigate,
+}: {
+  currentView: View;
+  onNavigate: (v: View) => void;
+}) {
+  const mouseX = useMotionValue(Infinity);
+
+  return (
+    <motion.div
+      onMouseMove={(e) => mouseX.set(e.pageX)}
+      onMouseLeave={() => mouseX.set(Infinity)}
+      className="mx-auto hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 dock rounded-3xl px-4 pb-3 pt-3 items-end gap-2"
+    >
+      {DOCK_ITEMS.map(({ view, labelKey, icon }) => (
+        <DockIcon
+          key={view}
+          mouseX={mouseX}
+          view={view}
+          labelKey={labelKey}
+          icon={icon}
+          active={currentView === view}
+          onNavigate={onNavigate}
+        />
+      ))}
+    </motion.div>
+  );
+}
+
+// ── Mobile dock ──────────────────────────────────────────────────────────
+function FloatingDockMobile({
+  currentView,
+  onNavigate,
+}: {
+  currentView: View;
+  onNavigate: (v: View) => void;
+}) {
+  const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="md:hidden fixed bottom-4 left-4 right-4 z-50">
+      <div className="dock rounded-2xl flex items-center justify-between px-4 py-3">
+        <span className="text-xs uppercase tracking-widest text-white/70">
+          {DOCK_ITEMS.find(i => i.view === currentView)
+            ? t(DOCK_ITEMS.find(i => i.view === currentView)!.labelKey)
+            : t('nav.lyceum')}
+        </span>
+        <button onClick={() => setOpen(v => !v)} className="opacity-70 text-white/70">
+          {open ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 10 }}
+            className="dock rounded-2xl mt-2 grid grid-cols-3 gap-1 p-2"
+          >
             {DOCK_ITEMS.map(({ view, labelKey, icon }) => (
               <button
                 key={view}
-                onClick={() => { onNavigate(view); setMobileOpen(false); }}
+                onClick={() => { onNavigate(view); setOpen(false); }}
                 className={`flex flex-col items-center gap-1 rounded-xl py-3 transition-colors ${
                   currentView === view ? 'bg-white/10 text-white' : 'text-white/50'
                 }`}
               >
-                <span className="material-symbols-outlined text-[20px]">{icon}</span>
+                {icon}
                 <span className="text-[8px] uppercase tracking-wide">{t(labelKey)}</span>
               </button>
             ))}
-          </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Main export ──────────────────────────────────────────────────────────
+export default function FloatingDock({ currentView, onNavigate }: NavigationProps) {
+  return (
+    <>
+      <CornerMenu currentView={currentView} onNavigate={onNavigate} />
+      <FloatingDockDesktop currentView={currentView} onNavigate={onNavigate} />
+      <FloatingDockMobile currentView={currentView} onNavigate={onNavigate} />
     </>
   );
 }

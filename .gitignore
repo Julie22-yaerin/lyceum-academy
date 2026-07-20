@@ -1,3 +1,9 @@
+import { ClassValue, clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
 # Python
 backend/.venv/
 backend/__pycache__/
@@ -32,3 +38,4 @@ backend/.venv/
 backend/__pycache__/
 .vercel
 .env*
+node_modules
