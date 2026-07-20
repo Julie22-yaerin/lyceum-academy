@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useTranslation } from '../i18n/I18nContext';
-import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion } from '../lib/api';
+import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion, generateExercises } from '../lib/api';
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
@@ -1682,6 +1682,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [, setKatexTick] = useState(0);
   const [pasteText, setPasteText] = useState('');
   const [showPaste, setShowPaste] = useState(false);
+  const [sbTopic, setSbTopic] = useState('');
   const [rawText, setRawText] = useState('');
   const [usage, setUsage] = useState<{ total_tokens?: number; total_calls?: number } | null>(null);
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
@@ -1813,6 +1814,38 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         setError('Cannot reach backend at localhost:8000 — is it running?');
       } else { setError(msg); }
     } finally { setLoading(false); setPhase(0); }
+  }
+
+  // ── Quest cards from the Second Brain — the primary way sets are made now.
+  // The generated set is auto-saved immediately (savePSet), so it shows up in
+  // the saved-sets list without any manual save step.
+  async function handleGenerateFromSecondBrain() {
+    const topic = sbTopic.trim();
+    if (!topic || loading) return;
+    setError(''); setLoading(true); setQuestions([]); setPages([]); setRawText('');
+    setLensMode(false); setLensOpen(false);
+    const setName = `Second Brain — ${topic}`;
+    setDocKey(setName);
+    try {
+      const subject = activeTab || detectSubject(topic);
+      const { cards } = await generateExercises(subject, topic, 8);
+      if (!cards?.length) { setError('The Second Brain could not draft questions for this topic — try a more specific one.'); return; }
+      const qs: Question[] = cards.map((c, i) => ({
+        id: c.id || `sb_${i + 1}`,
+        prompt: c.question,
+        difficulty: (c.difficulty === 'extreme' ? 'hard' : c.difficulty) as Question['difficulty'],
+        concepts: c.concepts || [],
+      }));
+      setQuestions(qs);
+      const id = `pset_${Date.now()}`;
+      psetIdRef.current = id;
+      savePSet({ id, name: setName, savedAt: Date.now(), questions: qs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
+      setSavedSets(loadPSets(activeTab || undefined));
+      setSbTopic('');
+    } catch (e: any) {
+      const msg = e.message || String(e);
+      setError(msg.includes('Failed to fetch') ? 'Cannot reach backend — is it running?' : msg);
+    } finally { setLoading(false); }
   }
 
   async function handleDecompose() {
@@ -1995,99 +2028,59 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         >
           🎮 Game Builder
         </button>
-        <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">Problem Set Analysis</h1>
+        <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">Socrat</h1>
         <p className="font-sans text-sm text-on-surface opacity-60 italic tracking-wide">
           "Wisdom begins in wonder and the deconstruction of the complex." — Plato
         </p>
-        {usage && (
-          <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-40 mt-4">
-            Session: {usage.total_tokens?.toLocaleString() || 0} tokens · {usage.total_calls || 0} calls
-          </p>
-        )}
       </div>
 
-      {/* Upload zone */}
+      {/* Quest generator — exercises come from the Second Brain, not uploads */}
       <div className="w-full max-w-3xl bg-surface border border-outline/10 p-12 mb-12 shadow-sm relative">
         <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/30" />
         <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/30" />
 
-        <div className="flex flex-col items-center gap-8">
-          <div
-            className="w-full border border-dashed border-outline/30 bg-surface-container-highest/20 p-12 text-center hover:bg-surface-container-lowest transition-colors cursor-pointer group"
-            onClick={() => fileRef.current?.click()}
-            onDragOver={e => e.preventDefault()}
-            onDrop={onDrop}
-          >
-            {loading ? (
-              <div className="flex flex-col items-center gap-6 py-4">
-                <div className="flex items-center gap-0">
-                  {([
-                    { n: 1, label: 'Render PDF' },
-                    { n: 2, label: 'Vision AI' },
-                    { n: 3, label: 'Build Lens' },
-                  ] as const).map(({ n, label }, i) => {
-                    const done = phase > n;
-                    const active = phase === n;
-                    return (
-                      <div key={n} className="flex items-center">
-                        <div className="flex flex-col items-center gap-1.5">
-                          <div className={`w-8 h-8 flex items-center justify-center border transition-all duration-500 ${
-                            done ? 'bg-on-surface text-surface border-on-surface' :
-                            active ? 'border-on-surface text-on-surface' :
-                            'border-outline-variant/30 text-on-surface opacity-30'
-                          }`}>
-                            {done
-                              ? <span className="material-symbols-outlined text-[14px]">check</span>
-                              : active
-                                ? <div className="w-3 h-3 border border-on-surface/40 border-t-on-surface rounded-full animate-spin" />
-                                : <span className="font-sans text-[10px]">{n}</span>
-                            }
-                          </div>
-                          <span className={`font-sans text-[9px] uppercase tracking-[1.5px] transition-opacity ${active ? 'opacity-100' : 'opacity-40'}`}>{label}</span>
-                        </div>
-                        {i < 2 && (
-                          <div className={`w-12 h-[1px] mx-1 mb-5 transition-all duration-500 ${done ? 'bg-on-surface' : 'bg-outline-variant/30'}`} />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-50">
-                  {phase === 1 ? 'Rendering PDF pages…' : phase === 2 ? 'Vision AI extracting questions…' : 'Building lens view…'}
+        <div className="flex flex-col items-center gap-6">
+          {loading ? (
+            <div className="flex flex-col items-center gap-4 py-6">
+              <div className="flex gap-1.5">
+                {[0,1,2].map(i => (
+                  <div key={i} className="w-2 h-2 bg-on-surface rounded-full opacity-40 animate-bounce"
+                    style={{ animationDelay: `${i * 0.15}s` }} />
+                ))}
+              </div>
+              <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-50">
+                Drafting quest cards from your Second Brain…
+              </p>
+            </div>
+          ) : (
+            <>
+              <span className="text-4xl">🧠</span>
+              <div className="text-center">
+                <p className="font-serif text-xl text-on-surface mb-2">Generate a Quest Set</p>
+                <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40">
+                  Questions are drawn from the Second Brain curriculum vault
                 </p>
               </div>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-on-surface opacity-40 text-4xl mb-5 block group-hover:opacity-60 transition-opacity">upload_file</span>
-                <p className="font-serif text-xl text-on-surface mb-2">Upload Problem Set</p>
-                <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40">PDF, image, or text — drag & drop or click</p>
-              </>
-            )}
-          </div>
-          <input ref={fileRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.txt" className="hidden"
-            onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
-
-          <div className="flex items-center gap-4 w-full">
-            <div className="h-[1px] flex-grow bg-outline/10" />
-            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">or</span>
-            <div className="h-[1px] flex-grow bg-outline/10" />
-          </div>
-
-          <button onClick={() => setShowPaste(v => !v)}
-            className="border border-outline/20 px-8 py-3 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors flex items-center gap-2">
-            <span className="material-symbols-outlined text-[16px]">content_paste</span>Paste Problem Text
-          </button>
-
-          {showPaste && (
-            <div className="w-full flex flex-col gap-4">
-              <textarea value={pasteText} onChange={e => setPasteText(e.target.value)}
-                placeholder="Paste your problem set text here…"
-                className="w-full h-40 border border-outline-variant/30 p-4 font-sans text-sm resize-none bg-surface-container-lowest outline-none focus:border-on-surface/50 transition-colors" />
-              <button onClick={handleDecompose} disabled={loading || !pasteText.trim()}
-                className="self-end bg-on-surface text-surface px-8 py-3 font-sans text-[10px] uppercase tracking-[2px] hover:opacity-80 transition-opacity disabled:opacity-30 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[14px]">analytics</span>Analyse Set
-              </button>
-            </div>
+              <div className="w-full flex gap-3">
+                <input
+                  value={sbTopic}
+                  onChange={e => setSbTopic(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleGenerateFromSecondBrain(); }}
+                  placeholder="Topic — e.g. Stoichiometry, Vectors, Cell division…"
+                  className="flex-1 bg-transparent border-b border-outline/30 px-0 py-2 font-sans text-sm outline-none focus:border-on-surface transition-colors"
+                />
+                <button
+                  onClick={handleGenerateFromSecondBrain}
+                  disabled={!sbTopic.trim()}
+                  className="bg-on-surface text-surface px-8 py-3 font-sans text-[10px] uppercase tracking-[2px] font-bold hover:opacity-80 transition-opacity disabled:opacity-30"
+                >
+                  Generate
+                </button>
+              </div>
+              <p className="font-sans text-[10px] opacity-35 text-center">
+                Want your own material in the mix? Add it once via Settings → Second Brain.
+              </p>
+            </>
           )}
         </div>
       </div>

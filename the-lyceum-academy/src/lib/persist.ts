@@ -159,8 +159,10 @@ export function deleteExerciseSession(id: string): void {
   try { localStorage.setItem(EXERCISES_KEY, JSON.stringify(loadExerciseSessions().filter(e => e.id !== id))); } catch {}
 }
 
-// ── Saved Notes (24h TTL) ────────────────────────────────────────────────
-const NOTE_TTL   = 24 * 60 * 60 * 1000;
+// ── Saved Notes (auto-saved, kept until the student deletes them) ─────────
+// Notes used to expire after 24h; they're now a permanent, folder-organized
+// personal library (auto-saved on generation, no manual save step).
+const NOTE_KEEP_MS = 100 * 365 * 24 * 60 * 60 * 1000; // effectively forever
 const NOTES_KEY  = 'lyceum_notes_v1';
 
 export interface SavedNote {
@@ -168,10 +170,12 @@ export interface SavedNote {
   title: string;
   savedAt: number;
   expiresAt: number;
-  sourceType: string;   // 'pdf' | 'image' | 'youtube' | 'text'
+  sourceType: string;   // 'pdf' | 'image' | 'youtube' | 'text' | 'second-brain'
   note: any;            // full NoteResult object
   /** SUBJECT_META key — the workspace tab active when this note was saved. */
   subject?: string;
+  /** User-created folder name ('' = unfiled). */
+  folder?: string;
 }
 
 export function loadNotes(subjectFilter?: string): SavedNote[] {
@@ -184,17 +188,31 @@ export function loadNotes(subjectFilter?: string): SavedNote[] {
 }
 
 export function saveNote(note: Omit<SavedNote, 'expiresAt'> & { expiresAt?: number }): void {
-  const full: SavedNote = { ...note, expiresAt: note.expiresAt ?? (Date.now() + NOTE_TTL) };
+  const full: SavedNote = { ...note, expiresAt: note.expiresAt ?? (Date.now() + NOTE_KEEP_MS) };
   const list = loadNotes().filter(n => n.id !== full.id);
   list.unshift(full);
-  // Keep max 10 notes; notes can be large so limit aggressively
-  try { localStorage.setItem(NOTES_KEY, JSON.stringify(list.slice(0, 10))); } catch {
-    // Quota — try saving without the full note object (just metadata)
+  // Keep max 40 notes; drop full note bodies from the oldest if quota hits
+  try { localStorage.setItem(NOTES_KEY, JSON.stringify(list.slice(0, 40))); } catch {
     try {
-      const slim = list.slice(0, 5).map(n => ({ ...n, note: { title: n.note?.title, tldr: n.note?.tldr } }));
+      const slim = list.slice(0, 12).map((n, i) => i < 6 ? n : { ...n, note: { title: n.note?.title, tldr: n.note?.tldr } });
       localStorage.setItem(NOTES_KEY, JSON.stringify(slim));
     } catch { /* give up */ }
   }
+}
+
+/** Move a saved note into a folder ('' = unfiled). */
+export function setNoteFolder(id: string, folder: string): void {
+  const all = loadNotes();
+  const target = all.find(n => n.id === id);
+  if (!target) return;
+  saveNote({ ...target, folder });
+}
+
+/** Distinct folder names across saved notes (per current account/browser). */
+export function listNoteFolders(): string[] {
+  const set = new Set<string>();
+  loadNotes().forEach(n => { if (n.folder) set.add(n.folder); });
+  return [...set].sort();
 }
 
 export function deleteNote(id: string): void {

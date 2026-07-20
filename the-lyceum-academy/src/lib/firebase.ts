@@ -12,6 +12,10 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   reload,
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
@@ -40,5 +44,9 @@ export {
   sendEmailVerification,
   sendPasswordResetEmail,
   reload,
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
 };
 export type { User };

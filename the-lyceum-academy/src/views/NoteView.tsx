@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { synthesizeNoteFromFile, feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
+import { useState, useRef, useEffect } from 'react';
+import { feynmanTest, noteChatMessage, NoteResult, NoteConcept, FeynmanResult, ChatMsg } from '../lib/api';
+import { synthesizeNoteFromTopic } from '../lib/lyceumApi';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { sanitizeSvg } from '../lib/sanitize';
-import { loadNotes, saveNote, deleteNote, timeRemaining, detectSubject, type SavedNote } from '../lib/persist';
+import { loadNotes, saveNote, deleteNote, setNoteFolder, listNoteFolders, detectSubject, type SavedNote } from '../lib/persist';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { useTranslation } from '../i18n/I18nContext';
+import { useTranslation, getCurrentLang } from '../i18n/I18nContext';
 
 // ── ConceptCard ───────────────────────────────────────────────────────────
 function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applications?: string; why?: string } }) {
@@ -563,47 +564,57 @@ export default function NoteView() {
   const [note, setNote] = useState<NoteResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [saved, setSaved] = useState(false);         // saved state for current note
-  const [sourceType, setSourceType] = useState('');  // track source for save label
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const ACCEPTED = '.pdf,.png,.jpg,.jpeg,.webp';
+  const [topic, setTopic] = useState('');
+  const [activeFolder, setActiveFolder] = useState<string>(''); // '' = all
+  const [folders, setFolders] = useState<string[]>(() => listNoteFolders());
+  const newFolderRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSavedNotes(loadNotes(activeTab || undefined)); }, [activeTab]);
 
-  async function handleFile(file: File) {
-    setError(''); setNote(null); setLoading(true); setSaved(false);
-    setSourceType(file.type.includes('pdf') ? 'pdf' : 'image');
+  function refreshSaved() {
+    setSavedNotes(loadNotes(activeTab || undefined));
+    setFolders(listNoteFolders());
+  }
+
+  // Notes are generated from the Second Brain (curriculum vault + any custom
+  // material added in Settings) — no everyday external uploads anymore. The
+  // result is auto-saved into the personal library immediately.
+  async function handleGenerate() {
+    const q = topic.trim();
+    if (!q || loading) return;
+    setError(''); setNote(null); setLoading(true);
     try {
-      const result = await synthesizeNoteFromFile(file);
-      if (result.error) { setError(result.summary || 'Synthesis failed.'); }
-      else { setNote(result); }
+      const result = await synthesizeNoteFromTopic(q, activeTab || detectSubject(q), getCurrentLang());
+      setNote(result);
+      const id = `note_${Date.now()}`;
+      saveNote({
+        id, title: result.title || q, savedAt: Date.now(), sourceType: 'second-brain',
+        note: result, subject: activeTab || undefined, folder: activeFolder || undefined,
+      });
+      refreshSaved();
+      setTopic('');
     } catch (e: any) {
       setError(e.message || String(e));
     } finally { setLoading(false); }
   }
 
-  function handleSaveNote() {
-    if (!note) return;
-    const id = `note_${Date.now()}`;
-    saveNote({ id, title: note.title || 'Note', savedAt: Date.now(), sourceType, note, subject: activeTab || undefined });
-    setSavedNotes(loadNotes(activeTab || undefined));
-    setSaved(true);
-  }
-
   function openSavedNote(sn: SavedNote) {
     setNote(sn.note as NoteResult);
-    setSourceType(sn.sourceType);
-    setSaved(true); // already saved
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  }, []);
+  function handleCreateFolder() {
+    const name = (newFolderRef.current?.value || '').trim();
+    if (!name) return;
+    if (!folders.includes(name)) setFolders([...folders, name].sort());
+    setActiveFolder(name);
+    if (newFolderRef.current) newFolderRef.current.value = '';
+  }
+
+  const visibleNotes = activeFolder
+    ? savedNotes.filter(n => n.folder === activeFolder)
+    : savedNotes;
 
   return (
     <div className={`flex-grow flex flex-col bg-surface min-h-screen ${note && !loading ? 'px-4 py-4' : 'items-center py-12 px-4'}`}>
@@ -616,18 +627,12 @@ export default function NoteView() {
         </div>
       )}
 
-      {/* Input area — hidden after note loads */}
+      {/* Input area — hidden after note loads. Notes come from the Second
+          Brain; add extra material via Settings → Second Brain. */}
       {!note && <div className="w-full max-w-3xl mb-10 flex flex-col gap-5">
-
-        {/* File drop zone */}
-        <div
-          className="w-full border border-dashed border-outline/30 bg-surface-container-highest/20 p-10 text-center hover:bg-surface-container-lowest transition-colors cursor-pointer group relative"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={onDrop}
-        >
+        <div className="w-full border border-outline/20 bg-surface-container-highest/20 p-8">
           {loading ? (
-            <div className="flex flex-col items-center gap-4 py-2">
+            <div className="flex flex-col items-center gap-4 py-6">
               <div className="flex gap-1.5">
                 {[0,1,2].map(i => (
                   <div key={i} className="w-2 h-2 bg-on-surface rounded-full opacity-40 animate-bounce"
@@ -640,18 +645,32 @@ export default function NoteView() {
             </div>
           ) : (
             <>
-              <span className="material-symbols-outlined text-on-surface opacity-30 text-4xl mb-4 block group-hover:opacity-50 transition-opacity">
-                upload_file
-              </span>
-              <p className="font-serif text-xl text-on-surface mb-1">{t('notes.uploadDraft')}</p>
-              <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40">
-                {t('notes.uploadDrag')}
+              <p className="font-serif text-xl text-on-surface mb-1 text-center">Synthesize a note from your Second Brain</p>
+              <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40 text-center mb-6">
+                Grounded in the Lyceum curriculum vault · auto-saved to your library
+              </p>
+              <div className="flex gap-3">
+                <input
+                  value={topic}
+                  onChange={e => setTopic(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleGenerate(); }}
+                  placeholder="e.g. Reaction kinetics, Photosynthesis, Integration by parts…"
+                  className="flex-1 bg-transparent border-b border-outline/30 px-0 py-2 font-sans text-sm outline-none focus:border-on-surface transition-colors"
+                />
+                <button
+                  onClick={handleGenerate}
+                  disabled={!topic.trim()}
+                  className="px-6 py-2 bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] font-bold disabled:opacity-30"
+                >
+                  Generate
+                </button>
+              </div>
+              <p className="font-sans text-[10px] opacity-35 mt-4 text-center">
+                Missing material? Add your own documents once in Settings → Second Brain.
               </p>
             </>
           )}
         </div>
-        <input ref={fileRef} type="file" accept={ACCEPTED} className="hidden"
-          onChange={e => e.target.files?.[0] && handleFile(e.target.files[0])} />
       </div>}
 
       {/* Error */}
@@ -670,29 +689,19 @@ export default function NoteView() {
       {/* Output note — split pane */}
       {note && !loading && (
         <div className="w-full mb-16 flex flex-col gap-4">
-          {/* Actions bar */}
+          {/* Actions bar — notes auto-save, no manual step */}
           <div className="w-full flex items-center justify-between px-2">
             <button
-              onClick={() => { setNote(null); setSaved(false); }}
+              onClick={() => setNote(null)}
               className="flex items-center gap-1.5 font-sans text-[10px] uppercase tracking-[2px] opacity-40 hover:opacity-80 transition-opacity"
             >
               <span className="material-symbols-outlined text-[13px]">arrow_back</span>
               {t('notes.newNote2')}
             </button>
-            {saved ? (
-              <div className="flex items-center gap-2 font-sans text-[10px] uppercase tracking-[2px] text-emerald-600 opacity-80">
-                <span className="material-symbols-outlined text-[15px]">check_circle</span>
-                {t('notes.savedStatus')}
-              </div>
-            ) : (
-              <button
-                onClick={handleSaveNote}
-                className="flex items-center gap-2 px-4 py-2 border border-outline/30 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors"
-              >
-                <span className="material-symbols-outlined text-[15px]">bookmark_add</span>
-                {t('notes.save24h')}
-              </button>
-            )}
+            <div className="flex items-center gap-2 font-sans text-[10px] uppercase tracking-[2px] text-emerald-600 opacity-80">
+              <span className="material-symbols-outlined text-[15px]">check_circle</span>
+              Auto-saved
+            </div>
           </div>
 
           {/* Split pane */}
@@ -720,17 +729,52 @@ export default function NoteView() {
         </div>
       )}
 
-      {/* ── Saved Notes (24h) ── */}
+      {/* ── Note Library — auto-saved, folder-organized ── */}
       {savedNotes.length > 0 && !note && (
         <div className="w-full max-w-3xl mb-16">
-          <div className="flex items-center gap-3 mb-4">
+          <div className="flex items-center gap-3 mb-3">
             <span className="material-symbols-outlined text-[16px] opacity-40">folder_open</span>
             <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">{t('notes.savedNotes')}</span>
-            <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">{t('notes.keptFor24h')}</span>
           </div>
+
+          {/* Folder chips + create */}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <button
+              onClick={() => setActiveFolder('')}
+              className={`px-3 py-1 font-sans text-[10px] uppercase tracking-[1.5px] border transition-colors ${
+                activeFolder === '' ? 'border-on-surface bg-on-surface text-surface' : 'border-outline/25 opacity-60 hover:opacity-100'}`}
+            >
+              All
+            </button>
+            {folders.map(f => (
+              <button
+                key={f}
+                onClick={() => setActiveFolder(f)}
+                className={`px-3 py-1 font-sans text-[10px] uppercase tracking-[1.5px] border transition-colors ${
+                  activeFolder === f ? 'border-on-surface bg-on-surface text-surface' : 'border-outline/25 opacity-60 hover:opacity-100'}`}
+              >
+                📁 {f}
+              </button>
+            ))}
+            <div className="flex items-center gap-1 ml-1">
+              <input
+                ref={newFolderRef}
+                placeholder="New folder…"
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateFolder(); }}
+                className="bg-transparent border-b border-outline/30 px-1 py-0.5 font-sans text-[11px] outline-none w-28 focus:border-on-surface"
+              />
+              <button onClick={handleCreateFolder} className="opacity-40 hover:opacity-90">
+                <span className="material-symbols-outlined text-[15px]">create_new_folder</span>
+              </button>
+            </div>
+          </div>
+
           <div className="flex flex-col gap-2">
-            {savedNotes.map(sn => {
-              const srcIcon = sn.sourceType === 'pdf' ? '📄' : '🖼';
+            {visibleNotes.length === 0 && (
+              <p className="font-sans text-xs opacity-40 italic px-1">No notes in this folder yet.</p>
+            )}
+            {visibleNotes.map(sn => {
+              const srcIcon = sn.sourceType === 'second-brain' ? '🧠' : sn.sourceType === 'pdf' ? '📄' : '🖼';
               return (
                 <div key={sn.id} className="flex items-center justify-between border border-outline/15 px-5 py-3.5 hover:bg-surface-container-lowest transition-colors group">
                   <div className="min-w-0 flex items-start gap-3">
@@ -739,13 +783,21 @@ export default function NoteView() {
                       <p className="font-sans text-sm text-on-surface truncate">
                         {sn.title.replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim() || sn.title}
                       </p>
-                      <p className="font-sans text-[9px] uppercase tracking-[1.5px] mt-0.5">
-                        <span className="text-amber-600 opacity-80">{timeRemaining(sn.expiresAt)}</span>
-                        <span className="opacity-30"> · {new Date(sn.savedAt).toLocaleDateString('en-US')}</span>
+                      <p className="font-sans text-[9px] uppercase tracking-[1.5px] mt-0.5 opacity-30">
+                        {sn.folder ? `📁 ${sn.folder} · ` : ''}{new Date(sn.savedAt).toLocaleDateString('en-US')}
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                    <select
+                      value={sn.folder || ''}
+                      onChange={e => { setNoteFolder(sn.id, e.target.value); refreshSaved(); }}
+                      className="border border-outline/20 bg-transparent px-1.5 py-1 font-sans text-[10px] outline-none opacity-50 hover:opacity-100 max-w-[110px]"
+                      title="Move to folder"
+                    >
+                      <option value="">Unfiled</option>
+                      {folders.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
                     <button
                       onClick={() => openSavedNote(sn)}
                       className="border border-amber-400/50 bg-amber-50 px-4 py-1.5 font-sans text-[9px] uppercase tracking-[1.5px] text-amber-700 hover:bg-amber-100 transition-colors flex items-center gap-1.5"
@@ -754,7 +806,7 @@ export default function NoteView() {
                       {t('notes.review')}
                     </button>
                     <button
-                      onClick={() => { deleteNote(sn.id); setSavedNotes(loadNotes(activeTab || undefined)); }}
+                      onClick={() => { deleteNote(sn.id); refreshSaved(); }}
                       className="opacity-0 group-hover:opacity-30 hover:!opacity-70 transition-opacity p-1"
                     >
                       <span className="material-symbols-outlined text-[14px]">delete</span>

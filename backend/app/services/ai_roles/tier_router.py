@@ -274,9 +274,30 @@ _TIER_MODELS: dict[str, dict[str, ModelSpec]] = {
 }
 
 
+# New Quanta-plan ids (app/services/plans.py) → the legacy routing tiers this
+# table is built around. Model quality scales with the plan the same way it
+# scaled with the old tier ladder; 'team' routes at plus level.
+PLAN_TO_TIER = {
+    "e-lite": TIER_COMPASS,
+    "basic": TIER_SCHOLAR,
+    "plus": TIER_MENTOR,
+    "intense": TIER_RESEARCHER,
+    "team": TIER_MENTOR,
+}
+
+
+def normalize_tier(tier_or_plan: str) -> str:
+    """Accept either a legacy tier name or a new plan id."""
+    t = (tier_or_plan or "").strip().lower()
+    if t in _TIER_ORDER:
+        return t
+    return PLAN_TO_TIER.get(t, TIER_FREE)
+
+
 def resolve_role_model(role: str, tier: str) -> ModelSpec:
-    """Public API: resolve the model spec for a role + subscription tier."""
-    return _resolve_model(role, tier)
+    """Public API: resolve the model spec for a role + subscription tier
+    (legacy tier names and new Quanta-plan ids both accepted)."""
+    return _resolve_model(role, normalize_tier(tier))
 
 
 def get_available_tiers() -> dict[str, list[str]]:

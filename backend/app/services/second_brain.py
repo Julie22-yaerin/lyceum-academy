@@ -203,6 +203,51 @@ def list_graph() -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
+def add_custom_note(title: str, content: str, subject: str = "", uploader_uid: str = "") -> dict[str, Any]:
+    """Second Brain customization (Settings → Customize Second Brain).
+
+    The regular product flows no longer accept external documents; this is
+    the one deliberate door left: write the material into the vault's
+    custom/ folder and index it immediately, so exercises/notes generated
+    from the Second Brain can draw on it.
+    """
+    title = (title or "Untitled").strip()[:120]
+    safe_stem = re.sub(r"[^A-Za-z0-9 _-]+", "", title).strip() or "custom-note"
+    rel = os.path.join("custom", f"{safe_stem}.md")
+    path = os.path.join(VAULT_PATH, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+
+    frontmatter = f"---\ntitle: {title}\nsubject: {subject}\ntype: custom\nuploaded_by: {uploader_uid}\n---\n"
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(frontmatter + (content or ""))
+
+    note = _parse_note(path, rel)
+    if not note:
+        return {"ok": False, "error": "parse_failed"}
+
+    chunks = rag_svc.add_document(note["id"], note["body"], {
+        "title": note["title"], "subject": note["subject"], "code": "",
+        "board": "", "level": "", "type": "custom", "file_type": "md",
+    })
+    with _conn() as c:
+        c.executescript(_DDL)
+        c.execute(
+            "INSERT OR REPLACE INTO second_brain_nodes "
+            "(id, title, subject, code, board, level, type, relative_path) VALUES (?,?,?,?,?,?,?,?)",
+            (note["id"], note["title"], note["subject"], "", "", "", "custom", rel),
+        )
+    return {"ok": True, "id": note["id"], "chunks_indexed": chunks}
+
+
+def list_custom_notes() -> list[dict[str, Any]]:
+    with _conn() as c:
+        c.executescript(_DDL)
+        rows = c.execute(
+            "SELECT id, title, subject, relative_path FROM second_brain_nodes WHERE type='custom'"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_note(note_id: str) -> dict[str, Any] | None:
     with _conn() as c:
         row = c.execute("SELECT * FROM second_brain_nodes WHERE id = ?", (note_id,)).fetchone()

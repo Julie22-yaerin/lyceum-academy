@@ -6,8 +6,7 @@ import { getFullProfile } from './profile';
 
 const VIEW_LABELS: Record<string, string> = {
   dialogue: 'Socratic Dialogue (chat with AI)',
-  'knowledge-map': 'Knowledge Tree (concept map)',
-  'problem-sets': 'Problem Sets (assignment sets)',
+  'problem-sets': 'Socrat (exercise playground)',
   exercise: 'Current Thesis (active exercise)',
   notes: 'Feynman Notes',
   progress: 'Progress (study progress)',

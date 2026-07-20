@@ -12,7 +12,6 @@ import MainLayout from './components/MainLayout';
 import DialogueView from './views/DialogueView';
 import ExerciseView from './views/ExerciseView';
 import ProblemSetsView from './views/ProblemSetsView';
-import KnowledgeMapView from './views/KnowledgeMapView';
 import NoteView from './views/NoteView';
 import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
@@ -65,6 +64,20 @@ function AppInner() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
+
+  // Invite link (?invite=CODE): once the invited user is signed in, redeem
+  // the code exactly once — the inviter earns +5 Quanta server-side.
+  useEffect(() => {
+    if (loading || !user || !emailVerified) return;
+    const code = new URLSearchParams(window.location.search).get('invite');
+    if (!code) return;
+    import('./lib/lyceumApi').then(({ redeemReferral }) =>
+      redeemReferral(code).catch(() => { /* already redeemed / own code */ })
+    );
+    const url = new URL(window.location.href);
+    url.searchParams.delete('invite');
+    window.history.replaceState({}, '', url.toString());
+  }, [loading, user, emailVerified]);
 
   // One-time backfill of subject tags on pre-existing data, once we know
   // who's signed in (scopedGateKey needs a resolved uid to namespace against).
@@ -188,7 +201,6 @@ function AppInner() {
         {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}
         {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
-        {view === 'knowledge-map' && <KnowledgeMapView />}
         {view === 'notes' && <NoteView />}
         {view === 'mistake-bank' && <MistakeBankView />}
         {/* Reference Bank disabled, coming soon

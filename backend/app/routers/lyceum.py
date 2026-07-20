@@ -1,0 +1,372 @@
+"""
+Lyceum ship-day router — the new product surface added for launch:
+
+  Plans (Quanta-denominated catalog, no USD pricing)
+    GET  /plans/catalog          — plan list + tokens↔quanta conversion
+    GET  /plans/current          — the caller's selected plan
+    POST /plans/select           — pick a plan (personal or team) + cycle
+
+  Quanta wallet (replaces the old per-feature usage panel)
+    GET  /quanta/balance         — allowance / spent / remaining, both pools
+    POST /quanta/extra-credits   — top up any amount of Quanta
+
+  Referrals (1 invited friend = 5 Quanta)
+    GET  /referral/me            — my share code + stats
+    POST /referral/redeem        — invited user submits a code once
+
+  Teams (group plan: 3 seats, shared workspace, chat room)
+    GET  /teams/me               — my team, members, pending invites
+    POST /teams/create           — start a team (becomes team plan)
+    POST /teams/invite           — owner invites by email
+    POST /teams/accept-invite    — claim a pending invite for my email
+    POST /teams/leave
+    GET  /teams/chat             — poll messages (?after_id=)
+    POST /teams/chat             — post a message
+
+  Authored documents (private / team / public)
+    GET/POST/DELETE /documents…
+
+  Second Brain customization (the only remaining external-document door)
+    POST /second-brain/custom    — add material into the vault + index
+    GET  /second-brain/custom    — list custom material
+
+  Open-Sora (local video generation)
+    GET  /ai/video/status        — is the local server reachable
+    POST /ai/generate-video      — text → short video via local Open-Sora
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from app.api.deps import require_auth
+from app.core.limiter import limiter
+from app.services import plans as plans_svc
+from app.services import quanta as quanta_svc
+from app.services import teams as teams_svc
+
+router = APIRouter(tags=["lyceum"])
+
+
+def _uid(auth: dict) -> str:
+    uid = auth.get("user_id") or auth.get("sub") or ""
+    if not uid:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return uid
+
+
+# ── Plans ────────────────────────────────────────────────────────────────────
+
+
+@router.get("/plans/catalog")
+async def plans_catalog():
+    return plans_svc.catalog()
+
+
+@router.get("/plans/current")
+async def plans_current(auth: dict = Depends(require_auth)):
+    return plans_svc.current_plan(_uid(auth))
+
+
+class SelectPlanRequest(BaseModel):
+    plan_id: str
+    cycle: str = "monthly"
+
+
+@router.post("/plans/select")
+@limiter.limit("10/minute")
+async def plans_select(request: Request, req: SelectPlanRequest, auth: dict = Depends(require_auth)):
+    return plans_svc.select_plan(_uid(auth), req.plan_id, req.cycle)
+
+
+# ── Quanta wallet ────────────────────────────────────────────────────────────
+
+
+@router.get("/quanta/balance")
+async def quanta_balance(auth: dict = Depends(require_auth)):
+    return quanta_svc.get_balance(_uid(auth))
+
+
+class ExtraCreditsRequest(BaseModel):
+    quanta: int
+
+
+@router.post("/quanta/extra-credits")
+@limiter.limit("10/minute")
+async def quanta_extra_credits(request: Request, req: ExtraCreditsRequest, auth: dict = Depends(require_auth)):
+    result = quanta_svc.purchase_extra_credits(_uid(auth), req.quanta)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "invalid_amount"))
+    return {**result, "balance": quanta_svc.get_balance(_uid(auth))}
+
+
+# ── Referrals ────────────────────────────────────────────────────────────────
+
+
+@router.get("/referral/me")
+async def referral_me(auth: dict = Depends(require_auth)):
+    uid = _uid(auth)
+    return {"code": quanta_svc.get_or_create_referral_code(uid), **quanta_svc.referral_stats(uid)}
+
+
+class RedeemRequest(BaseModel):
+    code: str
+
+
+@router.post("/referral/redeem")
+@limiter.limit("5/minute")
+async def referral_redeem(request: Request, req: RedeemRequest, auth: dict = Depends(require_auth)):
+    result = quanta_svc.redeem_referral(req.code, _uid(auth))
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "invalid_code"))
+    return result
+
+
+# ── Teams ────────────────────────────────────────────────────────────────────
+
+
+@router.get("/teams/me")
+async def teams_me(auth: dict = Depends(require_auth)):
+    return {"team": teams_svc.my_team(_uid(auth))}
+
+
+class CreateTeamRequest(BaseModel):
+    name: str
+    email: str = ""
+
+
+@router.post("/teams/create")
+@limiter.limit("5/minute")
+async def teams_create(request: Request, req: CreateTeamRequest, auth: dict = Depends(require_auth)):
+    result = teams_svc.create_team(_uid(auth), req.name, req.email or auth.get("email", ""))
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+class InviteRequest(BaseModel):
+    email: str
+
+
+@router.post("/teams/invite")
+@limiter.limit("10/minute")
+async def teams_invite(request: Request, req: InviteRequest, auth: dict = Depends(require_auth)):
+    result = teams_svc.invite_member(_uid(auth), req.email)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+class AcceptInviteRequest(BaseModel):
+    email: str = ""
+
+
+@router.post("/teams/accept-invite")
+@limiter.limit("10/minute")
+async def teams_accept(request: Request, req: AcceptInviteRequest, auth: dict = Depends(require_auth)):
+    email = req.email or auth.get("email", "")
+    result = teams_svc.accept_invite(_uid(auth), email)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/teams/leave")
+@limiter.limit("5/minute")
+async def teams_leave(request: Request, auth: dict = Depends(require_auth)):
+    return teams_svc.leave_team(_uid(auth))
+
+
+class ChatPostRequest(BaseModel):
+    content: str
+    author: str = ""
+
+
+@router.get("/teams/chat")
+async def teams_chat_list(after_id: int = 0, auth: dict = Depends(require_auth)):
+    return teams_svc.list_messages(_uid(auth), after_id=after_id)
+
+
+@router.post("/teams/chat")
+@limiter.limit("60/minute")
+async def teams_chat_post(request: Request, req: ChatPostRequest, auth: dict = Depends(require_auth)):
+    result = teams_svc.post_message(_uid(auth), req.author or auth.get("email", ""), req.content)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+# ── Authored documents ───────────────────────────────────────────────────────
+
+
+class SaveDocumentRequest(BaseModel):
+    title: str
+    content: str = ""
+    doc_id: str | None = None
+    folder: str = ""
+    visibility: str = "private"  # private | team | public
+
+
+@router.get("/documents")
+async def documents_list(auth: dict = Depends(require_auth)):
+    return teams_svc.list_documents(_uid(auth))
+
+
+@router.get("/documents/{doc_id}")
+async def documents_get(doc_id: str, auth: dict = Depends(require_auth)):
+    doc = teams_svc.get_document(_uid(auth), doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="not_found")
+    return doc
+
+
+@router.post("/documents")
+@limiter.limit("60/minute")
+async def documents_save(request: Request, req: SaveDocumentRequest, auth: dict = Depends(require_auth)):
+    result = teams_svc.save_document(
+        _uid(auth), req.title, req.content,
+        doc_id=req.doc_id, folder=req.folder, visibility=req.visibility,
+        share_with_team=req.visibility == "team",
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.delete("/documents/{doc_id}")
+async def documents_delete(doc_id: str, auth: dict = Depends(require_auth)):
+    result = teams_svc.delete_document(_uid(auth), doc_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
+# ── Second Brain customization ───────────────────────────────────────────────
+
+
+class CustomNoteRequest(BaseModel):
+    title: str
+    content: str
+    subject: str = ""
+
+
+@router.post("/second-brain/custom")
+@limiter.limit("10/minute")
+async def second_brain_custom_add(request: Request, req: CustomNoteRequest, auth: dict = Depends(require_auth)):
+    from app.services import second_brain as sb_svc
+    if not (req.content or "").strip():
+        raise HTTPException(status_code=400, detail="content_required")
+    result = sb_svc.add_custom_note(req.title, req.content, req.subject, uploader_uid=_uid(auth))
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error"))
+    return result
+
+
+@router.get("/second-brain/custom")
+async def second_brain_custom_list(auth: dict = Depends(require_auth)):
+    from app.services import second_brain as sb_svc
+    _uid(auth)
+    return {"notes": sb_svc.list_custom_notes()}
+
+
+# ── Note generation from the Second Brain ───────────────────────────────────
+# External uploads are no longer the everyday path — notes are synthesized
+# from the curriculum vault (plus any custom material added in Settings).
+
+
+class GenerateNoteRequest(BaseModel):
+    topic: str
+    subject: str = ""
+    language: str = "en"
+
+
+@router.post("/ai/generate-note")
+@limiter.limit("6/minute")
+async def generate_note(request: Request, req: GenerateNoteRequest, auth: dict = Depends(require_auth)):
+    import json as _json
+
+    from app.services import ai as ai_svc
+    from app.services import rag as rag_svc
+
+    uid = _uid(auth)
+    topic = (req.topic or "").strip()
+    if not topic:
+        raise HTTPException(status_code=400, detail="topic_required")
+
+    try:
+        rag_context = rag_svc.context_for(f"{req.subject} {topic}".strip())
+    except Exception:
+        rag_context = ""
+
+    system = (
+        "You are the Lyceum's Note Synthesist. Build a rich study note grounded ONLY in the "
+        "provided Second Brain curriculum material (plus universally standard knowledge of the topic). "
+        "Respond with ONLY a JSON object, no markdown fences, with keys: "
+        "title (string), tldr (string, 1-2 sentences), summary (markdown string, 300-500 words), "
+        "key_concepts (array of {concept, definition, equation (LaTeX or ''), explanation (fun analogy), emoji}), "
+        "socratic_questions (array of 3 strings), key_insight (string). "
+        f"Write in language code '{req.language}'."
+    )
+    user = f"Topic: {topic}\nSubject: {req.subject or 'general'}\n\nSecond Brain material:\n{rag_context or '(no matching vault notes — rely on standard curriculum knowledge)'}"
+
+    try:
+        resp = await ai_svc.chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.5, max_tokens=3000,
+        )
+        text = ai_svc.extract_text(resp)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Tolerant JSON extraction (models sometimes wrap in fences anyway).
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        raw = raw[raw.find("{"):]
+    start, end = raw.find("{"), raw.rfind("}")
+    note: dict = {}
+    if start != -1 and end > start:
+        try:
+            note = _json.loads(raw[start:end + 1])
+        except Exception:
+            note = {}
+    if not note.get("title"):
+        note = {"title": topic.title(), "tldr": "", "summary": text, "key_concepts": [],
+                "socratic_questions": [], "key_insight": ""}
+    note["source_type"] = "second-brain"
+
+    usage = resp.get("usage") or {}
+    quanta_svc.spend_tokens(uid, int(usage.get("total_tokens") or 0) or (len(text) // 4 + 50),
+                            pool="standard", context="/ai/generate-note")
+    return note
+
+
+# ── Open-Sora local video generation ────────────────────────────────────────
+
+
+class GenerateVideoRequest(BaseModel):
+    prompt: str
+    num_frames: int = 48
+    resolution: str = "360p"
+
+
+@router.get("/ai/video/status")
+async def video_status(auth: dict = Depends(require_auth)):
+    from app.services import open_sora
+    _uid(auth)
+    return {"available": await open_sora.is_available(), "url": open_sora.OPEN_SORA_URL}
+
+
+@router.post("/ai/generate-video")
+@limiter.limit("4/minute")
+async def generate_video(request: Request, req: GenerateVideoRequest, auth: dict = Depends(require_auth)):
+    from app.services import open_sora
+    uid = _uid(auth)
+    try:
+        result = await open_sora.generate_video(req.prompt, req.num_frames, req.resolution)
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    # Video generation is a heavy standard-pool spend; bill a flat estimate.
+    quanta_svc.spend_tokens(uid, tokens=250, pool="standard", context="open_sora_video")
+    return result

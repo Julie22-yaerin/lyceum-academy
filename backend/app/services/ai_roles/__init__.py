@@ -1,22 +1,26 @@
 """
-AI Roles — 5 premium persona agents for the Lyceum learning experience.
+AI Roles — the Lyceum Faculty: 5 persona agents, each *native* to its post.
 
-Each role is a specialized AI persona with its own model, system prompt,
-and interaction pattern. Model quality scales with subscription tier.
+Every role has one job, one voice, and hard boundaries — Socrat never
+grades, the Grader never coaches, Leo never knows calculus. Model quality
+scales with the student's Quanta plan (see tier_router.PLAN_TO_TIER for
+the plan→routing mapping; legacy tier names still resolve).
 
-Tier → Model mapping:
-  free       → Groq/Google cascade (existing free providers)
-  compass    → GPT-4o-mini / Claude Haiku (basic paid)
-  scholar    → GPT-4o / Claude 3.5 Sonnet / Gemini 1.5 Pro
-  mentor     → Claude 3 Opus / o1-mini (premium)
-  researcher → Full premium (o1, Claude Opus, Gemini 1.5 Pro)
+Plan → Model routing:
+  e-lite  (≈compass)    → GPT-4o-mini / Claude Haiku
+  basic   (≈scholar)    → GPT-4o / Claude 3.5 Sonnet / Gemini 1.5 Pro
+  plus    (≈mentor)     → Claude 3 Opus / o1-mini (premium)
+  intense (≈researcher) → Full premium (o1, Claude Opus, Gemini 1.5 Pro)
+  team                  → routes at plus level, shared Quanta pool
 
-Roles:
-  1. Coach          — Backend Orchestrator (OpenAI o1, batch/off-peak)
-  2. Feynman        — Real-time EQ Listener (Claude 3.5 Sonnet, streaming)
-  3. Debate Partner — Scientific Peer (Gemini 1.5 Pro, multimodal)
-  4. Concierge      — Lead Socratic Interface (Claude 3 Opus, streaming)
-  5. Grader         — Solution Grader & Reverse Builder (GPT-4o + Wolfram)
+The Faculty:
+  1. Coach     — curriculum orchestrator; plans from the Second Brain +
+                 error logs, never chats directly (batch/off-peak; its
+                 token spend bills to the separate Coach Quanta pool)
+  2. Leo       — the Feynman child; tests explanations by not understanding
+  3. The Peer  — scientific debate partner (multimodal, AP/IB rigor)
+  4. Socrat    — Lead Concierge, the student's Socratic interface
+  5. The Grader— solution auditor & reverse builder (Wolfram-assisted)
 """
 
 from app.services.ai_roles.coach import generate_curriculum

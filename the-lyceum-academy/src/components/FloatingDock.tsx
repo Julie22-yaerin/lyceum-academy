@@ -6,14 +6,13 @@ import { auth, signOut } from '../lib/firebase';
 import { recordDailyVisit, daysUntilGoal, StreakState } from '../lib/streak';
 import { useTranslation } from '../i18n/I18nContext';
 import ReportBugButton from './ReportBugButton';
-import { getCurrentSubscription, getUsageStats, type CurrentSubscription, type UsageStats } from '../lib/subscriptionApi';
 import { getQuantaProfile, type QuantaProfile, type QuantaAwardResult } from '../lib/quanta';
+import { getQuantaBalance, getReferralInfo, buildInviteLink, type QuantaBalance } from '../lib/lyceumApi';
 import Confetti from './Confetti';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
   { view: 'dialogue',      labelKey: 'nav.dialogue',       icon: 'forum' },
-  { view: 'knowledge-map', labelKey: 'nav.knowledgeTree', icon: 'hub' },
   { view: 'problem-sets',  labelKey: 'nav.problemSets',   icon: 'library_books' },
   { view: 'notes',         labelKey: 'nav.notes',          icon: 'edit_note' },
   { view: 'mistake-bank',  labelKey: 'nav.mistakeVault',  icon: 'error_outline' },
@@ -21,147 +20,61 @@ const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
   { view: 'progress',      labelKey: 'nav.progress',       icon: 'bar_chart' },
 ];
 
-const TIER_LIMITS: Record<string, { voice: number; reference: number; roadmap: number }> = {
-  free:       { voice: 0, reference: 0, roadmap: 0 },
-  compass:    { voice: 15, reference: 20, roadmap: 1 },
-  scholar:    { voice: 60, reference: 100, roadmap: 4 },
-  mentor:     { voice: 180, reference: Infinity, roadmap: 7 },
-  researcher: { voice: 600, reference: Infinity, roadmap: Infinity },
-};
-
-function UsageBar({ label, used, limit, color }: { label: string; used: number; limit: number | null; color: string }) {
-  const { t } = useTranslation();
-  const isUnlimited = limit === null || limit === Infinity;
-  const pct = isUnlimited ? 0 : Math.min((used / limit) * 100, 100);
-
+/** One pool of the Quanta wallet as a bar: remaining vs monthly allowance. */
+function WalletBar({ label, remaining, allowance, color }: { label: string; remaining: number; allowance: number; color: string }) {
+  const pct = allowance > 0 ? Math.max(0, Math.min(100, Math.round((remaining / allowance) * 100))) : 0;
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
         <span className="text-[11px] text-white/70">{label}</span>
-        <span className="text-[11px] font-semibold text-white/60" style={{ minWidth: 36, textAlign: 'right' }}>
-          {isUnlimited ? '∞' : `${pct.toFixed(0)}%`}
-        </span>
+        <span className="text-[11px] font-semibold text-white/60">{remaining.toLocaleString()} ⚡</span>
       </div>
       <div className="h-1.5 w-full bg-white/5 overflow-hidden rounded-full">
-        <div
-          className="h-full transition-all duration-500 rounded-full"
-          style={{
-            width: isUnlimited ? '100%' : `${pct}%`,
-            background: color,
-            opacity: isUnlimited ? 0.3 : 0.85,
-          }}
-        />
+        <div className="h-full transition-all duration-500 rounded-full" style={{ width: `${pct}%`, background: color, opacity: 0.85 }} />
       </div>
       <p className="text-[9px] text-white/30 mt-0.5 text-right">
-        {isUnlimited
-          ? t('usage.unlimited')
-          : t('usage.usedOf', { used: used.toLocaleString(), limit: limit.toLocaleString() })}
+        {remaining.toLocaleString()} / {allowance.toLocaleString()} Quanta
       </p>
     </div>
   );
 }
 
-function UsagePanel({ onClose }: { onClose: () => void }) {
-  const { t } = useTranslation();
-  const [sub, setSub] = useState<CurrentSubscription | null>(null);
-  const [usage, setUsage] = useState<UsageStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const ref = useRef<HTMLDivElement>(null);
+/** Invite friends → +5 Quanta per friend who joins. Copies a share link. */
+function InviteRow() {
+  const [code, setCode] = useState('');
+  const [invited, setInvited] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      getCurrentSubscription().catch(() => null),
-      getUsageStats().catch(() => null),
-    ]).then(([s, u]) => { setSub(s); setUsage(u); setLoading(false); });
+    getReferralInfo().then(info => { setCode(info.code); setInvited(info.invited_count); }).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    }
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [onClose]);
-
-  const tier = sub?.tier || 'free';
-  const limits = TIER_LIMITS[tier] || TIER_LIMITS.free;
-
-  const categories = [
-    {
-      key: 'voice',
-      label: t('usage.voiceAri'),
-      icon: 'mic',
-      used: usage?.voice_minutes_used ?? 0,
-      limit: sub?.voice_minutes_limit ?? limits.voice,
-      color: '#FF6B35',
-    },
-    {
-      key: 'reference',
-      label: t('usage.referenceLibrary'),
-      icon: 'auto_stories',
-      used: usage?.reference_library_count ?? 0,
-      limit: sub ? (usage?.reference_library_limit ?? limits.reference) : limits.reference,
-      color: '#4285F4',
-    },
-    {
-      key: 'roadmap',
-      label: t('usage.roadmapRegen'),
-      icon: 'route',
-      used: usage?.roadmap_regens_today ?? 0,
-      limit: usage?.roadmap_regen_daily_limit ?? limits.roadmap,
-      color: '#76B900',
-    },
-  ];
+  async function handleShare() {
+    if (!code) return;
+    const link = buildInviteLink(code);
+    const text = `Join me on The Lyceum — my invite link: ${link}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: 'The Lyceum', text, url: link }); return; }
+    } catch { /* cancelled */ }
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopied(true); setTimeout(() => setCopied(false), 1600);
+    } catch { /* ignore */ }
+  }
 
   return (
-    <div
-      ref={ref}
-      data-tour="usage-panel"
-      className="absolute bottom-full right-0 mb-2 w-80 glass-strong rounded-2xl z-[200] overflow-hidden"
-      style={{ animation: 'fadeDown 0.18s ease-out' }}
-    >
-      <style>{`@keyframes fadeDown { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
-
-      <div className="px-5 py-4 border-b border-white/10 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] uppercase tracking-wider text-white/50">{t('dock.usage')}</span>
-          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-white/10 text-white/50 uppercase tracking-wide">
-            {tier}
-          </span>
-        </div>
-        <button onClick={onClose} className="opacity-30 hover:opacity-80 transition-opacity">
-          <span className="material-symbols-outlined text-[14px]">close</span>
-        </button>
+    <div className="border-t border-white/10 pt-3 flex items-center justify-between gap-2">
+      <div className="min-w-0">
+        <p className="text-[11px] text-white/70">Invite friends</p>
+        <p className="text-[9px] text-white/35">+5 Quanta per friend · {invited} joined</p>
       </div>
-
-      <div className="px-5 py-4 flex flex-col gap-4">
-        {loading ? (
-          <div className="flex items-center gap-3 py-2">
-            <div className="w-3 h-3 border border-white/20 border-t-white rounded-full animate-spin" />
-            <span className="text-xs text-white/40">{t('common.loading')}</span>
-          </div>
-        ) : (
-          <>
-            {categories.map((cat) => (
-              <UsageBar
-                key={cat.key}
-                label={cat.label}
-                used={cat.used}
-                limit={cat.limit}
-                color={cat.color}
-              />
-            ))}
-            <div className="border-t border-white/10 pt-3">
-              <p className="text-[9px] text-white/30 text-center">
-                {t('usage.billingPeriod', {
-                  start: usage?.billing_period_start ?? '—',
-                  end: usage?.billing_period_end ?? '—',
-                })}
-              </p>
-            </div>
-          </>
-        )}
-      </div>
+      <button
+        onClick={handleShare}
+        disabled={!code}
+        className="glass-btn rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[2px] shrink-0 disabled:opacity-30"
+      >
+        {copied ? 'Copied!' : 'Share'}
+      </button>
     </div>
   );
 }
@@ -211,11 +124,15 @@ function StreakPanel({ state, onClose }: { state: StreakState; onClose: () => vo
   );
 }
 
-/** Quanta popover: level, progress to next level, and a short activity feed. */
+/** Quanta popover: wallet bars (this replaces the old usage panel), level
+ * progress, invite-a-friend, and a short activity feed. 1 Quanta = 5 tokens. */
 function QuantaPanel({ profile, onClose }: { profile: QuantaProfile; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
+  const [balance, setBalance] = useState<QuantaBalance | null>(null);
   const span = profile.points_into_level + profile.points_to_next_level;
   const pct = span > 0 ? Math.min(100, Math.round((profile.points_into_level / span) * 100)) : 0;
+
+  useEffect(() => { getQuantaBalance().then(setBalance).catch(() => {}); }, []);
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -228,17 +145,29 @@ function QuantaPanel({ profile, onClose }: { profile: QuantaProfile; onClose: ()
   return (
     <div
       ref={ref}
-      className="absolute bottom-full right-0 mb-2 w-64 glass-strong rounded-2xl z-[200] overflow-hidden"
+      data-tour="usage-panel"
+      className="absolute bottom-full right-0 mb-2 w-72 glass-strong rounded-2xl z-[200] overflow-hidden"
       style={{ animation: 'fadeDown 0.18s ease-out' }}
     >
+      <style>{`@keyframes fadeDown { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
       <div className="px-5 py-4 flex flex-col gap-3">
         <div className="flex items-center gap-3">
           <span className="text-[28px] leading-none" style={{ filter: 'drop-shadow(0 0 6px rgba(216,204,255,0.5))' }}>⚡</span>
           <div>
             <div className="text-lg font-semibold text-white/90">Level {profile.level}</div>
-            <div className="text-[10px] uppercase tracking-wider text-white/40">{profile.total_points} Quanta</div>
+            <div className="text-[10px] uppercase tracking-wider text-white/40">
+              {profile.total_points} Quanta earned{balance ? ` · ${balance.plan_name}` : ''}
+            </div>
           </div>
         </div>
+        {balance && (
+          <div className="border-t border-white/10 pt-3 flex flex-col gap-3">
+            <WalletBar label="Quanta" remaining={balance.standard_remaining} allowance={balance.standard_allowance} color="#fbbf24" />
+            <WalletBar label="Coach Quanta" remaining={balance.coach_remaining} allowance={balance.coach_allowance} color="#a78bfa" />
+            <p className="text-[9px] text-white/30 text-center">1 Quanta = {balance.tokens_per_quanta} tokens · resets monthly</p>
+          </div>
+        )}
+        <InviteRow />
         <div className="border-t border-white/10 pt-3">
           <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
             <div className="h-full rounded-full bg-amber-400" style={{ width: `${pct}%` }} />
@@ -267,7 +196,6 @@ function CornerMenu({ onNavigate }: NavigationProps) {
   const { t } = useTranslation();
   const { user, devMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [showStats, setShowStats] = useState(false);
   const [showStreak, setShowStreak] = useState(false);
   const [streak, setStreak] = useState<StreakState | null>(null);
   const [showQuanta, setShowQuanta] = useState(false);
@@ -336,16 +264,6 @@ function CornerMenu({ onNavigate }: NavigationProps) {
       {levelUp && <Confetti />}
 
       <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
-        <button
-          data-tour="corner-usage"
-          onClick={() => setShowStats(v => !v)}
-          className="w-8 h-8 flex items-center justify-center rounded-full opacity-40 hover:opacity-90 hover:bg-white/10 transition-all"
-          title={t('dock.usage')}
-        >
-          <span className="material-symbols-outlined text-[16px]">analytics</span>
-        </button>
-        {showStats && <UsagePanel onClose={() => setShowStats(false)} />}
-
         <ReportBugButton onNavigate={onNavigate} />
 
         <button

@@ -52,6 +52,16 @@ def _resolve_tier(request: Request, db: Session = Depends(get_db)) -> str:
         if not uid:
             return "free"
 
+        # New Quanta plans first (app/services/plans.py) — tier_router
+        # normalizes plan ids like "plus" to its routing ladder.
+        try:
+            from app.services import plans as plans_svc
+            cur = plans_svc.current_plan(uid)
+            if not cur.get("is_default"):
+                return cur["plan"]["id"]
+        except Exception:
+            pass
+
         from app.routers.subscriptions import get_user_subscription
         _, plan = get_user_subscription(db, uid)
         return plan.tier.value if plan else "free"
@@ -148,6 +158,15 @@ async def coach_generate(
 
     if result.get("error"):
         raise HTTPException(status_code=422, detail=result)
+
+    # Coach runs bill against the separate Coach Quanta pool.
+    if req.user_id:
+        try:
+            from app.services import quanta as quanta_svc
+            tokens = int((result.get("_usage") or {}).get("total_tokens") or 0) or 1500
+            quanta_svc.spend_tokens(req.user_id, tokens, pool="coach", context="/ai/roles/coach")
+        except Exception:
+            pass
 
     result["_tier"] = effective_tier
     return result

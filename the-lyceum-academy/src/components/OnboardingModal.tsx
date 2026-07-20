@@ -14,6 +14,7 @@ import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Perso
 import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 import { saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
+import { selectPlan } from '../lib/lyceumApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useTranslation } from '../i18n/I18nContext';
 
@@ -48,118 +49,44 @@ const OPENING_MESSAGE = "Hi — I'm your Lyceum advisor. Before we set up your w
 const JSON_START = '[[ONBOARDING_JSON]]';
 const JSON_END = '[[/ONBOARDING_JSON]]';
 
-// ── Pricing plans (client-side display config) ──────────────────────────────
+// ── Plans (Quanta-denominated — the old USD tier set is retired) ────────────
+// Static fallback mirrors backend app/services/plans.py; the live catalog is
+// fetched at the pricing phase. No USD prices are shown or computed.
 
 interface Plan {
-  id: string; nameKey: string; price: number; emoji: string;
-  taglineKey: string; color: string; featureKeys: string[]; flagship?: boolean;
+  id: string; name: string; emoji: string; color: string;
+  standardQuanta: number; coachQuanta: number; flagship?: boolean; tagline: string;
 }
 
 const PLANS: Plan[] = [
-  {
-    id: 'compass', nameKey: 'tier.compass', price: 9.99, emoji: '🌱', color: '#4A7C59',
-    taglineKey: 'onboard.compassTagline',
-    featureKeys: ['onboard.compassFeatures'],
-  },
-  {
-    id: 'scholar', nameKey: 'tier.scholar', price: 19.99, emoji: '🎓', color: '#C5A059',
-    taglineKey: 'onboard.scholarTagline', flagship: true,
-    featureKeys: ['onboard.scholarFeatures'],
-  },
-  {
-    id: 'mentor', nameKey: 'tier.stemFocus', price: 34, emoji: '🎯', color: '#7C3AED',
-    taglineKey: 'onboard.stemTagline',
-    featureKeys: ['onboard.stemFeatures'],
-  },
+  { id: 'e-lite',  name: 'E-Lite',  emoji: '🌱', color: '#4A7C59', standardQuanta: 800,  coachQuanta: 3000,  tagline: 'A light start for steady learners' },
+  { id: 'basic',   name: 'Basic',   emoji: '📘', color: '#3B6EA5', standardQuanta: 1600, coachQuanta: 6000,  tagline: 'Room to study every day' },
+  { id: 'plus',    name: 'Plus',    emoji: '✦',  color: '#C5A059', standardQuanta: 2000, coachQuanta: 8000,  flagship: true, tagline: 'The full Lyceum experience' },
+  { id: 'intense', name: 'Intense', emoji: '🔥', color: '#7C3AED', standardQuanta: 4000, coachQuanta: 10000, tagline: 'For exam season and beyond' },
 ];
 
-// ── PayPal loader ────────────────────────────────────────────────────────────
-
-const PAYPAL_CLIENT_ID = (import.meta as any).env?.VITE_PAYPAL_CLIENT_ID || '';
-
-function loadPayPalScript(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if ((window as any).paypal) { resolve(); return; }
-    const s = document.createElement('script');
-    s.src = `https://www.paypal.com/sdk/js?client-id=${PAYPAL_CLIENT_ID}&currency=USD&intent=capture&components=buttons`;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('PayPal SDK failed to load'));
-    document.head.appendChild(s);
-  });
-}
-
-// ── Sub-components ───────────────────────────────────────────────────────────
-
-function PayPalButtons({ plan, onSuccess }: { plan: Plan; onSuccess: (planId: string) => void }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState('');
-  const rendered = useRef(false);
-
-  useEffect(() => {
-    if (!PAYPAL_CLIENT_ID || PAYPAL_CLIENT_ID === 'YOUR_PAYPAL_SANDBOX_CLIENT_ID') {
-      setError('PayPal Client ID is not configured. Add VITE_PAYPAL_CLIENT_ID to .env');
-      return;
-    }
-    loadPayPalScript()
-      .then(() => setReady(true))
-      .catch(() => setError('Failed to load the PayPal SDK.'));
-  }, []);
-
-  useEffect(() => {
-    if (!ready || !containerRef.current || rendered.current) return;
-    rendered.current = true;
-    const pp = (window as any).paypal;
-    pp.Buttons({
-      style: { layout: 'vertical', color: 'gold', shape: 'rect', label: 'pay', height: 40 },
-      createOrder: (_data: any, actions: any) => {
-        return actions.order.create({
-          purchase_units: [{ amount: { value: plan.price.toFixed(2) }, description: `Lyceum ${plan.name} — Monthly` }],
-        });
-      },
-      onApprove: async (_data: any, actions: any) => {
-        await actions.order.capture();
-        onSuccess(plan.id);
-      },
-      onError: (err: any) => {
-        console.error('PayPal error', err);
-        setError('Payment failed. Please try again.');
-      },
-    }).render(containerRef.current);
-  }, [ready]);
-
-  if (error) return <p style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(220,38,38,0.8)', padding: '6px 0', lineHeight: 1.5 }}>{error}</p>;
-  if (!ready) return <div style={{ height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Loading…</span></div>;
-  return <div ref={containerRef} />;
-}
+// Legacy AI-recommendation ids → new plan ids (the analyze endpoint may
+// still speak in old tier names).
+const LEGACY_PLAN_MAP: Record<string, string> = {
+  compass: 'e-lite', scholar: 'basic', mentor: 'plus', researcher: 'intense',
+};
 
 function PlanCard({
-  plan, recommended, isAlt, onSelect, selected, onSuccess, t,
+  plan, recommended, cycle, onChoose, busy,
 }: {
-  plan: Plan; recommended: boolean; isAlt: boolean; onSelect: () => void;
-  selected: boolean; onSuccess: (planId: string) => void; t: (key: string) => string;
+  plan: Plan; recommended: boolean; cycle: 'monthly' | 'annual';
+  onChoose: (planId: string) => void; busy: boolean;
 }) {
-  const dim = !recommended && !isAlt;
-  const planName = t(plan.nameKey);
-  const planTagline = t(plan.taglineKey);
-  const planFeatures = plan.featureKeys.map(k => t(k));
   return (
     <div
-      onClick={onSelect}
       style={{
-        border: `2px solid ${recommended ? plan.color : isAlt ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.08)'}`,
-        borderRadius: 6,
-        padding: '18px 20px',
+        border: `2px solid ${recommended ? plan.color : 'rgba(0,0,0,0.1)'}`,
+        borderRadius: 6, padding: '18px 20px',
         background: recommended ? `${plan.color}08` : 'white',
-        opacity: dim ? 0.35 : 1,
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-        position: 'relative',
+        transition: 'all 0.2s', position: 'relative',
         transform: recommended ? 'scale(1.02)' : 'scale(1)',
         boxShadow: recommended ? `0 4px 24px ${plan.color}28` : 'none',
-        flex: '0 0 auto',
-        width: 210,
-        flexShrink: 0,
+        flex: '0 0 auto', width: 210, flexShrink: 0,
       }}
     >
       {recommended && (
@@ -168,54 +95,43 @@ function PlanCard({
           background: plan.color, color: 'white', fontFamily: 'sans-serif',
           fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 10px',
           borderRadius: 10, whiteSpace: 'nowrap',
-        }}>{t('onboard.recommended')}</div>
-      )}
-      {isAlt && !recommended && (
-        <div style={{
-          position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)',
-          background: 'rgba(0,0,0,0.5)', color: 'white', fontFamily: 'sans-serif',
-          fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', padding: '2px 8px',
-          borderRadius: 10, whiteSpace: 'nowrap',
-        }}>{t('onboard.goodFit')}</div>
+        }}>Recommended</div>
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <span style={{ fontSize: 22 }}>{plan.emoji}</span>
-        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, fontWeight: 400, color: 'rgba(0,0,0,0.85)' }}>{planName}</span>
+        <span style={{ fontFamily: 'Georgia, serif', fontSize: 17, color: 'rgba(0,0,0,0.85)' }}>{plan.name}</span>
         {plan.flagship && (
-          <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>{t('onboard.best')}</span>
+          <span style={{ fontFamily: 'sans-serif', fontSize: 8, letterSpacing: 1, textTransform: 'uppercase', background: plan.color, color: 'white', padding: '1px 6px', borderRadius: 2 }}>Best</span>
         )}
       </div>
 
-      <div style={{ fontFamily: 'Georgia, serif', fontSize: 22, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
-        ${plan.price}<span style={{ fontSize: 12, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}>{t('onboard.perMonth')}</span>
+      <div style={{ fontFamily: 'Georgia, serif', fontSize: 20, fontWeight: 700, color: plan.color, marginBottom: 2 }}>
+        ⚡ {plan.standardQuanta.toLocaleString()}
+        <span style={{ fontSize: 11, fontWeight: 400, color: 'rgba(0,0,0,0.4)' }}> Quanta/mo</span>
       </div>
-      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 12px 0', fontStyle: 'italic' }}>{planTagline}</p>
+      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.55)', margin: '0 0 4px' }}>
+        🧭 {plan.coachQuanta.toLocaleString()} Coach Quanta/mo
+      </p>
+      <p style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.4)', margin: '0 0 12px' }}>
+        Billed {cycle === 'annual' ? 'yearly' : 'monthly'} · 1 Quanta = 5 tokens
+      </p>
+      <p style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.5)', margin: '0 0 14px', fontStyle: 'italic' }}>{plan.tagline}</p>
 
-      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 16px 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {planFeatures.map(f => (
-          <li key={f} style={{ fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'flex-start', gap: 5 }}>
-            <span style={{ color: plan.color, flexShrink: 0 }}>✓</span>{f}
-          </li>
-        ))}
-      </ul>
-
-      {selected && (
-        <div style={{ marginTop: 4 }}>
-          <PayPalButtons plan={plan} onSuccess={onSuccess} />
-        </div>
-      )}
-
-      {!selected && (
-        <div style={{
-          width: '100%', padding: '8px 0', border: `1.5px solid ${plan.color}60`,
+      <button
+        onClick={() => onChoose(plan.id)}
+        disabled={busy}
+        style={{
+          width: '100%', padding: '9px 0', border: `1.5px solid ${plan.color}`,
           borderRadius: 4, fontFamily: 'sans-serif', fontSize: 10,
           letterSpacing: 2, textTransform: 'uppercase', textAlign: 'center',
-          color: plan.color, background: 'transparent',
-        }}>
-          {t('onboard.chooseThisPlan')}
-        </div>
-      )}
+          color: recommended ? 'white' : plan.color,
+          background: recommended ? plan.color : 'transparent',
+          cursor: busy ? 'wait' : 'pointer', fontWeight: 700,
+        }}
+      >
+        {busy ? '…' : 'Choose this plan'}
+      </button>
     </div>
   );
 }
@@ -735,6 +651,8 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     alternatives?: { plan_id: string; reason: string }[];
   } | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [planCycle, setPlanCycle] = useState<'monthly' | 'annual'>('monthly');
+  const [planBusy, setPlanBusy] = useState(false);
   const [paid, setPaid] = useState(false);
 
   // ── New state for sliders + personas ──────────────────────────────────────
@@ -841,15 +759,23 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     triggerPricing();
   }
 
-  function handlePaySuccess(planId: string) {
+  // Plan choice completes onboarding — billing is handled later from
+  // Settings; no payment gate stands between a new student and the workspace.
+  async function handlePlanChosen(planId: string) {
+    setPlanBusy(true);
+    setSelectedPlan(planId);
+    try { await selectPlan(planId, planCycle); } catch { /* offline — plan still stored locally */ }
     localStorage.setItem(scopedGateKey('lyceum_onboarding_done'), '1');
     localStorage.setItem('lyceum_plan', planId);
+    setPlanBusy(false);
     setPaid(true);
     setTimeout(onClose, 2200);
   }
 
-  const recPlan = PLANS.find(p => p.id === aiResult?.recommended_plan_id);
-  const altIds  = (aiResult?.alternatives || []).map(a => a.plan_id);
+  const recommendedPlanId = (() => {
+    const raw = aiResult?.recommended_plan_id || '';
+    return LEGACY_PLAN_MAP[raw] || (PLANS.some(p => p.id === raw) ? raw : 'plus');
+  })();
 
   const userTurnCount = turns.filter(t => t.role === 'user').length;
   const progress =
@@ -1018,9 +944,24 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                     </div>
                   )}
 
-                  <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', marginBottom: 18 }}>
-                    Choose a plan and pay to get started
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                    <p style={{ fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.4)', margin: 0 }}>
+                      Choose your plan — all allowances in Quanta
+                    </p>
+                    <div style={{ display: 'flex', gap: 2, background: 'rgba(0,0,0,0.06)', borderRadius: 999, padding: 2 }}>
+                      {(['monthly', 'annual'] as const).map(c => (
+                        <button key={c} onClick={() => setPlanCycle(c)}
+                          style={{
+                            padding: '4px 12px', borderRadius: 999, border: 'none', cursor: 'pointer',
+                            fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 1.5, textTransform: 'uppercase',
+                            background: planCycle === c ? '#C5A059' : 'transparent',
+                            color: planCycle === c ? 'white' : 'rgba(0,0,0,0.45)', fontWeight: 700,
+                          }}>
+                          {c === 'monthly' ? 'Monthly' : 'Yearly'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   {/* Plan cards — horizontal scroll on small screens */}
                   <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingBottom: 10, paddingTop: 14 }}>
@@ -1028,32 +969,18 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                       <PlanCard
                         key={plan.id}
                         plan={plan}
-                        recommended={plan.id === aiResult?.recommended_plan_id}
-                        isAlt={altIds.includes(plan.id) && plan.id !== aiResult?.recommended_plan_id}
-                        selected={selectedPlan === plan.id}
-                        onSelect={() => { setSelectedPlan(plan.id === selectedPlan ? null : plan.id); }}
-                        onSuccess={handlePaySuccess}
+                        recommended={plan.id === recommendedPlanId}
+                        cycle={planCycle}
+                        onChoose={handlePlanChosen}
+                        busy={planBusy && selectedPlan === plan.id}
                       />
                     ))}
                   </div>
 
-                  {aiResult?.alternatives && aiResult.alternatives.length > 0 && (
-                    <div style={{ marginTop: 16, borderTop: '1px solid rgba(0,0,0,0.08)', paddingTop: 14 }}>
-                      <span style={{ fontFamily: 'sans-serif', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', color: 'rgba(0,0,0,0.35)' }}>Other good fits</span>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-                        {aiResult.alternatives.map(alt => {
-                          const p = PLANS.find(x => x.id === alt.plan_id);
-                          return p ? (
-                            <div key={alt.plan_id} style={{ border: '1px solid rgba(0,0,0,0.12)', borderRadius: 4, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span>{p.emoji}</span>
-                              <span style={{ fontFamily: 'sans-serif', fontSize: 11, fontWeight: 600 }}>{p.name}</span>
-                              <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.45)' }}>— {alt.reason}</span>
-                            </div>
-                          ) : null;
-                        })}
-                      </div>
-                    </div>
-                  )}
+                  <p style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.4)', marginTop: 14 }}>
+                    Studying with friends? A <b>Team plan</b> (3 accounts, shared workspace + chat room) is available in Settings after setup.
+                    You can also top up extra Quanta credits any time.
+                  </p>
                 </div>
               )}
             </div>

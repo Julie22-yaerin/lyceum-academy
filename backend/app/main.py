@@ -289,6 +289,7 @@ from app.routers  import content_guard as content_guard_router
 from app.routers  import ai_registry as ai_registry_router
 from app.routers  import schedule    as schedule_router
 from app.routers  import ai_roles    as ai_roles_router
+from app.routers  import lyceum      as lyceum_router
 
 
 @asynccontextmanager
@@ -303,6 +304,10 @@ async def lifespan(_app: FastAPI):
     feedback_svc.init_db()
     from app.services import quanta as quanta_svc
     quanta_svc.init_db()
+    from app.services import plans as plans_svc
+    plans_svc.init_db()
+    from app.services import teams as teams_svc
+    teams_svc.init_db()
 
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents
@@ -477,6 +482,7 @@ app.include_router(content_guard_router.router)
 app.include_router(ai_registry_router.router)
 app.include_router(schedule_router.router)
 app.include_router(ai_roles_router.router)
+app.include_router(lyceum_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
@@ -873,6 +879,15 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
             endpoint="/ai/chat",
             request=request,
         )
+        # ── Quanta wallet: convert this call's token usage into spend ─────
+        try:
+            from app.services import quanta as quanta_svc
+            _spend_uid = _uid_from_request(request)
+            _usage = resp.get("usage") or {}
+            _tokens = int(_usage.get("total_tokens") or 0) or (len(text) // 4 + 50)
+            quanta_svc.spend_tokens(_spend_uid, _tokens, pool="standard", context="/ai/chat")
+        except Exception:
+            pass
         # ──────────────────────────────────────────────────────────────────
         return {
             "text": text,
