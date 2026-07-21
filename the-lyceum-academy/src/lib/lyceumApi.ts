@@ -214,6 +214,61 @@ export function getApplicationStatus(email: string): Promise<{ status: 'not_foun
   return publicGetJson(`/applications/status?email=${encodeURIComponent(email)}`);
 }
 
+// ── Library (thelyceum.site/library) ────────────────────────────────────────
+
+export interface LibraryPost {
+  id: string; author_uid: string; author_name: string; title: string;
+  type: 'blog' | 'paper'; body: string; paper_url: string; created_at: string;
+  comment_count: number; reactions: Record<string, number>;
+}
+
+export interface LibraryComment { id: string; author_name: string; content: string; created_at: string; }
+
+export interface LibraryPostDetail extends LibraryPost { comments: LibraryComment[]; }
+
+export function listLibraryPosts(limit = 30, offset = 0): Promise<{ posts: LibraryPost[] }> {
+  return publicGetJson(`/library/posts?limit=${limit}&offset=${offset}`);
+}
+
+export function getLibraryPost(id: string): Promise<LibraryPostDetail> {
+  return publicGetJson(`/library/posts/${id}`);
+}
+
+export function createLibraryPost(title: string, body: string, type: 'blog' | 'paper' = 'blog', paperUrl = ''): Promise<{ ok: boolean; id: string }> {
+  return postJson('/library/posts', { title, body, type, paper_url: paperUrl });
+}
+
+export function addLibraryComment(postId: string, content: string): Promise<{ ok: boolean; id: string }> {
+  return postJson(`/library/posts/${postId}/comments`, { content });
+}
+
+export function reactToLibraryPost(postId: string, emoji: string): Promise<{ ok: boolean; action: 'added' | 'removed'; reactions: Record<string, number> }> {
+  return postJson(`/library/posts/${postId}/react`, { emoji });
+}
+
+// ── Personal Second Brain (thelyceum.site/secondbrain) + Orders ────────────
+
+export interface AiScheduleBlock { id: string; subjectKey: string; dayOfWeek: number; startMinute: number; durationMinutes: number; }
+
+export function generateAiSchedule(weeklyHours: number, subjectKeys: string[], documentTitles: string[]): Promise<{ blocks: AiScheduleBlock[] }> {
+  return postJson('/ai/generate-schedule', { weekly_hours: weeklyHours, subject_keys: subjectKeys, document_titles: documentTitles });
+}
+
+export interface OrderRecord {
+  id: string; documents: { id: string; title: string }[]; schedule: AiScheduleBlock[];
+  ai_generated: boolean; note: string; status: 'pending' | 'accepted' | 'declined'; created_at: string;
+}
+
+export function submitOrder(
+  documents: { id: string; title: string }[], schedule: AiScheduleBlock[], aiGenerated: boolean, note = '',
+): Promise<{ ok: boolean; id: string }> {
+  return postJson('/orders', { documents, schedule, ai_generated: aiGenerated, note });
+}
+
+export function listMyOrders(): Promise<{ orders: OrderRecord[] }> {
+  return getJson('/orders/mine');
+}
+
 // ── Note generation from the Second Brain ───────────────────────────────────
 
 export function synthesizeNoteFromTopic(topic: string, subject = '', language = 'en'): Promise<any> {

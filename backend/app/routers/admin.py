@@ -89,6 +89,34 @@ def applications_decline(app_id: str, _: None = Depends(_auth)):
     return result
 
 
+# ── Orders — submissions from the personal Second Brain page
+# (thelyceum.site/secondbrain): documents + a study schedule (self-built or
+# AI-suggested), submitted for the team to turn into a personalized plan.
+
+@router.get("/orders")
+def orders_list(status: Optional[str] = None, _: None = Depends(_auth)):
+    from app.services import orders as orders_svc
+    return {"orders": orders_svc.list_orders(status)}
+
+
+@router.post("/orders/{order_id}/accept")
+def orders_accept(order_id: str, _: None = Depends(_auth)):
+    from app.services import orders as orders_svc
+    result = orders_svc.decide(order_id, accept=True)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
+@router.post("/orders/{order_id}/decline")
+def orders_decline(order_id: str, _: None = Depends(_auth)):
+    from app.services import orders as orders_svc
+    result = orders_svc.decide(order_id, accept=False)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
 # ── RAG — document management ─────────────────────────────────────────────────
 
 @router.get("/rag/documents")

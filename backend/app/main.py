@@ -318,6 +318,10 @@ async def lifespan(_app: FastAPI):
     teams_svc.init_db()
     from app.services import applications as applications_svc
     applications_svc.init_db()
+    from app.services import library as library_svc
+    library_svc.init_db()
+    from app.services import orders as orders_svc
+    orders_svc.init_db()
 
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents

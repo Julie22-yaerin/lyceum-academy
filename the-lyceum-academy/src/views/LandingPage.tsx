@@ -2,15 +2,19 @@ import { useEffect, useState, useRef } from 'react';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
 import {
   ArrowDown,
-  AudioLines,
+  ArrowUpRight,
+  Atom,
+  BookMarked,
   Brain,
-  HelpCircle,
-  MessageCircle,
-  Sparkles,
-  Share2,
-  AlertCircle,
-  BookOpen,
+  Compass,
+  FlaskConical,
+  Gauge,
+  Library,
+  MessagesSquare,
   Moon,
+  ScanSearch,
+  ShieldQuestion,
+  Sparkles,
   Sun,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,14 +25,34 @@ import { useTheme } from '../context/ThemeContext';
 import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
-// ── Socratic dialogue demo — a scripted exchange showing the method, not the answer ──
-const DIALOGUE_SCRIPT: { role: 'student' | 'lyceum'; text: string }[] = [
-  { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
-  { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
-  { role: 'student', text: 'I guess... gravity? It never really stops acting on it.' },
-  { role: 'lyceum', text: 'Exactly — so what does that tell you about the ball’s velocity over time?' },
-  { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
-  { role: 'lyceum', text: 'You found it yourself. What would change if we did this on the Moon?' },
+// ── Socratic dialogue demo — the same method, cycled across unrelated
+// domains to make the point that this isn't a "physics tutor with extras":
+// it's one method applied to anything. ──────────────────────────────────
+const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
+  [
+    { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
+    { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
+    { role: 'student', text: 'Gravity — it never really stops acting on it.' },
+    { role: 'lyceum', text: 'So what does that tell you about its velocity over time?' },
+    { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
+    { role: 'lyceum', text: 'You found it yourself. What changes on the Moon?' },
+  ],
+  [
+    { role: 'student', text: 'Why did the Roman Republic collapse into an empire?' },
+    { role: 'lyceum', text: 'What happens to a system built for a city when it governs a continent?' },
+    { role: 'student', text: 'The old institutions couldn’t scale — the Senate, the legions loyal to generals...' },
+    { role: 'lyceum', text: 'So who benefits when institutions can’t keep up with power?' },
+    { role: 'student', text: 'Whoever controls the army instead of the law.' },
+    { role: 'lyceum', text: 'That’s Caesar’s whole biography. What does that predict about any republic?' },
+  ],
+  [
+    { role: 'student', text: 'Why does my proof by induction feel like cheating?' },
+    { role: 'lyceum', text: 'What exactly are you assuming true before you’ve proven the next case?' },
+    { role: 'student', text: 'That it holds for n — but I haven’t shown that for every n yet.' },
+    { role: 'lyceum', text: 'Right — so what makes the base case non-negotiable?' },
+    { role: 'student', text: 'Without it the whole chain has nothing to start from.' },
+    { role: 'lyceum', text: 'Exactly. Now — where would this argument break for real numbers?' },
+  ],
 ];
 
 const QUOTES = [
@@ -36,81 +60,90 @@ const QUOTES = [
   { text: 'I cannot teach anybody anything. I can only make them think.', by: 'Socrates' },
   { text: 'Wonder is the feeling of the philosopher, and philosophy begins in wonder.', by: 'Plato, Theaetetus' },
   { text: 'Education is the kindling of a flame, not the filling of a vessel.', by: 'after Plutarch' },
+  { text: 'Nullius in verba — take nobody’s word for it.', by: 'motto, The Royal Society' },
 ];
 
 const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
-    icon: HelpCircle,
-    title: 'You bring a question',
-    body: 'Not something to memorize — a real question you’re stuck on, from any of ten subjects.',
+    icon: ShieldQuestion,
+    title: 'You bring a real question',
+    body: 'From any of the ten subjects — or your own uploaded material in the Second Brain. Not a script. A genuine point you’re stuck on.',
   },
   {
-    icon: MessageCircle,
-    title: 'Lyceum asks you back',
-    body: 'Instead of giving you the answer, Lyceum asks another question — one that shows what you really understand.',
+    icon: MessagesSquare,
+    title: 'The Faculty answers with a question',
+    body: 'Never the answer outright. A question precise enough to expose exactly where your understanding actually breaks.',
   },
   {
     icon: Sparkles,
-    title: 'You figure it out yourself',
-    body: 'It sticks because you found it, not because someone told you. That’s why you still remember it at test time.',
+    title: 'You derive it yourself',
+    body: 'Nothing sticks like a conclusion you reached under your own power. That’s the whole experiment, run on your own mind.',
   },
 ];
 
-const FEATURES: { span: 'lg' | 'sm'; icon: LucideIcon; accent: string; title: string; body: string; list?: string[] }[] = [
+// ── The Faculty — five native AI personas, each with hard role boundaries
+// (see backend app/services/ai_roles) — the visual centerpiece replacing a
+// generic "features grid." ──────────────────────────────────────────────
+const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; body: string }[] = [
   {
-    span: 'lg',
-    icon: Brain,
-    accent: 'text-purple-300',
-    title: 'Explain-It-Back Practice',
-    body: 'Explain what you learned in your own simple words. Lyceum AI listens for gaps and asks more questions, so you really understand it — instead of just memorizing it.',
+    icon: Compass, name: 'Socrat', role: 'Lead Concierge', accent: 'text-purple-300',
+    body: 'Your point of contact for every session. Never answers directly — only asks the question that moves you forward.',
   },
   {
-    span: 'sm',
-    icon: Share2,
-    accent: 'text-blue-300',
-    title: 'Knowledge Map',
-    body: 'Every idea you learn connects to a big map, like branches on a tree — so you always see how everything fits together.',
+    icon: Gauge, name: 'Coach', role: 'Curriculum Architect', accent: 'text-blue-300',
+    body: 'Reads your Second Brain and mistake history overnight, then sequences tomorrow’s exact study plan — gaps first.',
   },
   {
-    span: 'sm',
-    icon: AlertCircle,
-    accent: 'text-amber-300',
-    title: 'Mistake Vault',
-    body: 'Your mistakes get saved and sorted. Lyceum brings them back later so you can practice until you get them right for good.',
-    list: ['Sign error · Calc II', 'Unit mismatch · Physics', 'Off-by-one · Recursion'],
+    icon: Brain, name: 'Leo', role: 'The Feynman Child', accent: 'text-amber-300',
+    body: 'Explain a concept to Leo in plain words. He knows nothing — so if he’s confused, you’ve found the real gap.',
   },
   {
-    span: 'sm',
-    icon: BookOpen,
-    accent: 'text-cyan-300',
-    title: 'Reference Bank',
-    body: 'Every source and answer you check gets saved and organized — your own private library you can search anytime.',
+    icon: FlaskConical, name: 'The Peer', role: 'Debate Partner', accent: 'text-cyan-300',
+    body: 'Argues your thesis in good faith at AP/IB rigor — concedes real points, attacks the load-bearing assumption.',
   },
+  {
+    icon: ScanSearch, name: 'The Grader', role: 'Solution Auditor', accent: 'text-rose-300',
+    body: 'Audits your working step by step and rebuilds it backwards from the answer — precise, never a false pass.',
+  },
+];
+
+const EQUATIONS = [
+  'E = mc²', '∇·E = ρ/ε₀', 'a² + b² = c²', 'iħ∂ψ/∂t = Ĥψ',
+  'F = ma', 'ΔG = ΔH − TΔS', 'PV = nRT', '∫f′(x)dx = f(x) + C', 'S = k log W',
 ];
 
 function DialogueDemo() {
+  const [setIdx, setSetIdx] = useState(0);
   const [step, setStep] = useState(1);
 
   useEffect(() => {
     const id = setInterval(() => {
-      setStep((s) => (s >= DIALOGUE_SCRIPT.length ? 1 : s + 1));
+      setStep((s) => {
+        const script = DIALOGUE_SETS[setIdx];
+        if (s >= script.length) {
+          setSetIdx((si) => (si + 1) % DIALOGUE_SETS.length);
+          return 1;
+        }
+        return s + 1;
+      });
     }, 2200);
     return () => clearInterval(id);
-  }, []);
+  }, [setIdx]);
 
-  const visible = DIALOGUE_SCRIPT.slice(0, step);
+  const script = DIALOGUE_SETS[setIdx];
+  const visible = script.slice(0, step);
 
   return (
     <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
       <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">See it in action</span>
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Same method, any subject</span>
       </div>
       <div className="flex flex-col gap-3">
-        <AnimatePresence initial={false}>
+        <AnimatePresence initial={false} mode="popLayout">
           {visible.map((m, i) => (
             <motion.div
-              key={`${step >= i ? 'a' : 'b'}-${i}`}
+              key={`${setIdx}-${i}`}
               initial={{ opacity: 0, y: 10, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
@@ -126,6 +159,23 @@ function DialogueDemo() {
           ))}
         </AnimatePresence>
       </div>
+    </div>
+  );
+}
+
+function EquationMarquee() {
+  const doubled = [...EQUATIONS, ...EQUATIONS];
+  return (
+    <div className="relative overflow-hidden py-3 border-y border-white/5">
+      <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#050508] to-transparent z-10" />
+      <div className="absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[#050508] to-transparent z-10" />
+      <motion.div
+        className="flex gap-14 whitespace-nowrap font-garamond text-lg text-white/25 italic"
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 32, repeat: Infinity, ease: 'linear' }}
+      >
+        {doubled.map((eq, i) => <span key={i}>{eq}</span>)}
+      </motion.div>
     </div>
   );
 }
@@ -269,8 +319,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           </div>
           <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
             <a href="#method" className="nav-link">The Method</a>
-            <a href="#features" className="nav-link">Features</a>
+            <a href="#faculty" className="nav-link">The Faculty</a>
             <a href="#voices" className="nav-link">Wisdom</a>
+            <a href="/library" className="nav-link">Library</a>
           </div>
           <div className="flex items-center gap-3">
             <motion.button
@@ -302,7 +353,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       </motion.nav>
 
       {/* Hero */}
-      <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-24 min-h-screen flex items-center">
+      <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-16 min-h-screen flex items-center">
         <div className="hero-shader pointer-events-none absolute inset-0 -z-0 overflow-hidden flex items-center justify-center">
           <div className="relative w-full max-w-6xl aspect-[16/10]">
             <ShaderAnimation />
@@ -329,14 +380,14 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                   draggable={false}
                 />
               </div>
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">An AI Tutor That Asks Questions</span>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">By application only · a closed faculty of five minds</span>
             </motion.div>
 
             <div className="relative">
               <h1 className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic">
-                <HeadlineReveal text="Great minds aren’t filled," />
+                <HeadlineReveal text="Every subject." />
                 <br />
-                <HeadlineReveal text="they’re sparked." />
+                <HeadlineReveal text="One method. Zero lectures." />
               </h1>
             </div>
 
@@ -345,12 +396,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              Lyceum never just gives you the answer. It asks you one more question — until you find the answer yourself. And what you find yourself, you don&rsquo;t forget.
+              The Lyceum isn’t a course platform. It’s a vetted academy built on a scientific method
+              older than the printing press: never hand over the answer. Ask the question that forces the
+              mind to build it. From calculus to Roman history to your own uploaded research — one rigorous
+              method, applied to anything you bring it.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
               <LiquidMetalButton
-                label="Start Learning"
+                label="Apply for Admission"
                 onClick={() => onNavigate('apply')}
               />
               <a
@@ -376,6 +430,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         </div>
       </main>
 
+      <EquationMarquee />
+
       {/* The Method */}
       <section id="method" className="max-w-7xl mx-auto px-6 py-20">
         <motion.div
@@ -385,9 +441,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="mb-14 text-center"
         >
-          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Questions, not lectures</p>
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">How Lyceum teaches</h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Every Lyceum session follows the same three simple steps.</p>
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">The epistemic method</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">A discipline, not a feature</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">Every session runs the same three-step experiment on your own understanding.</p>
         </motion.div>
 
         <motion.div
@@ -414,8 +470,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         </motion.div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="max-w-7xl mx-auto px-6 py-20">
+      {/* The Faculty — five native AI personas */}
+      <section id="faculty" className="max-w-7xl mx-auto px-6 py-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -423,8 +479,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="mb-12 text-center"
         >
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">Built for how you actually learn</h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Four tools, all working together in one place.</p>
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Not a chatbot. A faculty.</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">Five minds, each with one job</h2>
+          <p className="text-slate-400 max-w-xl mx-auto">No single AI trying to do everything badly. Five native specialists with hard boundaries — the Grader never coaches, Leo never knows calculus.</p>
         </motion.div>
 
         <motion.div
@@ -432,51 +489,66 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           whileInView="show"
           viewport={{ once: true, margin: '-80px' }}
           variants={stagger}
-          className="grid grid-cols-1 md:grid-cols-3 md:grid-rows-2 gap-6"
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
         >
-          {FEATURES.map((f) => (
+          {FACULTY.map((f) => (
             <motion.div
-              key={f.title}
+              key={f.name}
               variants={fadeUp}
               transition={{ duration: 0.5 }}
               whileHover={{ y: -6 }}
-              className={
-                (f.span === 'lg' ? 'md:col-span-2 md:row-span-2 min-h-[280px] ' : '') +
-                'p-8 rounded-3xl transition-shadow duration-300 glass flex flex-col justify-between hover:shadow-[0_0_40px_rgba(139,92,246,0.12)]'
-              }
+              className="p-8 rounded-3xl glass flex flex-col gap-3 hover:shadow-[0_0_40px_rgba(139,92,246,0.12)] transition-shadow duration-300"
             >
+              <f.icon className={`w-7 h-7 ${f.accent}`} strokeWidth={1.5} />
               <div>
-                <f.icon className={`w-7 h-7 mb-4 ${f.accent}`} strokeWidth={1.5} />
-                <h3 className={f.span === 'lg' ? 'text-2xl font-bold text-white mb-3' : 'text-lg font-bold text-white mb-2'}>
-                  {f.title}
-                </h3>
-                <p className={f.span === 'lg' ? 'text-sm text-slate-400 max-w-md leading-relaxed' : 'text-xs text-slate-400 mb-4 leading-relaxed'}>
-                  {f.body}
-                </p>
+                <h3 className="text-lg font-bold text-white">{f.name}</h3>
+                <p className="text-[10px] uppercase tracking-[0.15em] text-white/35">{f.role}</p>
               </div>
-              {f.list && (
-                <div className="mt-auto space-y-2">
-                  {f.list.map((item) => (
-                    <div key={item} className="flex items-center gap-2 rounded-lg glass-strong px-3 py-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
-                      <span className="text-[10px] text-white/60 truncate">{item}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {f.span === 'lg' && (
-                <div className="mt-6 rounded-2xl glass-strong p-4 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-blue-400 flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <div className="h-2 w-3/4 bg-white/15 rounded-full mb-1.5" />
-                    <div className="h-2 w-1/2 bg-white/8 rounded-full" />
-                  </div>
-                  <AudioLines className="w-5 h-5 text-white/30" strokeWidth={1.5} />
-                </div>
-              )}
+              <p className="text-sm text-slate-400 leading-relaxed">{f.body}</p>
             </motion.div>
           ))}
+
+          {/* Second Brain callout — fills the 6th grid slot */}
+          <motion.div
+            variants={fadeUp}
+            transition={{ duration: 0.5 }}
+            whileHover={{ y: -6 }}
+            className="p-8 rounded-3xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-400/20 flex flex-col gap-3 justify-between"
+          >
+            <div>
+              <BookMarked className="w-7 h-7 text-emerald-300 mb-3" strokeWidth={1.5} />
+              <h3 className="text-lg font-bold text-white mb-1">Your Second Brain</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">Every note, quest, and past mistake feeds the Faculty’s judgment. Add your own material any time, or let Coach request a plan built entirely around it.</p>
+            </div>
+            <a href="/secondbrain" className="text-xs font-medium text-emerald-300 inline-flex items-center gap-1 hover:text-emerald-200 transition-colors">
+              Open your Second Brain <ArrowUpRight className="w-3.5 h-3.5" />
+            </a>
+          </motion.div>
         </motion.div>
+      </section>
+
+      {/* Library teaser */}
+      <section className="max-w-7xl mx-auto px-6 py-4">
+        <motion.a
+          href="/library"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          whileHover={{ y: -4 }}
+          className="block rounded-3xl glass-strong p-10 flex flex-col md:flex-row items-center justify-between gap-6"
+        >
+          <div className="flex items-center gap-5">
+            <Library className="w-10 h-10 text-amber-300 flex-shrink-0" strokeWidth={1.3} />
+            <div>
+              <h3 className="font-garamond text-2xl text-white mb-1">The Library</h3>
+              <p className="text-sm text-slate-400 max-w-lg">Blog write-ups and research papers shared by the community — open to read, no admission required. React, discuss, and publish once you’re in.</p>
+            </div>
+          </div>
+          <span className="text-sm font-medium text-amber-300 inline-flex items-center gap-1.5 shrink-0">
+            Browse the Library <ArrowUpRight className="w-4 h-4" />
+          </span>
+        </motion.a>
       </section>
 
       {/* Wisdom / rotating quotes band */}
@@ -501,13 +573,14 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="rounded-3xl glass p-12 flex flex-col items-center gap-6"
         >
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">Start asking questions.</h2>
-          <p className="text-slate-400 max-w-md">Ten subjects. One method. No lectures — just the right question, at the right time.</p>
+          <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">The academy doesn’t open for everyone.</h2>
+          <p className="text-slate-400 max-w-md">Ten subjects, a closed faculty of five, and one method that hasn’t needed replacing in 2,400 years. Submit an application — it takes about a minute.</p>
           <LiquidMetalButton
-            label="Get Started"
+            label="Apply for Admission"
             onClick={() => onNavigate('apply')}
           />
-          <p className="text-xs text-slate-500">By application only — takes about a minute.</p>
+          <p className="text-xs text-slate-500">Reviewed by hand. Not everyone is accepted.</p>
         </motion.div>
       </section>
 
@@ -515,7 +588,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       <footer className="border-t border-white/10 py-10">
         <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
           <span className="text-sm font-semibold tracking-wider text-white/60">LYCEUM</span>
-          <span className="text-xs text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; named after the school Aristotle founded</span>
+          <div className="flex items-center gap-6 text-xs text-white/40">
+            <a href="/library" className="hover:text-white/70 transition-colors">Library</a>
+            <span className="text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; named after the school Aristotle founded</span>
+          </div>
         </div>
       </footer>
 

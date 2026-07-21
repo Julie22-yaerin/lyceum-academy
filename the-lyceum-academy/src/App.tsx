@@ -9,6 +9,8 @@ import { migrateLegacySubjectTags } from './lib/workspace';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
 import ApplyView from './views/ApplyView';
+import LibraryPage from './views/LibraryPage';
+import SecondBrainPage from './views/SecondBrainPage';
 import MainLayout from './components/MainLayout';
 import DialogueView from './views/DialogueView';
 import ExerciseView from './views/ExerciseView';
@@ -221,6 +223,22 @@ export default function App() {
   if (new URLSearchParams(window.location.search).get('panel') === 'notepad') {
     return <NotepadWindow />;
   }
+
+  // Standalone public/gated subpages (thelyceum.site/library,
+  // thelyceum.site/secondbrain) — real URLs outside the internal workspace's
+  // view-state navigation, each with its own auth gating.
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (path === '/library' || path.startsWith('/library/')) {
+    return (
+      <I18nProvider><ThemeProvider><AuthProvider><LibraryPage /></AuthProvider></ThemeProvider></I18nProvider>
+    );
+  }
+  if (path === '/secondbrain' || path.startsWith('/secondbrain/')) {
+    return (
+      <I18nProvider><ThemeProvider><AuthProvider><SecondBrainPage /></AuthProvider></ThemeProvider></I18nProvider>
+    );
+  }
+
   return (
     <I18nProvider>
     <ThemeProvider>

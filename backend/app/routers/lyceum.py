@@ -44,6 +44,19 @@ Lyceum ship-day router — the new product surface added for launch:
                                     vector + optional referral code)
     GET  /applications/status    — public, no auth: check status by email
     (admin review — list/accept/decline — lives in app.routers.admin)
+
+  Library (thelyceum.site/library — public blog/research-paper sharing)
+    GET  /library/posts              — list posts (public)
+    GET  /library/posts/{id}         — post + comments + reaction counts (public)
+    POST /library/posts              — publish (auth)
+    POST /library/posts/{id}/comments — comment (auth)
+    POST /library/posts/{id}/react    — toggle an emoji reaction (auth)
+
+  Personal Second Brain (thelyceum.site/secondbrain — accepted accounts)
+    POST /ai/generate-schedule   — AI-suggested weekly study schedule
+    POST /orders                — submit documents + schedule as an order
+    GET  /orders/mine           — my own submitted orders + status
+    (admin review — list/accept/decline — lives in app.routers.admin)
 """
 
 from __future__ import annotations
@@ -96,6 +109,171 @@ async def applications_apply(request: Request, req: ApplyRequest):
 async def applications_status(request: Request, email: str):
     from app.services import applications as applications_svc
     return applications_svc.get_status(email)
+
+
+# ── Library (thelyceum.site/library) ────────────────────────────────────────
+# Public blog/research-paper sharing. Reading is open to everyone; comments,
+# reactions, and publishing require an account (registration is vetted, so
+# every account is already a known, accepted person).
+
+
+class LibraryPostRequest(BaseModel):
+    title: str
+    body: str = ""
+    type: str = "blog"  # 'blog' | 'paper'
+    paper_url: str = ""
+
+
+class LibraryCommentRequest(BaseModel):
+    content: str
+
+
+class LibraryReactRequest(BaseModel):
+    emoji: str
+
+
+def _display_name(auth: dict) -> str:
+    return auth.get("name") or auth.get("email") or "A Lyceum student"
+
+
+@router.get("/library/posts")
+async def library_list_posts(limit: int = 30, offset: int = 0):
+    from app.services import library as library_svc
+    return {"posts": library_svc.list_posts(limit=min(limit, 100), offset=max(offset, 0))}
+
+
+@router.get("/library/posts/{post_id}")
+async def library_get_post(post_id: str):
+    from app.services import library as library_svc
+    post = library_svc.get_post(post_id)
+    if not post:
+        raise HTTPException(status_code=404, detail="not_found")
+    return post
+
+
+@router.post("/library/posts")
+@limiter.limit("10/minute")
+async def library_create_post(request: Request, req: LibraryPostRequest, auth: dict = Depends(require_auth)):
+    from app.services import library as library_svc
+    result = library_svc.create_post(_uid(auth), _display_name(auth), req.title, req.body, req.type, req.paper_url)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.post("/library/posts/{post_id}/comments")
+@limiter.limit("20/minute")
+async def library_add_comment(request: Request, post_id: str, req: LibraryCommentRequest, auth: dict = Depends(require_auth)):
+    from app.services import library as library_svc
+    result = library_svc.add_comment(post_id, _uid(auth), _display_name(auth), req.content)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400 if result.get("error") != "not_found" else 404, detail=result.get("error"))
+    return result
+
+
+@router.post("/library/posts/{post_id}/react")
+@limiter.limit("30/minute")
+async def library_react(request: Request, post_id: str, req: LibraryReactRequest, auth: dict = Depends(require_auth)):
+    from app.services import library as library_svc
+    result = library_svc.toggle_reaction(post_id, _uid(auth), req.emoji)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+# ── Personal Second Brain (thelyceum.site/secondbrain) + Orders ─────────────
+# Accepted accounts add their own documents (reuses the authored-documents
+# system in teams.py) and a weekly study schedule — self-built or
+# AI-suggested — then submit both together as an "order" the Lyceum team
+# turns into a personalized plan (admin queue: app.routers.admin).
+
+
+class GenerateScheduleRequest(BaseModel):
+    weekly_hours: int = 10
+    subject_keys: list[str] = []
+    document_titles: list[str] = []
+
+
+@router.post("/ai/generate-schedule")
+@limiter.limit("6/minute")
+async def generate_schedule(request: Request, req: GenerateScheduleRequest, auth: dict = Depends(require_auth)):
+    import json as _json
+
+    from app.services import ai as ai_svc
+
+    uid = _uid(auth)
+    subjects = req.subject_keys or ["general"]
+    system = (
+        "You are a study-schedule planner. Given a weekly study-hour budget, a list of subjects, and the "
+        "titles of the student's own documents, propose a realistic weekly schedule. Respond with ONLY a "
+        "JSON array, no markdown fences: [{\"day_of_week\": 0-6 (0=Monday), \"start_minute\": <int, minutes "
+        "since midnight>, \"duration_minutes\": <int>, \"subject_key\": \"<one of the given subjects>\"}]. "
+        "Spread sessions across different days, keep each block 45-90 minutes, and don't exceed the weekly "
+        "hour budget in total."
+    )
+    user = (
+        f"Weekly hours available: {req.weekly_hours}\n"
+        f"Subjects: {', '.join(subjects)}\n"
+        f"Document titles: {', '.join(req.document_titles) or '(none yet)'}"
+    )
+    try:
+        resp = await ai_svc.chat(
+            [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            temperature=0.4, max_tokens=1500,
+        )
+        text = ai_svc.extract_text(resp)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+    start, end = raw.find("["), raw.rfind("]")
+    blocks = []
+    if start != -1 and end > start:
+        try:
+            parsed = _json.loads(raw[start:end + 1])
+            if isinstance(parsed, list):
+                for i, b in enumerate(parsed):
+                    if not isinstance(b, dict):
+                        continue
+                    blocks.append({
+                        "id": f"ai-{i}",
+                        "subjectKey": str(b.get("subject_key", subjects[0])),
+                        "dayOfWeek": max(0, min(6, int(b.get("day_of_week", 0)))),
+                        "startMinute": max(0, min(1439, int(b.get("start_minute", 540)))),
+                        "durationMinutes": max(15, min(240, int(b.get("duration_minutes", 60)))),
+                    })
+        except Exception:
+            blocks = []
+
+    quanta_svc.spend_tokens(uid, tokens=800, pool="standard", context="/ai/generate-schedule")
+    return {"blocks": blocks}
+
+
+class SubmitOrderRequest(BaseModel):
+    documents: list[dict] = []
+    schedule: list[dict] = []
+    ai_generated: bool = False
+    note: str = ""
+
+
+@router.post("/orders")
+@limiter.limit("10/minute")
+async def submit_order(request: Request, req: SubmitOrderRequest, auth: dict = Depends(require_auth)):
+    from app.services import orders as orders_svc
+    result = orders_svc.create_order(
+        _uid(auth), auth.get("email", ""), req.documents, req.schedule, req.ai_generated, req.note,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@router.get("/orders/mine")
+async def my_orders(auth: dict = Depends(require_auth)):
+    from app.services import orders as orders_svc
+    return {"orders": orders_svc.list_my_orders(_uid(auth))}
 
 
 # ── Plans ────────────────────────────────────────────────────────────────────
