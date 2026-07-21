@@ -4,13 +4,13 @@
   --font-geist-sans: var(--font-geist-sans);
   --font-geist-mono: var(--font-geist-mono);
 
-  /* Pclick emerald-dark palette */
-  --color-bg:        #050816;
-  --color-surface:   #0a1020;
-  --color-border:    rgba(255,255,255,0.08);
-  --color-accent:    #10b981;   /* emerald-500  */
-  --color-accent-lo: rgba(16,185,129,0.12);
-  --color-accent-hi: #6ee7b7;   /* emerald-300  */
+  /* Pclick blue-cyan palette */
+  --color-bg:        #000814;
+  --color-surface:   #001d3d;
+  --color-border:    rgba(0,245,255,0.1);
+  --color-accent:    #00b4d8;   /* cyan-400 */
+  --color-accent-lo: rgba(0,180,216,0.12);
+  --color-accent-hi: #90e0ef;   /* cyan-200 */
 }
 
 html, body {
@@ -20,19 +20,19 @@ html, body {
 /* Smooth scrollbar */
 ::-webkit-scrollbar        { width: 6px; }
 ::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: rgba(16,185,129,0.25); border-radius: 9999px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(16,185,129,0.45); }
+::-webkit-scrollbar-thumb  { background: rgba(0,180,216,0.25); border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,180,216,0.45); }
 
-/* Emerald glow utility */
-.glow-emerald {
-  box-shadow: 0 0 24px rgba(16,185,129,0.3), 0 0 48px rgba(16,185,129,0.1);
+/* Cyan glow utility */
+.glow-cyan {
+  box-shadow: 0 0 24px rgba(0,180,216,0.3), 0 0 48px rgba(0,180,216,0.1);
 }
 
 /* Pulse ring for active nodes */
 @keyframes ring-pulse {
-  0%   { box-shadow: 0 0 0 0   rgba(16,185,129,0.5); }
-  70%  { box-shadow: 0 0 0 10px rgba(16,185,129,0);   }
-  100% { box-shadow: 0 0 0 0   rgba(16,185,129,0);    }
+  0%   { box-shadow: 0 0 0 0   rgba(0,180,216,0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(0,180,216,0);   }
+  100% { box-shadow: 0 0 0 0   rgba(0,180,216,0);    }
 }
 .ring-pulse { animation: ring-pulse 2s ease-out infinite; }
 
