@@ -157,6 +157,12 @@ class Settings(BaseSettings):
     anthropic_claude_sonnet_model: str = "claude-3-5-sonnet-20241022"  # Feynman Listener
     anthropic_claude_opus_model: str = "claude-3-opus-20240229"       # Lead Concierge
 
+    # ── Second Brain synthesizer — dedicated key, Opus 3 only ───────────────
+    # A separate Anthropic key reserved for turning raw material a student
+    # adds (Settings → Customize Second Brain, /secondbrain page) into a
+    # clean structured note. Falls back to anthropic_api_key if unset.
+    second_brain_anthropic_key: str = ""       # SECOND_BRAIN_ANTHROPIC_KEY in .env
+
     # ── OpenAI o1 (Coach — deep Chain-of-Thought, batch API) ───────────────
     openai_o1_model: str = "o1"  # Batch/off-peak execution for Coach role
 
@@ -215,6 +221,14 @@ class Settings(BaseSettings):
     @property
     def admin_email_set(self) -> set[str]:
         return {e.strip().lower() for e in self.admin_emails.split(",") if e.strip()}
+
+    # ── Unlimited test access ─────────────────────────────────
+    # There is no free-trial program anymore (registration is vetted). This
+    # is the one bypass: a one-time redeemable code (see
+    # POST /account/redeem-unlimited) that pins an account to the top plan
+    # with effectively uncapped Quanta, permanently — for the admin's own
+    # unlimited testing, not distributed to regular applicants.
+    admin_unlimited_test_code: str = ""   # ADMIN_UNLIMITED_TEST_CODE in .env
 
     # ── Encryption (SOC-16) ──────────────────────────────────
     # Primary encryption key (current) — used for new encryptions

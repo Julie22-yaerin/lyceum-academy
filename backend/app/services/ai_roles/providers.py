@@ -31,6 +31,7 @@ async def anthropic_chat(
     temperature: float = 0.7,
     max_tokens: int = 4096,
     stream: bool = False,
+    api_key: str | None = None,
 ) -> dict | AsyncIterator[str]:
     """
     Call Anthropic's Messages API (https://docs.anthropic.com/en/api/messages).
@@ -42,12 +43,21 @@ async def anthropic_chat(
       - system is a top-level param, not a message role
       - messages are [{"role": "user"|"assistant", "content": "..."}]
       - no "system" role in messages array
+
+    `api_key` overrides settings.anthropic_api_key — used by callers with
+    their own dedicated key (e.g. the Second Brain Opus synthesizer).
     """
-    if not settings.anthropic_api_key:
+    key = api_key or settings.anthropic_api_key
+    if not key:
         raise RuntimeError("ANTHROPIC_API_KEY not configured")
 
     model = model or settings.anthropic_claude_sonnet_model
-    url = f"{settings.anthropic_base_url}/messages"
+    # Some environments provide ANTHROPIC_BASE_URL without the /v1 suffix —
+    # normalize so the endpoint resolves either way.
+    base = settings.anthropic_base_url.rstrip("/")
+    if not base.endswith("/v1"):
+        base += "/v1"
+    url = f"{base}/messages"
 
     # Separate system from conversation messages
     conv_messages = [m for m in messages if m.get("role") != "system"]
@@ -65,7 +75,7 @@ async def anthropic_chat(
         payload["system"] = system
 
     headers = {
-        "x-api-key": settings.anthropic_api_key,
+        "x-api-key": key,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
     }

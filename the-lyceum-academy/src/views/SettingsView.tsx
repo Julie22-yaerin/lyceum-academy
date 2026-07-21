@@ -7,7 +7,7 @@ import {
 } from '../lib/firebase';
 import {
   getPlanCatalog, getCurrentPlan, selectPlan, buyExtraCredits, getQuantaBalance,
-  getReferralInfo, buildInviteLink, addSecondBrainNote, listSecondBrainCustom,
+  getReferralInfo, buildInviteLink, addSecondBrainNote, listSecondBrainCustom, redeemUnlimitedAccess,
   type LyceumPlan, type CurrentPlan, type QuantaBalance,
 } from '../lib/lyceumApi';
 import { loadSchedule, saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
@@ -491,7 +491,43 @@ function AppearanceSection() {
   );
 }
 
-export default function SettingsView({ onUpgrade: _onUpgrade }: { onUpgrade: () => void }) {
+function UnlimitedAccessSection() {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [err, setErr] = useState('');
+
+  async function redeem() {
+    if (!code.trim() || busy) return;
+    setBusy(true); setErr(''); setMsg('');
+    try {
+      const result = await redeemUnlimitedAccess(code.trim());
+      if (result.unlimited) setMsg('Unlimited test access granted — Quanta limits no longer apply to this account.');
+      setCode('');
+    } catch (e: any) {
+      setErr(e?.message || 'Invalid code.');
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <div className="glass-card rounded-3xl p-6">
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Redeem a code</p>
+      <p className="text-xs text-white/30 mb-4">Have an unlimited-test access code? Enter it here.</p>
+      <div className="flex gap-2">
+        <input value={code} onChange={e => setCode(e.target.value)} placeholder="Access code"
+          className="flex-1 bg-white/5 rounded-xl px-3 py-2.5 text-sm text-white/90 outline-none border border-white/10 focus:border-white/25" />
+        <button onClick={redeem} disabled={busy || !code.trim()}
+          className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px] disabled:opacity-30">
+          {busy ? '…' : 'Redeem'}
+        </button>
+      </div>
+      {msg && <p className="text-xs text-emerald-300/80 mt-3">{msg}</p>}
+      {err && <p className="text-xs text-red-300/80 mt-3">{err}</p>}
+    </div>
+  );
+}
+
+export default function SettingsView() {
   const { t } = useTranslation();
 
   return (
@@ -507,6 +543,7 @@ export default function SettingsView({ onUpgrade: _onUpgrade }: { onUpgrade: () 
       <PlanSection />
       <TeamSpace />
       <InviteSection />
+      <UnlimitedAccessSection />
       <SecondBrainSection />
     </div>
   );

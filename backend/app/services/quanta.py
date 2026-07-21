@@ -272,11 +272,12 @@ def get_balance(user_id: str) -> dict[str, Any]:
         ).fetchone()
         earned = row["total_points"] if row else 0
 
-    std_allowance = plan["standard_quanta"] + extra + earned
-    coach_allowance = plan["coach_quanta"]
+    unlimited = bool(cur.get("unlimited"))
+    std_allowance = plans_svc.UNLIMITED_QUANTA if unlimited else plan["standard_quanta"] + extra + earned
+    coach_allowance = plans_svc.UNLIMITED_QUANTA if unlimited else plan["coach_quanta"]
     return {
         "plan_id": plan["id"],
-        "plan_name": plan["name"],
+        "plan_name": plan["name"] + (" (unlimited test)" if unlimited else ""),
         "cycle": cur["cycle"],
         "tokens_per_quanta": TOKENS_PER_QUANTA,
         "standard_allowance": std_allowance,

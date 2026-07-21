@@ -276,6 +276,22 @@ async def my_orders(auth: dict = Depends(require_auth)):
     return {"orders": orders_svc.list_my_orders(_uid(auth))}
 
 
+# ── Unlimited test access (replaces the free-trial program) ─────────────────
+
+
+class RedeemUnlimitedRequest(BaseModel):
+    code: str
+
+
+@router.post("/account/redeem-unlimited")
+@limiter.limit("5/minute")
+async def redeem_unlimited(request: Request, req: RedeemUnlimitedRequest, auth: dict = Depends(require_auth)):
+    result = plans_svc.redeem_unlimited_code(_uid(auth), req.code)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
 # ── Plans ────────────────────────────────────────────────────────────────────
 
 
@@ -477,7 +493,7 @@ async def second_brain_custom_add(request: Request, req: CustomNoteRequest, auth
     from app.services import second_brain as sb_svc
     if not (req.content or "").strip():
         raise HTTPException(status_code=400, detail="content_required")
-    result = sb_svc.add_custom_note(req.title, req.content, req.subject, uploader_uid=_uid(auth))
+    result = await sb_svc.add_custom_note(req.title, req.content, req.subject, uploader_uid=_uid(auth))
     if not result.get("ok"):
         raise HTTPException(status_code=500, detail=result.get("error"))
     return result

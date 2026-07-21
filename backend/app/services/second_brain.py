@@ -203,23 +203,88 @@ def list_graph() -> dict[str, Any]:
     return {"nodes": nodes, "edges": edges}
 
 
-def add_custom_note(title: str, content: str, subject: str = "", uploader_uid: str = "") -> dict[str, Any]:
+async def synthesize_note_with_opus(title: str, content: str, subject: str = "") -> dict[str, Any] | None:
+    """Dedicated Opus-3 synthesizer (its own API key — settings.
+    second_brain_anthropic_key, falls back to anthropic_api_key) whose only
+    job is turning raw material a student pastes into a clean structured
+    note: a tightened title, a proper summary, and tag suggestions.
+
+    Best-effort — returns None on any failure (missing key, provider error,
+    bad JSON) so the caller always has the raw-content fallback."""
+    import json
+    import logging
+
+    from app.core.config import settings
+    from app.services.ai_roles.providers import anthropic_chat, extract_anthropic_text
+
+    log = logging.getLogger("pclick.second_brain")
+    key = settings.second_brain_anthropic_key or settings.anthropic_api_key
+    if not key:
+        return None
+
+    system = (
+        "You are the Lyceum's Second Brain synthesizer. Given raw material a student pasted in, "
+        "produce ONLY a JSON object, no markdown fences: "
+        '{"title": "<tightened, specific title>", "summary": "<300-500 word markdown summary '
+        'preserving every concrete fact/number/definition in the source>", "tags": ["<3-6 short tags>"]}. '
+        "Never invent facts not present in the source material."
+    )
+    user = f"Subject: {subject or 'general'}\nTitle given: {title}\n\nRaw material:\n{content[:12000]}"
+
+    try:
+        data = await anthropic_chat(
+            [{"role": "user", "content": user}],
+            model=settings.anthropic_claude_opus_model,
+            system=system, temperature=0.3, max_tokens=2048,
+            api_key=key,
+        )
+        raw = extract_anthropic_text(data).strip()
+        if raw.startswith("```"):
+            raw = raw.strip("`")
+        start, end = raw.find("{"), raw.rfind("}")
+        if start == -1 or end <= start:
+            return None
+        parsed = json.loads(raw[start:end + 1])
+        if not parsed.get("summary"):
+            return None
+        return parsed
+    except Exception as e:
+        log.warning("synthesize_note_with_opus failed: %s", e)
+        return None
+
+
+async def add_custom_note(
+    title: str, content: str, subject: str = "", uploader_uid: str = "", use_ai: bool = True,
+) -> dict[str, Any]:
     """Second Brain customization (Settings → Customize Second Brain).
 
     The regular product flows no longer accept external documents; this is
     the one deliberate door left: write the material into the vault's
     custom/ folder and index it immediately, so exercises/notes generated
-    from the Second Brain can draw on it.
+    from the Second Brain can draw on it. When `use_ai` and the dedicated
+    Opus key is configured, the raw material is first run through
+    synthesize_note_with_opus() for a cleaner title/summary/tags; on any
+    failure this silently falls back to storing the raw text as-is.
     """
+    tags: list[str] = []
+    body = content or ""
+    if use_ai:
+        synthesized = await synthesize_note_with_opus(title, content, subject)
+        if synthesized:
+            title = synthesized.get("title") or title
+            body = synthesized.get("summary") or body
+            tags = synthesized.get("tags") or []
+
     title = (title or "Untitled").strip()[:120]
     safe_stem = re.sub(r"[^A-Za-z0-9 _-]+", "", title).strip() or "custom-note"
     rel = os.path.join("custom", f"{safe_stem}.md")
     path = os.path.join(VAULT_PATH, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    frontmatter = f"---\ntitle: {title}\nsubject: {subject}\ntype: custom\nuploaded_by: {uploader_uid}\n---\n"
+    tags_yaml = f"tags: [{', '.join(tags)}]\n" if tags else ""
+    frontmatter = f"---\ntitle: {title}\nsubject: {subject}\ntype: custom\nuploaded_by: {uploader_uid}\n{tags_yaml}---\n"
     with open(path, "w", encoding="utf-8") as f:
-        f.write(frontmatter + (content or ""))
+        f.write(frontmatter + body)
 
     note = _parse_note(path, rel)
     if not note:

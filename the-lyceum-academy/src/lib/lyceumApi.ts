@@ -182,6 +182,12 @@ export function listSecondBrainCustom(): Promise<{ notes: { id: string; title: s
   return getJson('/second-brain/custom');
 }
 
+// ── Unlimited test access (replaces the free-trial program) ────────────────
+
+export function redeemUnlimitedAccess(code: string): Promise<{ ok: boolean; unlimited: boolean }> {
+  return postJson('/account/redeem-unlimited', { code });
+}
+
 // ── Applications (registration is closed — this is the waitlist gate) ──────
 
 export interface LearningVector {

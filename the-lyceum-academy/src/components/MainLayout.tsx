@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import FloatingDock from './FloatingDock';
+import ToolDock from './ToolDock';
 import VoiceOrb from './VoiceOrb';
 import SubjectTabBar from './SubjectTabBar';
 import ScheduleLockManager from './ScheduleLockManager';
@@ -56,6 +57,7 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
   return (
     <div className="bg-[#050508] text-white/90 min-h-screen flex flex-col">
       <FloatingDock currentView={currentView} onNavigate={onNavigate} />
+      <ToolDock />
       <VoiceOrb currentView={currentView} tourActive={tourActive} />
       <main id="lyceum-workspace-content" className={`flex flex-1 w-full ${isFullBleed ? '' : 'max-w-7xl mx-auto px-6 pt-24 pb-32'}`}>
         <div className={`flex-1 ${isFullBleed ? '' : 'overflow-y-auto'}`}>

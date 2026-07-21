@@ -1,7 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { auth, onAuthStateChanged, getRedirectResult, reload, sendEmailVerification } from '../lib/firebase';
 import type { User } from '../lib/firebase';
-import { startTrial } from '../lib/trial';
 import { establishSessionCookie, clearSessionCookie } from '../lib/api';
 
 interface AuthContextType {
@@ -60,8 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
 
       if (u) {
-        // Auto-start 3-day trial on first login
-        startTrial(u.uid);
         // Email verification disabled — all authenticated users are treated as verified
         setEmailVerified(true);
         stopVerificationPoll();

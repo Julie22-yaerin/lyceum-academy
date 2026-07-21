@@ -46,7 +46,19 @@ CREATE TABLE IF NOT EXISTS user_plans (
     cycle       TEXT NOT NULL DEFAULT 'monthly',
     selected_at TEXT NOT NULL
 );
+
+-- Unlimited test access — see redeem_unlimited_code(). There is no
+-- free-trial program anymore; this is a deliberate one-time bypass, not
+-- something regular applicants can obtain.
+CREATE TABLE IF NOT EXISTS unlimited_accounts (
+    user_id    TEXT PRIMARY KEY,
+    granted_at TEXT NOT NULL
+);
 """
+
+# Effectively-uncapped allowance shown to unlimited-access accounts —
+# large enough that no realistic usage pattern will exhaust it.
+UNLIMITED_QUANTA = 10_000_000
 
 
 def _q(tokens: int) -> int:
@@ -174,11 +186,44 @@ def current_plan(user_id: str) -> dict[str, Any]:
     with _conn() as c:
         c.executescript(_DDL)
         row = c.execute("SELECT * FROM user_plans WHERE user_id = ?", (user_id,)).fetchone()
+        unlimited = c.execute("SELECT 1 FROM unlimited_accounts WHERE user_id = ?", (user_id,)).fetchone()
     plan_id = row["plan_id"] if row else DEFAULT_PLAN_ID
     plan = PLAN_CATALOG.get(plan_id, PLAN_CATALOG[DEFAULT_PLAN_ID])
+    if unlimited:
+        # Unlimited testers always route on the top-tier plan's model
+        # quality, regardless of whatever plan_id is on file.
+        plan = PLAN_CATALOG["intense"]
     return {
         "plan": plan,
         "cycle": row["cycle"] if row else "monthly",
         "selected_at": row["selected_at"] if row else None,
         "is_default": row is None,
+        "unlimited": bool(unlimited),
     }
+
+
+def is_unlimited(user_id: str) -> bool:
+    with _conn() as c:
+        c.executescript(_DDL)
+        return c.execute("SELECT 1 FROM unlimited_accounts WHERE user_id = ?", (user_id,)).fetchone() is not None
+
+
+def redeem_unlimited_code(user_id: str, code: str) -> dict[str, Any]:
+    """One-time redemption: if `code` matches settings.admin_unlimited_test_code
+    (non-empty), permanently mark this account unlimited. Never distributed
+    to regular applicants — this is the admin's own indefinite-testing bypass
+    for the now-closed free-trial program."""
+    from app.core.config import settings
+
+    expected = settings.admin_unlimited_test_code
+    if not expected or code != expected:
+        return {"ok": False, "error": "invalid_code"}
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as c:
+        c.executescript(_DDL)
+        c.execute(
+            "INSERT INTO unlimited_accounts (user_id, granted_at) VALUES (?,?) "
+            "ON CONFLICT(user_id) DO NOTHING",
+            (user_id, now),
+        )
+    return {"ok": True, "unlimited": True}

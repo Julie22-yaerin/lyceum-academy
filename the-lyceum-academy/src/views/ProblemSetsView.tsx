@@ -9,7 +9,7 @@ import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectS
 import { recordProfileEvent } from '../lib/profile';
 import { useWorkspace } from '../context/WorkspaceContext';
 import MindMapTool from '../components/MindMapTool';
-import GameBuilder from '../components/GameBuilder';
+import { useToolDock } from '../context/ToolDockContext';
 import Confetti from '../components/Confetti';
 import { playCorrectSound, playWrongSound, speak } from '../lib/feedbackSounds';
 
@@ -1671,7 +1671,7 @@ function LensView({
 // ── Main ProblemSetsView ──────────────────────────────────────────────────
 export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: string) => void } = {}) {
   const { activeTab } = useWorkspace();
-  const [showGameBuilder, setShowGameBuilder] = useState(false);
+  const { openTool } = useToolDock();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [pages, setPages] = useState<PdfPage[]>([]);
   const [lensMode, setLensMode] = useState(false);
@@ -1688,7 +1688,6 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [lessonBusy, setLessonBusy] = useState(false);
   const [lessonError, setLessonError] = useState('');
   const [breakGames, setBreakGames] = useState<BreakGame[]>([]);
-  const [gameSeedPrompt, setGameSeedPrompt] = useState('');
   const [rawText, setRawText] = useState('');
   const [usage, setUsage] = useState<{ total_tokens?: number; total_calls?: number } | null>(null);
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
@@ -1904,8 +1903,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   }
 
   function handleBuildBreakGame(game: BreakGame) {
-    setGameSeedPrompt(game.concepts[0] || game.title);
-    setShowGameBuilder(true);
+    openTool('games', { seedPrompt: game.concepts[0] || game.title });
   }
 
   async function handleDecompose() {
@@ -2018,21 +2016,6 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
     fileRef.current?.click();
   }
 
-  if (showGameBuilder) {
-    return (
-      <div className="flex-grow flex flex-col items-center py-12 px-4 bg-surface min-h-screen">
-        <button
-          onClick={() => { setShowGameBuilder(false); setGameSeedPrompt(''); }}
-          className="self-start max-w-6xl w-full mx-auto font-sans text-[10px] uppercase tracking-[2px] opacity-50 hover:opacity-100 transition-opacity mb-2 flex items-center gap-2"
-        >
-          <span className="material-symbols-outlined text-[16px]">arrow_back</span>
-          Back to Problem Sets
-        </button>
-        <GameBuilder seedPrompt={gameSeedPrompt} />
-      </div>
-    );
-  }
-
   return (
     <div className="flex-grow flex flex-col items-center py-12 px-4 bg-surface min-h-screen">
       {/* Lens view (PDF mode) */}
@@ -2082,12 +2065,6 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
       )}
 
       <div className="text-center mb-12 max-w-2xl">
-        <button
-          onClick={() => setShowGameBuilder(true)}
-          className="mb-6 px-5 py-2 border border-outline/20 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors inline-flex items-center gap-2"
-        >
-          🎮 Game Builder
-        </button>
         <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">Socrat</h1>
         <p className="font-sans text-sm text-on-surface opacity-60 italic tracking-wide">
           "Wisdom begins in wonder and the deconstruction of the complex." — Plato

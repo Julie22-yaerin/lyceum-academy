@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from './types';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { WorkspaceProvider, useWorkspace } from './context/WorkspaceContext';
+import { ToolDockProvider } from './context/ToolDockContext';
 import { getApiBaseUrl } from './lib/apiBase';
 import { ThemeProvider } from './context/ThemeContext';
 import { I18nProvider } from './i18n/I18nContext';
@@ -27,9 +28,6 @@ import ProductTour from './components/ProductTour';
 import { buildTourSteps } from './lib/tourSteps';
 import { detectLocale, setDocumentLocale } from './lib/locale';
 import { scopedGateKey } from './lib/persist';
-import { shouldShowPaywall, trialDaysRemaining, getTrialStart, chooseFree } from './lib/trial';
-import { useSubscription } from './lib/useSubscription';
-import TrialPaywall from './components/TrialPaywall';
 import SupportChatWidget from './components/SupportChatWidget';
 
 
@@ -37,12 +35,9 @@ function AppInner() {
   const [view, setView] = useState<View>('landing');
   const { user, loading, devMode, emailVerified } = useAuth();
   const { activeTab } = useWorkspace();
-  const { hasActiveSubscription, loading: subLoading } = useSubscription();
   const [showTerms, setShowTerms] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTour, setShowTour] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
-  const [manualUpgradeOpen, setManualUpgradeOpen] = useState(false);
   const tourCheckedRef = useRef(false);
 
   useEffect(() => {
@@ -143,17 +138,6 @@ function AppInner() {
     setShowOnboarding(false);
   }
 
-  // Trial paywall: check after auth + subscription load
-  useEffect(() => {
-    if (loading || subLoading || devMode) return;
-    if (!user) return;
-    if (shouldShowPaywall(user.uid, hasActiveSubscription)) {
-      setShowPaywall(true);
-    } else {
-      setShowPaywall(false);
-    }
-  }, [loading, subLoading, devMode, user, hasActiveSubscription]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-surface flex items-center justify-center">
@@ -180,20 +164,6 @@ function AppInner() {
     return <OnboardingModal onClose={handleOnboardingClose} />;
   }
 
-  // Trial expired paywall: block workspace until user subscribes.
-  // Also reachable voluntarily (mid-trial) via the Settings "Upgrade" button —
-  // that path gets a close button instead of forcing a plan/Free decision.
-  if ((showPaywall || manualUpgradeOpen) && user) {
-    return (
-      <TrialPaywall
-        daysRemaining={trialDaysRemaining(user.uid)}
-        onSubscribe={() => {}}
-        onChooseFree={() => { chooseFree(user.uid); setShowPaywall(false); setManualUpgradeOpen(false); }}
-        onClose={manualUpgradeOpen ? () => setManualUpgradeOpen(false) : undefined}
-      />
-    );
-  }
-
   return (
     <>
       {showTour && <ProductTour steps={buildTourSteps(setView)} onFinish={handleTourFinish} />}
@@ -211,7 +181,7 @@ function AppInner() {
         {view === 'reference-bank' && <ReferenceBankView />}
         */}
         {view === 'progress' && <ProgressView />}
-        {view === 'settings' && <SettingsView onUpgrade={() => setManualUpgradeOpen(true)} />}
+        {view === 'settings' && <SettingsView />}
       </MainLayout>
       <SupportChatWidget context="workspace" />
     </>
@@ -244,7 +214,9 @@ export default function App() {
     <ThemeProvider>
       <AuthProvider>
         <WorkspaceProvider>
-          <AppInner />
+          <ToolDockProvider>
+            <AppInner />
+          </ToolDockProvider>
         </WorkspaceProvider>
       </AuthProvider>
     </ThemeProvider>

@@ -109,15 +109,32 @@
   <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
-    <nav class="flex items-center gap-1 ml-4">
-      <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
-      <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
-      <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
-      <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
-      <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
-      <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
-      <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
-      <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
+    <nav class="flex items-center gap-3 ml-4 overflow-x-auto">
+      <!-- Tier 1: Quản trị khách hàng (customer/user administration) -->
+      <div class="flex items-center gap-1">
+        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Khách hàng</span>
+        <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
+        <button id="nav-orders" onclick="viewOrders()" class="nav-btn text-xs">Orders</button>
+        <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
+      </div>
+      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
+
+      <!-- Tier 2: Phục vụ khách (customer service) -->
+      <div class="flex items-center gap-1">
+        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Phục vụ</span>
+        <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
+        <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
+      </div>
+      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
+
+      <!-- Tier 3: Quản lý hệ thống AI (AI system administration) -->
+      <div class="flex items-center gap-1">
+        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Hệ thống AI</span>
+        <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
+        <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
+        <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
+        <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
+      </div>
     </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" referrerpolicy="no-referrer" />
@@ -138,6 +155,7 @@
   <!-- Main -->
   <main class="flex-1 overflow-auto">
     <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-chat" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -211,7 +229,7 @@ function showAdmin(user) {
   ne.textContent = user ? (user.displayName || user.email) : 'dev token';
   ne.classList.remove('hidden');
   postLoginInit();
-  viewErrors();
+  viewApplications();
 }
 
 async function signInWithGoogle() {
@@ -336,7 +354,7 @@ function setActiveNav(id) {
 }
 
 function hideAllViews() {
-  ['view-applications','view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
+  ['view-applications','view-orders','view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
    'view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
 }
 
@@ -605,6 +623,102 @@ async function declineApplication(id) {
     await api(`/admin/applications/${id}/decline`, { method: 'POST' });
     toast('Đã từ chối');
     renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: ORDERS — submissions from the personal Second Brain page
+// (thelyceum.site/secondbrain): documents + a study schedule (self-built
+// or AI-suggested), submitted for the team to turn into a personalized
+// plan. FIFO — oldest pending first.
+// ════════════════════════════════════════════════════════════════
+let _ordersFilter = 'pending';
+
+async function viewOrders() {
+  hideAllViews();
+  setActiveNav('nav-orders');
+  show('view-orders');
+  await renderOrders();
+}
+
+function onOrdersFilterChange(v) {
+  _ordersFilter = v;
+  renderOrders();
+}
+
+async function renderOrders() {
+  const el = document.getElementById('view-orders');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const qs = _ordersFilter ? `?status=${_ordersFilter}` : '';
+  const { orders = [] } = await api(`/admin/orders${qs}`).then(r => r.json()).catch(() => ({ orders: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">Orders</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Documents + study schedule submitted from a student's personal Second Brain — oldest pending first.</p>
+        </div>
+        <select onchange="onOrdersFilterChange(this.value)" class="text-xs" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px">
+          <option value="pending" ${_ordersFilter==='pending'?'selected':''}>Đang chờ</option>
+          <option value="accepted" ${_ordersFilter==='accepted'?'selected':''}>Đã nhận</option>
+          <option value="declined" ${_ordersFilter==='declined'?'selected':''}>Đã từ chối</option>
+          <option value="" ${_ordersFilter===''?'selected':''}>Tất cả</option>
+        </select>
+      </div>
+
+      ${orders.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Không có order nào.</div>` : `
+      <div class="space-y-3">
+        ${orders.map(o => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs" style="color:var(--muted)">${esc(o.email || o.user_id)}</span>
+                  ${o.ai_generated ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(63,185,80,.12);color:var(--em)">AI-suggested schedule</span>` : ''}
+                  <span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">${esc(o.status)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">${timeAgo(o.created_at)} · ${o.documents.length} doc${o.documents.length===1?'':'s'} · ${o.schedule.length} block${o.schedule.length===1?'':'s'}</div>
+              </div>
+              ${o.status === 'pending' ? `
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="declineOrder('${o.id}')" class="btn btn-ghost text-xs">Decline</button>
+                <button onclick="acceptOrder('${o.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Accept</button>
+              </div>` : ''}
+            </div>
+
+            ${o.documents.length > 0 ? `
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              ${o.documents.map(d => `<span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.05);color:var(--muted)">📄 ${esc(d.title)}</span>`).join('')}
+            </div>` : ''}
+
+            ${o.schedule.length > 0 ? `
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              ${o.schedule.map(b => `<span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.05);color:var(--muted)">🗓 ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][b.dayOfWeek] || '?'} ${Math.floor((b.startMinute||0)/60)}:00 — ${esc(b.subjectKey || '')}</span>`).join('')}
+            </div>` : ''}
+
+            ${o.note ? `<div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(o.note)}"</div>` : ''}
+          </div>
+        `).join('')}
+      </div>`}
+    </div>
+  `;
+}
+
+async function acceptOrder(id) {
+  try {
+    await api(`/admin/orders/${id}/accept`, { method: 'POST' });
+    toast('✓ Đã nhận order');
+    renderOrders();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function declineOrder(id) {
+  try {
+    await api(`/admin/orders/${id}/decline`, { method: 'POST' });
+    toast('Đã từ chối');
+    renderOrders();
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 
