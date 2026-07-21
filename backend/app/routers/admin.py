@@ -61,6 +61,34 @@ async def _auth(x_admin_token: Optional[str] = Header(None)):
             raise HTTPException(status_code=403, detail="Forbidden: not an admin")
 
 
+# ── Applications ("Xét duyệt người dùng") — registration is closed; every
+# new account starts as a waitlist application an admin must accept/decline.
+# Priority applications (valid referral code) sort to the top.
+
+@router.get("/applications")
+def applications_list(status: Optional[str] = None, _: None = Depends(_auth)):
+    from app.services import applications as applications_svc
+    return {"applications": applications_svc.list_applications(status)}
+
+
+@router.post("/applications/{app_id}/accept")
+def applications_accept(app_id: str, _: None = Depends(_auth)):
+    from app.services import applications as applications_svc
+    result = applications_svc.decide(app_id, accept=True)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
+@router.post("/applications/{app_id}/decline")
+def applications_decline(app_id: str, _: None = Depends(_auth)):
+    from app.services import applications as applications_svc
+    result = applications_svc.decide(app_id, accept=False)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
 # ── RAG — document management ─────────────────────────────────────────────────
 
 @router.get("/rag/documents")

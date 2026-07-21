@@ -8,6 +8,7 @@ import { I18nProvider } from './i18n/I18nContext';
 import { migrateLegacySubjectTags } from './lib/workspace';
 import LandingPage from './views/LandingPage';
 import AuthPage from './views/AuthPage';
+import ApplyView from './views/ApplyView';
 import MainLayout from './components/MainLayout';
 import DialogueView from './views/DialogueView';
 import ExerciseView from './views/ExerciseView';
@@ -162,6 +163,7 @@ function AppInner() {
   }
 
   if (view === 'landing') return <LandingPage onNavigate={setView} currentView={view} />;
+  if (view === 'apply') return <ApplyView onNavigate={setView} currentView={view} />;
   if (view === 'auth') return <AuthPage onNavigate={setView} currentView={view} />;
 
   // Guard: unauthenticated or unverified email users get sent to auth

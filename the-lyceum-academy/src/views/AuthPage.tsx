@@ -9,12 +9,18 @@ import {
   createUserWithEmailAndPassword,
   sendEmailVerification,
   sendPasswordResetEmail,
+  signOut,
+  getAdditionalUserInfo,
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { checkLoginAttempt } from '../lib/api';
+import { getApplicationStatus } from '../lib/lyceumApi';
 import { getRecaptchaToken } from '../lib/recaptcha';
 import { useTranslation } from '../i18n/I18nContext';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
+
+const NOT_ACCEPTED_MESSAGE =
+  'Đăng ký hiện đóng — The Lyceum chỉ nhận tài khoản mới từ hồ sơ đã được duyệt. Vui lòng nộp đơn ứng tuyển trước.';
 
 type Screen = 'auth' | 'verify-email' | 'forgot-password';
 
@@ -42,7 +48,19 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
   async function handleGoogle() {
     setError(''); setBusy(true);
     try {
-      await signInWithPopup(auth, googleProvider);
+      const cred = await signInWithPopup(auth, googleProvider);
+      // Registration is closed — a brand-new Google account still needs an
+      // accepted application. An existing account signing back in is
+      // unaffected (this gate only fires for isNewUser).
+      if (getAdditionalUserInfo(cred)?.isNewUser) {
+        const status = await getApplicationStatus(cred.user.email || '').catch(() => ({ status: 'not_found' as const, priority: false }));
+        if (status.status !== 'accepted') {
+          await signOut(auth);
+          setError(NOT_ACCEPTED_MESSAGE);
+          setBusy(false);
+          return;
+        }
+      }
       onNavigate('problem-sets');
     } catch (e: any) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
@@ -65,6 +83,14 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         await signInWithEmailAndPassword(auth, email, password);
         onNavigate('problem-sets');
       } else {
+        // Registration is closed — new accounts require an accepted
+        // application (see ApplyView / admin "Xét duyệt người dùng").
+        const status = await getApplicationStatus(email).catch(() => ({ status: 'not_found' as const, priority: false }));
+        if (status.status !== 'accepted') {
+          setError(NOT_ACCEPTED_MESSAGE);
+          setBusy(false);
+          return;
+        }
         const token = await getRecaptchaToken('signup');
         await checkLoginAttempt(token);
         await createUserWithEmailAndPassword(auth, email, password);
@@ -350,6 +376,17 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                   {isLogin ? t('auth.enrollBtn') : t('auth.signInBtn')}
                 </button>
               </p>
+              {!isLogin && (
+                <p className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-50 mt-3">
+                  Chưa nộp đơn?
+                  <button
+                    onClick={() => onNavigate('apply')}
+                    className="text-on-surface font-bold hover:opacity-80 ml-1 border-b border-on-surface pb-[1px]"
+                  >
+                    Ứng tuyển tại đây
+                  </button>
+                </p>
+              )}
             </div>
           </div>
         </div>

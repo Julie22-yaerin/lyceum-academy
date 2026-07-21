@@ -110,6 +110,7 @@
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
     <nav class="flex items-center gap-1 ml-4">
+      <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
       <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
       <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
       <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
@@ -136,6 +137,7 @@
 
   <!-- Main -->
   <main class="flex-1 overflow-auto">
+    <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-chat" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -334,7 +336,7 @@ function setActiveNav(id) {
 }
 
 function hideAllViews() {
-  ['view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
+  ['view-applications','view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
    'view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
 }
 
@@ -487,6 +489,123 @@ async function reindexSecondBrain() {
     toast('Failed: '+e.message, 'err');
     btn.disabled = false; btn.textContent = '↻ Re-index vault';
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: XÉT DUYỆT NGƯỜI DÙNG — registration is closed; every new account
+// starts as a waitlist application (ApplyView: placement quiz + 4-axis
+// learning-style vector + optional referral code). Priority applications
+// (valid referral code) sort to the top. Accept/decline gates AuthPage
+// sign-up (backend checks GET /applications/status by email).
+// ════════════════════════════════════════════════════════════════
+let _applicationsFilter = 'pending';
+
+async function viewApplications() {
+  hideAllViews();
+  setActiveNav('nav-applications');
+  show('view-applications');
+  await renderApplications();
+}
+
+function onApplicationsFilterChange(v) {
+  _applicationsFilter = v;
+  renderApplications();
+}
+
+async function renderApplications() {
+  const el = document.getElementById('view-applications');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const qs = _applicationsFilter ? `?status=${_applicationsFilter}` : '';
+  const { applications = [] } = await api(`/admin/applications${qs}`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  const FRICTION_LABEL = f => f >= 0.5 ? 'High (Pure Lyceum)' : 'Low';
+  const SANDBOX_LABEL = { stem: 'STEM', physics: 'Vật lý', chemistry: 'Hoá học', math: 'Toán', general_research: 'Nghiên cứu' };
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">Xét duyệt người dùng</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Đăng ký đóng — mỗi tài khoản mới bắt đầu từ một hồ sơ ứng tuyển. Ưu tiên (mã giới thiệu hợp lệ) hiển thị lên đầu.</p>
+        </div>
+        <select onchange="onApplicationsFilterChange(this.value)" class="text-xs" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px">
+          <option value="pending" ${_applicationsFilter==='pending'?'selected':''}>Đang chờ</option>
+          <option value="accepted" ${_applicationsFilter==='accepted'?'selected':''}>Đã duyệt</option>
+          <option value="declined" ${_applicationsFilter==='declined'?'selected':''}>Đã từ chối</option>
+          <option value="" ${_applicationsFilter===''?'selected':''}>Tất cả</option>
+        </select>
+      </div>
+
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Không có hồ sơ nào.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid ${a.priority ? 'var(--amber)' : 'var(--border)'};border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                  <span class="text-xs" style="color:var(--muted)">${esc(a.email)}</span>
+                  ${a.priority ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(245,158,11,.15);color:var(--amber)">Ưu tiên</span>` : ''}
+                  <span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">${esc(a.status)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">${timeAgo(a.created_at)}</div>
+              </div>
+              ${a.status === 'pending' ? `
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="declineApplication('${a.id}')" class="btn btn-ghost text-xs">Decline</button>
+                <button onclick="acceptApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Accept</button>
+              </div>` : ''}
+            </div>
+
+            <div class="grid gap-3 mt-3 text-xs" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));color:var(--muted)">
+              <div><span class="font-medium" style="color:var(--text)">Cấp học:</span> ${esc(a.answers.grade_level || '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Nghiên cứu:</span> ${esc(a.answers.does_research || '—')} ${a.answers.research_frequency && a.answers.research_frequency !== 'n/a' ? `(${esc(a.answers.research_frequency)})` : ''}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Sandbox:</span> ${SANDBOX_LABEL[a.vector.target_sandbox] || '—'}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ma sát nhận thức:</span> ${a.vector.cognitive_friction != null ? FRICTION_LABEL(a.vector.cognitive_friction) : '—'}</div>
+              <div><span class="font-medium" style="color:var(--text)">Mã giới thiệu:</span> ${esc(a.referral_code || '—')}</div>
+            </div>
+
+            ${a.answers.biggest_difficulty ? `
+            <div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(a.answers.biggest_difficulty)}"</div>` : ''}
+
+            ${a.vector.encoding_channel != null ? `
+            <div class="mt-3 space-y-1.5">
+              ${[
+                ['Spatial/Visual', 'Verbal/Narrative', a.vector.encoding_channel],
+                ['Global/Intuitive', 'Sequential/Procedural', a.vector.processing_structure],
+                ['Active/Derivation', 'Reflective/Conceptual', a.vector.engagement_mode],
+              ].map(([l, r, v]) => `
+                <div class="flex items-center gap-2 text-[10px]" style="color:var(--muted)">
+                  <span style="width:120px" class="text-right">${l}</span>
+                  <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);position:relative">
+                    <div style="position:absolute;left:${Math.round((v||0)*100)}%;top:-2px;width:8px;height:8px;border-radius:50%;background:var(--amber);transform:translateX(-50%)"></div>
+                  </div>
+                  <span style="width:120px">${r}</span>
+                </div>`).join('')}
+            </div>` : ''}
+          </div>
+        `).join('')}
+      </div>`}
+    </div>
+  `;
+}
+
+async function acceptApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/accept`, { method: 'POST' });
+    toast('✓ Đã duyệt');
+    renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function declineApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/decline`, { method: 'POST' });
+    toast('Đã từ chối');
+    renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════════════════

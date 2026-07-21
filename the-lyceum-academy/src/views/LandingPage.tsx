@@ -351,7 +351,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
               <LiquidMetalButton
                 label="Start Learning"
-                onClick={() => onNavigate('auth')}
+                onClick={() => onNavigate('apply')}
               />
               <a
                 href="#method"
@@ -505,8 +505,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <p className="text-slate-400 max-w-md">Ten subjects. One method. No lectures — just the right question, at the right time.</p>
           <LiquidMetalButton
             label="Get Started"
-            onClick={() => onNavigate('auth')}
+            onClick={() => onNavigate('apply')}
           />
+          <p className="text-xs text-slate-500">By application only — takes about a minute.</p>
         </motion.div>
       </section>
 

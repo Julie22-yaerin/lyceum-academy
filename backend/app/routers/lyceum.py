@@ -37,6 +37,13 @@ Lyceum ship-day router — the new product surface added for launch:
   Coach lesson package (the standard content unit for one topic)
     POST /ai/generate-lesson     — note+images+refs, 2 card sets (≤15 each),
                                     1-2 break games — see app.services.lesson
+
+  Applications (registration is closed — "Get Started" applies to a waitlist)
+    POST /applications/apply     — public, no auth: submit the onboarding
+                                    quest (placement answers + learning-style
+                                    vector + optional referral code)
+    GET  /applications/status    — public, no auth: check status by email
+    (admin review — list/accept/decline — lives in app.routers.admin)
 """
 
 from __future__ import annotations
@@ -58,6 +65,37 @@ def _uid(auth: dict) -> str:
     if not uid:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return uid
+
+
+# ── Applications (registration is closed — this is the waitlist gate) ──────
+# Public endpoints — an applicant has no Firebase account yet at this point.
+
+
+class ApplyRequest(BaseModel):
+    email: str
+    name: str = ""
+    answers: dict = {}
+    vector: dict = {}
+    referral_code: str = ""
+
+
+@router.post("/applications/apply")
+@limiter.limit("5/minute")
+async def applications_apply(request: Request, req: ApplyRequest):
+    from app.services import applications as applications_svc
+    result = applications_svc.submit_application(
+        req.email, req.name, req.answers, req.vector, req.referral_code,
+    )
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "invalid_application"))
+    return result
+
+
+@router.get("/applications/status")
+@limiter.limit("20/minute")
+async def applications_status(request: Request, email: str):
+    from app.services import applications as applications_svc
+    return applications_svc.get_status(email)
 
 
 # ── Plans ────────────────────────────────────────────────────────────────────

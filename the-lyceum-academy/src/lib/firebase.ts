@@ -16,6 +16,7 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  getAdditionalUserInfo,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
 
@@ -48,5 +49,6 @@ export {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  getAdditionalUserInfo,
 };
 export type { User };

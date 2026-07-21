@@ -24,6 +24,25 @@ async function postJson<T>(path: string, body: unknown, method = 'POST'): Promis
   return res.json();
 }
 
+/** Unauthenticated variants — applications happen before any account exists,
+ * so these must NOT go through authFetch (no Firebase user to attach a token
+ * for yet). */
+async function publicPostJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.detail || `Request failed (${res.status})`);
+  return res.json();
+}
+
+async function publicGetJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.detail || `Request failed (${res.status})`);
+  return res.json();
+}
+
 // ── Quanta wallet ───────────────────────────────────────────────────────────
 
 export interface QuantaBalance {
@@ -161,6 +180,38 @@ export function addSecondBrainNote(title: string, content: string, subject = '')
 
 export function listSecondBrainCustom(): Promise<{ notes: { id: string; title: string; subject: string }[] }> {
   return getJson('/second-brain/custom');
+}
+
+// ── Applications (registration is closed — this is the waitlist gate) ──────
+
+export interface LearningVector {
+  /** 0 = Spatial/Visual, 1 = Verbal/Narrative */
+  encoding_channel: number;
+  /** 0 = Global/Intuitive, 1 = Sequential/Procedural */
+  processing_structure: number;
+  /** 0 = Active/Derivation, 1 = Reflective/Conceptual */
+  engagement_mode: number;
+  target_sandbox: 'stem' | 'physics' | 'chemistry' | 'math' | 'general_research';
+  /** 0 = Low friction, 1 = High — "Pure Lyceum Mode" */
+  cognitive_friction: number;
+}
+
+export interface ApplicationAnswers {
+  grade_level: string;
+  does_research: 'yes' | 'no';
+  research_frequency: string;
+  biggest_difficulty: string;
+  budget_usd: number;
+}
+
+export function submitApplication(
+  email: string, name: string, answers: ApplicationAnswers, vector: LearningVector, referralCode = '',
+): Promise<{ ok: boolean; status: string; priority: boolean; resubmitted?: boolean; already_decided?: boolean }> {
+  return publicPostJson('/applications/apply', { email, name, answers, vector, referral_code: referralCode });
+}
+
+export function getApplicationStatus(email: string): Promise<{ status: 'not_found' | 'pending' | 'accepted' | 'declined'; priority: boolean }> {
+  return publicGetJson(`/applications/status?email=${encodeURIComponent(email)}`);
 }
 
 // ── Note generation from the Second Brain ───────────────────────────────────
