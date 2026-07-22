@@ -188,6 +188,32 @@ export function redeemUnlimitedAccess(code: string): Promise<{ ok: boolean; unli
   return postJson('/account/redeem-unlimited', { code });
 }
 
+// ── Per-workspace tools, prefs & personal Second Brain ─────────────────────
+
+/** Which Tool Dock tools this account may see (admin+Opus curated). */
+export function getMyTools(): Promise<{ tools: string[]; curated: boolean }> {
+  return getJson('/me/tools');
+}
+
+export function getMyPrefs(): Promise<{ allow_training: boolean }> {
+  return getJson('/me/prefs');
+}
+
+export function setTrainingPref(allow: boolean): Promise<{ ok: boolean; allow_training: boolean }> {
+  return postJson('/me/prefs/training', { allow_training: allow });
+}
+
+export interface BrainNote { id: string; title: string; content: string; subject: string; source: string; created_at: string; }
+
+export function listMyBrain(): Promise<{ notes: BrainNote[] }> {
+  return getJson('/me/brain');
+}
+
+/** Add material to my OWN Second Brain, AI-distilled — costs Quanta. */
+export function addToMyBrain(title: string, content: string, subject = ''): Promise<{ ok: boolean; id: string; title: string }> {
+  return postJson('/me/brain/add', { title, content, subject });
+}
+
 // ── Applications (registration is closed — this is the waitlist gate) ──────
 
 export interface LearningVector {
@@ -204,6 +230,8 @@ export interface LearningVector {
 
 export interface ApplicationAnswers {
   grade_level: string;
+  subjects: string;          // free text — which subjects they need to learn
+  purpose: string;           // free text — what they're learning it for
   does_research: 'yes' | 'no';
   research_frequency: string;
   biggest_difficulty: string;

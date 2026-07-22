@@ -189,8 +189,18 @@ export function loadNotes(subjectFilter?: string): SavedNote[] {
 
 export function saveNote(note: Omit<SavedNote, 'expiresAt'> & { expiresAt?: number }): void {
   const full: SavedNote = { ...note, expiresAt: note.expiresAt ?? (Date.now() + NOTE_KEEP_MS) };
+  const isNew = !loadNotes().some(n => n.id === full.id);
   const list = loadNotes().filter(n => n.id !== full.id);
   list.unshift(full);
+  // Learning a new note schedules its 3-7-21 spaced-repetition checkpoints.
+  if (isNew) {
+    const seed = full.note?.tldr || full.note?.summary
+      || (full.note?.key_concepts || []).map((k: any) => `${k.concept}: ${k.definition || ''}`).join('\n')
+      || full.title;
+    void import('./reviewReminders').then(({ registerLearned }) =>
+      registerLearned(full.id, full.title, full.subject || 'general', String(seed || full.title))
+    ).catch(() => { /* non-critical */ });
+  }
   // Keep max 40 notes; drop full note bodies from the oldest if quota hits
   try { localStorage.setItem(NOTES_KEY, JSON.stringify(list.slice(0, 40))); } catch {
     try {

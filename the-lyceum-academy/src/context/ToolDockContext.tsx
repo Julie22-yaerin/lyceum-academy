@@ -3,10 +3,29 @@
  * that used to live inside one specific view (Feynman in Notes, Game
  * Builder in Socrat) are now workspace-wide, reachable from the left-edge
  * ToolDock on every screen.
+ *
+ * Tools are split into two tiers:
+ *   Tier 1 — the standard learning aids (Feynman, Tool Map, Reverse Build,
+ *            Games, Spaced Repetition).
+ *   Tier 2 — high-intensity "cognitive stress" tools that deliberately
+ *            overload the senses (Dark Room, Kinetic Stress, Paradox Engine,
+ *            Hostile Mode, Scalpel). Opening one the first time shows a
+ *            neural-overload warning the student must accept.
+ *
+ * Which tools an account may see is curated per-user by the admin+Opus
+ * (backend GET /me/tools); the dock filters against that list.
  */
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-export type ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition';
+export type Tier1ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition';
+export type Tier2ToolId = 'dark-room' | 'kinetic-stress' | 'paradox' | 'hostile' | 'scalpel';
+export type ToolId = Tier1ToolId | Tier2ToolId;
+
+export const TIER2_TOOLS: Tier2ToolId[] = ['dark-room', 'kinetic-stress', 'paradox', 'hostile', 'scalpel'];
+
+export function isTier2(id: ToolId): id is Tier2ToolId {
+  return (TIER2_TOOLS as string[]).includes(id);
+}
 
 interface ToolDockValue {
   activeTool: ToolId | null;

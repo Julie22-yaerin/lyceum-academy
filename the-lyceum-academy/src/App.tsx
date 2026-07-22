@@ -29,6 +29,7 @@ import { buildTourSteps } from './lib/tourSteps';
 import { detectLocale, setDocumentLocale } from './lib/locale';
 import { scopedGateKey } from './lib/persist';
 import SupportChatWidget from './components/SupportChatWidget';
+import ReviewPopup from './components/ReviewPopup';
 
 
 function AppInner() {
@@ -184,6 +185,7 @@ function AppInner() {
         {view === 'settings' && <SettingsView />}
       </MainLayout>
       <SupportChatWidget context="workspace" />
+      <ReviewPopup />
     </>
   );
 }

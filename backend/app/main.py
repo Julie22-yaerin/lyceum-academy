@@ -322,6 +322,8 @@ async def lifespan(_app: FastAPI):
     library_svc.init_db()
     from app.services import orders as orders_svc
     orders_svc.init_db()
+    from app.services import user_brain as user_brain_svc
+    user_brain_svc.init_db()
 
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents
@@ -833,6 +835,19 @@ async def ai_chat(request: Request, req: ChatRequest, _: dict = Depends(require_
                 {"role": "system", "content": f"Reference material from the knowledge base (use if relevant, otherwise ignore):\n{rag_context}"},
                 *messages,
             ]
+
+        # ── Personal Second Brain + learning-method glossary: brief every AI
+        # in the student's workspace on who they are and how they learn
+        # (TOP DOWN / HARD TO EASY / JUST IN TIME). Private per workspace.
+        try:
+            from app.services import user_brain
+            _brain_uid = _uid_from_request(request)
+            if _brain_uid:
+                brain_ctx = user_brain.system_context_for_user(_brain_uid)
+                if brain_ctx:
+                    messages = [{"role": "system", "content": brain_ctx}, *messages]
+        except Exception:
+            pass
 
         # ── Persona (optional): inject scientist persona as system context ─
         if req.persona_id and settings.has_firestore:

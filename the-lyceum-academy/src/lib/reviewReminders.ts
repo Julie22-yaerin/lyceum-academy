@@ -1,0 +1,84 @@
+/**
+ * Review reminders — the 3-7-21 spaced-repetition schedule. When a student
+ * learns something (a saved note, a completed lesson), we register the topic
+ * and queue three review checkpoints: +3, +7 and +21 days out. On each due
+ * checkpoint the workspace surfaces a popup that makes them re-solve 1-3 short
+ * questions (easy → medium → hard) and re-read a compact summary of the old
+ * material.
+ *
+ * Storage is local (per browser). Questions/summary are generated lazily by
+ * the AI when a checkpoint comes due, so nothing heavy runs at learn-time.
+ */
+
+const KEY = 'lyceum_review_3_7_21_v1';
+const DAY = 86400000;
+const OFFSETS_DAYS = [3, 7, 21];
+
+export interface ReviewItem {
+  id: string;              // stable id (note id / lesson id)
+  topic: string;
+  subject: string;
+  summarySeed: string;     // raw material the AI compresses into the recap
+  learnedAt: number;
+  /** epoch ms for each checkpoint; null once that checkpoint is cleared. */
+  checkpoints: (number | null)[];
+}
+
+function load(): ReviewItem[] {
+  try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+}
+
+function save(items: ReviewItem[]): void {
+  try { localStorage.setItem(KEY, JSON.stringify(items.slice(0, 300))); } catch { /* quota */ }
+}
+
+/** Register a freshly-learned topic. Idempotent on id. */
+export function registerLearned(id: string, topic: string, subject: string, summarySeed: string): void {
+  const items = load();
+  if (items.some(i => i.id === id)) return;
+  const now = Date.now();
+  items.push({
+    id, topic, subject, summarySeed: summarySeed.slice(0, 4000), learnedAt: now,
+    checkpoints: OFFSETS_DAYS.map(d => now + d * DAY),
+  });
+  save(items);
+}
+
+/** The single most-overdue checkpoint that's due right now, if any. */
+export function nextDueReview(): { item: ReviewItem; checkpointIndex: number; stage: 3 | 7 | 21 } | null {
+  const now = Date.now();
+  const items = load();
+  let best: { item: ReviewItem; checkpointIndex: number; due: number } | null = null;
+  for (const item of items) {
+    item.checkpoints.forEach((due, idx) => {
+      if (due !== null && due <= now && (!best || due < best.due)) {
+        best = { item, checkpointIndex: idx, due };
+      }
+    });
+  }
+  if (!best) return null;
+  return { item: best.item, checkpointIndex: best.checkpointIndex, stage: OFFSETS_DAYS[best.checkpointIndex] as 3 | 7 | 21 };
+}
+
+/** Mark a checkpoint cleared so it stops surfacing. */
+export function clearCheckpoint(id: string, checkpointIndex: number): void {
+  const items = load();
+  const item = items.find(i => i.id === id);
+  if (!item) return;
+  item.checkpoints[checkpointIndex] = null;
+  // Once all three are cleared, drop the item entirely.
+  if (item.checkpoints.every(c => c === null)) {
+    save(items.filter(i => i.id !== id));
+  } else {
+    save(items);
+  }
+}
+
+/** Snooze a due checkpoint by a day (student dismissed the popup). */
+export function snoozeCheckpoint(id: string, checkpointIndex: number): void {
+  const items = load();
+  const item = items.find(i => i.id === id);
+  if (!item || item.checkpoints[checkpointIndex] === null) return;
+  item.checkpoints[checkpointIndex] = Date.now() + DAY;
+  save(items);
+}

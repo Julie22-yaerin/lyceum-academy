@@ -114,6 +114,9 @@
       <div class="flex items-center gap-1">
         <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Khách hàng</span>
         <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
+        <button id="nav-meetings" onclick="viewMeetings()" class="nav-btn text-xs">Gặp gỡ</button>
+        <button id="nav-brain" onclick="viewBrain()" class="nav-btn text-xs">Second Brain riêng</button>
+        <button id="nav-trash" onclick="viewTrash()" class="nav-btn text-xs">Thùng rác</button>
         <button id="nav-orders" onclick="viewOrders()" class="nav-btn text-xs">Orders</button>
         <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
       </div>
@@ -155,6 +158,9 @@
   <!-- Main -->
   <main class="flex-1 overflow-auto">
     <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-meetings" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
+    <div id="view-trash" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -354,8 +360,8 @@ function setActiveNav(id) {
 }
 
 function hideAllViews() {
-  ['view-applications','view-orders','view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
-   'view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
+  ['view-applications','view-meetings','view-brain','view-trash','view-orders','view-errors','view-ai-system',
+   'view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -545,12 +551,12 @@ async function renderApplications() {
       <div class="flex items-center justify-between">
         <div>
           <h1 class="text-xl font-bold">Xét duyệt người dùng</h1>
-          <p class="text-sm mt-0.5" style="color:var(--muted)">Đăng ký đóng — mỗi tài khoản mới bắt đầu từ một hồ sơ ứng tuyển. Ưu tiên (mã giới thiệu hợp lệ) hiển thị lên đầu.</p>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Vuốt phải (Chấp nhận) → chuyển sang <b>Gặp gỡ</b>. Vuốt trái (Từ chối) → vào <b>Thùng rác</b> giữ 7 ngày rồi tự xoá.</p>
         </div>
         <select onchange="onApplicationsFilterChange(this.value)" class="text-xs" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px">
           <option value="pending" ${_applicationsFilter==='pending'?'selected':''}>Đang chờ</option>
-          <option value="accepted" ${_applicationsFilter==='accepted'?'selected':''}>Đã duyệt</option>
-          <option value="declined" ${_applicationsFilter==='declined'?'selected':''}>Đã từ chối</option>
+          <option value="meeting" ${_applicationsFilter==='meeting'?'selected':''}>Gặp gỡ</option>
+          <option value="accepted" ${_applicationsFilter==='accepted'?'selected':''}>Đã duyệt (mở đăng ký)</option>
           <option value="" ${_applicationsFilter===''?'selected':''}>Tất cả</option>
         </select>
       </div>
@@ -571,13 +577,13 @@ async function renderApplications() {
               </div>
               ${a.status === 'pending' ? `
               <div class="flex items-center gap-2 shrink-0">
-                <button onclick="declineApplication('${a.id}')" class="btn btn-ghost text-xs">Decline</button>
-                <button onclick="acceptApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Accept</button>
+                <button onclick="declineApplication('${a.id}')" class="btn btn-ghost text-xs">← Từ chối</button>
+                <button onclick="acceptApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Chấp nhận →</button>
               </div>` : ''}
             </div>
 
             <div class="grid gap-3 mt-3 text-xs" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));color:var(--muted)">
-              <div><span class="font-medium" style="color:var(--text)">Cấp học:</span> ${esc(a.answers.grade_level || '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Cấp độ:</span> ${esc(a.answers.grade_level || '—')}</div>
               <div><span class="font-medium" style="color:var(--text)">Nghiên cứu:</span> ${esc(a.answers.does_research || '—')} ${a.answers.research_frequency && a.answers.research_frequency !== 'n/a' ? `(${esc(a.answers.research_frequency)})` : ''}</div>
               <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}</div>
               <div><span class="font-medium" style="color:var(--text)">Sandbox:</span> ${SANDBOX_LABEL[a.vector.target_sandbox] || '—'}</div>
@@ -585,6 +591,10 @@ async function renderApplications() {
               <div><span class="font-medium" style="color:var(--text)">Mã giới thiệu:</span> ${esc(a.referral_code || '—')}</div>
             </div>
 
+            ${a.answers.subjects ? `
+            <div class="mt-2 text-xs"><span class="font-medium" style="color:var(--text)">Môn cần học:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
+            ${a.answers.purpose ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
             ${a.answers.biggest_difficulty ? `
             <div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(a.answers.biggest_difficulty)}"</div>` : ''}
 
@@ -613,7 +623,7 @@ async function renderApplications() {
 async function acceptApplication(id) {
   try {
     await api(`/admin/applications/${id}/accept`, { method: 'POST' });
-    toast('✓ Đã duyệt');
+    toast('✓ Chuyển sang Gặp gỡ');
     renderApplications();
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
@@ -621,8 +631,305 @@ async function acceptApplication(id) {
 async function declineApplication(id) {
   try {
     await api(`/admin/applications/${id}/decline`, { method: 'POST' });
-    toast('Đã từ chối');
+    toast('Đã cho vào thùng rác (giữ 7 ngày)');
     renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: MEETINGS ("Gặp gỡ") — applicants accepted from the queue.
+// Here the admin schedules onboarding, builds their Second Brain with
+// Opus, then finalizes (→ 'accepted', which unlocks account creation).
+// ════════════════════════════════════════════════════════════════
+async function viewMeetings() {
+  hideAllViews();
+  setActiveNav('nav-meetings');
+  show('view-meetings');
+  await renderMeetings();
+}
+
+async function renderMeetings() {
+  const el = document.getElementById('view-meetings');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { applications = [] } = await api(`/admin/applications?status=meeting`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Gặp gỡ</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Những người đã được chọn. Họp onboarding → dựng Second Brain riêng với Opus → hoàn tất để mở đăng ký.</p>
+      </div>
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Chưa có ai trong danh sách gặp gỡ.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                  <span class="text-xs" style="color:var(--muted)">${esc(a.email)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">Chấp nhận ${a.decided_at ? timeAgo(a.decided_at) : ''}</div>
+                ${a.answers.subjects ? `<div class="text-xs mt-1"><span style="color:var(--text)">Môn:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
+                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="openBrainFor('${esc(a.email)}')" class="btn btn-ghost text-xs">🧠 Dựng Second Brain</button>
+                <button onclick="finalizeApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Hoàn tất → mở đăng ký</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function finalizeApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/finalize`, { method: 'POST' });
+    toast('✓ Đã mở đăng ký cho người này');
+    renderMeetings();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: TRASH ("Thùng rác") — declined applications, kept 7 days.
+// ════════════════════════════════════════════════════════════════
+async function viewTrash() {
+  hideAllViews();
+  setActiveNav('nav-trash');
+  show('view-trash');
+  await renderTrash();
+}
+
+async function renderTrash() {
+  const el = document.getElementById('view-trash');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { applications = [] } = await api(`/admin/applications/trash`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Thùng rác</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Hồ sơ bị từ chối. Tự động xoá vĩnh viễn sau 7 ngày. Có thể khôi phục về hàng chờ.</p>
+      </div>
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Thùng rác trống.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px;opacity:.75">
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                <span class="text-xs ml-2" style="color:var(--muted)">${esc(a.email)}</span>
+              </div>
+              <div class="flex items-center gap-3 shrink-0">
+                <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">còn ${a.days_left ?? 0} ngày</span>
+                <button onclick="restoreApplication('${a.id}')" class="btn btn-ghost text-xs">↩ Khôi phục</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function restoreApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/restore`, { method: 'POST' });
+    toast('↩ Đã khôi phục về hàng chờ');
+    renderTrash();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: PER-USER SECOND BRAIN ("Second Brain riêng") — chat WITH Opus to
+// design one student's personal brain, commit notes, and curate their Tool
+// Dock. Everything scoped to that user's workspace.
+// ════════════════════════════════════════════════════════════════
+let _brainKey = '';
+const ALL_TOOLS = [
+  { id:'feynman', label:'Feynman', tier:1 }, { id:'toolmap', label:'Tool Map', tier:1 },
+  { id:'reverse-build', label:'Reverse Build', tier:1 }, { id:'games', label:'Games', tier:1 },
+  { id:'spaced-repetition', label:'Spaced Repetition', tier:1 },
+  { id:'dark-room', label:'Dark Room', tier:2 }, { id:'kinetic-stress', label:'Kinetic Stress', tier:2 },
+  { id:'paradox', label:'Paradox Engine', tier:2 }, { id:'hostile', label:'Hostile Mode', tier:2 },
+  { id:'scalpel', label:'Scalpel', tier:2 },
+];
+let _brainTools = new Set();
+
+async function viewBrain() {
+  hideAllViews();
+  setActiveNav('nav-brain');
+  show('view-brain');
+  await renderBrainPicker();
+}
+
+function openBrainFor(email) {
+  _brainKey = email;
+  viewBrain();
+}
+
+async function renderBrainPicker() {
+  const el = document.getElementById('view-brain');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { users = [] } = await api(`/admin/brain/users`).then(r => r.json()).catch(() => ({ users: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-5 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Second Brain riêng</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Chat với Opus để thiết kế bộ não riêng cho từng học viên (tự động lưu), commit ghi chú, và chọn công cụ cho họ.</p>
+      </div>
+      <div class="flex gap-2">
+        <input id="brain-key-input" value="${esc(_brainKey)}" placeholder="Email hoặc UID của học viên"
+          class="text-sm flex-1" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px" />
+        <button onclick="loadBrain(document.getElementById('brain-key-input').value.trim())" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Mở workspace</button>
+      </div>
+      ${users.length ? `
+        <div>
+          <p class="text-[10px] uppercase tracking-wider mb-2" style="color:var(--muted)">Đã có brain</p>
+          <div class="space-y-1.5">
+            ${users.map(u => `
+              <button onclick="loadBrain('${esc(u.user_key)}')" class="w-full text-left text-xs flex items-center justify-between" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+                <span>${esc(u.user_key)}</span>
+                <span style="color:var(--muted)">${u.notes} ghi chú · ${u.chat_turns} lượt chat</span>
+              </button>`).join('')}
+          </div>
+        </div>` : ''}
+      ${_brainKey ? `<div id="brain-workspace"></div>` : ''}
+    </div>`;
+  if (_brainKey) loadBrain(_brainKey);
+}
+
+async function loadBrain(key) {
+  if (!key) return;
+  _brainKey = key;
+  const host = document.getElementById('brain-workspace') || (() => {
+    const d = document.createElement('div'); d.id = 'brain-workspace';
+    document.getElementById('view-brain').appendChild(d); return d;
+  })();
+  host.innerHTML = `<div class="text-sm mt-4" style="color:var(--muted)">Loading workspace…</div>`;
+  const data = await api(`/admin/brain/${encodeURIComponent(key)}`).then(r => r.json()).catch(() => ({ notes:[], chat:[], tools:[], prefs:{} }));
+  _brainTools = new Set(data.tools || []);
+
+  host.innerHTML = `
+    <div class="grid gap-4 mt-4" style="grid-template-columns:1fr 1fr">
+      <!-- Opus chat -->
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold">🧠 Chat với Opus — ${esc(key)}</span>
+          <span class="text-[10px]" style="color:var(--muted)">tự động lưu</span>
+        </div>
+        <div id="brain-chat-log" style="height:340px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:10px" class="space-y-2 text-xs"></div>
+        <div class="flex gap-2 mt-2">
+          <textarea id="brain-chat-input" rows="2" placeholder="Mô tả buổi họp, yêu cầu Opus soạn ghi chú brain…"
+            class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px"></textarea>
+          <button onclick="sendBrainChat()" id="brain-send" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Gửi</button>
+        </div>
+      </div>
+
+      <!-- Notes + tools -->
+      <div class="space-y-4">
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <p class="text-sm font-semibold mb-2">Ghi chú trong brain</p>
+          <div id="brain-notes" class="space-y-1.5 text-xs mb-3"></div>
+          <input id="brain-note-title" placeholder="Tiêu đề ghi chú" class="text-xs w-full mb-1.5" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px" />
+          <textarea id="brain-note-body" rows="3" placeholder="Nội dung — có thể dán từ khối NOTE: của Opus" class="text-xs w-full mb-1.5" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px"></textarea>
+          <button onclick="commitBrainNote()" class="btn btn-ghost text-xs w-full">+ Thêm vào brain</button>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <p class="text-sm font-semibold mb-2">Công cụ cho học viên này</p>
+          <div class="space-y-2">
+            ${['1','2'].map(tier => `
+              <div>
+                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${tier==='2'?'#f87171':'var(--muted)'}">Bậc ${tier}${tier==='2'?' · cường độ cao':''}</p>
+                <div class="flex flex-wrap gap-1.5">
+                  ${ALL_TOOLS.filter(t=>String(t.tier)===tier).map(t=>`
+                    <button onclick="toggleBrainTool('${t.id}')" id="tool-${t.id}"
+                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?(tier==='2'?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)'):'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
+                      ${t.label}
+                    </button>`).join('')}
+                </div>
+              </div>`).join('')}
+          </div>
+          <button onclick="saveBrainTools()" class="btn text-xs w-full mt-3" style="background:var(--amber);color:#1a1a1a">Lưu công cụ</button>
+        </div>
+      </div>
+    </div>`;
+
+  renderBrainChat(data.chat || []);
+  renderBrainNotes(data.notes || []);
+}
+
+function renderBrainChat(chat) {
+  const log = document.getElementById('brain-chat-log');
+  if (!log) return;
+  log.innerHTML = chat.length ? chat.map(m => `
+    <div style="text-align:${m.role==='admin'?'right':'left'}">
+      <span style="display:inline-block;max-width:85%;padding:6px 10px;border-radius:10px;background:${m.role==='admin'?'rgba(245,158,11,.15)':'var(--surface)'};white-space:pre-wrap">${esc(m.content)}</span>
+    </div>`).join('') : `<div style="color:var(--muted)">Bắt đầu cuộc trò chuyện với Opus để dựng brain.</div>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderBrainNotes(notes) {
+  const el = document.getElementById('brain-notes');
+  if (!el) return;
+  el.innerHTML = notes.length ? notes.map(n => `
+    <div class="flex items-center justify-between gap-2">
+      <span class="truncate">🧠 ${esc(n.title)}${n.subject?` · ${esc(n.subject)}`:''} <span style="color:var(--muted)">(${esc(n.source)})</span></span>
+      <button onclick="deleteBrainNote('${n.id}')" style="color:var(--muted)" class="shrink-0">✕</button>
+    </div>`).join('') : `<div style="color:var(--muted)">Chưa có ghi chú nào.</div>`;
+}
+
+async function sendBrainChat() {
+  const input = document.getElementById('brain-chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const btn = document.getElementById('brain-send');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await api(`/admin/brain/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, message: msg }) });
+    input.value = '';
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainChat(data.chat || []);
+  } catch (e) { toast('Opus lỗi: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Gửi'; }
+}
+
+async function commitBrainNote() {
+  const title = document.getElementById('brain-note-title').value.trim();
+  const content = document.getElementById('brain-note-body').value.trim();
+  if (!content) { toast('Nhập nội dung ghi chú', 'err'); return; }
+  try {
+    await api(`/admin/brain/notes`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, title: title||'Ghi chú', content }) });
+    document.getElementById('brain-note-title').value = '';
+    document.getElementById('brain-note-body').value = '';
+    toast('✓ Đã thêm vào brain');
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainNotes(data.notes || []);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function deleteBrainNote(id) {
+  try {
+    await api(`/admin/brain/notes/${id}`, { method:'DELETE' });
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainNotes(data.notes || []);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+function toggleBrainTool(id) {
+  if (_brainTools.has(id)) _brainTools.delete(id); else _brainTools.add(id);
+  const btn = document.getElementById('tool-' + id);
+  const tier = ALL_TOOLS.find(t=>t.id===id).tier;
+  const on = _brainTools.has(id);
+  btn.style.background = on ? (tier===2?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)') : 'transparent';
+  btn.style.color = on ? 'var(--text)' : 'var(--muted)';
+}
+
+async function saveBrainTools() {
+  try {
+    await api(`/admin/brain/tools`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, tools: [..._brainTools] }) });
+    toast('✓ Đã lưu công cụ');
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 

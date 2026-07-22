@@ -89,6 +89,101 @@ def applications_decline(app_id: str, _: None = Depends(_auth)):
     return result
 
 
+@router.post("/applications/{app_id}/finalize")
+def applications_finalize(app_id: str, _: None = Depends(_auth)):
+    """After the onboarding meeting: promote 'meeting' → 'accepted' (unlocks sign-up)."""
+    from app.services import applications as applications_svc
+    result = applications_svc.finalize_meeting(app_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
+@router.post("/applications/{app_id}/restore")
+def applications_restore(app_id: str, _: None = Depends(_auth)):
+    """Pull a declined application back out of the trash into the queue."""
+    from app.services import applications as applications_svc
+    result = applications_svc.restore(app_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
+@router.get("/applications/trash")
+def applications_trash(_: None = Depends(_auth)):
+    """Declined applications still inside the 7-day window (auto-purges expired)."""
+    from app.services import applications as applications_svc
+    return {"applications": applications_svc.list_trash()}
+
+
+# ── Per-user Second Brain — the admin builds a personalized brain WITH Opus
+# for each accepted student, then curates their tools. Everything scoped to
+# one workspace (backend: app/services/user_brain.py).
+
+class BrainChatIn(BaseModel):
+    user_key: str
+    message: str
+
+
+class BrainNoteIn(BaseModel):
+    user_key: str
+    title: str
+    content: str
+    subject: str = ""
+
+
+class ToolsIn(BaseModel):
+    user_key: str
+    tools: list[str] = []
+
+
+@router.get("/brain/users")
+def brain_users(_: None = Depends(_auth)):
+    from app.services import user_brain
+    return {"users": user_brain.list_brain_users()}
+
+
+@router.get("/brain/{user_key}")
+def brain_detail(user_key: str, _: None = Depends(_auth)):
+    from app.services import user_brain
+    return {
+        "notes": user_brain.list_notes(user_key),
+        "chat": user_brain.chat_history(user_key),
+        "tools": user_brain.get_tools(user_key)["tools"],
+        "prefs": user_brain.get_prefs(user_key),
+    }
+
+
+@router.post("/brain/chat")
+async def brain_chat(body: BrainChatIn, _: None = Depends(_auth)):
+    """One admin turn in the Opus brain-building chat (auto-saved)."""
+    from app.services import user_brain
+    result = await user_brain.opus_brain_chat(body.user_key, body.message)
+    if not result.get("ok"):
+        raise HTTPException(status_code=503, detail=result.get("error"))
+    return result
+
+
+@router.post("/brain/notes")
+def brain_add_note(body: BrainNoteIn, _: None = Depends(_auth)):
+    from app.services import user_brain
+    return user_brain.add_note(body.user_key, body.title, body.content, body.subject, source="admin")
+
+
+@router.delete("/brain/notes/{note_id}")
+def brain_delete_note(note_id: str, _: None = Depends(_auth)):
+    from app.services import user_brain
+    if not user_brain.delete_note(note_id):
+        raise HTTPException(status_code=404, detail="not_found")
+    return {"ok": True}
+
+
+@router.put("/brain/tools")
+def brain_set_tools(body: ToolsIn, _: None = Depends(_auth)):
+    from app.services import user_brain
+    return user_brain.set_tools(body.user_key, body.tools)
+
+
 # ── Orders — submissions from the personal Second Brain page
 # (thelyceum.site/secondbrain): documents + a study schedule (self-built or
 # AI-suggested), submitted for the team to turn into a personalized plan.

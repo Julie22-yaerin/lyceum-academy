@@ -292,6 +292,85 @@ async def redeem_unlimited(request: Request, req: RedeemUnlimitedRequest, auth: 
     return result
 
 
+# ── Personal Second Brain, tools & prefs (per-workspace) ───────────────────
+
+
+@router.get("/me/tools")
+async def my_tools(auth: dict = Depends(require_auth)):
+    """Which Tool Dock tools this account may see. Admin+Opus curate these
+    per user; uncurated accounts get the tier-1 default set."""
+    from app.services import user_brain
+    keys = [_uid(auth)]
+    if auth.get("email"):
+        keys.append(auth["email"])
+    return user_brain.get_tools(keys)
+
+
+@router.get("/me/prefs")
+async def my_prefs(auth: dict = Depends(require_auth)):
+    from app.services import user_brain
+    keys = [_uid(auth)]
+    if auth.get("email"):
+        keys.append(auth["email"])
+    return user_brain.get_prefs(keys)
+
+
+class TrainingPrefRequest(BaseModel):
+    allow_training: bool
+
+
+@router.post("/me/prefs/training")
+async def set_training_pref(req: TrainingPrefRequest, auth: dict = Depends(require_auth)):
+    """Toggle whether this account's data may be used to train models."""
+    from app.services import user_brain
+    return user_brain.set_prefs(_uid(auth), req.allow_training)
+
+
+class BrainDocRequest(BaseModel):
+    title: str
+    content: str
+    subject: str = ""
+
+
+@router.post("/me/brain/add")
+@limiter.limit("6/minute")
+async def add_to_my_brain(request: Request, req: BrainDocRequest, auth: dict = Depends(require_auth)):
+    """Student adds material to their OWN Second Brain, with AI help to distill
+    it — costs Quanta (Settings → Second Brain). The AI-cleaned note is stored
+    private to this workspace and briefs the student's whole AI team."""
+    from app.services import user_brain, second_brain
+    uid = _uid(auth)
+    if not req.content.strip():
+        raise HTTPException(status_code=400, detail="empty_content")
+
+    # AI distillation (dedicated Opus synthesizer). Falls back to raw material.
+    title, body, subject = req.title, req.content, req.subject
+    try:
+        distilled = await second_brain.synthesize_note_with_opus(req.title, req.content, req.subject)
+        if distilled:
+            title = distilled.get("title") or title
+            body = distilled.get("summary") or body
+    except Exception:
+        pass
+
+    result = user_brain.add_note(uid, title, body, subject, source="student")
+    # AI-assisted ingestion is a standard-pool spend.
+    try:
+        quanta_svc.spend_tokens(uid, tokens=120, pool="standard", context="brain_add")
+    except Exception:
+        pass
+    return {**result, "title": title}
+
+
+@router.get("/me/brain")
+async def list_my_brain(auth: dict = Depends(require_auth)):
+    from app.services import user_brain
+    keys = [_uid(auth)]
+    if auth.get("email"):
+        keys.append(auth["email"])
+    return {"notes": user_brain.list_notes(keys)}
+
+
 # ── Plans ────────────────────────────────────────────────────────────────────
 
 

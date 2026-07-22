@@ -7,8 +7,9 @@ import {
 } from '../lib/firebase';
 import {
   getPlanCatalog, getCurrentPlan, selectPlan, buyExtraCredits, getQuantaBalance,
-  getReferralInfo, buildInviteLink, addSecondBrainNote, listSecondBrainCustom, redeemUnlimitedAccess,
-  type LyceumPlan, type CurrentPlan, type QuantaBalance,
+  getReferralInfo, buildInviteLink, redeemUnlimitedAccess,
+  addToMyBrain, listMyBrain, getMyPrefs, setTrainingPref,
+  type LyceumPlan, type CurrentPlan, type QuantaBalance, type BrainNote,
 } from '../lib/lyceumApi';
 import { loadSchedule, saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
 import { SUBJECT_META } from '../lib/persist';
@@ -328,21 +329,22 @@ function PlanSection() {
   );
 }
 
-// ── Second Brain customization (the one remaining document door) ───────────
+// ── Personal Second Brain — private to this workspace, AI-distilled (costs
+// Quanta). Everything added here silently briefs the student's own AI team. ──
 
 function SecondBrainSection() {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState('');
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
-  const [customNotes, setCustomNotes] = useState<{ id: string; title: string; subject: string }[]>([]);
+  const [notes, setNotes] = useState<BrainNote[]>([]);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (open) listSecondBrainCustom().then(r => setCustomNotes(r.notes)).catch(() => {});
+    if (open) listMyBrain().then(r => setNotes(r.notes)).catch(() => {});
   }, [open]);
 
   function readFile(file: File) {
@@ -358,11 +360,11 @@ function SecondBrainSection() {
     if (!content.trim()) { setErr('Add some material first.'); return; }
     setBusy(true); setErr(''); setMsg('');
     try {
-      await addSecondBrainNote(title || 'Custom material', content, subject);
-      setMsg('Added to your Second Brain — new exercises and notes can now draw on it.');
+      const r = await addToMyBrain(title || 'Custom material', content, subject);
+      setMsg(`AI distilled "${r.title}" into your Second Brain. Every AI in your workspace now knows it. (Quanta spent)`);
       setTitle(''); setSubject(''); setContent('');
-      setCustomNotes((await listSecondBrainCustom()).notes);
-    } catch (e: any) { setErr(e?.message || 'Upload failed.'); }
+      setNotes((await listMyBrain()).notes);
+    } catch (e: any) { setErr(e?.message || 'Add failed.'); }
     finally { setBusy(false); }
   }
 
@@ -370,14 +372,15 @@ function SecondBrainSection() {
     <div className="glass-card rounded-3xl p-6">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Second Brain</p>
+          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Your Second Brain</p>
           <p className="text-xs text-white/30">
-            Exercises and notes are generated from the Lyceum's Second Brain. Add your own material here if it's missing something.
+            Private to your workspace. Add material and the AI distills it into a note that quietly briefs
+            your whole AI team. AI-assisted ingestion costs Quanta.
           </p>
         </div>
         <button onClick={() => setOpen(v => !v)}
           className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px] shrink-0 ml-3">
-          {open ? 'Close' : 'Customize'}
+          {open ? 'Close' : 'Add material'}
         </button>
       </div>
 
@@ -402,15 +405,18 @@ function SecondBrainSection() {
             <input ref={fileRef} type="file" accept=".md,.txt,.markdown" className="hidden"
               onChange={e => e.target.files?.[0] && readFile(e.target.files[0])} />
             <div className="flex-1" />
-            <LiquidMetalButton label={busy ? 'Indexing…' : 'Add to Second Brain'} onClick={submit} />
+            <LiquidMetalButton label={busy ? 'Distilling…' : 'Add with AI (costs Quanta)'} onClick={submit} />
           </div>
 
-          {customNotes.length > 0 && (
+          {notes.length > 0 && (
             <div className="border-t border-white/10 pt-3 mt-1">
-              <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-2">Your custom material</p>
+              <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-2">In your brain</p>
               <div className="flex flex-col gap-1">
-                {customNotes.map(n => (
-                  <p key={n.id} className="text-xs text-white/60 truncate">📄 {n.title}{n.subject ? ` · ${n.subject}` : ''}</p>
+                {notes.map(n => (
+                  <p key={n.id} className="text-xs text-white/60 truncate">
+                    🧠 {n.title}{n.subject ? ` · ${n.subject}` : ''}
+                    {n.source === 'admin' && <span className="text-purple-300/70"> · from your coach</span>}
+                  </p>
                 ))}
               </div>
             </div>
@@ -419,6 +425,46 @@ function SecondBrainSection() {
           {err && <p className="text-xs text-red-300/80">{err}</p>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Privacy: opt out of contributing data to model training ────────────────
+
+function PrivacySection() {
+  const [allow, setAllow] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { getMyPrefs().then(r => setAllow(r.allow_training)).catch(() => setAllow(true)); }, []);
+
+  async function toggle() {
+    if (allow === null || busy) return;
+    setBusy(true);
+    const next = !allow;
+    setAllow(next);
+    try { await setTrainingPref(next); } catch { setAllow(!next); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="glass-card rounded-3xl p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Data & Privacy</p>
+          <p className="text-xs text-white/30 max-w-md">
+            Cho phép Lyceum dùng dữ liệu học tập ẩn danh của bạn để huấn luyện và cải thiện mô hình AI.
+            Tắt đi thì dữ liệu của bạn sẽ không được dùng để huấn luyện.
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={allow === null || busy}
+          className={`relative w-12 h-7 rounded-full shrink-0 transition-colors ${allow ? 'bg-emerald-400/60' : 'bg-white/15'}`}
+          title={allow ? 'Đang bật' : 'Đang tắt'}
+        >
+          <span className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-all ${allow ? 'left-6' : 'left-1'}`} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -545,6 +591,7 @@ export default function SettingsView() {
       <InviteSection />
       <UnlimitedAccessSection />
       <SecondBrainSection />
+      <PrivacySection />
     </div>
   );
 }

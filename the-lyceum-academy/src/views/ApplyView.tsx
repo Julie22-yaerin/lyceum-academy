@@ -17,11 +17,12 @@ import { submitApplication, type ApplicationAnswers, type LearningVector } from 
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 const GRADE_LEVELS = [
-  { value: 'thcs', label: 'Trung học cơ sở (THCS)' },
-  { value: 'thpt', label: 'Trung học phổ thông (THPT)' },
-  { value: 'dai_hoc', label: 'Đại học' },
-  { value: 'sau_dai_hoc', label: 'Sau đại học' },
-  { value: 'di_lam', label: 'Đi làm / tự học' },
+  { value: 'high_school', label: 'High school' },
+  { value: 'undergrad', label: 'Undergraduate' },
+  { value: 'aftergrad', label: 'Aftergraduate' },
+  { value: 'master', label: "Master's" },
+  { value: 'research', label: 'Research' },
+  { value: 'other', label: 'Other' },
 ];
 
 const RESEARCH_FREQUENCIES = [
@@ -71,28 +72,31 @@ const DEFAULT_VECTOR: LearningVector = {
   cognitive_friction: 0.5,
 };
 
-type Phase = 'quiz' | 'vectors' | 'result';
+type Phase = 'start' | 'quiz' | 'vectors' | 'result';
 
 export default function ApplyView({ onNavigate }: NavigationProps) {
-  const [phase, setPhase] = useState<Phase>('quiz');
+  const [phase, setPhase] = useState<Phase>('start');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
+  const [subjects, setSubjects] = useState('');
+  const [purpose, setPurpose] = useState('');
   const [doesResearch, setDoesResearch] = useState<'yes' | 'no' | ''>('');
   const [researchFrequency, setResearchFrequency] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [budget, setBudget] = useState('');
 
   const [vector, setVector] = useState<LearningVector>(DEFAULT_VECTOR);
-  const [email, setEmail] = useState('');
-  const [name, setName] = useState('');
   const [referralCode, setReferralCode] = useState('');
 
   const [resultPriority, setResultPriority] = useState(false);
   const [alreadyDecided, setAlreadyDecided] = useState<string | null>(null);
 
-  const quizValid = gradeLevel && doesResearch && difficulty.trim().length >= 10 && budget.trim() !== '';
+  const quizValid = email.includes('@') && name.trim() !== '' && gradeLevel && subjects.trim() !== ''
+    && purpose.trim() !== '' && doesResearch && difficulty.trim().length >= 10 && budget.trim() !== '';
 
   function setSlider(key: SliderDef['key'], value: number) {
     setVector(v => ({ ...v, [key]: value }));
@@ -104,6 +108,8 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
     try {
       const answers: ApplicationAnswers = {
         grade_level: gradeLevel,
+        subjects: subjects.trim(),
+        purpose: purpose.trim(),
         does_research: doesResearch as 'yes' | 'no',
         research_frequency: doesResearch === 'yes' ? researchFrequency : 'n/a',
         biggest_difficulty: difficulty.trim(),
@@ -134,12 +140,25 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
         </div>
 
         {/* Progress */}
-        {phase !== 'result' && (
+        {phase !== 'result' && phase !== 'start' && (
           <div className="h-[2px] bg-white/10 rounded-full mb-10">
             <div
               className="h-full bg-gradient-to-r from-purple-400 to-amber-300 rounded-full transition-all duration-500"
-              style={{ width: phase === 'quiz' ? '35%' : '80%' }}
+              style={{ width: phase === 'quiz' ? '45%' : '85%' }}
             />
+          </div>
+        )}
+
+        {/* ── Phase 0: start ── */}
+        {phase === 'start' && (
+          <div className="glass-card rounded-3xl p-10 text-center flex flex-col items-center gap-5">
+            <span className="text-5xl">✦</span>
+            <h1 className="font-serif text-3xl">Chào mừng đến The Lyceum</h1>
+            <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
+              Đăng ký hiện đang đóng — chúng tôi xét duyệt từng hồ sơ để thiết kế lộ trình học riêng cho bạn.
+              Hãy trả lời vài câu hỏi ngắn để chúng tôi hiểu bạn.
+            </p>
+            <LiquidMetalButton label="Bắt đầu" onClick={() => setPhase('quiz')} />
           </div>
         )}
 
@@ -147,12 +166,29 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
         {phase === 'quiz' && (
           <div className="glass-card rounded-3xl p-8 flex flex-col gap-6">
             <div className="text-center">
-              <h1 className="font-serif text-2xl mb-1">Trước khi bắt đầu</h1>
-              <p className="text-sm text-slate-400">Đăng ký hiện đóng — Lyceum xét duyệt từng hồ sơ. Vài câu hỏi ngắn để bắt đầu.</p>
+              <h1 className="font-serif text-2xl mb-1">Kể cho chúng tôi về bạn</h1>
+              <p className="text-sm text-slate-400">Mọi câu trả lời sẽ giúp Lyceum thiết kế lộ trình riêng cho bạn.</p>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Email của bạn</p>
+                <input
+                  type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
+                  className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
+                />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Chúng tôi có thể gọi bạn là gì?</p>
+                <input
+                  value={name} onChange={e => setName(e.target.value)} placeholder="Tên của bạn"
+                  className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
+                />
+              </div>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn đang học cấp nào?</p>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn đang học ở cấp độ nào?</p>
               <div className="flex flex-wrap gap-2">
                 {GRADE_LEVELS.map(g => (
                   <button key={g.value} onClick={() => setGradeLevel(g.value)}
@@ -161,6 +197,24 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Những môn nào bạn cần học?</p>
+              <textarea
+                value={subjects} onChange={e => setSubjects(e.target.value)} rows={2}
+                placeholder="Ví dụ: Vật lý lượng tử, Giải tích, Hoá hữu cơ…"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
+              />
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn học để làm gì?</p>
+              <textarea
+                value={purpose} onChange={e => setPurpose(e.target.value)} rows={2}
+                placeholder="Ví dụ: thi Olympic, nghiên cứu, chuyển ngành, tò mò thuần tuý…"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
+              />
             </div>
 
             <div>
@@ -283,14 +337,7 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
             </div>
 
             <div className="border-t border-white/10 pt-6 flex flex-col gap-3">
-              <input
-                value={name} onChange={e => setName(e.target.value)} placeholder="Tên của bạn"
-                className="bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
-              />
-              <input
-                type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email"
-                className="bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
-              />
+              <p className="text-xs text-slate-400">Gửi đơn với tên <span className="text-slate-200">{name || '—'}</span> · {email || '—'}</p>
               <input
                 value={referralCode} onChange={e => setReferralCode(e.target.value)} placeholder="Mã giới thiệu (nếu có) — được xét ưu tiên"
                 className="bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"

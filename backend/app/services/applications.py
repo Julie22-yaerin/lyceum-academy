@@ -50,7 +50,14 @@ CREATE TABLE IF NOT EXISTS applications (
 CREATE INDEX IF NOT EXISTS idx_applications_status ON applications(status, priority DESC, created_at ASC);
 """
 
-STATUSES = {"pending", "accepted", "declined"}
+# pending  → in the review queue (admin swipes right/left)
+# meeting  → accepted; moved to the "Gặp gỡ" (meetings) list to schedule onboarding
+# declined → swiped left; kept in the trash for 7 days, then hard-purged
+# accepted → onboarding done, allowed to create an account (AuthPage gate)
+STATUSES = {"pending", "meeting", "accepted", "declined"}
+
+# How long a declined application lingers in the trash before purge.
+TRASH_TTL_DAYS = 7
 
 
 def _conn() -> sqlite3.Connection:
@@ -141,7 +148,12 @@ def list_applications(status: str | None = None) -> list[dict[str, Any]]:
 
 
 def decide(app_id: str, accept: bool) -> dict[str, Any]:
+    """Admin swipe. Right (accept) → 'meeting': the applicant advances to the
+    "Gặp gỡ" list where the team schedules onboarding and builds their Second
+    Brain. Left (decline) → 'declined': dropped into the trash, auto-purged
+    after TRASH_TTL_DAYS."""
     now = datetime.now(timezone.utc).isoformat()
+    new_status = "meeting" if accept else "declined"
     with _conn() as c:
         c.executescript(_DDL)
         row = c.execute("SELECT id FROM applications WHERE id=?", (app_id,)).fetchone()
@@ -149,6 +161,65 @@ def decide(app_id: str, accept: bool) -> dict[str, Any]:
             return {"ok": False, "error": "not_found"}
         c.execute(
             "UPDATE applications SET status=?, decided_at=? WHERE id=?",
-            ("accepted" if accept else "declined", now, app_id),
+            (new_status, now, app_id),
         )
-    return {"ok": True, "status": "accepted" if accept else "declined"}
+    return {"ok": True, "status": new_status}
+
+
+def finalize_meeting(app_id: str) -> dict[str, Any]:
+    """After the onboarding meeting + Second Brain setup, promote a 'meeting'
+    applicant to 'accepted' — this is what unlocks account creation on the
+    AuthPage sign-up gate."""
+    now = datetime.now(timezone.utc).isoformat()
+    with _conn() as c:
+        c.executescript(_DDL)
+        row = c.execute("SELECT id FROM applications WHERE id=?", (app_id,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "not_found"}
+        c.execute("UPDATE applications SET status='accepted', decided_at=? WHERE id=?", (now, app_id))
+    return {"ok": True, "status": "accepted"}
+
+
+def restore(app_id: str) -> dict[str, Any]:
+    """Pull a declined application back out of the trash into the queue."""
+    with _conn() as c:
+        c.executescript(_DDL)
+        row = c.execute("SELECT id FROM applications WHERE id=?", (app_id,)).fetchone()
+        if not row:
+            return {"ok": False, "error": "not_found"}
+        c.execute("UPDATE applications SET status='pending', decided_at=NULL WHERE id=?", (app_id,))
+    return {"ok": True, "status": "pending"}
+
+
+def purge_expired_trash() -> int:
+    """Hard-delete declined applications whose trash TTL has elapsed. Called
+    lazily whenever the admin lists the trash, and by the scheduler."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=TRASH_TTL_DAYS)).isoformat()
+    with _conn() as c:
+        c.executescript(_DDL)
+        cur = c.execute(
+            "DELETE FROM applications WHERE status='declined' AND decided_at IS NOT NULL AND decided_at < ?",
+            (cutoff,),
+        )
+        return cur.rowcount
+
+
+def list_trash() -> list[dict[str, Any]]:
+    """Declined applications still inside their 7-day window, each annotated
+    with days remaining before purge."""
+    purge_expired_trash()
+    from datetime import timedelta
+    rows = list_applications("declined")
+    out = []
+    for r in rows:
+        decided = r.get("decided_at")
+        days_left = TRASH_TTL_DAYS
+        if decided:
+            try:
+                expiry = datetime.fromisoformat(decided) + timedelta(days=TRASH_TTL_DAYS)
+                days_left = max(0, (expiry - datetime.now(timezone.utc)).days)
+            except Exception:
+                pass
+        out.append({**r, "days_left": days_left})
+    return out
