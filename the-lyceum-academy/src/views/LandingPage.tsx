@@ -59,26 +59,26 @@ const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
 const QUOTES = [
   { text: 'The unexamined life is not worth living.', by: 'Socrates' },
   { text: 'I cannot teach anybody anything. I can only make them think.', by: 'Socrates' },
-  { text: 'Wonder is the feeling of the philosopher, and philosophy begins in wonder.', by: 'Plato, Theaetetus' },
-  { text: 'Education is the kindling of a flame, not the filling of a vessel.', by: 'after Plutarch' },
-  { text: 'Nullius in verba — take nobody’s word for it.', by: 'motto, The Royal Society' },
+  { text: 'Take nobody’s word for it.', by: 'Nullius in verba' },
+  { text: 'What you cannot derive, you do not own.', by: 'The house rule' },
+  { text: 'Rigor is a courtesy. We extend it only to the serious.', by: '—' },
 ];
 
 const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldQuestion,
-    title: 'You bring a real question',
-    body: 'Any subject. Any material. A point you are genuinely stuck on.',
+    title: 'You bring the question',
+    body: 'Any subject. Any material. The point where you are actually stuck.',
   },
   {
     icon: MessagesSquare,
-    title: 'We answer with a question',
-    body: 'Never the answer. One question, aimed exactly where your understanding breaks.',
+    title: 'We return a question',
+    body: 'Not the answer. One question, placed where your understanding breaks.',
   },
   {
     icon: Sparkles,
-    title: 'You derive it yourself',
-    body: 'What you build under your own power, you keep. Everything else evaporates.',
+    title: 'You derive it',
+    body: 'What you build under your own power, you keep. The rest does not count.',
   },
 ];
 
@@ -88,23 +88,23 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
 const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; body: string }[] = [
   {
     icon: Compass, name: 'Socrat', role: 'Lead Concierge', accent: 'text-purple-300',
-    body: 'Never answers. Only asks the question that moves you forward.',
+    body: 'Does not answer. Asks the one question that exposes the hinge.',
   },
   {
     icon: Gauge, name: 'Coach', role: 'Curriculum Architect', accent: 'text-blue-300',
-    body: 'Reads your mistakes overnight. Sequences tomorrow — gaps first.',
+    body: 'Reads your errors overnight. Sequences the fix. Gaps first.',
   },
   {
     icon: Brain, name: 'Leo', role: 'The Feynman Child', accent: 'text-amber-300',
-    body: 'Explain it to Leo in plain words. If he’s confused, you’ve found the real gap.',
+    body: 'Explain it plainly. Where Leo stops following, your understanding ends.',
   },
   {
     icon: FlaskConical, name: 'The Peer', role: 'Debate Partner', accent: 'text-cyan-300',
-    body: 'Argues in good faith. Attacks your load-bearing assumption.',
+    body: 'Argues in good faith. Attacks the load-bearing assumption, nothing else.',
   },
   {
     icon: ScanSearch, name: 'The Grader', role: 'Solution Auditor', accent: 'text-rose-300',
-    body: 'Audits every step. Never a false pass.',
+    body: 'Audits every step. No false pass. Kindness is accuracy.',
   },
 ];
 
@@ -332,8 +332,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              This is not a course platform. One method, 2,400 years old, applied to any subject you bring:
-              the right question, at the exact point your understanding breaks.
+              Not a course. A discipline — one method, 2,400 years old, held to
+              without exception: the right question, at the exact point your
+              understanding breaks. Admission is by review.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
@@ -420,10 +421,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Not a chatbot. A faculty.</p>
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
             <TextReveal per="word" preset="slide" delay={0.1}>
-              {"Five minds. One job each."}
+              {"Five minds. One office each."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Hard boundaries. The Grader never coaches. Leo never knows calculus.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Each is a specialist, native to its subject. Hard boundaries — the Grader never coaches, Leo never knows calculus.</p>
         </motion.div>
 
         <motion.div
@@ -518,15 +519,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic">
             <TextReveal per="word" preset="blur" delay={0.1}>
-              {"We don’t open for everyone."}
+              {"Admission is not open."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-md">One application. One minute. Reviewed by hand.</p>
+          <p className="text-slate-400 max-w-md">One application. Reviewed by hand. Most are declined.</p>
           <LiquidMetalButton
-            label="Apply for Admission"
+            label="Request Admission"
             onClick={() => onNavigate('apply')}
           />
-          <p className="text-xs text-slate-500">Not everyone is accepted.</p>
+          <p className="text-xs text-slate-500">We accept those who intend to be excellent.</p>
         </motion.div>
       </section>
 

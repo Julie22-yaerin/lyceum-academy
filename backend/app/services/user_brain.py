@@ -230,9 +230,13 @@ def system_context_for_user(user_keys: str | list[str]) -> str:
     """Learning-method glossary + the student's personal brain + their admin
     profile, ready to drop in as one system message. Glossary always
     present; the other two only if the admin has actually filled them in."""
+    from app.services.ai_roles.ethos import LYCEUM_ETHOS
     brain = brain_context(user_keys)
     profile = profile_context(user_keys)
-    out = LEARNING_METHODS_PROMPT
+    # House voice first so every AI surface that reads this context (raw chat,
+    # support, any role without its own expertise_directive) carries the
+    # understated-elite Lyceum manner.
+    out = LYCEUM_ETHOS + "\n\n" + LEARNING_METHODS_PROMPT
     if profile:
         out += "\n" + profile
     if brain:

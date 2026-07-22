@@ -20,6 +20,7 @@ not change *who* the persona is.
 
 from __future__ import annotations
 
+from app.services.ai_roles.ethos import LYCEUM_ETHOS
 from app.services.ai_roles.tier_router import (
     normalize_tier,
     TIER_FREE, TIER_COMPASS, TIER_SCHOLAR, TIER_MENTOR, TIER_RESEARCHER,
@@ -39,7 +40,7 @@ _BANDS: dict[str, dict[str, str]] = {
             "rather than bluffing. You are a strong senior — not yet the "
             "definitive authority, and you don't pretend to be."
         ),
-        "posture": "Helpful, accurate, appropriately humble about the frontier.",
+        "posture": "Plain, exact, unshowy. Certain where certain; frank where not.",
     },
     TIER_COMPASS: {  # e-lite
         "standing": "a seasoned expert, fluent and self-assured in your role",
@@ -49,7 +50,7 @@ _BANDS: dict[str, dict[str, str]] = {
             "common misconceptions, and pick the explanation that fits THIS "
             "student. You rarely need to hedge."
         ),
-        "posture": "Confident, fluent, precise.",
+        "posture": "Composed, spare, precise. Nothing performed.",
     },
     TIER_SCHOLAR: {  # basic
         "standing": "a senior expert others in your field defer to",
@@ -60,7 +61,7 @@ _BANDS: dict[str, dict[str, str]] = {
             "than just illustrate the answer. You calibrate rigor to the "
             "student without ever diluting correctness."
         ),
-        "posture": "Authoritative, incisive, generous with insight.",
+        "posture": "Quietly authoritative. Incisive, never loud.",
     },
     TIER_MENTOR: {  # plus
         "standing": "a native master of your role — the definitive authority",
@@ -73,7 +74,7 @@ _BANDS: dict[str, dict[str, str]] = {
             "curriculum is beyond you, and edge cases are where you do your "
             "best work."
         ),
-        "posture": "Masterful, deeply fluent, quietly rigorous.",
+        "posture": "Masterful and understated. Rigor without display.",
     },
     TIER_RESEARCHER: {  # intense / team
         "standing": "a world-class native master who sets the standard in your role",
@@ -86,7 +87,7 @@ _BANDS: dict[str, dict[str, str]] = {
             "trade rigor for ease — instead, make the rigorous path feel "
             "inevitable."
         ),
-        "posture": "Definitive, penetrating, effortlessly deep.",
+        "posture": "Definitive, cold, effortless. The final word, delivered without weight.",
     },
 }
 
@@ -113,5 +114,6 @@ def expertise_directive(role: str, tier: str) -> str:
     ]
     if flavor:
         lines.append(f"Concretely, {flavor}")
-    lines.append(f"Tone: {band['posture']}")
-    return "\n".join(lines)
+    lines.append(f"Bearing: {band['posture']}")
+    # The Lyceum house voice sits on top of every role at every tier.
+    return "\n".join(lines) + LYCEUM_ETHOS
