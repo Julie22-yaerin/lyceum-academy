@@ -262,12 +262,11 @@ async function signInWithDevToken() {
   const pw = document.getElementById('dev-pw').value.trim();
   if (!pw) { showLoginErr('Enter admin password.'); return; }
   setLL(true);
-  // Dev token is static — accept immediately without backend round-trip.
-  // (Backend still validates X-Admin-Token on every API call.)
-  if (pw === DEV_TOKEN) { currentToken = pw; _shown = true; showAdmin(null); return; }
-  // Otherwise treat as a Firebase token and verify with backend.
+  // ALWAYS verify against the backend before entering — a client-side-only
+  // accept let people "in" while every API call silently 401'd (production
+  // ADMIN_SECRET differs from the dev default).
   if (await verifyToken(pw)) { currentToken = pw; _shown = true; showAdmin(null); }
-  else { setLL(false); showLoginErr('Wrong password or backend offline.'); }
+  else { setLL(false); showLoginErr('Sai admin token (backend từ chối 401) hoặc backend offline. Kiểm tra ADMIN_SECRET trên Railway.'); }
 }
 
 function friendlyErr(e) {
@@ -303,6 +302,11 @@ async function api(path, opts={}) {
   if (r.status === 401 && _firebaseUser) {
     try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
     r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  }
+  if (r.status === 401 || r.status === 403) {
+    // Surface auth failures loudly — silent catches made 401 look like "no data".
+    toast('⚠ Backend từ chối token (' + r.status + ') — đăng nhập lại với đúng ADMIN_SECRET hoặc Google (email trong ADMIN_EMAILS).', 'err');
+    throw new Error('unauthorized (' + r.status + ')');
   }
   if (!r.ok) { const t=await r.text().catch(()=>r.statusText); throw new Error(t||r.statusText); }
   return r;

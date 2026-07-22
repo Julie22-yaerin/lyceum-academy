@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowDown,
   ArrowUpRight,
@@ -68,17 +68,17 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldQuestion,
     title: 'You bring a real question',
-    body: 'From any of the ten subjects — or your own uploaded material in the Second Brain. Not a script. A genuine point you’re stuck on.',
+    body: 'Any subject. Any material. A point you are genuinely stuck on.',
   },
   {
     icon: MessagesSquare,
-    title: 'The Faculty answers with a question',
-    body: 'Never the answer outright. A question precise enough to expose exactly where your understanding actually breaks.',
+    title: 'We answer with a question',
+    body: 'Never the answer. One question, aimed exactly where your understanding breaks.',
   },
   {
     icon: Sparkles,
     title: 'You derive it yourself',
-    body: 'Nothing sticks like a conclusion you reached under your own power. That’s the whole experiment, run on your own mind.',
+    body: 'What you build under your own power, you keep. Everything else evaporates.',
   },
 ];
 
@@ -88,23 +88,23 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
 const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; body: string }[] = [
   {
     icon: Compass, name: 'Socrat', role: 'Lead Concierge', accent: 'text-purple-300',
-    body: 'Your point of contact for every session. Never answers directly — only asks the question that moves you forward.',
+    body: 'Never answers. Only asks the question that moves you forward.',
   },
   {
     icon: Gauge, name: 'Coach', role: 'Curriculum Architect', accent: 'text-blue-300',
-    body: 'Reads your Second Brain and mistake history overnight, then sequences tomorrow’s exact study plan — gaps first.',
+    body: 'Reads your mistakes overnight. Sequences tomorrow — gaps first.',
   },
   {
     icon: Brain, name: 'Leo', role: 'The Feynman Child', accent: 'text-amber-300',
-    body: 'Explain a concept to Leo in plain words. He knows nothing — so if he’s confused, you’ve found the real gap.',
+    body: 'Explain it to Leo in plain words. If he’s confused, you’ve found the real gap.',
   },
   {
     icon: FlaskConical, name: 'The Peer', role: 'Debate Partner', accent: 'text-cyan-300',
-    body: 'Argues your thesis in good faith at AP/IB rigor — concedes real points, attacks the load-bearing assumption.',
+    body: 'Argues in good faith. Attacks your load-bearing assumption.',
   },
   {
     icon: ScanSearch, name: 'The Grader', role: 'Solution Auditor', accent: 'text-rose-300',
-    body: 'Audits your working step by step and rebuilds it backwards from the answer — precise, never a false pass.',
+    body: 'Audits every step. Never a false pass.',
   },
 ];
 
@@ -222,52 +222,6 @@ const stagger = {
 
 
 
-// ── Light burst — a radial flash that expands and fades behind the
-// headline once on mount, like the "spark" the copy talks about. ──────────
-function LightBurst() {
-  return (
-    <motion.div
-      aria-hidden
-      className="pointer-events-none absolute -z-10"
-      style={{
-        left: '-10%', top: '-40%', width: '70%', height: '180%',
-        background: 'radial-gradient(circle, rgba(216,204,255,0.9) 0%, rgba(167,139,250,0.5) 22%, rgba(139,92,246,0.15) 45%, transparent 70%)',
-      }}
-      initial={{ opacity: 0, scale: 0.2 }}
-      animate={{ opacity: [0, 1, 0.55], scale: [0.2, 1.15, 1] }}
-      transition={{ duration: 1.1, times: [0, 0.4, 1], ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
-    />
-  );
-}
-
-// ── Mascot — pinned in the corner and turns to face wherever you've
-// scrolled to, via a scroll-linked 3D perspective tilt (not a real 3D
-// model — a cheap, GPU-only transform on a single image, tracked across
-// the hero + method sections so the "turn" reads clearly as you scroll). ──
-function ScrollMascot() {
-  const ref = useRef<HTMLDivElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start start', 'end end'] });
-  const rotateY = useTransform(scrollYProgress, [0, 1], [-25, 25]);
-  const rotateX = useTransform(scrollYProgress, [0, 1], [8, -12]);
-
-  return (
-    <div ref={ref} className="hidden lg:block absolute right-8 top-0 w-56 h-[160vh] pointer-events-none z-10" aria-hidden>
-      <div className="sticky top-32 flex justify-end" style={{ perspective: 1000 }}>
-        <motion.img
-          src="/chibi_cat_closeup_portrait.webp"
-          alt=""
-          className="w-48 drop-shadow-[0_20px_60px_rgba(139,92,246,0.35)] select-none"
-          style={{ rotateY, rotateX, transformStyle: 'preserve-3d' }}
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          draggable={false}
-        />
-      </div>
-    </div>
-  );
-}
-
 export default function LandingPage({ onNavigate }: NavigationProps) {
   const { theme, toggleTheme } = useTheme();
 
@@ -279,8 +233,6 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         <div className="orb-2" />
         <div className="orb-3" />
       </div>
-
-      <ScrollMascot />
 
       <FeedbackWidget context="landing" />
 
@@ -345,20 +297,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             variants={stagger}
             className="space-y-7 z-10"
           >
-            <motion.div variants={fadeUp} transition={{ duration: 0.5 }} className="flex items-center gap-3">
-              <div className="relative w-14 h-14 flex-shrink-0">
-                <LightBurst />
-                <motion.img
-                  src="/chibi_cat_closeup_portrait.webp"
-                  alt="Lyceum mascot"
-                  className="relative w-14 h-14 object-contain drop-shadow-[0_4px_18px_rgba(139,92,246,0.5)]"
-                  initial={{ opacity: 0, scale: 0.6, rotate: -8 }}
-                  animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                  transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-                  draggable={false}
-                />
-              </div>
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">By application only · a closed faculty of five minds</span>
+            <motion.div variants={fadeUp} transition={{ duration: 0.5 }}>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">By application only</span>
             </motion.div>
 
             <div className="relative">
@@ -371,7 +311,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                   delay={0.2}
                   speedReveal={1.2}
                 >
-                  {"Every subject."}
+                  {"We don't give answers."}
                 </TextReveal>
                 <br />
                 <TextReveal
@@ -382,7 +322,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                   delay={0.6}
                   speedReveal={1.2}
                 >
-                  {"One method. Zero lectures."}
+                  {"We make you find them."}
                 </TextReveal>
               </h1>
             </div>
@@ -392,10 +332,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              The Lyceum isn’t a course platform. It’s a vetted academy built on a scientific method
-              older than the printing press: never hand over the answer. Ask the question that forces the
-              mind to build it. From calculus to Roman history to your own uploaded research — one rigorous
-              method, applied to anything you bring it.
+              This is not a course platform. One method, 2,400 years old, applied to any subject you bring:
+              the right question, at the exact point your understanding breaks.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
@@ -437,13 +375,13 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           transition={{ duration: 0.6 }}
           className="mb-14 text-center"
         >
-          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">The epistemic method</p>
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">The method</p>
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
             <TextReveal per="word" preset="fade" delay={0.1}>
-              {"A discipline, not a feature"}
+              {"Three steps. No shortcuts."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Every session runs the same three-step experiment on your own understanding.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Every session is the same experiment, run on your own mind.</p>
         </motion.div>
 
         <motion.div
@@ -482,10 +420,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Not a chatbot. A faculty.</p>
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
             <TextReveal per="word" preset="slide" delay={0.1}>
-              {"Five minds, each with one job"}
+              {"Five minds. One job each."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">No single AI trying to do everything badly. Five native specialists with hard boundaries — the Grader never coaches, Leo never knows calculus.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Hard boundaries. The Grader never coaches. Leo never knows calculus.</p>
         </motion.div>
 
         <motion.div
@@ -580,15 +518,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic">
             <TextReveal per="word" preset="blur" delay={0.1}>
-              {"The academy doesn’t open for everyone."}
+              {"We don’t open for everyone."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-md">Ten subjects, a closed faculty of five, and one method that hasn’t needed replacing in 2,400 years. Submit an application — it takes about a minute.</p>
+          <p className="text-slate-400 max-w-md">One application. One minute. Reviewed by hand.</p>
           <LiquidMetalButton
             label="Apply for Admission"
             onClick={() => onNavigate('apply')}
           />
-          <p className="text-xs text-slate-500">Reviewed by hand. Not everyone is accepted.</p>
+          <p className="text-xs text-slate-500">Not everyone is accepted.</p>
         </motion.div>
       </section>
 

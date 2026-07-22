@@ -508,6 +508,10 @@ if settings.app_env == "development":
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    # Vercel previews/prod + thelyceum.site subdomains are always allowed,
+    # independent of the API_CORS_ORIGINS env var — a missing entry there
+    # surfaced to users as "Failed to fetch" on the public apply form.
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*(vercel\.app|thelyceum\.site)",
     allow_credentials=_cors_origins != ["*"],   # credentials + wildcard is invalid
     allow_methods=["*"],
     allow_headers=["*"],
