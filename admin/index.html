@@ -40,6 +40,14 @@
     .nav-btn { padding:5px 12px; border-radius:7px; background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; transition:all .15s; }
     .nav-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
     .nav-btn.active { color:var(--text); background:rgba(88,166,255,.1); }
+    /* Sidebar nav */
+    .sn-group { font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); padding:0 10px; margin-bottom:6px; }
+    .sn-btn { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:7px 10px; border-radius:8px;
+              background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; font-size:12.5px;
+              transition:all .15s; border-left:2px solid transparent; }
+    .sn-btn span { font-size:14px; width:18px; text-align:center; }
+    .sn-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
+    .sn-btn.active { color:var(--text); background:rgba(88,166,255,.1); border-left-color:var(--blue,#58a6ff); }
     .spinner { animation:spin 1s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
     .fade-in { animation:fadein .18s ease; }
@@ -109,36 +117,6 @@
   <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
-    <nav class="flex items-center gap-3 ml-4 overflow-x-auto">
-      <!-- Tier 1: Quản trị khách hàng (customer/user administration) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Khách hàng</span>
-        <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
-        <button id="nav-meetings" onclick="viewMeetings()" class="nav-btn text-xs">Gặp gỡ</button>
-        <button id="nav-brain" onclick="viewBrain()" class="nav-btn text-xs">Second Brain riêng</button>
-        <button id="nav-trash" onclick="viewTrash()" class="nav-btn text-xs">Thùng rác</button>
-        <button id="nav-orders" onclick="viewOrders()" class="nav-btn text-xs">Orders</button>
-        <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
-      </div>
-      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
-
-      <!-- Tier 2: Phục vụ khách (customer service) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Phục vụ</span>
-        <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
-        <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
-      </div>
-      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
-
-      <!-- Tier 3: Quản lý hệ thống AI (AI system administration) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Hệ thống AI</span>
-        <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
-        <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
-        <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
-        <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
-      </div>
-    </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" referrerpolicy="no-referrer" />
     <span id="user-name" class="text-xs hidden" style="color:var(--muted)"></span>
@@ -154,6 +132,39 @@
     <span class="text-red-300 flex-1 text-xs">Backend offline — <code style="background:rgba(255,255,255,.1);padding:0 4px;border-radius:4px">start_backend.command</code> then <button onclick="retryConnect()" class="underline hover:text-white transition-colors">retry</button></span>
     <span id="retry-countdown" class="text-xs" style="color:#5c1111"></span>
   </div>
+
+  <!-- Sidebar + Main -->
+  <div class="flex-1 flex min-h-0">
+  <aside class="w-52 shrink-0 overflow-y-auto py-4 px-3 flex flex-col gap-5"
+    style="background:var(--surface);border-right:1px solid var(--border);position:sticky;top:48px;height:calc(100vh - 48px)">
+
+    <!-- Nhóm 1: hành trình khách hàng, theo đúng thứ tự pipeline -->
+    <div>
+      <p class="sn-group">Khách hàng</p>
+      <button id="nav-applications" onclick="viewApplications()" class="sn-btn"><span>📥</span>Xét duyệt</button>
+      <button id="nav-meetings" onclick="viewMeetings()" class="sn-btn"><span>🤝</span>Gặp gỡ</button>
+      <button id="nav-brain" onclick="viewBrain()" class="sn-btn"><span>🧠</span>Second Brain riêng</button>
+      <button id="nav-orders" onclick="viewOrders()" class="sn-btn"><span>📦</span>Orders</button>
+      <button id="nav-profiles" onclick="viewProfiles()" class="sn-btn"><span>🎯</span>Personalization</button>
+      <button id="nav-trash" onclick="viewTrash()" class="sn-btn"><span>🗑️</span>Thùng rác</button>
+    </div>
+
+    <!-- Nhóm 2: chăm sóc & sự cố -->
+    <div>
+      <p class="sn-group">Phục vụ</p>
+      <button id="nav-feedback" onclick="viewFeedback()" class="sn-btn"><span>💬</span>Feedback</button>
+      <button id="nav-errors" onclick="viewErrors()" class="sn-btn"><span>🐞</span>Errors</button>
+    </div>
+
+    <!-- Nhóm 3: vận hành hệ thống AI -->
+    <div>
+      <p class="sn-group">Hệ thống AI</p>
+      <button id="nav-ai-system" onclick="viewAiSystem()" class="sn-btn"><span>🤖</span>AI System</button>
+      <button id="nav-ai-chat" onclick="viewAiChat()" class="sn-btn"><span>🗨️</span>AI Chat</button>
+      <button id="nav-activity" onclick="viewActivity()" class="sn-btn"><span>📊</span>Activity Log</button>
+      <button id="nav-second-brain" onclick="viewSecondBrain()" class="sn-btn"><span>🕸️</span>Second Brain chung</button>
+    </div>
+  </aside>
 
   <!-- Main -->
   <main class="flex-1 overflow-auto">
@@ -171,6 +182,7 @@
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-second-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
   </main>
+  </div><!-- /sidebar+main -->
 </div>
 
 <!-- Toast -->
@@ -575,6 +587,12 @@ async function renderApplications() {
   const qs = _applicationsFilter ? `?status=${_applicationsFilter}` : '';
   const { applications = [] } = await api(`/admin/applications${qs}`).then(r => r.json()).catch(() => ({ applications: [] }));
 
+  // Referral-priority first, then deposit size (bigger deposit = more urgent), then oldest first.
+  applications.sort((a, b) =>
+    (b.priority - a.priority)
+    || ((b.answers?.deposit_usd || 0) - (a.answers?.deposit_usd || 0))
+    || String(a.created_at).localeCompare(String(b.created_at)));
+
   const FRICTION_LABEL = f => f >= 0.5 ? 'High (Pure Lyceum)' : 'Low';
   const SANDBOX_LABEL = { stem: 'STEM', physics: 'Vật lý', chemistry: 'Hoá học', math: 'Toán', general_research: 'Nghiên cứu' };
 
@@ -617,7 +635,8 @@ async function renderApplications() {
             <div class="grid gap-3 mt-3 text-xs" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));color:var(--muted)">
               <div><span class="font-medium" style="color:var(--text)">Cấp độ:</span> ${esc(a.answers.grade_level || '—')}</div>
               <div><span class="font-medium" style="color:var(--text)">Nghiên cứu:</span> ${esc(a.answers.does_research || '—')} ${a.answers.research_frequency && a.answers.research_frequency !== 'n/a' ? `(${esc(a.answers.research_frequency)})` : ''}</div>
-              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}/tháng</div>
+              <div><span class="font-medium" style="color:var(--text)">Đặt cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd ?? 0)}</span></div>
               <div><span class="font-medium" style="color:var(--text)">Sandbox:</span> ${SANDBOX_LABEL[a.vector.target_sandbox] || '—'}</div>
               <div><span class="font-medium" style="color:var(--text)">Ma sát nhận thức:</span> ${a.vector.cognitive_friction != null ? FRICTION_LABEL(a.vector.cognitive_friction) : '—'}</div>
               <div><span class="font-medium" style="color:var(--text)">Mã giới thiệu:</span> ${esc(a.referral_code || '—')}</div>
@@ -627,6 +646,8 @@ async function renderApplications() {
             <div class="mt-2 text-xs"><span class="font-medium" style="color:var(--text)">Môn cần học:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
             ${a.answers.purpose ? `
             <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+            ${a.answers.learning_goal ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Mục tiêu học tập:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
             ${a.answers.biggest_difficulty ? `
             <div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(a.answers.biggest_difficulty)}"</div>` : ''}
 
@@ -703,7 +724,9 @@ async function renderMeetings() {
                 </div>
                 <div class="text-xs mt-1" style="color:var(--muted)">Chấp nhận ${a.decided_at ? timeAgo(a.decided_at) : ''}</div>
                 ${a.answers.subjects ? `<div class="text-xs mt-1"><span style="color:var(--text)">Môn:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
-                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.learning_goal ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
+                ${a.answers.deposit_usd ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Đã cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd)}</span></div>` : ''}
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button onclick="openBrainFor('${esc(a.email)}')" class="btn btn-ghost text-xs">🧠 Dựng Second Brain</button>

@@ -93,10 +93,12 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [subjectPicks, setSubjectPicks] = useState<string[]>([]);
   const [subjectsExtra, setSubjectsExtra] = useState('');
   const [purpose, setPurpose] = useState('');
+  const [learningGoal, setLearningGoal] = useState('');
   const [doesResearch, setDoesResearch] = useState<'yes' | 'no' | ''>('');
   const [researchFrequency, setResearchFrequency] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [budget, setBudget] = useState('');
+  const [deposit, setDeposit] = useState('');
 
   const [vector, setVector] = useState<LearningVector>(DEFAULT_VECTOR);
   const [referralCode, setReferralCode] = useState('');
@@ -108,8 +110,11 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const subjectsCombined = [...subjectPicks, subjectsExtra.trim()].filter(Boolean).join(', ');
   const gradeResolved = gradeLevel === 'other' ? gradeOther.trim() : gradeLevel;
 
+  // Deposit is required to join the waitlist — the amount signals urgency.
+  const depositValid = Number(deposit) > 0;
   const quizValid = email.includes('@') && name.trim() !== '' && gradeResolved !== '' && subjectsCombined !== ''
-    && purpose.trim() !== '' && doesResearch && difficulty.trim().length >= 10 && budget.trim() !== '';
+    && purpose.trim() !== '' && learningGoal.trim() !== '' && doesResearch
+    && difficulty.trim().length >= 10 && budget.trim() !== '' && depositValid;
 
   function setSlider(key: SliderDef['key'], value: number) {
     setVector(v => ({ ...v, [key]: value }));
@@ -127,10 +132,12 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
         grade_level: gradeResolved,
         subjects: subjectsCombined,
         purpose: purpose.trim(),
+        learning_goal: learningGoal.trim(),
         does_research: doesResearch as 'yes' | 'no',
         research_frequency: doesResearch === 'yes' ? researchFrequency : 'n/a',
         biggest_difficulty: difficulty.trim(),
         budget_usd: Number(budget) || 0,
+        deposit_usd: Number(deposit) || 0,
       };
       const result = await submitApplication(email.trim(), name.trim(), answers, vector, referralCode.trim());
       if (result.already_decided) {
@@ -253,6 +260,15 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
             </div>
 
             <div>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Mục tiêu học tập của bạn là gì?</p>
+              <textarea
+                value={learningGoal} onChange={e => setLearningGoal(e.target.value)} rows={2}
+                placeholder="Ví dụ: nắm vững Giải tích 2 trong 3 tháng, đạt 8.0 IELTS, hoàn thành đề tài nghiên cứu…"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
+              />
+            </div>
+
+            <div>
               <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn có làm nghiên cứu khoa học không?</p>
               <div className="flex gap-2 mb-3">
                 {(['yes', 'no'] as const).map(v => (
@@ -295,6 +311,21 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                   className="flex-1 bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
                 />
               </div>
+            </div>
+
+            <div>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Đặt cọc để vào danh sách chờ ($)</p>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">$</span>
+                <input
+                  type="number" min={1} value={deposit} onChange={e => setDeposit(e.target.value)}
+                  placeholder="0"
+                  className="flex-1 bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Tuỳ theo độ gấp về thời gian của bạn mà nhập số tiền đặt cọc — càng gấp, mức cọc càng cao sẽ được ưu tiên xét duyệt sớm hơn. Bắt buộc để vào danh sách chờ.
+              </p>
             </div>
 
             <div className="flex justify-end pt-2">
