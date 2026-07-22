@@ -324,6 +324,8 @@ async def lifespan(_app: FastAPI):
     orders_svc.init_db()
     from app.services import user_brain as user_brain_svc
     user_brain_svc.init_db()
+    from app.services import access_codes as access_codes_svc
+    access_codes_svc.init_db()
 
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents

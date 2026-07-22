@@ -111,6 +111,25 @@ async def applications_status(request: Request, email: str):
     return applications_svc.get_status(email)
 
 
+class RedeemAccessCodeRequest(BaseModel):
+    code: str
+    email: str
+
+
+@router.post("/access-codes/redeem")
+@limiter.limit("8/minute")
+async def redeem_access_code(request: Request, req: RedeemAccessCodeRequest):
+    """Manual override for the accepted-application sign-up gate — an admin-
+    generated one-time code that marks this email 'accepted' directly, for
+    cases where the normal review pipeline hasn't run. Public: the applicant
+    may have no Firebase account yet."""
+    from app.services import access_codes as access_codes_svc
+    result = access_codes_svc.redeem(req.code, req.email)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "redeem_failed"))
+    return result
+
+
 # ── Library (thelyceum.site/library) ────────────────────────────────────────
 # Public blog/research-paper sharing. Reading is open to everyone; comments,
 # reactions, and publishing require an account (registration is vetted, so

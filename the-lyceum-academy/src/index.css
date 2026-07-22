@@ -110,58 +110,69 @@ body {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* ── Claymorphism utilities ────────────────────────────────────────────── *
- * Soft, solid extruded surfaces — no backdrop blur, no translucency. Gradient
- * fills + layered outset/inset box-shadows for a puffy 3D look, in both
- * dark and light mode (light mode overrides live in the .theme-light block
- * further down). */
+/* ── Metalmorphism utilities ───────────────────────────────────────────── *
+ * Brushed-metal / liquid-metal surfaces: multi-stop diagonal gradients that
+ * read as machined chrome, a thin bright specular line along the top edge,
+ * and sharp high-contrast bevels instead of soft clay shadows. Same violet
+ * brand tint carried through as a metallic sheen rather than a flat tint.
+ * Light mode overrides (brushed aluminum) live in the .theme-light block
+ * further down. */
 
 .glass {
-  background: linear-gradient(145deg, #141b2e, #0a0e1a);
-  border: 1px solid rgba(167, 139, 250, 0.2);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 8%, rgba(255,255,255,0) 45%, rgba(196,164,255,0.05) 55%, rgba(255,255,255,0) 70%),
+    linear-gradient(155deg, #232838 0%, #171b28 22%, #1f2333 45%, #12151f 68%, #202538 100%);
+  border: 1px solid rgba(210, 200, 240, 0.22);
   box-shadow:
-    8px 8px 20px rgba(0, 0, 0, 0.5),
-    -4px -4px 12px rgba(255, 255, 255, 0.03),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.05),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
+    0 1px 0 rgba(255, 255, 255, 0.12) inset,
+    8px 8px 20px rgba(0, 0, 0, 0.55),
+    -4px -4px 12px rgba(255, 255, 255, 0.02),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .glass-card {
-  background: linear-gradient(145deg, #161f34, #0b101e);
-  border: 1px solid rgba(167, 139, 250, 0.25);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,0) 42%, rgba(196,164,255,0.06) 54%, rgba(255,255,255,0) 72%),
+    linear-gradient(155deg, #262c40 0%, #191d2c 20%, #222840 44%, #12151f 66%, #232a42 100%);
+  border: 1px solid rgba(210, 200, 240, 0.26);
   box-shadow:
-    10px 10px 24px rgba(0, 0, 0, 0.55),
-    -5px -5px 14px rgba(255, 255, 255, 0.035),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.06),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
+    0 1px 0 rgba(255, 255, 255, 0.14) inset,
+    10px 10px 24px rgba(0, 0, 0, 0.6),
+    -5px -5px 14px rgba(255, 255, 255, 0.025),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.4);
 }
 
 .glass-strong {
-  background: linear-gradient(145deg, #182035, #0a0f1c);
-  border: 1px solid rgba(167, 139, 250, 0.3);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.09) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,0) 40%, rgba(196,164,255,0.08) 52%, rgba(255,255,255,0) 74%),
+    linear-gradient(155deg, #2a3148 0%, #1a1f30 18%, #262d47 42%, #10131c 64%, #262d47 100%);
+  border: 1px solid rgba(210, 200, 240, 0.32);
   box-shadow:
-    12px 12px 28px rgba(0, 0, 0, 0.6),
-    -6px -6px 16px rgba(255, 255, 255, 0.04),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.07),
-    inset -1.5px -1.5px 3px rgba(0, 0, 0, 0.4);
+    0 1px 0 rgba(255, 255, 255, 0.16) inset,
+    12px 12px 28px rgba(0, 0, 0, 0.65),
+    -6px -6px 16px rgba(255, 255, 255, 0.03),
+    inset -1.5px -1.5px 3px rgba(0, 0, 0, 0.45);
 }
 
 /* Mind Map panel — much more opaque than the base glass-strong so the
    graph reads clearly against whatever's behind it. */
 .glass-strong.mindmap-panel {
-  background: linear-gradient(145deg, #131a2c, #080c16);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0) 12%, rgba(255,255,255,0) 44%, rgba(196,164,255,0.05) 56%, rgba(255,255,255,0) 76%),
+    linear-gradient(155deg, #1f2436 0%, #14171f 20%, #1c2033 44%, #0c0e15 66%, #1b1f30 100%);
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.1) inset,
     12px 12px 28px rgba(0, 0, 0, 0.6),
-    -6px -6px 16px rgba(255, 255, 255, 0.03),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.05),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.3);
+    -6px -6px 16px rgba(255, 255, 255, 0.02),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
 }
 
 .glass-input {
-  background: linear-gradient(145deg, #0a0e1a, #141b2e);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(165deg, #0d1018 0%, #171c2b 40%, #0e111a 100%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow:
-    inset 3px 3px 6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 3px 3px 6px rgba(0, 0, 0, 0.5),
     inset -1px -1px 3px rgba(255, 255, 255, 0.04);
   color: #f0f0f5;
   outline: none;
@@ -169,61 +180,74 @@ body {
 }
 
 .glass-input:focus {
-  border-color: rgba(167, 139, 250, 0.5);
+  border-color: rgba(210, 200, 240, 0.55);
   box-shadow:
-    inset 3px 3px 6px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 3px 3px 6px rgba(0, 0, 0, 0.5),
     inset -1px -1px 3px rgba(255, 255, 255, 0.04),
-    0 0 0 3px rgba(167, 139, 250, 0.18);
+    0 0 0 3px rgba(196, 164, 255, 0.2);
 }
 
 .glass-btn {
-  background: linear-gradient(145deg, #2a2350, #1a1638);
-  border: 1px solid rgba(167, 139, 250, 0.4);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 14%, rgba(255,255,255,0) 46%, rgba(216,204,255,0.14) 58%, rgba(255,255,255,0) 78%),
+    linear-gradient(155deg, #37406a 0%, #221f42 22%, #2f2f5c 48%, #191830 70%, #322f5e 100%);
+  border: 1px solid rgba(210, 200, 240, 0.45);
   box-shadow:
-    6px 6px 16px rgba(0, 0, 0, 0.5),
-    -3px -3px 10px rgba(255, 255, 255, 0.04),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.08),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.3);
-  color: #d8ccff;
+    0 1px 0 rgba(255, 255, 255, 0.2) inset,
+    6px 6px 16px rgba(0, 0, 0, 0.55),
+    -3px -3px 10px rgba(255, 255, 255, 0.03),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
+  color: #e6ddff;
   transition: all 0.2s;
 }
 
 .glass-btn:hover {
-  background: linear-gradient(145deg, #332a5e, #221c42);
-  border-color: rgba(167, 139, 250, 0.6);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 16%, rgba(255,255,255,0) 44%, rgba(216,204,255,0.2) 56%, rgba(255,255,255,0) 80%),
+    linear-gradient(155deg, #414b7e 0%, #29254e 20%, #38386c 46%, #201f3c 68%, #3b3870 100%);
+  border-color: rgba(210, 200, 240, 0.65);
   box-shadow:
-    8px 8px 20px rgba(0, 0, 0, 0.55),
-    -4px -4px 12px rgba(255, 255, 255, 0.05),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.1),
-    inset -1px -1px 2px rgba(0, 0, 0, 0.35);
+    0 1px 0 rgba(255, 255, 255, 0.25) inset,
+    8px 8px 20px rgba(0, 0, 0, 0.6),
+    -4px -4px 12px rgba(255, 255, 255, 0.04),
+    inset -1px -1px 2px rgba(0, 0, 0, 0.4);
 }
 
 /* ── Pill/chip/tab utilities — lighter-weight than .glass* for dense UI
-   (tabs, toggle buttons, option chips) where a full card shadow would be
-   too heavy. Same claymorphism treatment in light mode, smaller shadows. */
+   (tabs, toggle buttons, option chips) where a full metal-card shadow would
+   be too heavy. Same brushed treatment, smaller bevels. Light mode override
+   further down. */
 .glass-pill {
-  background: linear-gradient(145deg, #131a2c, #0a0e1a);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.04) 80%),
+    linear-gradient(155deg, #1e2334 0%, #141824 30%, #191d2c 60%, #0d0f18 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   color: rgba(255, 255, 255, 0.5);
   box-shadow:
-    3px 3px 8px rgba(0, 0, 0, 0.4),
-    -2px -2px 6px rgba(255, 255, 255, 0.03);
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    3px 3px 8px rgba(0, 0, 0, 0.45),
+    -2px -2px 6px rgba(255, 255, 255, 0.02);
   transition: all 0.15s;
 }
 
 .glass-pill:hover {
-  background: linear-gradient(145deg, #161d30, #0d1220);
-  color: rgba(255, 255, 255, 0.8);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0) 60%, rgba(255,255,255,0.06) 80%),
+    linear-gradient(155deg, #232939 0%, #171c2a 30%, #1e2333 60%, #10131d 100%);
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .glass-pill-active {
-  background: linear-gradient(145deg, #1c2540, #10162a);
-  border: 1px solid rgba(167, 139, 250, 0.4);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 18%, rgba(255,255,255,0) 55%, rgba(216,204,255,0.14) 72%),
+    linear-gradient(155deg, #2c3350 0%, #1a1f36 30%, #262d48 60%, #12151f 100%);
+  border: 1px solid rgba(210, 200, 240, 0.45);
   color: #ffffff;
   box-shadow:
-    3px 3px 8px rgba(0, 0, 0, 0.45),
-    -2px -2px 6px rgba(255, 255, 255, 0.04),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.06);
+    0 1px 0 rgba(255, 255, 255, 0.15) inset,
+    3px 3px 8px rgba(0, 0, 0, 0.5),
+    -2px -2px 6px rgba(255, 255, 255, 0.03);
 }
 
 /* ── Ambient background orbs ──────────────────────────────────────────── */
@@ -529,120 +553,142 @@ body {
 .theme-light .orb-3 { background: radial-gradient(circle, #bae6fd, transparent); }
 .theme-light .orb-4 { background: radial-gradient(circle, #a5f3fc, transparent); }
 
-/* ── Claymorphism — light mode ────────────────────────────────────────────
-   Glassmorphism panels transform into claymorphism in light mode: soft,
-   solid pastel fills with inner shadows for a puffy 3D look. No blur —
-   gradient fills + layered inset/outset box-shadows instead. */
+/* ── Metalmorphism — light mode (brushed aluminum) ───────────────────────
+   Same brushed-metal language as dark mode, recast in polished silver: a
+   diagonal specular band across each surface, plus tighter high-contrast
+   bevels standing in for the dark mode's black shadows. No blur — gradient
+   fills + layered inset/outset box-shadows only. */
 
 .theme-light .glass {
-  background: linear-gradient(145deg, #e5eaf7, #d7ddef);
-  border: 2px solid rgba(124, 58, 237, 0.22);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 12%, rgba(255,255,255,0) 42%, rgba(124,58,237,0.06) 54%, rgba(255,255,255,0) 74%),
+    linear-gradient(155deg, #f3f5fb 0%, #dde3f0 22%, #eef1fa 46%, #cdd4e6 70%, #eef1fa 100%);
+  border: 1px solid rgba(15, 23, 42, 0.16);
   box-shadow:
-    10px 10px 24px rgba(15, 23, 42, 0.16),
-    -5px -5px 14px rgba(255, 255, 255, 0.9),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.7),
-    inset -1px -1px 2px rgba(15, 23, 42, 0.07);
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    10px 10px 24px rgba(15, 23, 42, 0.14),
+    -5px -5px 14px rgba(255, 255, 255, 0.8),
+    inset -1px -1px 2px rgba(15, 23, 42, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-card {
-  background: linear-gradient(145deg, #e7ecf9, #d9e0f1);
-  border: 2px solid rgba(124, 58, 237, 0.25);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 12%, rgba(255,255,255,0) 40%, rgba(124,58,237,0.07) 52%, rgba(255,255,255,0) 76%),
+    linear-gradient(155deg, #f5f7fc 0%, #dfe5f2 20%, #f0f3fb 44%, #ccd3e6 66%, #f0f3fb 100%);
+  border: 1px solid rgba(15, 23, 42, 0.18);
   box-shadow:
-    12px 12px 28px rgba(15, 23, 42, 0.18),
-    -6px -6px 16px rgba(255, 255, 255, 0.95),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    12px 12px 28px rgba(15, 23, 42, 0.16),
+    -6px -6px 16px rgba(255, 255, 255, 0.85),
     inset -1px -1px 2px rgba(15, 23, 42, 0.06);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-strong {
-  background: linear-gradient(145deg, #e2e8f7, #d1d9ed);
-  border: 2px solid rgba(124, 58, 237, 0.3);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 10%, rgba(255,255,255,0) 38%, rgba(124,58,237,0.09) 50%, rgba(255,255,255,0) 78%),
+    linear-gradient(155deg, #f7f9fd 0%, #e0e6f3 18%, #f1f4fb 42%, #c8d0e5 64%, #f1f4fb 100%);
+  border: 1px solid rgba(15, 23, 42, 0.2);
   box-shadow:
-    14px 14px 32px rgba(15, 23, 42, 0.2),
-    -7px -7px 18px rgba(255, 255, 255, 1),
-    inset 2px 2px 4px rgba(255, 255, 255, 0.85),
+    0 1px 0 rgba(255, 255, 255, 1) inset,
+    14px 14px 32px rgba(15, 23, 42, 0.18),
+    -7px -7px 18px rgba(255, 255, 255, 0.9),
     inset -1.5px -1.5px 3px rgba(15, 23, 42, 0.07);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-strong.mindmap-panel {
-  background: linear-gradient(145deg, #dfe6f6, #cdd6ec);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 14%, rgba(255,255,255,0) 46%, rgba(124,58,237,0.06) 58%, rgba(255,255,255,0) 80%),
+    linear-gradient(155deg, #f2f4fa 0%, #dbe1ee 20%, #eaeef8 44%, #c6cee2 66%, #eaeef8 100%);
   box-shadow:
-    12px 12px 28px rgba(15, 23, 42, 0.18),
-    -6px -6px 16px rgba(255, 255, 255, 0.95),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    12px 12px 28px rgba(15, 23, 42, 0.16),
+    -6px -6px 16px rgba(255, 255, 255, 0.85),
     inset -1px -1px 2px rgba(15, 23, 42, 0.05);
 }
 
 .theme-light .glass-input {
-  background: linear-gradient(145deg, #e9eefb, #dce3f3);
-  border: 2px solid rgba(15, 23, 42, 0.22);
+  background: linear-gradient(165deg, #eef1fb 0%, #e0e6f3 45%, #f4f6fc 100%);
+  border: 1px solid rgba(15, 23, 42, 0.22);
   box-shadow:
+    inset 0 1px 0 rgba(15, 23, 42, 0.03),
     inset 3px 3px 6px rgba(15, 23, 42, 0.1),
-    inset -1px -1px 3px rgba(255, 255, 255, 0.8);
+    inset -1px -1px 3px rgba(255, 255, 255, 0.85);
   color: #1e293b;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-input:focus {
-  border-color: rgba(37, 99, 235, 0.55);
+  border-color: rgba(124, 58, 237, 0.5);
   box-shadow:
+    inset 0 1px 0 rgba(15, 23, 42, 0.03),
     inset 3px 3px 6px rgba(15, 23, 42, 0.1),
-    inset -1px -1px 3px rgba(255, 255, 255, 0.8),
-    0 0 0 3px rgba(37, 99, 235, 0.16);
+    inset -1px -1px 3px rgba(255, 255, 255, 0.85),
+    0 0 0 3px rgba(124, 58, 237, 0.16);
 }
 
 .theme-light .glass-btn {
-  background: linear-gradient(145deg, #d7defb, #c5d0f2);
-  border: 2px solid rgba(37, 99, 235, 0.35);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 14%, rgba(255,255,255,0) 44%, rgba(124,58,237,0.12) 56%, rgba(255,255,255,0) 78%),
+    linear-gradient(155deg, #eef1fd 0%, #cdd6f2 22%, #dee5fa 48%, #b7c2ec 70%, #dee5fa 100%);
+  border: 1px solid rgba(37, 99, 235, 0.35);
   box-shadow:
-    6px 6px 16px rgba(15, 23, 42, 0.15),
-    -3px -3px 10px rgba(255, 255, 255, 0.9),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.7),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset,
+    6px 6px 16px rgba(15, 23, 42, 0.14),
+    -3px -3px 10px rgba(255, 255, 255, 0.85),
     inset -1px -1px 2px rgba(15, 23, 42, 0.06);
-  color: #1e3a8a;
+  color: #2f2670;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
 
 .theme-light .glass-btn:hover {
-  background: linear-gradient(145deg, #c9d2fb, #b4c1ef);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0) 16%, rgba(255,255,255,0) 42%, rgba(124,58,237,0.16) 54%, rgba(255,255,255,0) 80%),
+    linear-gradient(155deg, #e6eafd 0%, #bccafa 20%, #d2dbfb 46%, #a5b3ea 68%, #d2dbfb 100%);
   box-shadow:
-    8px 8px 20px rgba(15, 23, 42, 0.18),
-    -4px -4px 12px rgba(255, 255, 255, 1),
-    inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
+    0 1px 0 rgba(255, 255, 255, 0.95) inset,
+    8px 8px 20px rgba(15, 23, 42, 0.16),
+    -4px -4px 12px rgba(255, 255, 255, 0.9),
     inset -1px -1px 2px rgba(15, 23, 42, 0.07);
   border-color: rgba(37, 99, 235, 0.55);
 }
 
 .theme-light .glass-pill {
-  background: linear-gradient(145deg, #eef1fa, #e2e6f2);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0) 22%, rgba(255,255,255,0) 62%, rgba(255,255,255,0.5) 82%),
+    linear-gradient(155deg, #f1f3fa 0%, #e2e6f2 30%, #eceff8 60%, #d8dded 100%);
   border: 1px solid rgba(15, 23, 42, 0.12);
   color: rgba(15, 23, 42, 0.55);
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
     3px 3px 8px rgba(15, 23, 42, 0.08),
-    -2px -2px 6px rgba(255, 255, 255, 0.9);
+    -2px -2px 6px rgba(255, 255, 255, 0.85);
 }
 
 .theme-light .glass-pill:hover {
-  background: linear-gradient(145deg, #e6eaf6, #d9deec);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 22%, rgba(255,255,255,0) 62%, rgba(255,255,255,0.6) 82%),
+    linear-gradient(155deg, #eceff8 0%, #d9deec 30%, #e6eaf6 60%, #ccd2e6 100%);
   color: rgba(15, 23, 42, 0.85);
 }
 
 .theme-light .glass-pill-active {
-  background: linear-gradient(145deg, #e2e8f7, #d1d9ed);
-  border: 1px solid rgba(124, 58, 237, 0.3);
+  background:
+    linear-gradient(100deg, rgba(255,255,255,0.85) 0%, rgba(255,255,255,0) 20%, rgba(255,255,255,0) 55%, rgba(124,58,237,0.1) 72%),
+    linear-gradient(155deg, #f0f3fb 0%, #dbe1f0 30%, #e8ecf9 60%, #c6cee6 100%);
+  border: 1px solid rgba(124, 58, 237, 0.35);
   color: #1e3a8a;
   box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
     3px 3px 8px rgba(15, 23, 42, 0.1),
-    -2px -2px 6px rgba(255, 255, 255, 0.95),
-    inset 1px 1px 2px rgba(255, 255, 255, 0.8);
+    -2px -2px 6px rgba(255, 255, 255, 0.9);
 }
 
 .theme-light .nav-link {
