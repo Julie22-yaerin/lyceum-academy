@@ -197,7 +197,6 @@ const API        = (location.hostname === 'localhost' || location.hostname === '
       ? location.origin
       : 'https://lyceum-academy-production.up.railway.app');
 const COOKIE     = 'pclick_fb_token';
-const DEV_TOKEN  = 'pclick-admin-dev';
 
 let currentToken = '';
 let _firebaseUser = null;
@@ -212,7 +211,14 @@ auth.onIdTokenChanged(async user => {
   setLL(false);
   if (user) {
     _firebaseUser = user;
-    try { currentToken = await user.getIdToken(true); } catch { currentToken = DEV_TOKEN; }
+    // Never fall back to DEV_TOKEN here — a silent fallback lets you "in"
+    // while every API call 401s (production ADMIN_SECRET differs). If the
+    // ID token can't be fetched, retry once, then surface the error.
+    try { currentToken = await user.getIdToken(true); }
+    catch {
+      try { currentToken = await user.getIdToken(); }
+      catch { showLoginErr('Không lấy được Firebase ID token — thử đăng nhập lại.'); show('login-screen'); return; }
+    }
     if (!_shown) { _shown = true; showAdmin(user); }
   } else {
     _firebaseUser = null;
@@ -295,7 +301,9 @@ async function doLogout() {
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-function headers(extra={}) { return {'X-Admin-Token': currentToken||DEV_TOKEN, ...extra}; }
+// No DEV_TOKEN fallback — sending the dev token against a prod ADMIN_SECRET
+// turns every view into a silent 401. An empty token 401s loudly instead.
+function headers(extra={}) { return {'X-Admin-Token': currentToken, ...extra}; }
 
 async function api(path, opts={}) {
   let r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
