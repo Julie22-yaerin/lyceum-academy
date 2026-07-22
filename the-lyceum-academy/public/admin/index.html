@@ -176,21 +176,34 @@ const COOKIE     = 'pclick_fb_token';
 const DEV_TOKEN  = 'pclick-admin-dev';
 
 let currentToken = '';
+let _firebaseUser = null;
 let _shown       = false;
 let _pingTimer   = null;
 let _retryTimer  = null;
 let _retryS      = 0;
+let _tokenRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 auth.onIdTokenChanged(async user => {
   setLL(false);
   if (user) {
-    try { currentToken = await user.getIdToken(); } catch { currentToken = DEV_TOKEN; }
+    _firebaseUser = user;
+    try { currentToken = await user.getIdToken(true); } catch { currentToken = DEV_TOKEN; }
     if (!_shown) { _shown = true; showAdmin(user); }
   } else {
+    _firebaseUser = null;
     await tryCookieSSO();
   }
 });
+
+function startTokenRefresh() {
+  if (_tokenRefreshTimer) return;
+  _tokenRefreshTimer = setInterval(async () => {
+    if (_firebaseUser) {
+      try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    }
+  }, 30 * 60 * 1000);
+}
 
 async function tryCookieSSO() {
   const tok = getCookie(COOKIE);
@@ -210,6 +223,7 @@ function showAdmin(user) {
   const ne = document.getElementById('user-name');
   ne.textContent = user ? (user.displayName || user.email) : 'dev token';
   ne.classList.remove('hidden');
+  startTokenRefresh();
   postLoginInit();
   viewErrors();
 }
@@ -244,8 +258,10 @@ function showLoginErr(m) { const e=document.getElementById('login-error'); e.tex
 
 async function doLogout() {
   _shown = false; currentToken = '';
+  _firebaseUser = null;
   clearInterval(_pingTimer); _pingTimer = null;
   clearInterval(_retryTimer); _retryTimer = null;
+  clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null;
   await auth.signOut();
   document.cookie = `${COOKIE}=; path=/; max-age=0; SameSite=Strict`;
   document.getElementById('app').classList.add('hidden');
@@ -259,7 +275,11 @@ async function doLogout() {
 function headers(extra={}) { return {'X-Admin-Token': currentToken||DEV_TOKEN, ...extra}; }
 
 async function api(path, opts={}) {
-  const r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  let r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  if (r.status === 401 && _firebaseUser) {
+    try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  }
   if (!r.ok) { const t=await r.text().catch(()=>r.statusText); throw new Error(t||r.statusText); }
   return r;
 }
