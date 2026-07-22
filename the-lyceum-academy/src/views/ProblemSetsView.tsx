@@ -1,15 +1,15 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
-import { useTranslation, getCurrentLang } from '../i18n/I18nContext';
-import { uploadProblemSet, decomposeProblemSet, checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion, generateExercises } from '../lib/api';
-import { generateLessonPackage, type BreakGame } from '../lib/lyceumApi';
+import { useState, useRef, useEffect } from 'react';
+import { useTranslation } from '../i18n/I18nContext';
+import { checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, gradeDual, analyzePage, analyzePSetQuestions, type PsetAnalysis, revealSolution, evaluateReverseBuild, generateVariantQuestions, type VariantQuestion } from '../lib/api';
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
-import { loadPSets, savePSet, deletePSet, savePages, loadPages, timeAgo, detectSubject, saveNote, type SavedPSet } from '../lib/persist';
+import { loadPSets, savePSet, deletePSet, loadPages, timeAgo, detectSubject, type SavedPSet } from '../lib/persist';
+import { fetchTodayMaterials, type CatalogItem } from '../lib/coach';
+import { getWorkspaceId } from '../lib/catalogMembership';
 import { recordProfileEvent } from '../lib/profile';
 import { useWorkspace } from '../context/WorkspaceContext';
 import MindMapTool from '../components/MindMapTool';
-import { useToolDock } from '../context/ToolDockContext';
 import Confetti from '../components/Confetti';
 import { playCorrectSound, playWrongSound, speak } from '../lib/feedbackSounds';
 
@@ -1671,24 +1671,14 @@ function LensView({
 // ── Main ProblemSetsView ──────────────────────────────────────────────────
 export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: string) => void } = {}) {
   const { activeTab } = useWorkspace();
-  const { openTool } = useToolDock();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [pages, setPages] = useState<PdfPage[]>([]);
   const [lensMode, setLensMode] = useState(false);
   const [lensOpen, setLensOpen] = useState(false);
   const [docKey, setDocKey] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [phase, setPhase] = useState<0|1|2|3>(0);
   const [error, setError] = useState('');
   const [cleaningSet, setCleaningSet] = useState<Set<number>>(new Set());
   const [, setKatexTick] = useState(0);
-  const [pasteText, setPasteText] = useState('');
-  const [showPaste, setShowPaste] = useState(false);
-  const [sbTopic, setSbTopic] = useState('');
-  const [lessonBusy, setLessonBusy] = useState(false);
-  const [lessonError, setLessonError] = useState('');
-  const [breakGames, setBreakGames] = useState<BreakGame[]>([]);
-  const [rawText, setRawText] = useState('');
   const [usage, setUsage] = useState<{ total_tokens?: number; total_calls?: number } | null>(null);
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
   const [totalPages, setTotalPages] = useState(0);
@@ -1707,8 +1697,6 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [bonusChecking, setBonusChecking] = useState<string | null>(null);
   const [generatingBonus, setGeneratingBonus] = useState(false);
   const psetIdRef = useRef<string>('');
-  const fileRef = useRef<HTMLInputElement>(null);
-  const phaseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const analyzedPagesRef = useRef<Set<number>>(new Set());
   const hiddenPagesRef = useRef<Set<number>>(new Set());
 
@@ -1763,166 +1751,38 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
     }
   }
 
-  function startPhaseTimer() {
-    phaseTimer.current = setTimeout(() => {
-      setPhase(2);
-      phaseTimer.current = setTimeout(() => setPhase(3), 7000);
-    }, 3000);
-  }
+  // ── Today / Already Studied — exercise-set materials the Coach selected
+  // from the admin-curated catalog for this workspace. No upload/topic-input
+  // anymore: content only ever arrives pre-supplied.
+  const [todayItems, setTodayItems] = useState<CatalogItem[]>([]);
+  const [studiedItems, setStudiedItems] = useState<CatalogItem[]>([]);
 
-  function clearPhaseTimer() {
-    if (phaseTimer.current) { clearTimeout(phaseTimer.current); phaseTimer.current = null; }
-  }
+  useEffect(() => {
+    const workspaceId = activeTab ? getWorkspaceId(activeTab) : null;
+    if (!workspaceId) { setTodayItems([]); setStudiedItems([]); return; }
+    setError('');
+    fetchTodayMaterials(workspaceId)
+      .then(r => {
+        setTodayItems(r.today.filter(i => i.item_type === 'exercise-set'));
+        setStudiedItems(r.studied.filter(i => i.item_type === 'exercise-set'));
+      })
+      .catch(e => setError(e.message || "Could not load today's materials."));
+  }, [activeTab]);
 
-  async function handleFile(file: File) {
-    setError(''); setLoading(true); setQuestions([]); setPages([]); setRawText('');
-    setLensMode(false); setLensOpen(false); setDocKey(file.name);
-    setPhase(1); startPhaseTimer();
-    try {
-      const result = await uploadProblemSet(file);
-      clearPhaseTimer(); setPhase(3);
-      await new Promise(r => setTimeout(r, 600));
-      const qs: Question[] = result.questions || [];
-      if (qs.length === 0) {
-        const backendMsg = result.summary || result.error || 'No questions found in this file.';
-        setError(backendMsg);
-        if (result.raw_text) { setRawText(result.raw_text); setPasteText(result.raw_text); setShowPaste(true); }
-      } else {
-        setQuestions(qs);
-        const pgData: PdfPage[] = result.pages || [];
-        setPages(pgData);
-        const tp = result.totalPages || pgData.length;
-        setTotalPages(tp);
-        analyzedPagesRef.current = new Set([0]); // page 0 already analyzed
-        setAnalyzedPageCount(1);
-        const isLens = pgData.length > 0;
-        setLensMode(isLens);
-        // Re-use existing saved set ID if same file name (preserves progress position)
-        const existingSet = loadPSets(activeTab || undefined).find(s => s.name === file.name);
-        const id = (psetIdRef.current && docKey === file.name && existingSet)
-          ? psetIdRef.current
-          : `pset_${Date.now()}`;
-        const savedIdx = (existingSet && docKey === file.name) ? existingSet.currentIdx : 0;
-        psetIdRef.current = id;
-        // Save pages to IndexedDB (async, fire-and-forget; large data)
-        if (pgData.length > 0) savePages(id, pgData);
-        savePSet({ id, name: file.name, savedAt: Date.now(), questions: qs, currentIdx: savedIdx, lensMode: isLens, totalPages: tp, hasCachedPages: pgData.length > 0, subject: existingSet?.subject ?? activeTab ?? undefined });
-        setSavedSets(loadPSets(activeTab || undefined));
-        if (isLens) {
-          setLensOpen(true);
-        }
-      }
-    } catch (e: any) {
-      clearPhaseTimer();
-      const msg = e.message || String(e);
-      if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
-        setError('Cannot reach backend at localhost:8000 — is it running?');
-      } else { setError(msg); }
-    } finally { setLoading(false); setPhase(0); }
-  }
-
-  // ── Quest cards from the Second Brain — the primary way sets are made now.
-  // The generated set is auto-saved immediately (savePSet), so it shows up in
-  // the saved-sets list without any manual save step.
-  async function handleGenerateFromSecondBrain() {
-    const topic = sbTopic.trim();
-    if (!topic || loading) return;
-    setError(''); setLoading(true); setQuestions([]); setPages([]); setRawText('');
+  // Loads a Coach-selected exercise-set item straight into the existing
+  // questions/lensMode state — its admin-authored `content.questions` is
+  // already shaped like what uploadProblemSet/decomposeProblemSet produced,
+  // so LensView and everything downstream needs no changes at all.
+  function loadCatalogExerciseSet(item: CatalogItem) {
+    const qs: Question[] = item.content?.questions || [];
+    if (qs.length === 0) { setError('This exercise set has no questions yet.'); return; }
+    setError(''); setQuestions(qs); setPages([]);
     setLensMode(false); setLensOpen(false);
-    const setName = `Second Brain — ${topic}`;
-    setDocKey(setName);
-    try {
-      const subject = activeTab || detectSubject(topic);
-      const { cards } = await generateExercises(subject, topic, 8);
-      if (!cards?.length) { setError('The Second Brain could not draft questions for this topic — try a more specific one.'); return; }
-      const qs: Question[] = cards.map((c, i) => ({
-        id: c.id || `sb_${i + 1}`,
-        prompt: c.question,
-        difficulty: (c.difficulty === 'extreme' ? 'hard' : c.difficulty) as Question['difficulty'],
-        concepts: c.concepts || [],
-      }));
-      setQuestions(qs);
-      const id = `pset_${Date.now()}`;
-      psetIdRef.current = id;
-      savePSet({ id, name: setName, savedAt: Date.now(), questions: qs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
-      setSavedSets(loadPSets(activeTab || undefined));
-      setSbTopic('');
-    } catch (e: any) {
-      const msg = e.message || String(e);
-      setError(msg.includes('Failed to fetch') ? 'Cannot reach backend — is it running?' : msg);
-    } finally { setLoading(false); }
-  }
-
-  // ── Full Coach lesson package: 1 illustrated note (auto-saved to Notes),
-  // 2 quest sets (daily + suggested past-paper, auto-saved), 1-2 break games
-  // (seed the Game Builder). The daily set loads into the workspace right
-  // away so the student can start immediately; the past-paper set and note
-  // wait in their libraries for later.
-  async function handleGenerateLessonPackage() {
-    const topic = sbTopic.trim();
-    if (!topic || lessonBusy || loading) return;
-    setLessonError(''); setLessonBusy(true); setBreakGames([]);
-    try {
-      const subject = activeTab || detectSubject(topic);
-      const pkg = await generateLessonPackage(subject, topic, getCurrentLang());
-
-      if (pkg.note?.title) {
-        saveNote({
-          id: `note_${Date.now()}`, title: pkg.note.title, savedAt: Date.now(),
-          sourceType: 'second-brain', note: pkg.note, subject: activeTab || undefined, folder: 'Lessons',
-        });
-      }
-
-      const toQuestions = (cards: typeof pkg.daily_cards) => cards.map((c, i) => ({
-        id: c.id || `lc_${i + 1}`,
-        prompt: c.question,
-        difficulty: (c.difficulty === 'extreme' ? 'hard' : c.difficulty) as Question['difficulty'],
-        concepts: c.concepts || [],
-      }));
-
-      const dailyQs = toQuestions(pkg.daily_cards);
-      const pastPaperQs = toQuestions(pkg.past_paper_cards);
-
-      if (dailyQs.length) {
-        const id = `pset_${Date.now()}_daily`;
-        savePSet({ id, name: `${topic} — Daily Practice`, savedAt: Date.now(), questions: dailyQs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
-        psetIdRef.current = id;
-        setQuestions(dailyQs);
-        setDocKey(`${topic} — Daily Practice`);
-      }
-      if (pastPaperQs.length) {
-        savePSet({ id: `pset_${Date.now()}_pastpaper`, name: `${topic} — Past Paper (suggested)`, savedAt: Date.now(), questions: pastPaperQs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
-      }
-      setSavedSets(loadPSets(activeTab || undefined));
-      setBreakGames(pkg.break_games || []);
-      setSbTopic('');
-    } catch (e: any) {
-      const msg = e.message || String(e);
-      setLessonError(msg.includes('Failed to fetch') ? 'Cannot reach backend — is it running?' : msg);
-    } finally { setLessonBusy(false); }
-  }
-
-  function handleBuildBreakGame(game: BreakGame) {
-    openTool('games', { seedPrompt: game.concepts[0] || game.title });
-  }
-
-  async function handleDecompose() {
-    if (!pasteText.trim()) return;
-    setError(''); setLoading(true); setRawText('');
-    setPhase(2); startPhaseTimer();
-    try {
-      const result = await decomposeProblemSet(pasteText);
-      clearPhaseTimer(); setPhase(3);
-      await new Promise(r => setTimeout(r, 400));
-      const qs: Question[] = result.questions || [];
-      if (qs.length === 0) {
-        setError(result.summary || 'AI could not parse questions. Try editing the text above.');
-      } else {
-        setQuestions(qs); setShowPaste(false);
-      }
-    } catch (e: any) {
-      clearPhaseTimer(); setError(e.message);
-    } finally { setLoading(false); setPhase(0); }
+    setDocKey(item.title);
+    const id = `catalog_${item.id}`;
+    psetIdRef.current = id;
+    savePSet({ id, name: item.title, savedAt: Date.now(), questions: qs, currentIdx: 0, lensMode: false, totalPages: 0, hasCachedPages: false, subject: activeTab ?? undefined });
+    setSavedSets(loadPSets(activeTab || undefined));
   }
 
   /**
@@ -1981,12 +1841,6 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   }
 
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file) handleFile(file);
-  }, []);
-
   async function openSavedSet(s: SavedPSet) {
     setDocKey(s.name);
     psetIdRef.current = s.id;
@@ -2010,10 +1864,12 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
       }
     }
 
-    // Cached pages expired or unavailable — prompt re-upload
+    // Cached PDF pages expired or unavailable — fall back to flat mode with
+    // the saved questions (already set above); no re-upload path anymore.
+    setLensMode(false);
+    setLensOpen(false);
     savePSet({ ...s, savedAt: Date.now() });
     setSavedSets(loadPSets(activeTab || undefined));
-    fileRef.current?.click();
   }
 
   return (
@@ -2071,103 +1927,50 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
         </p>
       </div>
 
-      {/* Quest generator — exercises come from the Second Brain, not uploads */}
-      <div className="w-full max-w-3xl bg-surface border border-outline/10 p-12 mb-12 shadow-sm relative">
-        <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/30" />
-        <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/30" />
-
-        <div className="flex flex-col items-center gap-6">
-          {loading ? (
-            <div className="flex flex-col items-center gap-4 py-6">
-              <div className="flex gap-1.5">
-                {[0,1,2].map(i => (
-                  <div key={i} className="w-2 h-2 bg-on-surface rounded-full opacity-40 animate-bounce"
-                    style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
-              <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-50">
-                Drafting quest cards from your Second Brain…
-              </p>
-            </div>
-          ) : (
-            <>
-              <span className="text-4xl">🧠</span>
-              <div className="text-center">
-                <p className="font-serif text-xl text-on-surface mb-2">Generate a Quest Set</p>
-                <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40">
-                  Questions are drawn from the Second Brain curriculum vault
-                </p>
-              </div>
-              <div className="w-full flex gap-3">
-                <input
-                  value={sbTopic}
-                  onChange={e => setSbTopic(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleGenerateFromSecondBrain(); }}
-                  placeholder="Topic — e.g. Stoichiometry, Vectors, Cell division…"
-                  className="flex-1 bg-transparent border-b border-outline/30 px-0 py-2 font-sans text-sm outline-none focus:border-on-surface transition-colors"
-                />
-                <button
-                  onClick={handleGenerateFromSecondBrain}
-                  disabled={!sbTopic.trim()}
-                  className="bg-on-surface text-surface px-8 py-3 font-sans text-[10px] uppercase tracking-[2px] font-bold hover:opacity-80 transition-opacity disabled:opacity-30"
-                >
-                  Generate
-                </button>
-              </div>
-
-              <div className="flex items-center gap-4 w-full">
-                <div className="h-[1px] flex-grow bg-outline/10" />
-                <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-40">or</span>
-                <div className="h-[1px] flex-grow bg-outline/10" />
-              </div>
-
-              <button
-                onClick={handleGenerateLessonPackage}
-                disabled={!sbTopic.trim() || lessonBusy}
-                className="border border-outline/25 px-6 py-3 font-sans text-[10px] uppercase tracking-[2px] hover:bg-surface-container-highest transition-colors disabled:opacity-30 flex items-center gap-2"
-              >
-                {lessonBusy && <div className="w-3 h-3 border border-on-surface/30 border-t-on-surface rounded-full animate-spin" />}
-                📦 {lessonBusy ? 'Assembling lesson…' : 'Build Full Lesson Package'}
-              </button>
-              <p className="font-sans text-[10px] opacity-35 text-center max-w-md">
-                A full package: 1 illustrated note with sources, a daily quest set, a suggested
-                past-paper set (up to 15 cards each), and 1-2 break games — all from the Second Brain.
-              </p>
-              {lessonError && <p className="font-sans text-sm text-red-600">{lessonError}</p>}
-
-              <p className="font-sans text-[10px] opacity-35 text-center">
-                Want your own material in the mix? Add it once via Settings → Second Brain.
-              </p>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Break games from the last lesson package */}
-      {breakGames.length > 0 && (
-        <div className="w-full max-w-3xl mb-12">
-          <div className="flex items-center gap-3 mb-4">
-            <span className="text-base">🎮</span>
-            <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Short-break games for this lesson</span>
-          </div>
-          <div className="flex flex-col gap-2">
-            {breakGames.map((g, i) => (
-              <div key={i} className="flex items-center justify-between border border-outline/15 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="font-sans text-sm text-on-surface">{g.title}</p>
-                  <p className="font-sans text-xs opacity-50 mt-0.5">{g.description}</p>
+      {/* Today / Already Studied — exercise sets the Coach selected from the
+          admin-curated catalog. No upload/topic-input: content only ever
+          arrives pre-supplied. */}
+      <div className="w-full max-w-3xl mb-12">
+        {!activeTab || !getWorkspaceId(activeTab) ? (
+          <p className="font-sans text-sm opacity-40 text-center py-6">
+            Join a workspace to receive today's exercise sets.
+          </p>
+        ) : (
+          <>
+            <div className="mb-6">
+              <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50 block mb-3">Today</span>
+              {todayItems.length === 0 ? (
+                <p className="font-sans text-sm opacity-40">Nothing new today yet — check back soon.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {todayItems.map(item => (
+                    <button key={item.id} onClick={() => loadCatalogExerciseSet(item)}
+                      className="text-left border border-outline/20 bg-surface-container-highest/20 px-5 py-4 hover:bg-surface-container-highest/40 transition-colors">
+                      <span className="font-serif text-lg block">{item.title}</span>
+                      <span className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40">{item.concept_name}</span>
+                    </button>
+                  ))}
                 </div>
-                <button
-                  onClick={() => handleBuildBreakGame(g)}
-                  className="border border-outline/30 px-4 py-2 font-sans text-[9px] uppercase tracking-[1.5px] hover:bg-surface-container-highest transition-colors shrink-0 ml-4"
-                >
-                  Build this game →
-                </button>
+              )}
+            </div>
+
+            {studiedItems.length > 0 && (
+              <div>
+                <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50 block mb-3">Already Studied</span>
+                <div className="flex flex-col gap-2">
+                  {studiedItems.map(item => (
+                    <button key={item.id} onClick={() => loadCatalogExerciseSet(item)}
+                      className="text-left border border-outline/10 px-5 py-3 opacity-70 hover:opacity-100 transition-opacity">
+                      <span className="font-sans text-sm block">{item.title}</span>
+                      <span className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40">{item.concept_name}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            )}
+          </>
+        )}
+      </div>
 
       {/* ── Overall Analysis Panel ── */}
       {questions.length > 0 && !lensOpen && psetAnalysis && (
@@ -2392,7 +2195,7 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
       )}
 
 
-      {questions.length === 0 && !loading && (
+      {questions.length === 0 && (
         <section className="w-full max-w-3xl mb-16 opacity-50">
           <div className="flex items-center gap-6 mb-10">
             <div className="h-[1px] flex-grow bg-outline/10" />

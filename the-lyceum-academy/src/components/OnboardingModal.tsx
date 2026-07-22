@@ -14,6 +14,8 @@ import { analyzeOnboarding, chatMessage, fetchPersonas, type ChatMsg, type Perso
 import { saveOnboardingAnswers, saveLearningStyle, saveSelectedPersonas, scopedGateKey, SUBJECT_META } from '../lib/persist';
 import { startStreakGoal } from '../lib/streak';
 import { saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
+import { fetchPublishedWorkspaces, type CatalogWorkspace } from '../lib/coach';
+import { joinWorkspace } from '../lib/catalogMembership';
 import { selectPlan } from '../lib/lyceumApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useTranslation } from '../i18n/I18nContext';
@@ -467,36 +469,56 @@ function PersonaSelection({
   );
 }
 
-// ── Subject Selection (which workspaces/tabs to open) ───────────────────────
-// Multi-select from the fixed SUBJECT_META list — becomes the student's
-// initial set of Chrome-style workspace tabs (see WorkspaceContext).
+// ── Workspace Catalog Browser (which admin-curated workspaces to join) ─────
+// Replaces the old flat SUBJECT_META picker — students now join workspaces
+// admins have already curated (with materials/tools/games attached), rather
+// than typing a subject. Becomes the student's initial workspace tabs.
 
 function SubjectSelection({
   selected,
   onToggle,
   t,
 }: {
-  selected: string[];
-  onToggle: (key: string) => void;
+  selected: CatalogWorkspace[];
+  onToggle: (ws: CatalogWorkspace) => void;
   t: (key: string) => string;
 }) {
+  const [workspaces, setWorkspaces] = useState<CatalogWorkspace[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    fetchPublishedWorkspaces()
+      .then(r => setWorkspaces(r.workspaces))
+      .catch(e => setLoadError(e.message || 'Could not load workspaces.'))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ textAlign: 'center', marginBottom: 4 }}>
         <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>📚</span>
         <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>{t('onboard.subjectsHeading')}</p>
         <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
-          {t('onboard.subjectsDesc')}
+          Pick the workspaces you want to join — each comes with materials, exercises, and tools already curated for you.
         </p>
       </div>
 
+      {loading && <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.4)' }}>Loading workspaces…</p>}
+      {loadError && <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 12.5, color: '#dc2626' }}>{loadError}</p>}
+      {!loading && !loadError && workspaces.length === 0 && (
+        <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.4)' }}>No workspaces published yet — check back soon.</p>
+      )}
+
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', padding: '8px 0' }}>
-        {Object.entries(SUBJECT_META).filter(([key]) => key !== 'other').map(([key, meta]) => {
-          const isSelected = selected.includes(key);
+        {workspaces.map(ws => {
+          const meta = SUBJECT_META[ws.subject_key];
+          const isSelected = selected.some(s => s.id === ws.id);
           return (
             <button
-              key={key}
-              onClick={() => onToggle(key)}
+              key={ws.id}
+              onClick={() => onToggle(ws)}
+              title={ws.description || undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '10px 16px', borderRadius: 10, cursor: 'pointer',
@@ -506,8 +528,8 @@ function SubjectSelection({
                 transition: 'all 0.15s',
               }}
             >
-              <span style={{ fontSize: 16 }}>{meta.icon}</span>
-              {meta.label}
+              <span style={{ fontSize: 16 }}>{meta?.icon || '📘'}</span>
+              {ws.title}
             </button>
           );
         })}
@@ -631,7 +653,8 @@ function WeeklySchedulePicker({
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
   const [phase, setPhase] = useState<'chat' | 'subjects' | 'schedule' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
-  const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
+  const [selectedWorkspaces, setSelectedWorkspaces] = useState<CatalogWorkspace[]>([]);
+  const selectedSubjects = useMemo(() => Array.from(new Set(selectedWorkspaces.map(w => w.subject_key))), [selectedWorkspaces]);
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const { seedTabs } = useWorkspace();
   const [turns, setTurns] = useState<ChatMsg[]>([
@@ -687,13 +710,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     setPhase('subjects');
   }
 
-  function toggleSubject(key: string) {
-    setSelectedSubjects(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]);
+  function toggleSubject(ws: CatalogWorkspace) {
+    setSelectedWorkspaces(prev => prev.some(w => w.id === ws.id) ? prev.filter(w => w.id !== ws.id) : [...prev, ws]);
   }
 
   function handleSubjectsContinue() {
-    if (selectedSubjects.length === 0) return;
+    if (selectedWorkspaces.length === 0) return;
     seedTabs(selectedSubjects);
+    selectedWorkspaces.forEach(ws => joinWorkspace(ws.subject_key, ws.id));
     if (pendingAnswers) saveOnboardingAnswers({ ...pendingAnswers, subjects: selectedSubjects });
     setPhase('schedule');
   }
@@ -850,7 +874,7 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
 
           {/* ── Subject Selection screen ── */}
           {!paid && phase === 'subjects' && (
-            <SubjectSelection selected={selectedSubjects} onToggle={toggleSubject} t={t} />
+            <SubjectSelection selected={selectedWorkspaces} onToggle={toggleSubject} t={t} />
           )}
 
           {/* ── Weekly Schedule screen ── */}

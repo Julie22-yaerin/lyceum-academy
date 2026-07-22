@@ -67,6 +67,21 @@ CREATE TABLE IF NOT EXISTS user_prefs (
     allow_training INTEGER NOT NULL DEFAULT 1,
     updated_at     TEXT NOT NULL
 );
+
+-- Admin-filled student profile — the "workspace + customer info" form filled
+-- in from the student's card in the admin console.
+CREATE TABLE IF NOT EXISTS student_profile (
+    user_key           TEXT PRIMARY KEY,
+    liked_subjects     TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    disliked_subjects  TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    required_subjects  TEXT NOT NULL DEFAULT '[]',   -- JSON array
+    major              TEXT NOT NULL DEFAULT '',
+    agrees_top_down    INTEGER NOT NULL DEFAULT 0,
+    advance_to_basic   INTEGER NOT NULL DEFAULT 0,
+    device             TEXT NOT NULL DEFAULT '',
+    has_adhd           INTEGER NOT NULL DEFAULT 0,
+    updated_at         TEXT NOT NULL
+);
 """
 
 # Every AI role in the Lyceum is briefed on these study-strategy terms so a
@@ -94,7 +109,10 @@ TIER2_TOOLS = [
     "node-map", "tactile-friction", "shatter", "auditory-gating",
     "membrane-flow", "steric-snap", "topo-lock", "time-lapse",
 ]
-ALL_TOOLS = TIER1_TOOLS + TIER2_TOOLS
+# Simulation/game tools, grouped separately in the admin curation UI so
+# admins can find and assign them without hunting through Tier 1/2.
+GAME_TOOLS = ["game-builder"]
+ALL_TOOLS = TIER1_TOOLS + TIER2_TOOLS + GAME_TOOLS
 
 # Default for accounts the admin hasn't curated yet: full tier 1, no tier 2.
 DEFAULT_TOOLS = list(TIER1_TOOLS)
@@ -183,12 +201,43 @@ def brain_context(user_keys: str | list[str], max_chars: int = 6000) -> str:
     )
 
 
+def profile_context(user_keys: str | list[str]) -> str:
+    """Formats the admin-filled student profile (likes/dislikes, major,
+    methodology preferences, device, ADHD/focus note) as a system prompt
+    block, if the admin has filled anything in beyond the defaults."""
+    p = get_profile(user_keys)
+    if p == dict(_PROFILE_DEFAULTS):
+        return ""
+    lines = ["=== STUDENT PROFILE (set by admin) ==="]
+    if p["major"]:
+        lines.append(f"Major: {p['major']}")
+    if p["required_subjects"]:
+        lines.append(f"Must study: {', '.join(p['required_subjects'])}")
+    if p["liked_subjects"]:
+        lines.append(f"Likes: {', '.join(p['liked_subjects'])}")
+    if p["disliked_subjects"]:
+        lines.append(f"Dislikes: {', '.join(p['disliked_subjects'])}")
+    lines.append(f"Prefers TOP DOWN teaching: {'yes' if p['agrees_top_down'] else 'no'}")
+    lines.append(f"Prefers advance-to-basic (start advanced, work back to fundamentals): {'yes' if p['advance_to_basic'] else 'no'}")
+    if p["device"]:
+        lines.append(f"Studies on: {p['device']}")
+    if p["has_adhd"]:
+        lines.append("Has ADHD or difficulty concentrating — keep explanations short, break tasks into small steps, minimize distractions.")
+    return "\n".join(lines)
+
+
 def system_context_for_user(user_keys: str | list[str]) -> str:
-    """Learning-method glossary + the student's personal brain, ready to drop
-    in as one system message. Glossary always present; brain part only if
-    the admin has actually built one."""
+    """Learning-method glossary + the student's personal brain + their admin
+    profile, ready to drop in as one system message. Glossary always
+    present; the other two only if the admin has actually filled them in."""
     brain = brain_context(user_keys)
-    return LEARNING_METHODS_PROMPT + ("\n" + brain if brain else "")
+    profile = profile_context(user_keys)
+    out = LEARNING_METHODS_PROMPT
+    if profile:
+        out += "\n" + profile
+    if brain:
+        out += "\n" + brain
+    return out
 
 
 # ── Admin ↔ Opus brain-building chat (auto-saved) ───────────────────────────
@@ -329,6 +378,60 @@ def set_prefs(user_key: str, allow_training: bool) -> dict[str, Any]:
             (key, int(allow_training), _now()),
         )
     return {"ok": True, "allow_training": allow_training}
+
+
+# ── Student profile (workspace + customer info form) ────────────────────────
+
+_PROFILE_DEFAULTS: dict[str, Any] = {
+    "liked_subjects": [], "disliked_subjects": [], "required_subjects": [],
+    "major": "", "agrees_top_down": False, "advance_to_basic": False,
+    "device": "", "has_adhd": False,
+}
+
+
+def get_profile(user_keys: str | list[str]) -> dict[str, Any]:
+    keys = _keys(user_keys)
+    with _conn() as c:
+        c.executescript(_DDL)
+        for k in keys:
+            row = c.execute("SELECT * FROM student_profile WHERE user_key=?", (k,)).fetchone()
+            if row:
+                return {
+                    "liked_subjects": json.loads(row["liked_subjects"]),
+                    "disliked_subjects": json.loads(row["disliked_subjects"]),
+                    "required_subjects": json.loads(row["required_subjects"]),
+                    "major": row["major"],
+                    "agrees_top_down": bool(row["agrees_top_down"]),
+                    "advance_to_basic": bool(row["advance_to_basic"]),
+                    "device": row["device"],
+                    "has_adhd": bool(row["has_adhd"]),
+                }
+    return dict(_PROFILE_DEFAULTS)
+
+
+def set_profile(user_key: str, **fields: Any) -> dict[str, Any]:
+    key = _keys(user_key)[0]
+    merged = {**_PROFILE_DEFAULTS, **fields}
+    with _conn() as c:
+        c.executescript(_DDL)
+        c.execute(
+            "INSERT INTO student_profile "
+            "(user_key, liked_subjects, disliked_subjects, required_subjects, major, "
+            " agrees_top_down, advance_to_basic, device, has_adhd, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?) "
+            "ON CONFLICT(user_key) DO UPDATE SET "
+            "liked_subjects=excluded.liked_subjects, disliked_subjects=excluded.disliked_subjects, "
+            "required_subjects=excluded.required_subjects, major=excluded.major, "
+            "agrees_top_down=excluded.agrees_top_down, advance_to_basic=excluded.advance_to_basic, "
+            "device=excluded.device, has_adhd=excluded.has_adhd, updated_at=excluded.updated_at",
+            (
+                key, json.dumps(merged["liked_subjects"]), json.dumps(merged["disliked_subjects"]),
+                json.dumps(merged["required_subjects"]), merged["major"][:120],
+                int(merged["agrees_top_down"]), int(merged["advance_to_basic"]),
+                merged["device"][:200], int(merged["has_adhd"]), _now(),
+            ),
+        )
+    return {"ok": True, **merged}
 
 
 # ── Directory of brain-holding users (admin console picker) ─────────────────

@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
 import { noteChatMessage, NoteResult, NoteConcept, ChatMsg } from '../lib/api';
-import { synthesizeNoteFromTopic } from '../lib/lyceumApi';
 import { loadKaTeX, renderMath, renderNote } from '../lib/math';
 import { sanitizeSvg } from '../lib/sanitize';
-import { loadNotes, saveNote, deleteNote, setNoteFolder, listNoteFolders, detectSubject, type SavedNote } from '../lib/persist';
+import { loadNotes, saveNote, deleteNote, setNoteFolder, listNoteFolders, type SavedNote } from '../lib/persist';
+import { fetchTodayMaterials, type CatalogItem } from '../lib/coach';
+import { getWorkspaceId } from '../lib/catalogMembership';
 import { useWorkspace } from '../context/WorkspaceContext';
-import { useTranslation, getCurrentLang } from '../i18n/I18nContext';
+import { useTranslation } from '../i18n/I18nContext';
 
 // ── ConceptCard ───────────────────────────────────────────────────────────
 function ConceptCard({ kc }: { kc: NoteConcept & { how_to_use?: string; applications?: string; why?: string } }) {
@@ -354,41 +355,51 @@ export default function NoteView() {
   const { t } = useTranslation();
   const { activeTab } = useWorkspace();
   const [note, setNote] = useState<NoteResult | null>(null);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [savedNotes, setSavedNotes] = useState<SavedNote[]>([]);
-  const [topic, setTopic] = useState('');
   const [activeFolder, setActiveFolder] = useState<string>(''); // '' = all
   const [folders, setFolders] = useState<string[]>(() => listNoteFolders());
   const newFolderRef = useRef<HTMLInputElement>(null);
 
+  // Materials the Coach selected for this workspace — no upload/topic-input
+  // anymore, content only ever arrives pre-supplied by the admin-curated
+  // catalog (see lib/coach.ts, lib/catalogMembership.ts).
+  const [todayItems, setTodayItems] = useState<CatalogItem[]>([]);
+  const [studiedItems, setStudiedItems] = useState<CatalogItem[]>([]);
+
   useEffect(() => { setSavedNotes(loadNotes(activeTab || undefined)); }, [activeTab]);
+
+  useEffect(() => {
+    const workspaceId = activeTab ? getWorkspaceId(activeTab) : null;
+    if (!workspaceId) { setTodayItems([]); setStudiedItems([]); return; }
+    setError('');
+    fetchTodayMaterials(workspaceId)
+      .then(r => {
+        setTodayItems(r.today.filter(i => i.item_type === 'lesson'));
+        setStudiedItems(r.studied.filter(i => i.item_type === 'lesson'));
+      })
+      .catch(e => setError(e.message || 'Could not load today\'s materials.'));
+  }, [activeTab]);
 
   function refreshSaved() {
     setSavedNotes(loadNotes(activeTab || undefined));
     setFolders(listNoteFolders());
   }
 
-  // Notes are generated from the Second Brain (curriculum vault + any custom
-  // material added in Settings) — no everyday external uploads anymore. The
-  // result is auto-saved into the personal library immediately.
-  async function handleGenerate() {
-    const q = topic.trim();
-    if (!q || loading) return;
-    setError(''); setNote(null); setLoading(true);
-    try {
-      const result = await synthesizeNoteFromTopic(q, activeTab || detectSubject(q), getCurrentLang());
-      setNote(result);
-      const id = `note_${Date.now()}`;
+  // Opens a Coach-selected lesson item — its admin-authored `content` is
+  // already shaped like a NoteResult, so it renders through the exact same
+  // reading/Feynman-chat UI a synthesized note used to.
+  function openCatalogItem(item: CatalogItem) {
+    const result = item.content as NoteResult;
+    setNote(result);
+    if (!savedNotes.some(n => n.id === `catalog_${item.id}`)) {
       saveNote({
-        id, title: result.title || q, savedAt: Date.now(), sourceType: 'second-brain',
-        note: result, subject: activeTab || undefined, folder: activeFolder || undefined,
+        id: `catalog_${item.id}`, title: result.title || item.title, savedAt: Date.now(),
+        sourceType: 'coach', note: result, subject: activeTab || undefined,
       });
       refreshSaved();
-      setTopic('');
-    } catch (e: any) {
-      setError(e.message || String(e));
-    } finally { setLoading(false); }
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function openSavedNote(sn: SavedNote) {
@@ -409,7 +420,7 @@ export default function NoteView() {
     : savedNotes;
 
   return (
-    <div className={`flex-grow flex flex-col bg-surface min-h-screen ${note && !loading ? 'px-4 py-4' : 'items-center py-12 px-4'}`}>
+    <div className={`flex-grow flex flex-col bg-surface min-h-screen ${note ? "px-4 py-4" : 'items-center py-12 px-4'}`}>
       {!note && (
         <div className="text-center mb-12 max-w-2xl">
           <h1 className="font-serif text-5xl text-on-surface mb-5 tracking-tight">{t('notes.pageTitle')}</h1>
@@ -419,51 +430,52 @@ export default function NoteView() {
         </div>
       )}
 
-      {/* Input area — hidden after note loads. Notes come from the Second
-          Brain; add extra material via Settings → Second Brain. */}
-      {!note && <div className="w-full max-w-3xl mb-10 flex flex-col gap-5">
-        <div className="w-full border border-outline/20 bg-surface-container-highest/20 p-8">
-          {loading ? (
-            <div className="flex flex-col items-center gap-4 py-6">
-              <div className="flex gap-1.5">
-                {[0,1,2].map(i => (
-                  <div key={i} className="w-2 h-2 bg-on-surface rounded-full opacity-40 animate-bounce"
-                    style={{ animationDelay: `${i * 0.15}s` }} />
-                ))}
-              </div>
-              <p className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">
-                {t('notes.aiSynthesizing')}
-              </p>
-            </div>
+      {/* Today / Already Studied — materials the Coach selected from the
+          admin-curated catalog for this workspace. No upload/topic-input:
+          content only ever arrives pre-supplied. */}
+      {!note && (
+        <div className="w-full max-w-3xl mb-10 flex flex-col gap-6">
+          {!activeTab || !getWorkspaceId(activeTab) ? (
+            <p className="font-sans text-sm opacity-40 text-center py-6">
+              Join a workspace to receive today's materials.
+            </p>
           ) : (
             <>
-              <p className="font-serif text-xl text-on-surface mb-1 text-center">Synthesize a note from your Second Brain</p>
-              <p className="font-sans text-[10px] uppercase tracking-[2px] text-on-surface opacity-40 text-center mb-6">
-                Grounded in the Lyceum curriculum vault · auto-saved to your library
-              </p>
-              <div className="flex gap-3">
-                <input
-                  value={topic}
-                  onChange={e => setTopic(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') handleGenerate(); }}
-                  placeholder="e.g. Reaction kinetics, Photosynthesis, Integration by parts…"
-                  className="flex-1 bg-transparent border-b border-outline/30 px-0 py-2 font-sans text-sm outline-none focus:border-on-surface transition-colors"
-                />
-                <button
-                  onClick={handleGenerate}
-                  disabled={!topic.trim()}
-                  className="px-6 py-2 bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] font-bold disabled:opacity-30"
-                >
-                  Generate
-                </button>
+              <div>
+                <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50 block mb-3">Today</span>
+                {todayItems.length === 0 ? (
+                  <p className="font-sans text-sm opacity-40">Nothing new today yet — check back soon.</p>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {todayItems.map(item => (
+                      <button key={item.id} onClick={() => openCatalogItem(item)}
+                        className="text-left border border-outline/20 bg-surface-container-highest/20 px-5 py-4 hover:bg-surface-container-highest/40 transition-colors">
+                        <span className="font-serif text-lg block">{item.title}</span>
+                        <span className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40">{item.concept_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <p className="font-sans text-[10px] opacity-35 mt-4 text-center">
-                Missing material? Add your own documents once in Settings → Second Brain.
-              </p>
+
+              {studiedItems.length > 0 && (
+                <div>
+                  <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50 block mb-3">Already Studied</span>
+                  <div className="flex flex-col gap-2">
+                    {studiedItems.map(item => (
+                      <button key={item.id} onClick={() => openCatalogItem(item)}
+                        className="text-left border border-outline/10 px-5 py-3 opacity-70 hover:opacity-100 transition-opacity">
+                        <span className="font-sans text-sm block">{item.title}</span>
+                        <span className="font-sans text-[10px] uppercase tracking-[1.5px] opacity-40">{item.concept_name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>
-      </div>}
+      )}
 
       {/* Error */}
       {!note && error && (
@@ -471,15 +483,8 @@ export default function NoteView() {
           <p className="font-sans text-xs text-red-600 border border-red-200 bg-red-50 px-4 py-3 text-center">{error}</p>
         </div>
       )}
-      {/* Error while loading */}
-      {loading && error && (
-        <div className="w-full max-w-3xl mb-8">
-          <p className="font-sans text-xs text-red-600 border border-red-200 bg-red-50 px-4 py-3 text-center">{error}</p>
-        </div>
-      )}
-
       {/* Output note — split pane */}
-      {note && !loading && (
+      {note && (
         <div className="w-full mb-16 flex flex-col gap-4">
           {/* Actions bar — notes auto-save, no manual step */}
           <div className="w-full flex items-center justify-between px-2">
@@ -512,7 +517,7 @@ export default function NoteView() {
       )}
 
       {/* Empty state hint */}
-      {!note && !loading && !savedNotes.length && (
+      {!note && !savedNotes.length && (
         <div className="w-full max-w-3xl opacity-40 text-center py-4">
           <p className="font-sans text-sm italic">{t('notes.uploadHint')}</p>
         </div>

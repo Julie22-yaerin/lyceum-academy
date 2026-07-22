@@ -144,6 +144,7 @@
       <button id="nav-applications" onclick="viewApplications()" class="sn-btn"><span>📥</span>Xét duyệt</button>
       <button id="nav-meetings" onclick="viewMeetings()" class="sn-btn"><span>🤝</span>Gặp gỡ</button>
       <button id="nav-brain" onclick="viewBrain()" class="sn-btn"><span>🧠</span>Second Brain riêng</button>
+      <button id="nav-workspace" onclick="viewWorkspace()" class="sn-btn"><span>🗂️</span>Workspace</button>
       <button id="nav-orders" onclick="viewOrders()" class="sn-btn"><span>📦</span>Orders</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="sn-btn"><span>🎯</span>Personalization</button>
       <button id="nav-trash" onclick="viewTrash()" class="sn-btn"><span>🗑️</span>Thùng rác</button>
@@ -171,6 +172,7 @@
     <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-meetings" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
+    <div id="view-workspace" class="hidden p-6 max-w-7xl mx-auto fade-in"></div>
     <div id="view-trash" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -404,7 +406,7 @@ function setActiveNav(id) {
 }
 
 function hideAllViews() {
-  ['view-applications','view-meetings','view-brain','view-trash','view-orders','view-errors','view-ai-system',
+  ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-orders','view-errors','view-ai-system',
    'view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
 }
 
@@ -812,6 +814,7 @@ const ALL_TOOLS = [
   { id:'steric-snap', label:'Steric Repulsion · Hoá hữu cơ', tier:2 },
   { id:'topo-lock', label:'Topological Lock · Sinh học phân tử', tier:2 },
   { id:'time-lapse', label:'Generative Sandbox · Sinh thái/Di truyền', tier:2 },
+  { id:'game-builder', label:'Game Builder (Sprite Generator)', tier:'game' },
 ];
 let _brainTools = new Set();
 
@@ -899,13 +902,17 @@ async function loadBrain(key) {
         <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
           <p class="text-sm font-semibold mb-2">Công cụ cho học viên này</p>
           <div class="space-y-2">
-            ${['1','2'].map(tier => `
+            ${[
+              { tier:'1', label:'Bậc 1', color:'var(--muted)', activeColor:'rgba(245,158,11,.18)' },
+              { tier:'2', label:'Bậc 2 · cường độ cao', color:'#f87171', activeColor:'rgba(248,113,113,.18)' },
+              { tier:'game', label:'Game', color:'#60a5fa', activeColor:'rgba(96,165,250,.18)' },
+            ].map(({ tier, label, color, activeColor }) => `
               <div>
-                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${tier==='2'?'#f87171':'var(--muted)'}">Bậc ${tier}${tier==='2'?' · cường độ cao':''}</p>
+                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${color}">${label}</p>
                 <div class="flex flex-wrap gap-1.5">
                   ${ALL_TOOLS.filter(t=>String(t.tier)===tier).map(t=>`
                     <button onclick="toggleBrainTool('${t.id}')" id="tool-${t.id}"
-                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?(tier==='2'?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)'):'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
+                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?activeColor:'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
                       ${t.label}
                     </button>`).join('')}
                 </div>
@@ -980,9 +987,10 @@ async function deleteBrainNote(id) {
 function toggleBrainTool(id) {
   if (_brainTools.has(id)) _brainTools.delete(id); else _brainTools.add(id);
   const btn = document.getElementById('tool-' + id);
-  const tier = ALL_TOOLS.find(t=>t.id===id).tier;
+  const tier = String(ALL_TOOLS.find(t=>t.id===id).tier);
   const on = _brainTools.has(id);
-  btn.style.background = on ? (tier===2?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)') : 'transparent';
+  const activeColor = tier==='2' ? 'rgba(248,113,113,.18)' : tier==='game' ? 'rgba(96,165,250,.18)' : 'rgba(245,158,11,.18)';
+  btn.style.background = on ? activeColor : 'transparent';
   btn.style.color = on ? 'var(--text)' : 'var(--muted)';
 }
 
@@ -990,6 +998,124 @@ async function saveBrainTools() {
   try {
     await api(`/admin/brain/tools`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, tools: [..._brainTools] }) });
     toast('✓ Đã lưu công cụ');
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: WORKSPACE — large card-grid of customers; clicking a card opens
+// the workspace + profile-info form (subjects liked/disliked, required
+// subjects, major, teaching-method preferences, device, ADHD/focus note).
+// ════════════════════════════════════════════════════════════════
+let _wsProfile = null;
+
+async function viewWorkspace() {
+  hideAllViews();
+  setActiveNav('nav-workspace');
+  show('view-workspace');
+  await renderWorkspaceGrid();
+}
+
+async function renderWorkspaceGrid() {
+  const el = document.getElementById('view-workspace');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { customers = [] } = await api(`/admin/customers`).then(r => r.json()).catch(() => ({ customers: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-5 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Workspace</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Bấm vào từng học viên để thiết lập workspace và thông tin cá nhân của họ.</p>
+      </div>
+      ${customers.length === 0 ? `<p class="text-sm" style="color:var(--muted)">Chưa có khách hàng nào được duyệt.</p>` : `
+        <div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+          ${customers.map(c => `
+            <button onclick="openWorkspaceProfile('${esc(c.email)}')" class="text-left" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+              <p class="text-sm font-semibold truncate">${esc(c.name || c.email)}</p>
+              <p class="text-xs mt-0.5 truncate" style="color:var(--muted)">${esc(c.email)}</p>
+            </button>`).join('')}
+        </div>`}
+      <div id="workspace-profile-host"></div>
+    </div>`;
+}
+
+const SUBJECT_TAG_FIELDS = [
+  { key: 'liked_subjects', label: 'Môn thích' },
+  { key: 'disliked_subjects', label: 'Môn ghét' },
+  { key: 'required_subjects', label: 'Môn bắt buộc phải học' },
+];
+
+async function openWorkspaceProfile(email) {
+  const host = document.getElementById('workspace-profile-host');
+  if (!host) return;
+  host.innerHTML = `<div class="text-sm mt-4" style="color:var(--muted)">Loading…</div>`;
+  const profile = await api(`/admin/profile/${encodeURIComponent(email)}`).then(r => r.json()).catch(() => null);
+  if (!profile) { host.innerHTML = `<p class="text-sm text-red-400 mt-4">Không tải được hồ sơ.</p>`; return; }
+  _wsProfile = { user_key: email, ...profile };
+
+  host.innerHTML = `
+    <div class="mt-4" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:20px">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-base font-semibold">📋 Workspace — ${esc(email)}</span>
+        <button onclick="document.getElementById('workspace-profile-host').innerHTML=''" class="text-xs" style="color:var(--muted)">✕ Đóng</button>
+      </div>
+
+      <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        ${SUBJECT_TAG_FIELDS.map(f => `
+          <div>
+            <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">${f.label}</label>
+            <input id="ws-${f.key}" value="${esc((_wsProfile[f.key]||[]).join(', '))}" placeholder="cách nhau bằng dấu phẩy"
+              class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+          </div>`).join('')}
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Major</label>
+          <input id="ws-major" value="${esc(_wsProfile.major||'')}" placeholder="e.g. Computer Science"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Đang học trên thiết bị</label>
+          <input id="ws-device" value="${esc(_wsProfile.device||'')}" placeholder="e.g. MacBook Air M2, Windows laptop, điện thoại…"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-4 mt-5 pt-4" style="border-top:1px solid var(--border)">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-agrees_top_down" ${_wsProfile.agrees_top_down ? 'checked' : ''} />
+          Đồng ý chiến lược TOP DOWN
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-advance_to_basic" ${_wsProfile.advance_to_basic ? 'checked' : ''} />
+          Advance to basic (học từ nâng cao lùi về cơ bản)
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-has_adhd" ${_wsProfile.has_adhd ? 'checked' : ''} />
+          Có ADHD / khó tập trung
+        </label>
+      </div>
+
+      <button onclick="saveWorkspaceProfile()" class="btn text-xs mt-5" style="background:var(--amber);color:#1a1a1a">Lưu hồ sơ</button>
+    </div>`;
+}
+
+async function saveWorkspaceProfile() {
+  if (!_wsProfile) return;
+  const splitTags = v => v.split(',').map(s => s.trim()).filter(Boolean);
+  const body = {
+    user_key: _wsProfile.user_key,
+    liked_subjects: splitTags(document.getElementById('ws-liked_subjects').value),
+    disliked_subjects: splitTags(document.getElementById('ws-disliked_subjects').value),
+    required_subjects: splitTags(document.getElementById('ws-required_subjects').value),
+    major: document.getElementById('ws-major').value.trim(),
+    device: document.getElementById('ws-device').value.trim(),
+    agrees_top_down: document.getElementById('ws-agrees_top_down').checked,
+    advance_to_basic: document.getElementById('ws-advance_to_basic').checked,
+    has_adhd: document.getElementById('ws-has_adhd').checked,
+  };
+  try {
+    await api(`/admin/profile`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('✓ Đã lưu hồ sơ');
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 
