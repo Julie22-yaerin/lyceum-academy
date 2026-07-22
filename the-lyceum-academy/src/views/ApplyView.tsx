@@ -64,6 +64,13 @@ const SLIDERS: SliderDef[] = [
   },
 ];
 
+// Common subjects offered as multi-select chips; anything else goes in the
+// free-text box and is merged into the same answer.
+const SUBJECT_OPTIONS = [
+  'Toán', 'Vật lý', 'Hoá học', 'Sinh học', 'Tin học / CS',
+  'Tiếng Anh', 'Văn học', 'Lịch sử', 'Địa lý', 'Kinh tế',
+];
+
 const DEFAULT_VECTOR: LearningVector = {
   encoding_channel: 0.65,
   processing_structure: 0.5,
@@ -82,7 +89,9 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
-  const [subjects, setSubjects] = useState('');
+  const [gradeOther, setGradeOther] = useState('');
+  const [subjectPicks, setSubjectPicks] = useState<string[]>([]);
+  const [subjectsExtra, setSubjectsExtra] = useState('');
   const [purpose, setPurpose] = useState('');
   const [doesResearch, setDoesResearch] = useState<'yes' | 'no' | ''>('');
   const [researchFrequency, setResearchFrequency] = useState('');
@@ -95,11 +104,19 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [resultPriority, setResultPriority] = useState(false);
   const [alreadyDecided, setAlreadyDecided] = useState<string | null>(null);
 
-  const quizValid = email.includes('@') && name.trim() !== '' && gradeLevel && subjects.trim() !== ''
+  // Chips + free text merge into one subjects answer.
+  const subjectsCombined = [...subjectPicks, subjectsExtra.trim()].filter(Boolean).join(', ');
+  const gradeResolved = gradeLevel === 'other' ? gradeOther.trim() : gradeLevel;
+
+  const quizValid = email.includes('@') && name.trim() !== '' && gradeResolved !== '' && subjectsCombined !== ''
     && purpose.trim() !== '' && doesResearch && difficulty.trim().length >= 10 && budget.trim() !== '';
 
   function setSlider(key: SliderDef['key'], value: number) {
     setVector(v => ({ ...v, [key]: value }));
+  }
+
+  function toggleSubject(s: string) {
+    setSubjectPicks(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   }
 
   async function handleSubmit() {
@@ -107,8 +124,8 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
     setBusy(true); setError('');
     try {
       const answers: ApplicationAnswers = {
-        grade_level: gradeLevel,
-        subjects: subjects.trim(),
+        grade_level: gradeResolved,
+        subjects: subjectsCombined,
         purpose: purpose.trim(),
         does_research: doesResearch as 'yes' | 'no',
         research_frequency: doesResearch === 'yes' ? researchFrequency : 'n/a',
@@ -197,15 +214,33 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                   </button>
                 ))}
               </div>
+              {gradeLevel === 'other' && (
+                <input
+                  value={gradeOther} onChange={e => setGradeOther(e.target.value)}
+                  placeholder="Mô tả cấp độ / hoàn cảnh học của bạn…"
+                  className="mt-2 w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
+                />
+              )}
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Những môn nào bạn cần học?</p>
-              <textarea
-                value={subjects} onChange={e => setSubjects(e.target.value)} rows={2}
-                placeholder="Ví dụ: Vật lý lượng tử, Giải tích, Hoá hữu cơ…"
-                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Những môn nào bạn cần học? <span className="normal-case tracking-normal text-slate-500">(chọn nhiều được)</span></p>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {SUBJECT_OPTIONS.map(s => (
+                  <button key={s} onClick={() => toggleSubject(s)}
+                    className={`px-3 py-1.5 rounded-xl text-xs transition-colors ${subjectPicks.includes(s) ? 'glass-pill-active' : 'glass-pill'}`}>
+                    {subjectPicks.includes(s) ? '✓ ' : ''}{s}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={subjectsExtra} onChange={e => setSubjectsExtra(e.target.value)}
+                placeholder="Môn khác / chi tiết hơn — ví dụ: Vật lý lượng tử, Giải tích 3, Hoá hữu cơ…"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
               />
+              {subjectsCombined && (
+                <p className="mt-1.5 text-[11px] text-slate-500">Sẽ gửi: <span className="text-slate-300">{subjectsCombined}</span></p>
+              )}
             </div>
 
             <div>

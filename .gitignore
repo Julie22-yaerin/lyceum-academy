@@ -37,3 +37,4 @@ backend/__pycache__/
 # docs) was removed; custom/ (personal notes added via Settings/API) is a
 # runtime-generated directory, not committed.
 backend/data/second_brain/
+node_modules
