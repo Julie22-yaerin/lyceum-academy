@@ -24,6 +24,7 @@ import SupportChatWidget from '../components/SupportChatWidget';
 import { useTheme } from '../context/ThemeContext';
 import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
+import { TextReveal } from '../../components/ui/text-reveal';
 
 // ── Socratic dialogue demo — the same method, cycled across unrelated
 // domains to make the point that this isn't a "physics tutor with extras":
@@ -219,30 +220,7 @@ const stagger = {
   show: { transition: { staggerChildren: 0.12 } },
 };
 
-// ── Headline word-reveal — splits into words, each rises + sharpens into
-// focus. Short headline only (per motion guidance: reserve for <8 words). ──
-const wordContainer = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.09, delayChildren: 0.1 } },
-};
 
-const wordUp = {
-  hidden: { opacity: 0, y: 18, filter: 'blur(6px)' },
-  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] } },
-};
-
-function HeadlineReveal({ text }: { text: string }) {
-  const words = text.split(' ');
-  return (
-    <motion.span variants={wordContainer} initial="hidden" animate="show" className="inline">
-      {words.map((w, i) => (
-        <motion.span key={i} variants={wordUp} className="inline-block mr-[0.28em] will-change-transform">
-          {w}
-        </motion.span>
-      ))}
-    </motion.span>
-  );
-}
 
 // ── Light burst — a radial flash that expands and fades behind the
 // headline once on mount, like the "spark" the copy talks about. ──────────
@@ -385,9 +363,27 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
 
             <div className="relative">
               <h1 className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic">
-                <HeadlineReveal text="Every subject." />
+                <TextReveal
+                  as="span"
+                  className="inline"
+                  per="word"
+                  preset="fade-in-blur"
+                  delay={0.2}
+                  speedReveal={1.2}
+                >
+                  {"Every subject."}
+                </TextReveal>
                 <br />
-                <HeadlineReveal text="One method. Zero lectures." />
+                <TextReveal
+                  as="span"
+                  className="inline"
+                  per="word"
+                  preset="fade-in-blur"
+                  delay={0.6}
+                  speedReveal={1.2}
+                >
+                  {"One method. Zero lectures."}
+                </TextReveal>
               </h1>
             </div>
 
@@ -442,7 +438,11 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           className="mb-14 text-center"
         >
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">The epistemic method</p>
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">A discipline, not a feature</h2>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
+            <TextReveal per="word" preset="fade" delay={0.1}>
+              {"A discipline, not a feature"}
+            </TextReveal>
+          </h2>
           <p className="text-slate-400 max-w-xl mx-auto">Every session runs the same three-step experiment on your own understanding.</p>
         </motion.div>
 
@@ -480,7 +480,11 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           className="mb-12 text-center"
         >
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Not a chatbot. A faculty.</p>
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">Five minds, each with one job</h2>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
+            <TextReveal per="word" preset="slide" delay={0.1}>
+              {"Five minds, each with one job"}
+            </TextReveal>
+          </h2>
           <p className="text-slate-400 max-w-xl mx-auto">No single AI trying to do everything badly. Five native specialists with hard boundaries — the Grader never coaches, Leo never knows calculus.</p>
         </motion.div>
 
@@ -574,7 +578,11 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           className="rounded-3xl glass p-12 flex flex-col items-center gap-6"
         >
           <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
-          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">The academy doesn’t open for everyone.</h2>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic">
+            <TextReveal per="word" preset="blur" delay={0.1}>
+              {"The academy doesn’t open for everyone."}
+            </TextReveal>
+          </h2>
           <p className="text-slate-400 max-w-md">Ten subjects, a closed faculty of five, and one method that hasn’t needed replacing in 2,400 years. Submit an application — it takes about a minute.</p>
           <LiquidMetalButton
             label="Apply for Admission"
