@@ -90,7 +90,10 @@ LEARNING_METHODS_PROMPT = (
 # src/context/ToolDockContext.tsx. Tier 2 tools carry a neural-overload
 # warning client-side.
 TIER1_TOOLS = ["feynman", "toolmap", "reverse-build", "games", "spaced-repetition"]
-TIER2_TOOLS = ["dark-room", "kinetic-stress", "paradox", "hostile", "scalpel"]
+TIER2_TOOLS = [
+    "node-map", "tactile-friction", "shatter", "auditory-gating",
+    "membrane-flow", "steric-snap", "topo-lock", "time-lapse",
+]
 ALL_TOOLS = TIER1_TOOLS + TIER2_TOOLS
 
 # Default for accounts the admin hasn't curated yet: full tier 1, no tier 2.

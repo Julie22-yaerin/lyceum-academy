@@ -18,13 +18,16 @@ import ToolMapTool from './tools/ToolMapTool';
 import ReverseBuildTool from './tools/ReverseBuildTool';
 import SpacedRepetitionTool from './tools/SpacedRepetitionTool';
 import GameBuilder from './GameBuilder';
-import DarkRoomTool from './tools/DarkRoomTool';
-import KineticStressTool from './tools/KineticStressTool';
-import ParadoxEngineTool from './tools/ParadoxEngineTool';
-import HostileModeTool from './tools/HostileModeTool';
-import ScalpelTool from './tools/ScalpelTool';
+import NodeMapTool from './tools/NodeMapTool';
+import TactileFrictionTool from './tools/TactileFrictionTool';
+import ShatterTool from './tools/ShatterTool';
+import AuditoryGatingTool from './tools/AuditoryGatingTool';
+import MembraneFlowTool from './tools/MembraneFlowTool';
+import StericSnapTool from './tools/StericSnapTool';
+import TopoLockTool from './tools/TopoLockTool';
+import TimeLapseTool from './tools/TimeLapseTool';
 
-interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; }
+interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; subjects?: string }
 
 const TOOLS: ToolMeta[] = [
   { id: 'feynman', icon: 'psychology', label: 'Feynman Technique', tier: 1 },
@@ -32,11 +35,14 @@ const TOOLS: ToolMeta[] = [
   { id: 'reverse-build', icon: 'undo', label: 'Reverse Build', tier: 1 },
   { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1 },
   { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1 },
-  { id: 'dark-room', icon: 'dark_mode', label: 'Dark Room — Blind Rendering', tier: 2 },
-  { id: 'kinetic-stress', icon: 'timer', label: 'Kinetic Stress', tier: 2 },
-  { id: 'paradox', icon: 'terminal', label: 'Paradox Engine', tier: 2 },
-  { id: 'hostile', icon: 'graphic_eq', label: 'Hostile Environment', tier: 2 },
-  { id: 'scalpel', icon: 'content_cut', label: 'Scalpel — Equation Mutilation', tier: 2 },
+  { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, subjects: 'Vật lý lượng tử · Toán đa biến' },
+  { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, subjects: 'Cơ học · Cân bằng hoá học' },
+  { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, subjects: 'Nhiệt động lực học · Điện từ' },
+  { id: 'auditory-gating', icon: 'graphic_eq', label: 'Auditory Gating', tier: 2, subjects: 'Toán rời rạc · Giải thuật' },
+  { id: 'membrane-flow', icon: 'water_drop', label: 'Purification Sandbox', tier: 2, subjects: 'Hoá lý · Kỹ thuật hoá học' },
+  { id: 'steric-snap', icon: 'hub', label: 'Steric Repulsion', tier: 2, subjects: 'Hoá hữu cơ' },
+  { id: 'topo-lock', icon: 'biotech', label: 'Topological Lock', tier: 2, subjects: 'Sinh học phân tử · Hoá sinh' },
+  { id: 'time-lapse', icon: 'timelapse', label: 'Generative Sandbox', tier: 2, subjects: 'Sinh thái · Di truyền' },
 ];
 
 const OVERLOAD_ACK_KEY = 'lyceum_tier2_ack_v1';
@@ -82,11 +88,14 @@ export default function ToolDock() {
       case 'reverse-build': return <ReverseBuildTool />;
       case 'spaced-repetition': return <SpacedRepetitionTool />;
       case 'games': return <div className="p-1"><GameBuilder seedPrompt={(payload?.seedPrompt as string) || ''} /></div>;
-      case 'dark-room': return <DarkRoomTool />;
-      case 'kinetic-stress': return <KineticStressTool />;
-      case 'paradox': return <ParadoxEngineTool />;
-      case 'hostile': return <HostileModeTool />;
-      case 'scalpel': return <ScalpelTool />;
+      case 'node-map': return <NodeMapTool />;
+      case 'tactile-friction': return <TactileFrictionTool />;
+      case 'shatter': return <ShatterTool />;
+      case 'auditory-gating': return <AuditoryGatingTool />;
+      case 'membrane-flow': return <MembraneFlowTool />;
+      case 'steric-snap': return <StericSnapTool />;
+      case 'topo-lock': return <TopoLockTool />;
+      case 'time-lapse': return <TimeLapseTool />;
       default: return null;
     }
   }
@@ -110,6 +119,7 @@ export default function ToolDock() {
         {hovered === t.id && (
           <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap glass-strong rounded-lg px-2.5 py-1 text-[11px] text-white/85">
             {t.label}{t.tier === 2 && <span className="text-red-300"> · intense</span>}
+            {t.subjects && <span className="block text-[10px] text-white/45">{t.subjects}</span>}
           </span>
         )}
       </button>
@@ -138,7 +148,7 @@ export default function ToolDock() {
           onClick={closeTool}
         >
           <div
-            className={`glass-card rounded-3xl w-full ${activeTool === 'games' ? 'max-w-4xl' : 'max-w-lg'} max-h-[85vh] overflow-y-auto`}
+            className={`glass-card rounded-3xl w-full ${activeTool === 'games' ? 'max-w-4xl' : activeTool && isTier2(activeTool) ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-y-auto`}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-2 sticky top-0 bg-inherit">
