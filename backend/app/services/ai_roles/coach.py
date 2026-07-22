@@ -209,3 +209,72 @@ async def generate_curriculum(
         len(result["metadata"].get("concepts_covered", [])),
     )
     return result
+
+
+SELECT_MATERIALS_SYSTEM_PROMPT = """You are the Coach, picking which admin-curated materials a student should
+work through today for one concept. You are NOT generating new content —
+only selecting/ordering from the list given to you.
+
+Return ONLY valid JSON (no markdown fences, no extra text):
+{"selected_ids": ["<id>", ...], "reason": "<one short sentence>"}
+
+Rules:
+- Pick every item that's genuinely useful for today; drop only clear duplicates or filler.
+- Order selected_ids the way the student should work through them (lesson before exercise-set, etc.).
+- If unsure, include all of them in their given order.
+"""
+
+
+async def select_daily_materials(concept_name: str, candidate_items: list[dict[str, Any]], tier: str = TIER_FREE) -> dict[str, Any]:
+    """
+    Given today's target concept and the admin-curated CatalogItems tagged
+    to it (`candidate_items`: [{id, item_type, title}, ...]), ask the Coach
+    which ones to serve today and in what order.
+
+    Returns { selected_ids: [str], reason: str }. Never raises — falls back
+    to serving everything given, in the given order, on any failure.
+    """
+    fallback = {"selected_ids": [c["id"] for c in candidate_items], "reason": f"Today's focus: {concept_name}."}
+    if not candidate_items:
+        return {"selected_ids": [], "reason": ""}
+
+    user_msg = (
+        f"Concept: {concept_name}\n"
+        f"Candidate materials:\n"
+        + "\n".join(f"- id={c['id']} type={c.get('item_type', '')} title={c.get('title', '')}" for c in candidate_items)
+    )
+    messages = [
+        {"role": "system", "content": SELECT_MATERIALS_SYSTEM_PROMPT},
+        {"role": "user", "content": user_msg},
+    ]
+
+    try:
+        spec = resolve_role_model("coach", tier)
+        if spec.use_premium:
+            from app.services.ai_roles.providers import route_chat
+            api_key = get_openai_key_for_tier(tier) if spec.provider == "openai" else ""
+            _, raw = await route_chat(
+                messages, provider=spec.provider, model=spec.model,
+                system=SELECT_MATERIALS_SYSTEM_PROMPT, max_tokens=512, api_key=api_key,
+            )
+        else:
+            from app.services.ai import chat
+            resp = await chat(messages, model=spec.model, max_tokens=512, temperature=0.2)
+            raw = extract_text(resp)
+    except Exception as e:
+        log.warning("Coach select_daily_materials call failed, serving all candidates: %s", e)
+        return fallback
+
+    import re
+    cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip())
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+    try:
+        result = json.loads(cleaned)
+        if not isinstance(result.get("selected_ids"), list) or not result["selected_ids"]:
+            return fallback
+        valid_ids = {c["id"] for c in candidate_items}
+        result["selected_ids"] = [i for i in result["selected_ids"] if i in valid_ids] or fallback["selected_ids"]
+        result.setdefault("reason", fallback["reason"])
+        return result
+    except (json.JSONDecodeError, AttributeError):
+        return fallback

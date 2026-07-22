@@ -40,6 +40,14 @@
     .nav-btn { padding:5px 12px; border-radius:7px; background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; transition:all .15s; }
     .nav-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
     .nav-btn.active { color:var(--text); background:rgba(88,166,255,.1); }
+    /* Sidebar nav */
+    .sn-group { font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); padding:0 10px; margin-bottom:6px; }
+    .sn-btn { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:7px 10px; border-radius:8px;
+              background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; font-size:12.5px;
+              transition:all .15s; border-left:2px solid transparent; }
+    .sn-btn span { font-size:14px; width:18px; text-align:center; }
+    .sn-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
+    .sn-btn.active { color:var(--text); background:rgba(88,166,255,.1); border-left-color:var(--blue,#58a6ff); }
     .spinner { animation:spin 1s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
     .fade-in { animation:fadein .18s ease; }
@@ -109,16 +117,6 @@
   <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
-    <nav class="flex items-center gap-1 ml-4">
-      <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
-      <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
-      <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
-      <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
-      <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
-      <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
-      <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
-      <button id="nav-storage" onclick="viewStorage()" class="nav-btn text-xs">Storage</button>
-    </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" referrerpolicy="no-referrer" />
     <span id="user-name" class="text-xs hidden" style="color:var(--muted)"></span>
@@ -135,8 +133,50 @@
     <span id="retry-countdown" class="text-xs" style="color:#5c1111"></span>
   </div>
 
+  <!-- Sidebar + Main -->
+  <div class="flex-1 flex min-h-0">
+  <aside class="w-52 shrink-0 overflow-y-auto py-4 px-3 flex flex-col gap-5"
+    style="background:var(--surface);border-right:1px solid var(--border);position:sticky;top:48px;height:calc(100vh - 48px)">
+
+    <!-- Nhóm 1: hành trình khách hàng, theo đúng thứ tự pipeline -->
+    <div>
+      <p class="sn-group">Khách hàng</p>
+      <button id="nav-applications" onclick="viewApplications()" class="sn-btn"><span>📥</span>Xét duyệt</button>
+      <button id="nav-meetings" onclick="viewMeetings()" class="sn-btn"><span>🤝</span>Gặp gỡ</button>
+      <button id="nav-brain" onclick="viewBrain()" class="sn-btn"><span>🧠</span>Second Brain riêng</button>
+      <button id="nav-workspace" onclick="viewWorkspace()" class="sn-btn"><span>🗂️</span>Workspace</button>
+      <button id="nav-orders" onclick="viewOrders()" class="sn-btn"><span>📦</span>Orders</button>
+      <button id="nav-profiles" onclick="viewProfiles()" class="sn-btn"><span>🎯</span>Personalization</button>
+      <button id="nav-trash" onclick="viewTrash()" class="sn-btn"><span>🗑️</span>Thùng rác</button>
+      <button id="nav-access-codes" onclick="viewAccessCodes()" class="sn-btn"><span>🔑</span>Mã truy cập</button>
+    </div>
+
+    <!-- Nhóm 2: chăm sóc & sự cố -->
+    <div>
+      <p class="sn-group">Phục vụ</p>
+      <button id="nav-feedback" onclick="viewFeedback()" class="sn-btn"><span>💬</span>Feedback</button>
+      <button id="nav-errors" onclick="viewErrors()" class="sn-btn"><span>🐞</span>Errors</button>
+    </div>
+
+    <!-- Nhóm 3: vận hành hệ thống AI -->
+    <div>
+      <p class="sn-group">Hệ thống AI</p>
+      <button id="nav-ai-system" onclick="viewAiSystem()" class="sn-btn"><span>🤖</span>AI System</button>
+      <button id="nav-ai-chat" onclick="viewAiChat()" class="sn-btn"><span>🗨️</span>AI Chat</button>
+      <button id="nav-activity" onclick="viewActivity()" class="sn-btn"><span>📊</span>Activity Log</button>
+      <button id="nav-second-brain" onclick="viewSecondBrain()" class="sn-btn"><span>🕸️</span>Second Brain chung</button>
+    </div>
+  </aside>
+
   <!-- Main -->
   <main class="flex-1 overflow-auto">
+    <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-meetings" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
+    <div id="view-workspace" class="hidden p-6 max-w-7xl mx-auto fade-in"></div>
+    <div id="view-trash" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-access-codes" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
+    <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-chat" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -145,8 +185,8 @@
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-second-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
-    <div id="view-storage" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
   </main>
+  </div><!-- /sidebar+main -->
 </div>
 
 <!-- Toast -->
@@ -173,24 +213,43 @@ const API        = (location.hostname === 'localhost' || location.hostname === '
       ? location.origin
       : 'https://lyceum-academy-production.up.railway.app');
 const COOKIE     = 'pclick_fb_token';
-const DEV_TOKEN  = 'pclick-admin-dev';
 
 let currentToken = '';
+let _firebaseUser = null;
 let _shown       = false;
 let _pingTimer   = null;
 let _retryTimer  = null;
 let _retryS      = 0;
+let _tokenRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 auth.onIdTokenChanged(async user => {
   setLL(false);
   if (user) {
-    try { currentToken = await user.getIdToken(); } catch { currentToken = DEV_TOKEN; }
+    _firebaseUser = user;
+    // Never fall back to DEV_TOKEN here — a silent fallback lets you "in"
+    // while every API call 401s (production ADMIN_SECRET differs). If the
+    // ID token can't be fetched, retry once, then surface the error.
+    try { currentToken = await user.getIdToken(true); }
+    catch {
+      try { currentToken = await user.getIdToken(); }
+      catch { showLoginErr('Không lấy được Firebase ID token — thử đăng nhập lại.'); show('login-screen'); return; }
+    }
     if (!_shown) { _shown = true; showAdmin(user); }
   } else {
+    _firebaseUser = null;
     await tryCookieSSO();
   }
 });
+
+function startTokenRefresh() {
+  if (_tokenRefreshTimer) return;
+  _tokenRefreshTimer = setInterval(async () => {
+    if (_firebaseUser) {
+      try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    }
+  }, 30 * 60 * 1000);
+}
 
 async function tryCookieSSO() {
   const tok = getCookie(COOKIE);
@@ -210,8 +269,9 @@ function showAdmin(user) {
   const ne = document.getElementById('user-name');
   ne.textContent = user ? (user.displayName || user.email) : 'dev token';
   ne.classList.remove('hidden');
+  startTokenRefresh();
   postLoginInit();
-  viewErrors();
+  viewApplications();
 }
 
 async function signInWithGoogle() {
@@ -224,12 +284,11 @@ async function signInWithDevToken() {
   const pw = document.getElementById('dev-pw').value.trim();
   if (!pw) { showLoginErr('Enter admin password.'); return; }
   setLL(true);
-  // Dev token is static — accept immediately without backend round-trip.
-  // (Backend still validates X-Admin-Token on every API call.)
-  if (pw === DEV_TOKEN) { currentToken = pw; _shown = true; showAdmin(null); return; }
-  // Otherwise treat as a Firebase token and verify with backend.
+  // ALWAYS verify against the backend before entering — a client-side-only
+  // accept let people "in" while every API call silently 401'd (production
+  // ADMIN_SECRET differs from the dev default).
   if (await verifyToken(pw)) { currentToken = pw; _shown = true; showAdmin(null); }
-  else { setLL(false); showLoginErr('Wrong password or backend offline.'); }
+  else { setLL(false); showLoginErr('Sai admin token (backend từ chối 401) hoặc backend offline. Kiểm tra ADMIN_SECRET trên Railway.'); }
 }
 
 function friendlyErr(e) {
@@ -244,8 +303,10 @@ function showLoginErr(m) { const e=document.getElementById('login-error'); e.tex
 
 async function doLogout() {
   _shown = false; currentToken = '';
+  _firebaseUser = null;
   clearInterval(_pingTimer); _pingTimer = null;
   clearInterval(_retryTimer); _retryTimer = null;
+  clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null;
   await auth.signOut();
   document.cookie = `${COOKIE}=; path=/; max-age=0; SameSite=Strict`;
   document.getElementById('app').classList.add('hidden');
@@ -256,10 +317,21 @@ async function doLogout() {
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-function headers(extra={}) { return {'X-Admin-Token': currentToken||DEV_TOKEN, ...extra}; }
+// No DEV_TOKEN fallback — sending the dev token against a prod ADMIN_SECRET
+// turns every view into a silent 401. An empty token 401s loudly instead.
+function headers(extra={}) { return {'X-Admin-Token': currentToken, ...extra}; }
 
 async function api(path, opts={}) {
-  const r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  let r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  if (r.status === 401 && _firebaseUser) {
+    try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  }
+  if (r.status === 401 || r.status === 403) {
+    // Surface auth failures loudly — silent catches made 401 look like "no data".
+    toast('⚠ Backend từ chối token (' + r.status + ') — đăng nhập lại với đúng ADMIN_SECRET hoặc Google (email trong ADMIN_EMAILS).', 'err');
+    throw new Error('unauthorized (' + r.status + ')');
+  }
   if (!r.ok) { const t=await r.text().catch(()=>r.statusText); throw new Error(t||r.statusText); }
   return r;
 }
@@ -330,14 +402,15 @@ function clearRetry() { clearInterval(_retryTimer); _retryTimer=null; const e=do
 async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(10); }
 
 function setActiveNav(id) {
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-btn, .sn-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById(id);
   if (btn) btn.classList.add('active');
 }
 
 function hideAllViews() {
-  ['view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles',
-   'view-profile-detail','view-feedback','view-second-brain','view-storage'].forEach(hide);
+  ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-access-codes','view-orders',
+   'view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback',
+   'view-second-brain'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -489,6 +562,732 @@ async function reindexSecondBrain() {
     toast('Failed: '+e.message, 'err');
     btn.disabled = false; btn.textContent = '↻ Re-index vault';
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: XÉT DUYỆT NGƯỜI DÙNG — registration is closed; every new account
+// starts as a waitlist application (ApplyView: placement quiz + 4-axis
+// learning-style vector + optional referral code). Priority applications
+// (valid referral code) sort to the top. Accept/decline gates AuthPage
+// sign-up (backend checks GET /applications/status by email).
+// ════════════════════════════════════════════════════════════════
+let _applicationsFilter = 'pending';
+
+async function viewApplications() {
+  hideAllViews();
+  setActiveNav('nav-applications');
+  show('view-applications');
+  await renderApplications();
+}
+
+function onApplicationsFilterChange(v) {
+  _applicationsFilter = v;
+  renderApplications();
+}
+
+async function renderApplications() {
+  const el = document.getElementById('view-applications');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const qs = _applicationsFilter ? `?status=${_applicationsFilter}` : '';
+  const { applications = [] } = await api(`/admin/applications${qs}`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  // Referral-priority first, then deposit size (bigger deposit = more urgent), then oldest first.
+  applications.sort((a, b) =>
+    (b.priority - a.priority)
+    || ((b.answers?.deposit_usd || 0) - (a.answers?.deposit_usd || 0))
+    || String(a.created_at).localeCompare(String(b.created_at)));
+
+  const FRICTION_LABEL = f => f >= 0.5 ? 'High (Pure Lyceum)' : 'Low';
+  const SANDBOX_LABEL = { stem: 'STEM', physics: 'Vật lý', chemistry: 'Hoá học', math: 'Toán', general_research: 'Nghiên cứu' };
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">Xét duyệt người dùng</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Vuốt phải (Chấp nhận) → chuyển sang <b>Gặp gỡ</b>. Vuốt trái (Từ chối) → vào <b>Thùng rác</b> giữ 7 ngày rồi tự xoá.</p>
+        </div>
+        <select onchange="onApplicationsFilterChange(this.value)" class="text-xs" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px">
+          <option value="pending" ${_applicationsFilter==='pending'?'selected':''}>Đang chờ</option>
+          <option value="meeting" ${_applicationsFilter==='meeting'?'selected':''}>Gặp gỡ</option>
+          <option value="accepted" ${_applicationsFilter==='accepted'?'selected':''}>Đã duyệt (mở đăng ký)</option>
+          <option value="" ${_applicationsFilter===''?'selected':''}>Tất cả</option>
+        </select>
+      </div>
+
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Không có hồ sơ nào.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid ${a.priority ? 'var(--amber)' : 'var(--border)'};border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                  <span class="text-xs" style="color:var(--muted)">${esc(a.email)}</span>
+                  ${a.priority ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(245,158,11,.15);color:var(--amber)">Ưu tiên</span>` : ''}
+                  <span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">${esc(a.status)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">${timeAgo(a.created_at)}</div>
+              </div>
+              ${a.status === 'pending' ? `
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="declineApplication('${a.id}')" class="btn btn-ghost text-xs">← Từ chối</button>
+                <button onclick="acceptApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Chấp nhận →</button>
+              </div>` : ''}
+            </div>
+
+            <div class="grid gap-3 mt-3 text-xs" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));color:var(--muted)">
+              <div><span class="font-medium" style="color:var(--text)">Cấp độ:</span> ${esc(a.answers.grade_level || '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Nghiên cứu:</span> ${esc(a.answers.does_research || '—')} ${a.answers.research_frequency && a.answers.research_frequency !== 'n/a' ? `(${esc(a.answers.research_frequency)})` : ''}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}/tháng</div>
+              <div><span class="font-medium" style="color:var(--text)">Đặt cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd ?? 0)}</span></div>
+              <div><span class="font-medium" style="color:var(--text)">Sandbox:</span> ${SANDBOX_LABEL[a.vector.target_sandbox] || '—'}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ma sát nhận thức:</span> ${a.vector.cognitive_friction != null ? FRICTION_LABEL(a.vector.cognitive_friction) : '—'}</div>
+              <div><span class="font-medium" style="color:var(--text)">Mã giới thiệu:</span> ${esc(a.referral_code || '—')}</div>
+            </div>
+
+            ${a.answers.subjects ? `
+            <div class="mt-2 text-xs"><span class="font-medium" style="color:var(--text)">Môn cần học:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
+            ${a.answers.purpose ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+            ${a.answers.learning_goal ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Mục tiêu học tập:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
+            ${a.answers.biggest_difficulty ? `
+            <div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(a.answers.biggest_difficulty)}"</div>` : ''}
+
+            ${a.vector.encoding_channel != null ? `
+            <div class="mt-3 space-y-1.5">
+              ${[
+                ['Spatial/Visual', 'Verbal/Narrative', a.vector.encoding_channel],
+                ['Global/Intuitive', 'Sequential/Procedural', a.vector.processing_structure],
+                ['Active/Derivation', 'Reflective/Conceptual', a.vector.engagement_mode],
+              ].map(([l, r, v]) => `
+                <div class="flex items-center gap-2 text-[10px]" style="color:var(--muted)">
+                  <span style="width:120px" class="text-right">${l}</span>
+                  <div style="flex:1;height:4px;border-radius:2px;background:rgba(255,255,255,.08);position:relative">
+                    <div style="position:absolute;left:${Math.round((v||0)*100)}%;top:-2px;width:8px;height:8px;border-radius:50%;background:var(--amber);transform:translateX(-50%)"></div>
+                  </div>
+                  <span style="width:120px">${r}</span>
+                </div>`).join('')}
+            </div>` : ''}
+          </div>
+        `).join('')}
+      </div>`}
+    </div>
+  `;
+}
+
+async function acceptApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/accept`, { method: 'POST' });
+    toast('✓ Chuyển sang Gặp gỡ');
+    renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function declineApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/decline`, { method: 'POST' });
+    toast('Đã cho vào thùng rác (giữ 7 ngày)');
+    renderApplications();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: MEETINGS ("Gặp gỡ") — applicants accepted from the queue.
+// Here the admin schedules onboarding, builds their Second Brain with
+// Opus, then finalizes (→ 'accepted', which unlocks account creation).
+// ════════════════════════════════════════════════════════════════
+async function viewMeetings() {
+  hideAllViews();
+  setActiveNav('nav-meetings');
+  show('view-meetings');
+  await renderMeetings();
+}
+
+async function renderMeetings() {
+  const el = document.getElementById('view-meetings');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { applications = [] } = await api(`/admin/applications?status=meeting`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Gặp gỡ</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Những người đã được chọn. Họp onboarding → dựng Second Brain riêng với Opus → hoàn tất để mở đăng ký.</p>
+      </div>
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Chưa có ai trong danh sách gặp gỡ.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                  <span class="text-xs" style="color:var(--muted)">${esc(a.email)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">Chấp nhận ${a.decided_at ? timeAgo(a.decided_at) : ''}</div>
+                ${a.answers.subjects ? `<div class="text-xs mt-1"><span style="color:var(--text)">Môn:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
+                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.learning_goal ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
+                ${a.answers.deposit_usd ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Đã cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd)}</span></div>` : ''}
+              </div>
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="openBrainFor('${esc(a.email)}')" class="btn btn-ghost text-xs">🧠 Dựng Second Brain</button>
+                <button onclick="finalizeApplication('${a.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Hoàn tất → mở đăng ký</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function finalizeApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/finalize`, { method: 'POST' });
+    toast('✓ Đã mở đăng ký cho người này');
+    renderMeetings();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: TRASH ("Thùng rác") — declined applications, kept 7 days.
+// ════════════════════════════════════════════════════════════════
+async function viewTrash() {
+  hideAllViews();
+  setActiveNav('nav-trash');
+  show('view-trash');
+  await renderTrash();
+}
+
+async function renderTrash() {
+  const el = document.getElementById('view-trash');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { applications = [] } = await api(`/admin/applications/trash`).then(r => r.json()).catch(() => ({ applications: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Thùng rác</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Hồ sơ bị từ chối. Tự động xoá vĩnh viễn sau 7 ngày. Có thể khôi phục về hàng chờ.</p>
+      </div>
+      ${applications.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Thùng rác trống.</div>` : `
+      <div class="space-y-3">
+        ${applications.map(a => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px;opacity:.75">
+            <div class="flex items-center justify-between gap-4">
+              <div class="min-w-0">
+                <span class="font-medium text-sm">${esc(a.name || '(no name)')}</span>
+                <span class="text-xs ml-2" style="color:var(--muted)">${esc(a.email)}</span>
+              </div>
+              <div class="flex items-center gap-3 shrink-0">
+                <span class="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">còn ${a.days_left ?? 0} ngày</span>
+                <button onclick="restoreApplication('${a.id}')" class="btn btn-ghost text-xs">↩ Khôi phục</button>
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function restoreApplication(id) {
+  try {
+    await api(`/admin/applications/${id}/restore`, { method: 'POST' });
+    toast('↩ Đã khôi phục về hàng chờ');
+    renderTrash();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: ACCESS CODES ("Mã truy cập") — manual override for the accepted-
+// application sign-up gate. Admin generates a one-time code (optionally
+// pinned to one email); the user enters it on AuthPage if the normal
+// review pipeline hasn't unlocked their account automatically.
+// ════════════════════════════════════════════════════════════════
+async function viewAccessCodes() {
+  hideAllViews();
+  setActiveNav('nav-access-codes');
+  show('view-access-codes');
+  await renderAccessCodes();
+}
+
+async function renderAccessCodes() {
+  const el = document.getElementById('view-access-codes');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { codes = [] } = await api(`/admin/access-codes`).then(r => r.json()).catch(() => ({ codes: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Mã truy cập workspace</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Dùng khi hồ sơ đã được duyệt nhưng cổng đăng ký tự động không mở — cấp một mã dùng một lần, học viên nhập ở màn hình đăng ký.</p>
+      </div>
+
+      <div class="flex gap-2" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+        <input id="ac-email" placeholder="Email (để trống = ai nhập cũng được, không khuyến khích)" class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        <input id="ac-note" placeholder="Ghi chú (tuỳ chọn)" class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        <button onclick="generateAccessCode()" class="btn text-xs shrink-0" style="background:var(--amber);color:#1a1a1a">+ Tạo mã</button>
+      </div>
+
+      ${codes.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Chưa có mã nào.</div>` : `
+      <div class="space-y-2">
+        ${codes.map(c => `
+          <div class="flex items-center justify-between gap-3 text-xs" style="border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:10px 14px">
+            <div class="min-w-0">
+              <span class="font-mono font-semibold">${esc(c.code)}</span>
+              <span class="ml-2" style="color:var(--muted)">${esc(c.email || 'bất kỳ email')}${c.note ? ' · ' + esc(c.note) : ''}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              ${c.used_at
+                ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(16,185,129,.15);color:#10b981">Đã dùng · ${esc(c.used_by)}</span>`
+                : `<button onclick="copyAccessCode('${esc(c.code)}')" class="btn btn-ghost text-xs">Copy</button>
+                   <button onclick="revokeAccessCode('${esc(c.code)}')" class="btn btn-ghost text-xs">Thu hồi</button>`}
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function generateAccessCode() {
+  const email = document.getElementById('ac-email').value.trim();
+  const note = document.getElementById('ac-note').value.trim();
+  try {
+    const r = await api(`/admin/access-codes`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, note }) }).then(r => r.json());
+    toast(`✓ Mã: ${r.code}`);
+    renderAccessCodes();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+function copyAccessCode(code) {
+  navigator.clipboard?.writeText(code).then(() => toast('Đã copy: ' + code)).catch(() => {});
+}
+
+async function revokeAccessCode(code) {
+  try {
+    await api(`/admin/access-codes/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    toast('Đã thu hồi mã');
+    renderAccessCodes();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: PER-USER SECOND BRAIN ("Second Brain riêng") — chat WITH Opus to
+// design one student's personal brain, commit notes, and curate their Tool
+// Dock. Everything scoped to that user's workspace.
+// ════════════════════════════════════════════════════════════════
+let _brainKey = '';
+const ALL_TOOLS = [
+  { id:'feynman', label:'Feynman', tier:1 }, { id:'toolmap', label:'Tool Map', tier:1 },
+  { id:'reverse-build', label:'Reverse Build', tier:1 }, { id:'games', label:'Games', tier:1 },
+  { id:'spaced-repetition', label:'Spaced Repetition', tier:1 },
+  { id:'node-map', label:'Node Mapping 3D · Lý lượng tử/Toán đa biến', tier:2 },
+  { id:'tactile-friction', label:'Tactile Logic Friction · Cơ học/Hoá', tier:2 },
+  { id:'shatter', label:'Axiom Destructor · Nhiệt/Điện từ', tier:2 },
+  { id:'auditory-gating', label:'Auditory Gating · Toán rời rạc/Giải thuật', tier:2 },
+  { id:'membrane-flow', label:'Purification Sandbox · Hoá lý', tier:2 },
+  { id:'steric-snap', label:'Steric Repulsion · Hoá hữu cơ', tier:2 },
+  { id:'topo-lock', label:'Topological Lock · Sinh học phân tử', tier:2 },
+  { id:'time-lapse', label:'Generative Sandbox · Sinh thái/Di truyền', tier:2 },
+  { id:'game-builder', label:'Game Builder (Sprite Generator)', tier:'game' },
+];
+let _brainTools = new Set();
+
+async function viewBrain() {
+  hideAllViews();
+  setActiveNav('nav-brain');
+  show('view-brain');
+  await renderBrainPicker();
+}
+
+function openBrainFor(email) {
+  _brainKey = email;
+  viewBrain();
+}
+
+async function renderBrainPicker() {
+  const el = document.getElementById('view-brain');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { users = [] } = await api(`/admin/brain/users`).then(r => r.json()).catch(() => ({ users: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-5 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Second Brain riêng</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Chat với Opus để thiết kế bộ não riêng cho từng học viên (tự động lưu), commit ghi chú, và chọn công cụ cho họ.</p>
+      </div>
+      <div class="flex gap-2">
+        <input id="brain-key-input" value="${esc(_brainKey)}" placeholder="Email hoặc UID của học viên"
+          class="text-sm flex-1" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px" />
+        <button onclick="loadBrain(document.getElementById('brain-key-input').value.trim())" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Mở workspace</button>
+      </div>
+      ${users.length ? `
+        <div>
+          <p class="text-[10px] uppercase tracking-wider mb-2" style="color:var(--muted)">Đã có brain</p>
+          <div class="space-y-1.5">
+            ${users.map(u => `
+              <button onclick="loadBrain('${esc(u.user_key)}')" class="w-full text-left text-xs flex items-center justify-between" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px">
+                <span>${esc(u.user_key)}</span>
+                <span style="color:var(--muted)">${u.notes} ghi chú · ${u.chat_turns} lượt chat</span>
+              </button>`).join('')}
+          </div>
+        </div>` : ''}
+      ${_brainKey ? `<div id="brain-workspace"></div>` : ''}
+    </div>`;
+  if (_brainKey) loadBrain(_brainKey);
+}
+
+async function loadBrain(key) {
+  if (!key) return;
+  _brainKey = key;
+  const host = document.getElementById('brain-workspace') || (() => {
+    const d = document.createElement('div'); d.id = 'brain-workspace';
+    document.getElementById('view-brain').appendChild(d); return d;
+  })();
+  host.innerHTML = `<div class="text-sm mt-4" style="color:var(--muted)">Loading workspace…</div>`;
+  const data = await api(`/admin/brain/${encodeURIComponent(key)}`).then(r => r.json()).catch(() => ({ notes:[], chat:[], tools:[], prefs:{} }));
+  _brainTools = new Set(data.tools || []);
+
+  host.innerHTML = `
+    <div class="grid gap-4 mt-4" style="grid-template-columns:1fr 1fr">
+      <!-- Opus chat -->
+      <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-sm font-semibold">🧠 Chat với Opus — ${esc(key)}</span>
+          <span class="text-[10px]" style="color:var(--muted)">tự động lưu</span>
+        </div>
+        <div id="brain-chat-log" style="height:340px;overflow-y:auto;background:var(--bg);border-radius:8px;padding:10px" class="space-y-2 text-xs"></div>
+        <div class="flex gap-2 mt-2">
+          <textarea id="brain-chat-input" rows="2" placeholder="Mô tả buổi họp, yêu cầu Opus soạn ghi chú brain…"
+            class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px"></textarea>
+          <button onclick="sendBrainChat()" id="brain-send" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Gửi</button>
+        </div>
+      </div>
+
+      <!-- Notes + tools -->
+      <div class="space-y-4">
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <p class="text-sm font-semibold mb-2">Ghi chú trong brain</p>
+          <div id="brain-notes" class="space-y-1.5 text-xs mb-3"></div>
+          <input id="brain-note-title" placeholder="Tiêu đề ghi chú" class="text-xs w-full mb-1.5" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px" />
+          <textarea id="brain-note-body" rows="3" placeholder="Nội dung — có thể dán từ khối NOTE: của Opus" class="text-xs w-full mb-1.5" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:7px 10px"></textarea>
+          <button onclick="commitBrainNote()" class="btn btn-ghost text-xs w-full">+ Thêm vào brain</button>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+          <p class="text-sm font-semibold mb-2">Công cụ cho học viên này</p>
+          <div class="space-y-2">
+            ${[
+              { tier:'1', label:'Bậc 1', color:'var(--muted)', activeColor:'rgba(245,158,11,.18)' },
+              { tier:'2', label:'Bậc 2 · cường độ cao', color:'#f87171', activeColor:'rgba(248,113,113,.18)' },
+              { tier:'game', label:'Game', color:'#60a5fa', activeColor:'rgba(96,165,250,.18)' },
+            ].map(({ tier, label, color, activeColor }) => `
+              <div>
+                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${color}">${label}</p>
+                <div class="flex flex-wrap gap-1.5">
+                  ${ALL_TOOLS.filter(t=>String(t.tier)===tier).map(t=>`
+                    <button onclick="toggleBrainTool('${t.id}')" id="tool-${t.id}"
+                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?activeColor:'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
+                      ${t.label}
+                    </button>`).join('')}
+                </div>
+              </div>`).join('')}
+          </div>
+          <button onclick="saveBrainTools()" class="btn text-xs w-full mt-3" style="background:var(--amber);color:#1a1a1a">Lưu công cụ</button>
+        </div>
+      </div>
+    </div>`;
+
+  renderBrainChat(data.chat || []);
+  renderBrainNotes(data.notes || []);
+}
+
+function renderBrainChat(chat) {
+  const log = document.getElementById('brain-chat-log');
+  if (!log) return;
+  log.innerHTML = chat.length ? chat.map(m => `
+    <div style="text-align:${m.role==='admin'?'right':'left'}">
+      <span style="display:inline-block;max-width:85%;padding:6px 10px;border-radius:10px;background:${m.role==='admin'?'rgba(245,158,11,.15)':'var(--surface)'};white-space:pre-wrap">${esc(m.content)}</span>
+    </div>`).join('') : `<div style="color:var(--muted)">Bắt đầu cuộc trò chuyện với Opus để dựng brain.</div>`;
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderBrainNotes(notes) {
+  const el = document.getElementById('brain-notes');
+  if (!el) return;
+  el.innerHTML = notes.length ? notes.map(n => `
+    <div class="flex items-center justify-between gap-2">
+      <span class="truncate">🧠 ${esc(n.title)}${n.subject?` · ${esc(n.subject)}`:''} <span style="color:var(--muted)">(${esc(n.source)})</span></span>
+      <button onclick="deleteBrainNote('${n.id}')" style="color:var(--muted)" class="shrink-0">✕</button>
+    </div>`).join('') : `<div style="color:var(--muted)">Chưa có ghi chú nào.</div>`;
+}
+
+async function sendBrainChat() {
+  const input = document.getElementById('brain-chat-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+  const btn = document.getElementById('brain-send');
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    await api(`/admin/brain/chat`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, message: msg }) });
+    input.value = '';
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainChat(data.chat || []);
+  } catch (e) { toast('Opus lỗi: ' + e.message, 'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Gửi'; }
+}
+
+async function commitBrainNote() {
+  const title = document.getElementById('brain-note-title').value.trim();
+  const content = document.getElementById('brain-note-body').value.trim();
+  if (!content) { toast('Nhập nội dung ghi chú', 'err'); return; }
+  try {
+    await api(`/admin/brain/notes`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, title: title||'Ghi chú', content }) });
+    document.getElementById('brain-note-title').value = '';
+    document.getElementById('brain-note-body').value = '';
+    toast('✓ Đã thêm vào brain');
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainNotes(data.notes || []);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function deleteBrainNote(id) {
+  try {
+    await api(`/admin/brain/notes/${id}`, { method:'DELETE' });
+    const data = await api(`/admin/brain/${encodeURIComponent(_brainKey)}`).then(r=>r.json());
+    renderBrainNotes(data.notes || []);
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+function toggleBrainTool(id) {
+  if (_brainTools.has(id)) _brainTools.delete(id); else _brainTools.add(id);
+  const btn = document.getElementById('tool-' + id);
+  const tier = String(ALL_TOOLS.find(t=>t.id===id).tier);
+  const on = _brainTools.has(id);
+  const activeColor = tier==='2' ? 'rgba(248,113,113,.18)' : tier==='game' ? 'rgba(96,165,250,.18)' : 'rgba(245,158,11,.18)';
+  btn.style.background = on ? activeColor : 'transparent';
+  btn.style.color = on ? 'var(--text)' : 'var(--muted)';
+}
+
+async function saveBrainTools() {
+  try {
+    await api(`/admin/brain/tools`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, tools: [..._brainTools] }) });
+    toast('✓ Đã lưu công cụ');
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: WORKSPACE — large card-grid of customers; clicking a card opens
+// the workspace + profile-info form (subjects liked/disliked, required
+// subjects, major, teaching-method preferences, device, ADHD/focus note).
+// ════════════════════════════════════════════════════════════════
+let _wsProfile = null;
+
+async function viewWorkspace() {
+  hideAllViews();
+  setActiveNav('nav-workspace');
+  show('view-workspace');
+  await renderWorkspaceGrid();
+}
+
+async function renderWorkspaceGrid() {
+  const el = document.getElementById('view-workspace');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { customers = [] } = await api(`/admin/customers`).then(r => r.json()).catch(() => ({ customers: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-5 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Workspace</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Bấm vào từng học viên để thiết lập workspace và thông tin cá nhân của họ.</p>
+      </div>
+      ${customers.length === 0 ? `<p class="text-sm" style="color:var(--muted)">Chưa có khách hàng nào được duyệt.</p>` : `
+        <div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+          ${customers.map(c => `
+            <button onclick="openWorkspaceProfile('${esc(c.email)}')" class="text-left" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+              <p class="text-sm font-semibold truncate">${esc(c.name || c.email)}</p>
+              <p class="text-xs mt-0.5 truncate" style="color:var(--muted)">${esc(c.email)}</p>
+            </button>`).join('')}
+        </div>`}
+      <div id="workspace-profile-host"></div>
+    </div>`;
+}
+
+const SUBJECT_TAG_FIELDS = [
+  { key: 'liked_subjects', label: 'Môn thích' },
+  { key: 'disliked_subjects', label: 'Môn ghét' },
+  { key: 'required_subjects', label: 'Môn bắt buộc phải học' },
+];
+
+async function openWorkspaceProfile(email) {
+  const host = document.getElementById('workspace-profile-host');
+  if (!host) return;
+  host.innerHTML = `<div class="text-sm mt-4" style="color:var(--muted)">Loading…</div>`;
+  const profile = await api(`/admin/profile/${encodeURIComponent(email)}`).then(r => r.json()).catch(() => null);
+  if (!profile) { host.innerHTML = `<p class="text-sm text-red-400 mt-4">Không tải được hồ sơ.</p>`; return; }
+  _wsProfile = { user_key: email, ...profile };
+
+  host.innerHTML = `
+    <div class="mt-4" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:20px">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-base font-semibold">📋 Workspace — ${esc(email)}</span>
+        <button onclick="document.getElementById('workspace-profile-host').innerHTML=''" class="text-xs" style="color:var(--muted)">✕ Đóng</button>
+      </div>
+
+      <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        ${SUBJECT_TAG_FIELDS.map(f => `
+          <div>
+            <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">${f.label}</label>
+            <input id="ws-${f.key}" value="${esc((_wsProfile[f.key]||[]).join(', '))}" placeholder="cách nhau bằng dấu phẩy"
+              class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+          </div>`).join('')}
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Major</label>
+          <input id="ws-major" value="${esc(_wsProfile.major||'')}" placeholder="e.g. Computer Science"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Đang học trên thiết bị</label>
+          <input id="ws-device" value="${esc(_wsProfile.device||'')}" placeholder="e.g. MacBook Air M2, Windows laptop, điện thoại…"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-4 mt-5 pt-4" style="border-top:1px solid var(--border)">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-agrees_top_down" ${_wsProfile.agrees_top_down ? 'checked' : ''} />
+          Đồng ý chiến lược TOP DOWN
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-advance_to_basic" ${_wsProfile.advance_to_basic ? 'checked' : ''} />
+          Advance to basic (học từ nâng cao lùi về cơ bản)
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-has_adhd" ${_wsProfile.has_adhd ? 'checked' : ''} />
+          Có ADHD / khó tập trung
+        </label>
+      </div>
+
+      <button onclick="saveWorkspaceProfile()" class="btn text-xs mt-5" style="background:var(--amber);color:#1a1a1a">Lưu hồ sơ</button>
+    </div>`;
+}
+
+async function saveWorkspaceProfile() {
+  if (!_wsProfile) return;
+  const splitTags = v => v.split(',').map(s => s.trim()).filter(Boolean);
+  const body = {
+    user_key: _wsProfile.user_key,
+    liked_subjects: splitTags(document.getElementById('ws-liked_subjects').value),
+    disliked_subjects: splitTags(document.getElementById('ws-disliked_subjects').value),
+    required_subjects: splitTags(document.getElementById('ws-required_subjects').value),
+    major: document.getElementById('ws-major').value.trim(),
+    device: document.getElementById('ws-device').value.trim(),
+    agrees_top_down: document.getElementById('ws-agrees_top_down').checked,
+    advance_to_basic: document.getElementById('ws-advance_to_basic').checked,
+    has_adhd: document.getElementById('ws-has_adhd').checked,
+  };
+  try {
+    await api(`/admin/profile`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('✓ Đã lưu hồ sơ');
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: ORDERS — submissions from the personal Second Brain page
+// (thelyceum.site/secondbrain): documents + a study schedule (self-built
+// or AI-suggested), submitted for the team to turn into a personalized
+// plan. FIFO — oldest pending first.
+// ════════════════════════════════════════════════════════════════
+let _ordersFilter = 'pending';
+
+async function viewOrders() {
+  hideAllViews();
+  setActiveNav('nav-orders');
+  show('view-orders');
+  await renderOrders();
+}
+
+function onOrdersFilterChange(v) {
+  _ordersFilter = v;
+  renderOrders();
+}
+
+async function renderOrders() {
+  const el = document.getElementById('view-orders');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+
+  const qs = _ordersFilter ? `?status=${_ordersFilter}` : '';
+  const { orders = [] } = await api(`/admin/orders${qs}`).then(r => r.json()).catch(() => ({ orders: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-xl font-bold">Orders</h1>
+          <p class="text-sm mt-0.5" style="color:var(--muted)">Documents + study schedule submitted from a student's personal Second Brain — oldest pending first.</p>
+        </div>
+        <select onchange="onOrdersFilterChange(this.value)" class="text-xs" style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:6px 10px">
+          <option value="pending" ${_ordersFilter==='pending'?'selected':''}>Đang chờ</option>
+          <option value="accepted" ${_ordersFilter==='accepted'?'selected':''}>Đã nhận</option>
+          <option value="declined" ${_ordersFilter==='declined'?'selected':''}>Đã từ chối</option>
+          <option value="" ${_ordersFilter===''?'selected':''}>Tất cả</option>
+        </select>
+      </div>
+
+      ${orders.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Không có order nào.</div>` : `
+      <div class="space-y-3">
+        ${orders.map(o => `
+          <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px">
+            <div class="flex items-start justify-between gap-4">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-xs" style="color:var(--muted)">${esc(o.email || o.user_id)}</span>
+                  ${o.ai_generated ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(63,185,80,.12);color:var(--em)">AI-suggested schedule</span>` : ''}
+                  <span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(255,255,255,.06);color:var(--muted)">${esc(o.status)}</span>
+                </div>
+                <div class="text-xs mt-1" style="color:var(--muted)">${timeAgo(o.created_at)} · ${o.documents.length} doc${o.documents.length===1?'':'s'} · ${o.schedule.length} block${o.schedule.length===1?'':'s'}</div>
+              </div>
+              ${o.status === 'pending' ? `
+              <div class="flex items-center gap-2 shrink-0">
+                <button onclick="declineOrder('${o.id}')" class="btn btn-ghost text-xs">Decline</button>
+                <button onclick="acceptOrder('${o.id}')" class="btn text-xs" style="background:var(--amber);color:#1a1a1a">Accept</button>
+              </div>` : ''}
+            </div>
+
+            ${o.documents.length > 0 ? `
+            <div class="mt-3 flex flex-wrap gap-1.5">
+              ${o.documents.map(d => `<span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.05);color:var(--muted)">📄 ${esc(d.title)}</span>`).join('')}
+            </div>` : ''}
+
+            ${o.schedule.length > 0 ? `
+            <div class="mt-2 flex flex-wrap gap-1.5">
+              ${o.schedule.map(b => `<span class="text-[10px] px-2 py-1 rounded-full" style="background:rgba(255,255,255,.05);color:var(--muted)">🗓 ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][b.dayOfWeek] || '?'} ${Math.floor((b.startMinute||0)/60)}:00 — ${esc(b.subjectKey || '')}</span>`).join('')}
+            </div>` : ''}
+
+            ${o.note ? `<div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(o.note)}"</div>` : ''}
+          </div>
+        `).join('')}
+      </div>`}
+    </div>
+  `;
+}
+
+async function acceptOrder(id) {
+  try {
+    await api(`/admin/orders/${id}/accept`, { method: 'POST' });
+    toast('✓ Đã nhận order');
+    renderOrders();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+async function declineOrder(id) {
+  try {
+    await api(`/admin/orders/${id}/decline`, { method: 'POST' });
+    toast('Đã từ chối');
+    renderOrders();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1352,107 +2151,6 @@ async function loadFeedbackInsights() {
   } catch (e) {
     body.innerHTML = `<div style="color:#f85149">Failed to analyze: ${esc(e.message)}</div>`;
   }
-}
-
-// ════════════════════════════════════════════════════════════════
-// VIEW: STORAGE
-// ════════════════════════════════════════════════════════════════
-function viewStorage() {
-  hideAllViews();
-  setActiveNav('nav-storage');
-  const el = document.getElementById('view-storage');
-  show('view-storage');
-
-  // Collect localStorage data
-  const lsItems = [];
-  let lsTotal = 0;
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    const val = localStorage.getItem(key) || '';
-    const bytes = new TextEncoder().encode(key + val).length;
-    lsTotal += bytes;
-    lsItems.push({ key, bytes, preview: val.substring(0, 80) });
-  }
-  lsItems.sort((a, b) => b.bytes - a.bytes);
-
-  // Group by prefix
-  const groups = {};
-  lsItems.forEach(item => {
-    const prefix = item.key.includes(':') ? item.key.split(':')[0] : 'other';
-    if (!groups[prefix]) groups[prefix] = { items: [], total: 0 };
-    groups[prefix].items.push(item);
-    groups[prefix].total += item.bytes;
-  });
-
-  const sortedGroups = Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
-
-  function fmt(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(2) + ' MB';
-  }
-
-  // User-scoped keys
-  const userKeys = lsItems.filter(i => i.key.includes(':'));
-  const globalKeys = lsItems.filter(i => !i.key.includes(':'));
-  const uniqueUsers = [...new Set(userKeys.map(i => i.key.split(':').pop()))].length;
-
-  el.innerHTML = `
-    <div class="space-y-6 fade-in">
-      <div>
-        <h2 class="text-lg font-semibold mb-1">Storage Explorer</h2>
-        <p style="color:var(--muted)" class="text-xs">Local browser data for this domain. Shows what the app stores per user.</p>
-      </div>
-
-      <!-- Summary cards -->
-      <div class="grid grid-cols-4 gap-3">
-        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
-          <div class="text-xs mb-1" style="color:var(--muted)">Total localStorage</div>
-          <div class="text-xl font-bold">${fmt(lsTotal)}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
-          <div class="text-xs mb-1" style="color:var(--muted)">Total keys</div>
-          <div class="text-xl font-bold">${lsItems.length}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
-          <div class="text-xs mb-1" style="color:var(--muted)">User-scoped keys</div>
-          <div class="text-xl font-bold">${userKeys.length}</div>
-        </div>
-        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl p-4">
-          <div class="text-xs mb-1" style="color:var(--muted)">Unique users (est.)</div>
-          <div class="text-xl font-bold">${uniqueUsers}</div>
-        </div>
-      </div>
-
-      <!-- Grouped by prefix -->
-      ${sortedGroups.map(([prefix, data]) => `
-        <div style="background:var(--surface);border:1px solid var(--border)" class="rounded-xl overflow-hidden">
-          <div class="flex items-center justify-between px-4 py-3" style="border-bottom:1px solid var(--border)">
-            <span class="text-sm font-medium">${esc(prefix)}*</span>
-            <span class="text-xs" style="color:var(--muted)">${data.items.length} keys · ${fmt(data.total)}</span>
-          </div>
-          <div class="max-h-48 overflow-auto">
-            <table class="w-full text-xs">
-              <thead><tr style="border-bottom:1px solid var(--border);color:var(--muted)">
-                <th class="text-left px-4 py-2 font-medium">Key</th>
-                <th class="text-right px-4 py-2 font-medium" style="width:80px">Size</th>
-                <th class="text-left px-4 py-2 font-medium">Preview</th>
-              </tr></thead>
-              <tbody>
-                ${data.items.map(item => `
-                  <tr style="border-bottom:1px solid var(--border)">
-                    <td class="px-4 py-2 font-mono" style="color:var(--blue)">${esc(item.key)}</td>
-                    <td class="px-4 py-2 text-right" style="color:var(--muted)">${fmt(item.bytes)}</td>
-                    <td class="px-4 py-2 truncate max-w-xs" style="color:var(--muted)">${esc(item.preview)}</td>
-                  </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      `).join('')}
-
-      ${lsItems.length === 0 ? '<div class="text-center py-12" style="color:var(--muted)">No localStorage data found.</div>' : ''}
-    </div>`;
 }
 </script>
 </body>

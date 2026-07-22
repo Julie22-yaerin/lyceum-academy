@@ -40,6 +40,14 @@
     .nav-btn { padding:5px 12px; border-radius:7px; background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; transition:all .15s; }
     .nav-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
     .nav-btn.active { color:var(--text); background:rgba(88,166,255,.1); }
+    /* Sidebar nav */
+    .sn-group { font-size:9px; text-transform:uppercase; letter-spacing:.14em; color:var(--muted); padding:0 10px; margin-bottom:6px; }
+    .sn-btn { display:flex; align-items:center; gap:9px; width:100%; text-align:left; padding:7px 10px; border-radius:8px;
+              background:transparent; color:var(--muted); border:none; cursor:pointer; font-weight:500; font-size:12.5px;
+              transition:all .15s; border-left:2px solid transparent; }
+    .sn-btn span { font-size:14px; width:18px; text-align:center; }
+    .sn-btn:hover { color:var(--text); background:rgba(255,255,255,.05); }
+    .sn-btn.active { color:var(--text); background:rgba(88,166,255,.1); border-left-color:var(--blue,#58a6ff); }
     .spinner { animation:spin 1s linear infinite; }
     @keyframes spin { to{transform:rotate(360deg)} }
     .fade-in { animation:fadein .18s ease; }
@@ -109,37 +117,6 @@
   <header style="background:var(--surface);border-bottom:1px solid var(--border)" class="h-12 flex items-center px-5 gap-3 shrink-0 sticky top-0 z-40">
     <span class="text-base">🐍🐈</span>
     <span class="font-semibold text-sm">PCLICK Admin</span>
-    <nav class="flex items-center gap-3 ml-4 overflow-x-auto">
-      <!-- Tier 1: Quản trị khách hàng (customer/user administration) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Khách hàng</span>
-        <button id="nav-applications" onclick="viewApplications()" class="nav-btn text-xs">Xét duyệt</button>
-        <button id="nav-meetings" onclick="viewMeetings()" class="nav-btn text-xs">Gặp gỡ</button>
-        <button id="nav-brain" onclick="viewBrain()" class="nav-btn text-xs">Second Brain riêng</button>
-        <button id="nav-trash" onclick="viewTrash()" class="nav-btn text-xs">Thùng rác</button>
-        <button id="nav-access-codes" onclick="viewAccessCodes()" class="nav-btn text-xs">Mã truy cập</button>
-        <button id="nav-orders" onclick="viewOrders()" class="nav-btn text-xs">Orders</button>
-        <button id="nav-profiles" onclick="viewProfiles()" class="nav-btn text-xs">Personalization</button>
-      </div>
-      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
-
-      <!-- Tier 2: Phục vụ khách (customer service) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Phục vụ</span>
-        <button id="nav-feedback" onclick="viewFeedback()" class="nav-btn text-xs">Feedback</button>
-        <button id="nav-errors" onclick="viewErrors()" class="nav-btn text-xs">Errors</button>
-      </div>
-      <span class="w-px h-5 shrink-0" style="background:var(--border)"></span>
-
-      <!-- Tier 3: Quản lý hệ thống AI (AI system administration) -->
-      <div class="flex items-center gap-1">
-        <span class="text-[9px] uppercase tracking-wider shrink-0" style="color:var(--muted)">Hệ thống AI</span>
-        <button id="nav-ai-system" onclick="viewAiSystem()" class="nav-btn text-xs">AI System</button>
-        <button id="nav-ai-chat" onclick="viewAiChat()" class="nav-btn text-xs">AI Chat</button>
-        <button id="nav-activity" onclick="viewActivity()" class="nav-btn text-xs">Activity Log</button>
-        <button id="nav-second-brain" onclick="viewSecondBrain()" class="nav-btn text-xs">Second Brain</button>
-      </div>
-    </nav>
     <div class="flex-1"></div>
     <img id="user-avatar" src="" alt="" class="w-6 h-6 rounded-full hidden" referrerpolicy="no-referrer" />
     <span id="user-name" class="text-xs hidden" style="color:var(--muted)"></span>
@@ -156,11 +133,47 @@
     <span id="retry-countdown" class="text-xs" style="color:#5c1111"></span>
   </div>
 
+  <!-- Sidebar + Main -->
+  <div class="flex-1 flex min-h-0">
+  <aside class="w-52 shrink-0 overflow-y-auto py-4 px-3 flex flex-col gap-5"
+    style="background:var(--surface);border-right:1px solid var(--border);position:sticky;top:48px;height:calc(100vh - 48px)">
+
+    <!-- Nhóm 1: hành trình khách hàng, theo đúng thứ tự pipeline -->
+    <div>
+      <p class="sn-group">Khách hàng</p>
+      <button id="nav-applications" onclick="viewApplications()" class="sn-btn"><span>📥</span>Xét duyệt</button>
+      <button id="nav-meetings" onclick="viewMeetings()" class="sn-btn"><span>🤝</span>Gặp gỡ</button>
+      <button id="nav-brain" onclick="viewBrain()" class="sn-btn"><span>🧠</span>Second Brain riêng</button>
+      <button id="nav-workspace" onclick="viewWorkspace()" class="sn-btn"><span>🗂️</span>Workspace</button>
+      <button id="nav-orders" onclick="viewOrders()" class="sn-btn"><span>📦</span>Orders</button>
+      <button id="nav-profiles" onclick="viewProfiles()" class="sn-btn"><span>🎯</span>Personalization</button>
+      <button id="nav-trash" onclick="viewTrash()" class="sn-btn"><span>🗑️</span>Thùng rác</button>
+      <button id="nav-access-codes" onclick="viewAccessCodes()" class="sn-btn"><span>🔑</span>Mã truy cập</button>
+    </div>
+
+    <!-- Nhóm 2: chăm sóc & sự cố -->
+    <div>
+      <p class="sn-group">Phục vụ</p>
+      <button id="nav-feedback" onclick="viewFeedback()" class="sn-btn"><span>💬</span>Feedback</button>
+      <button id="nav-errors" onclick="viewErrors()" class="sn-btn"><span>🐞</span>Errors</button>
+    </div>
+
+    <!-- Nhóm 3: vận hành hệ thống AI -->
+    <div>
+      <p class="sn-group">Hệ thống AI</p>
+      <button id="nav-ai-system" onclick="viewAiSystem()" class="sn-btn"><span>🤖</span>AI System</button>
+      <button id="nav-ai-chat" onclick="viewAiChat()" class="sn-btn"><span>🗨️</span>AI Chat</button>
+      <button id="nav-activity" onclick="viewActivity()" class="sn-btn"><span>📊</span>Activity Log</button>
+      <button id="nav-second-brain" onclick="viewSecondBrain()" class="sn-btn"><span>🕸️</span>Second Brain chung</button>
+    </div>
+  </aside>
+
   <!-- Main -->
   <main class="flex-1 overflow-auto">
     <div id="view-applications" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-meetings" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
+    <div id="view-workspace" class="hidden p-6 max-w-7xl mx-auto fade-in"></div>
     <div id="view-trash" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-access-codes" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -173,6 +186,7 @@
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-second-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
   </main>
+  </div><!-- /sidebar+main -->
 </div>
 
 <!-- Toast -->
@@ -199,24 +213,43 @@ const API        = (location.hostname === 'localhost' || location.hostname === '
       ? location.origin
       : 'https://lyceum-academy-production.up.railway.app');
 const COOKIE     = 'pclick_fb_token';
-const DEV_TOKEN  = 'pclick-admin-dev';
 
 let currentToken = '';
+let _firebaseUser = null;
 let _shown       = false;
 let _pingTimer   = null;
 let _retryTimer  = null;
 let _retryS      = 0;
+let _tokenRefreshTimer = null;
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 auth.onIdTokenChanged(async user => {
   setLL(false);
   if (user) {
-    try { currentToken = await user.getIdToken(); } catch { currentToken = DEV_TOKEN; }
+    _firebaseUser = user;
+    // Never fall back to DEV_TOKEN here — a silent fallback lets you "in"
+    // while every API call 401s (production ADMIN_SECRET differs). If the
+    // ID token can't be fetched, retry once, then surface the error.
+    try { currentToken = await user.getIdToken(true); }
+    catch {
+      try { currentToken = await user.getIdToken(); }
+      catch { showLoginErr('Không lấy được Firebase ID token — thử đăng nhập lại.'); show('login-screen'); return; }
+    }
     if (!_shown) { _shown = true; showAdmin(user); }
   } else {
+    _firebaseUser = null;
     await tryCookieSSO();
   }
 });
+
+function startTokenRefresh() {
+  if (_tokenRefreshTimer) return;
+  _tokenRefreshTimer = setInterval(async () => {
+    if (_firebaseUser) {
+      try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    }
+  }, 30 * 60 * 1000);
+}
 
 async function tryCookieSSO() {
   const tok = getCookie(COOKIE);
@@ -236,6 +269,7 @@ function showAdmin(user) {
   const ne = document.getElementById('user-name');
   ne.textContent = user ? (user.displayName || user.email) : 'dev token';
   ne.classList.remove('hidden');
+  startTokenRefresh();
   postLoginInit();
   viewApplications();
 }
@@ -250,12 +284,11 @@ async function signInWithDevToken() {
   const pw = document.getElementById('dev-pw').value.trim();
   if (!pw) { showLoginErr('Enter admin password.'); return; }
   setLL(true);
-  // Dev token is static — accept immediately without backend round-trip.
-  // (Backend still validates X-Admin-Token on every API call.)
-  if (pw === DEV_TOKEN) { currentToken = pw; _shown = true; showAdmin(null); return; }
-  // Otherwise treat as a Firebase token and verify with backend.
+  // ALWAYS verify against the backend before entering — a client-side-only
+  // accept let people "in" while every API call silently 401'd (production
+  // ADMIN_SECRET differs from the dev default).
   if (await verifyToken(pw)) { currentToken = pw; _shown = true; showAdmin(null); }
-  else { setLL(false); showLoginErr('Wrong password or backend offline.'); }
+  else { setLL(false); showLoginErr('Sai admin token (backend từ chối 401) hoặc backend offline. Kiểm tra ADMIN_SECRET trên Railway.'); }
 }
 
 function friendlyErr(e) {
@@ -270,8 +303,10 @@ function showLoginErr(m) { const e=document.getElementById('login-error'); e.tex
 
 async function doLogout() {
   _shown = false; currentToken = '';
+  _firebaseUser = null;
   clearInterval(_pingTimer); _pingTimer = null;
   clearInterval(_retryTimer); _retryTimer = null;
+  clearInterval(_tokenRefreshTimer); _tokenRefreshTimer = null;
   await auth.signOut();
   document.cookie = `${COOKIE}=; path=/; max-age=0; SameSite=Strict`;
   document.getElementById('app').classList.add('hidden');
@@ -282,10 +317,21 @@ async function doLogout() {
 }
 
 // ── API helpers ───────────────────────────────────────────────────────────────
-function headers(extra={}) { return {'X-Admin-Token': currentToken||DEV_TOKEN, ...extra}; }
+// No DEV_TOKEN fallback — sending the dev token against a prod ADMIN_SECRET
+// turns every view into a silent 401. An empty token 401s loudly instead.
+function headers(extra={}) { return {'X-Admin-Token': currentToken, ...extra}; }
 
 async function api(path, opts={}) {
-  const r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  let r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  if (r.status === 401 && _firebaseUser) {
+    try { currentToken = await _firebaseUser.getIdToken(true); } catch {}
+    r = await fetch(API+path, {...opts, headers:{...headers(), ...(opts.headers||{})}});
+  }
+  if (r.status === 401 || r.status === 403) {
+    // Surface auth failures loudly — silent catches made 401 look like "no data".
+    toast('⚠ Backend từ chối token (' + r.status + ') — đăng nhập lại với đúng ADMIN_SECRET hoặc Google (email trong ADMIN_EMAILS).', 'err');
+    throw new Error('unauthorized (' + r.status + ')');
+  }
   if (!r.ok) { const t=await r.text().catch(()=>r.statusText); throw new Error(t||r.statusText); }
   return r;
 }
@@ -356,14 +402,15 @@ function clearRetry() { clearInterval(_retryTimer); _retryTimer=null; const e=do
 async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(10); }
 
 function setActiveNav(id) {
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-btn, .sn-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById(id);
   if (btn) btn.classList.add('active');
 }
 
 function hideAllViews() {
-  ['view-applications','view-meetings','view-brain','view-trash','view-access-codes','view-orders','view-errors',
-   'view-ai-system','view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
+  ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-access-codes','view-orders',
+   'view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback',
+   'view-second-brain'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -545,6 +592,12 @@ async function renderApplications() {
   const qs = _applicationsFilter ? `?status=${_applicationsFilter}` : '';
   const { applications = [] } = await api(`/admin/applications${qs}`).then(r => r.json()).catch(() => ({ applications: [] }));
 
+  // Referral-priority first, then deposit size (bigger deposit = more urgent), then oldest first.
+  applications.sort((a, b) =>
+    (b.priority - a.priority)
+    || ((b.answers?.deposit_usd || 0) - (a.answers?.deposit_usd || 0))
+    || String(a.created_at).localeCompare(String(b.created_at)));
+
   const FRICTION_LABEL = f => f >= 0.5 ? 'High (Pure Lyceum)' : 'Low';
   const SANDBOX_LABEL = { stem: 'STEM', physics: 'Vật lý', chemistry: 'Hoá học', math: 'Toán', general_research: 'Nghiên cứu' };
 
@@ -587,7 +640,8 @@ async function renderApplications() {
             <div class="grid gap-3 mt-3 text-xs" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));color:var(--muted)">
               <div><span class="font-medium" style="color:var(--text)">Cấp độ:</span> ${esc(a.answers.grade_level || '—')}</div>
               <div><span class="font-medium" style="color:var(--text)">Nghiên cứu:</span> ${esc(a.answers.does_research || '—')} ${a.answers.research_frequency && a.answers.research_frequency !== 'n/a' ? `(${esc(a.answers.research_frequency)})` : ''}</div>
-              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}</div>
+              <div><span class="font-medium" style="color:var(--text)">Ngân sách:</span> $${esc(a.answers.budget_usd ?? '—')}/tháng</div>
+              <div><span class="font-medium" style="color:var(--text)">Đặt cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd ?? 0)}</span></div>
               <div><span class="font-medium" style="color:var(--text)">Sandbox:</span> ${SANDBOX_LABEL[a.vector.target_sandbox] || '—'}</div>
               <div><span class="font-medium" style="color:var(--text)">Ma sát nhận thức:</span> ${a.vector.cognitive_friction != null ? FRICTION_LABEL(a.vector.cognitive_friction) : '—'}</div>
               <div><span class="font-medium" style="color:var(--text)">Mã giới thiệu:</span> ${esc(a.referral_code || '—')}</div>
@@ -597,6 +651,8 @@ async function renderApplications() {
             <div class="mt-2 text-xs"><span class="font-medium" style="color:var(--text)">Môn cần học:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
             ${a.answers.purpose ? `
             <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+            ${a.answers.learning_goal ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Mục tiêu học tập:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
             ${a.answers.biggest_difficulty ? `
             <div class="mt-2 text-xs italic" style="color:var(--muted)">"${esc(a.answers.biggest_difficulty)}"</div>` : ''}
 
@@ -673,7 +729,9 @@ async function renderMeetings() {
                 </div>
                 <div class="text-xs mt-1" style="color:var(--muted)">Chấp nhận ${a.decided_at ? timeAgo(a.decided_at) : ''}</div>
                 ${a.answers.subjects ? `<div class="text-xs mt-1"><span style="color:var(--text)">Môn:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
-                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.learning_goal ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
+                ${a.answers.deposit_usd ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Đã cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd)}</span></div>` : ''}
               </div>
               <div class="flex items-center gap-2 shrink-0">
                 <button onclick="openBrainFor('${esc(a.email)}')" class="btn btn-ghost text-xs">🧠 Dựng Second Brain</button>
@@ -823,9 +881,15 @@ const ALL_TOOLS = [
   { id:'feynman', label:'Feynman', tier:1 }, { id:'toolmap', label:'Tool Map', tier:1 },
   { id:'reverse-build', label:'Reverse Build', tier:1 }, { id:'games', label:'Games', tier:1 },
   { id:'spaced-repetition', label:'Spaced Repetition', tier:1 },
-  { id:'dark-room', label:'Dark Room', tier:2 }, { id:'kinetic-stress', label:'Kinetic Stress', tier:2 },
-  { id:'paradox', label:'Paradox Engine', tier:2 }, { id:'hostile', label:'Hostile Mode', tier:2 },
-  { id:'scalpel', label:'Scalpel', tier:2 },
+  { id:'node-map', label:'Node Mapping 3D · Lý lượng tử/Toán đa biến', tier:2 },
+  { id:'tactile-friction', label:'Tactile Logic Friction · Cơ học/Hoá', tier:2 },
+  { id:'shatter', label:'Axiom Destructor · Nhiệt/Điện từ', tier:2 },
+  { id:'auditory-gating', label:'Auditory Gating · Toán rời rạc/Giải thuật', tier:2 },
+  { id:'membrane-flow', label:'Purification Sandbox · Hoá lý', tier:2 },
+  { id:'steric-snap', label:'Steric Repulsion · Hoá hữu cơ', tier:2 },
+  { id:'topo-lock', label:'Topological Lock · Sinh học phân tử', tier:2 },
+  { id:'time-lapse', label:'Generative Sandbox · Sinh thái/Di truyền', tier:2 },
+  { id:'game-builder', label:'Game Builder (Sprite Generator)', tier:'game' },
 ];
 let _brainTools = new Set();
 
@@ -913,13 +977,17 @@ async function loadBrain(key) {
         <div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
           <p class="text-sm font-semibold mb-2">Công cụ cho học viên này</p>
           <div class="space-y-2">
-            ${['1','2'].map(tier => `
+            ${[
+              { tier:'1', label:'Bậc 1', color:'var(--muted)', activeColor:'rgba(245,158,11,.18)' },
+              { tier:'2', label:'Bậc 2 · cường độ cao', color:'#f87171', activeColor:'rgba(248,113,113,.18)' },
+              { tier:'game', label:'Game', color:'#60a5fa', activeColor:'rgba(96,165,250,.18)' },
+            ].map(({ tier, label, color, activeColor }) => `
               <div>
-                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${tier==='2'?'#f87171':'var(--muted)'}">Bậc ${tier}${tier==='2'?' · cường độ cao':''}</p>
+                <p class="text-[10px] uppercase tracking-wider mb-1" style="color:${color}">${label}</p>
                 <div class="flex flex-wrap gap-1.5">
                   ${ALL_TOOLS.filter(t=>String(t.tier)===tier).map(t=>`
                     <button onclick="toggleBrainTool('${t.id}')" id="tool-${t.id}"
-                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?(tier==='2'?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)'):'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
+                      class="text-[11px]" style="border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:${_brainTools.has(t.id)?activeColor:'transparent'};color:${_brainTools.has(t.id)?'var(--text)':'var(--muted)'}">
                       ${t.label}
                     </button>`).join('')}
                 </div>
@@ -994,9 +1062,10 @@ async function deleteBrainNote(id) {
 function toggleBrainTool(id) {
   if (_brainTools.has(id)) _brainTools.delete(id); else _brainTools.add(id);
   const btn = document.getElementById('tool-' + id);
-  const tier = ALL_TOOLS.find(t=>t.id===id).tier;
+  const tier = String(ALL_TOOLS.find(t=>t.id===id).tier);
   const on = _brainTools.has(id);
-  btn.style.background = on ? (tier===2?'rgba(248,113,113,.18)':'rgba(245,158,11,.18)') : 'transparent';
+  const activeColor = tier==='2' ? 'rgba(248,113,113,.18)' : tier==='game' ? 'rgba(96,165,250,.18)' : 'rgba(245,158,11,.18)';
+  btn.style.background = on ? activeColor : 'transparent';
   btn.style.color = on ? 'var(--text)' : 'var(--muted)';
 }
 
@@ -1004,6 +1073,124 @@ async function saveBrainTools() {
   try {
     await api(`/admin/brain/tools`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ user_key:_brainKey, tools: [..._brainTools] }) });
     toast('✓ Đã lưu công cụ');
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: WORKSPACE — large card-grid of customers; clicking a card opens
+// the workspace + profile-info form (subjects liked/disliked, required
+// subjects, major, teaching-method preferences, device, ADHD/focus note).
+// ════════════════════════════════════════════════════════════════
+let _wsProfile = null;
+
+async function viewWorkspace() {
+  hideAllViews();
+  setActiveNav('nav-workspace');
+  show('view-workspace');
+  await renderWorkspaceGrid();
+}
+
+async function renderWorkspaceGrid() {
+  const el = document.getElementById('view-workspace');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { customers = [] } = await api(`/admin/customers`).then(r => r.json()).catch(() => ({ customers: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-5 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Workspace</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Bấm vào từng học viên để thiết lập workspace và thông tin cá nhân của họ.</p>
+      </div>
+      ${customers.length === 0 ? `<p class="text-sm" style="color:var(--muted)">Chưa có khách hàng nào được duyệt.</p>` : `
+        <div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(220px,1fr))">
+          ${customers.map(c => `
+            <button onclick="openWorkspaceProfile('${esc(c.email)}')" class="text-left" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:16px;transition:border-color .15s" onmouseover="this.style.borderColor='var(--amber)'" onmouseout="this.style.borderColor='var(--border)'">
+              <p class="text-sm font-semibold truncate">${esc(c.name || c.email)}</p>
+              <p class="text-xs mt-0.5 truncate" style="color:var(--muted)">${esc(c.email)}</p>
+            </button>`).join('')}
+        </div>`}
+      <div id="workspace-profile-host"></div>
+    </div>`;
+}
+
+const SUBJECT_TAG_FIELDS = [
+  { key: 'liked_subjects', label: 'Môn thích' },
+  { key: 'disliked_subjects', label: 'Môn ghét' },
+  { key: 'required_subjects', label: 'Môn bắt buộc phải học' },
+];
+
+async function openWorkspaceProfile(email) {
+  const host = document.getElementById('workspace-profile-host');
+  if (!host) return;
+  host.innerHTML = `<div class="text-sm mt-4" style="color:var(--muted)">Loading…</div>`;
+  const profile = await api(`/admin/profile/${encodeURIComponent(email)}`).then(r => r.json()).catch(() => null);
+  if (!profile) { host.innerHTML = `<p class="text-sm text-red-400 mt-4">Không tải được hồ sơ.</p>`; return; }
+  _wsProfile = { user_key: email, ...profile };
+
+  host.innerHTML = `
+    <div class="mt-4" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:20px">
+      <div class="flex items-center justify-between mb-4">
+        <span class="text-base font-semibold">📋 Workspace — ${esc(email)}</span>
+        <button onclick="document.getElementById('workspace-profile-host').innerHTML=''" class="text-xs" style="color:var(--muted)">✕ Đóng</button>
+      </div>
+
+      <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
+        ${SUBJECT_TAG_FIELDS.map(f => `
+          <div>
+            <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">${f.label}</label>
+            <input id="ws-${f.key}" value="${esc((_wsProfile[f.key]||[]).join(', '))}" placeholder="cách nhau bằng dấu phẩy"
+              class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+          </div>`).join('')}
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Major</label>
+          <input id="ws-major" value="${esc(_wsProfile.major||'')}" placeholder="e.g. Computer Science"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+
+        <div>
+          <label class="text-[10px] uppercase tracking-wider block mb-1" style="color:var(--muted)">Đang học trên thiết bị</label>
+          <input id="ws-device" value="${esc(_wsProfile.device||'')}" placeholder="e.g. MacBook Air M2, Windows laptop, điện thoại…"
+            class="text-sm w-full" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-4 mt-5 pt-4" style="border-top:1px solid var(--border)">
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-agrees_top_down" ${_wsProfile.agrees_top_down ? 'checked' : ''} />
+          Đồng ý chiến lược TOP DOWN
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-advance_to_basic" ${_wsProfile.advance_to_basic ? 'checked' : ''} />
+          Advance to basic (học từ nâng cao lùi về cơ bản)
+        </label>
+        <label class="flex items-center gap-2 text-sm cursor-pointer">
+          <input type="checkbox" id="ws-has_adhd" ${_wsProfile.has_adhd ? 'checked' : ''} />
+          Có ADHD / khó tập trung
+        </label>
+      </div>
+
+      <button onclick="saveWorkspaceProfile()" class="btn text-xs mt-5" style="background:var(--amber);color:#1a1a1a">Lưu hồ sơ</button>
+    </div>`;
+}
+
+async function saveWorkspaceProfile() {
+  if (!_wsProfile) return;
+  const splitTags = v => v.split(',').map(s => s.trim()).filter(Boolean);
+  const body = {
+    user_key: _wsProfile.user_key,
+    liked_subjects: splitTags(document.getElementById('ws-liked_subjects').value),
+    disliked_subjects: splitTags(document.getElementById('ws-disliked_subjects').value),
+    required_subjects: splitTags(document.getElementById('ws-required_subjects').value),
+    major: document.getElementById('ws-major').value.trim(),
+    device: document.getElementById('ws-device').value.trim(),
+    agrees_top_down: document.getElementById('ws-agrees_top_down').checked,
+    advance_to_basic: document.getElementById('ws-advance_to_basic').checked,
+    has_adhd: document.getElementById('ws-has_adhd').checked,
+  };
+  try {
+    await api(`/admin/profile`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    toast('✓ Đã lưu hồ sơ');
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 

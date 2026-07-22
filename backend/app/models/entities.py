@@ -2,10 +2,11 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
 from sqlalchemy import (
     Boolean,
+    Date,
     DateTime,
     Enum,
     Float,
@@ -597,3 +598,68 @@ class ExerciseBatchJob(Base, TimestampMixin):
     """session_end | cron"""
     result_payload: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ============================================================================
+# Admin-curated content catalog + Coach AI daily-served materials
+# ============================================================================
+
+
+class WorkspaceCatalog(Base, TimestampMixin):
+    """
+    An admin-curated subject workspace (e.g. "AP Chemistry") — the global
+    catalog students browse and join at onboarding, replacing free-text
+    subject entry. Only `is_published` entries are visible to students.
+    """
+
+    __tablename__ = "workspace_catalog"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    subject_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    """SUBJECT_META-compatible key — reused for tab icon/label on the frontend."""
+    field: Mapped[FieldEnum] = mapped_column(Enum(FieldEnum), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    is_published: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
+    items: Mapped[list["CatalogItem"]] = relationship(back_populates="workspace", cascade="all, delete-orphan")
+
+
+class CatalogItem(Base, TimestampMixin):
+    """
+    One admin-authored piece of curated content (a lesson, an exercise set,
+    or a tool/game reference) tagged to a concept within a workspace. The
+    Coach selects among these — it doesn't generate content from scratch.
+    """
+
+    __tablename__ = "catalog_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("workspace_catalog.id"), nullable=False)
+    concept_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    item_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    """lesson | exercise-set | tool | game"""
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    ordinal: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    """Creation/sequencing order within the concept — drives the Coach's simple next-concept heuristic."""
+
+    workspace: Mapped["WorkspaceCatalog"] = relationship(back_populates="items")
+
+
+class ServedMaterial(Base, TimestampMixin):
+    """
+    Records that `catalog_item_id` was served to `user_id` on `served_date` —
+    the "Today" vs "Already Studied" split is just this table filtered by
+    date, and the presence of a row for today is what prevents the Coach
+    from re-rolling its pick on every page visit.
+    """
+
+    __tablename__ = "served_materials"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    """Firebase uid."""
+    workspace_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("workspace_catalog.id"), nullable=False)
+    catalog_item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("catalog_items.id"), nullable=False)
+    served_date: Mapped[date] = mapped_column(Date, nullable=False)

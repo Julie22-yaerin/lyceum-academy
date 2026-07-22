@@ -2,7 +2,6 @@
 
 import { Card } from "@/components/ui/card";
 import { Spotlight } from "@/components/ui/spotlight";
-import { InteractiveCat } from "@/components/ui/interactive-cat";
 
 export function SplineSceneBasic() {
   return (
@@ -19,12 +18,6 @@ export function SplineSceneBasic() {
             Bring your UI to life with beautiful 3D scenes. Create immersive experiences
             that capture attention and enhance your design.
           </p>
-        </div>
-
-        {/* Right content - interactive cat (mouse-tilt + idle bob) standing in
-            for a full 3D scene until a real rigged model is generated */}
-        <div className="flex-1 relative">
-          <InteractiveCat src="/chibi_cat_closeup_portrait.webp" alt="Chibi cat portrait" />
         </div>
       </div>
     </Card>

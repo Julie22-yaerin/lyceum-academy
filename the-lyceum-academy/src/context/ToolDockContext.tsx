@@ -18,10 +18,15 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type Tier1ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition';
-export type Tier2ToolId = 'dark-room' | 'kinetic-stress' | 'paradox' | 'hostile' | 'scalpel';
+export type Tier2ToolId =
+  | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'
+  | 'membrane-flow' | 'steric-snap' | 'topo-lock' | 'time-lapse';
 export type ToolId = Tier1ToolId | Tier2ToolId;
 
-export const TIER2_TOOLS: Tier2ToolId[] = ['dark-room', 'kinetic-stress', 'paradox', 'hostile', 'scalpel'];
+export const TIER2_TOOLS: Tier2ToolId[] = [
+  'node-map', 'tactile-friction', 'shatter', 'auditory-gating',
+  'membrane-flow', 'steric-snap', 'topo-lock', 'time-lapse',
+];
 
 export function isTier2(id: ToolId): id is Tier2ToolId {
   return (TIER2_TOOLS as string[]).includes(id);

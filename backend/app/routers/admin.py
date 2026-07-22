@@ -214,6 +214,43 @@ def brain_set_tools(body: ToolsIn, _: None = Depends(_auth)):
     return user_brain.set_tools(body.user_key, body.tools)
 
 
+# ── Customers — the accepted-application roster, each opening into a big
+# workspace + profile-info form (likes/dislikes, required subjects, major,
+# teaching-method preferences, device, ADHD/focus note).
+
+class ProfileIn(BaseModel):
+    user_key: str
+    liked_subjects: list[str] = []
+    disliked_subjects: list[str] = []
+    required_subjects: list[str] = []
+    major: str = ""
+    agrees_top_down: bool = False
+    advance_to_basic: bool = False
+    device: str = ""
+    has_adhd: bool = False
+
+
+@router.get("/customers")
+def customers_list(_: None = Depends(_auth)):
+    """Accepted applications — the actual customer roster, one card per student."""
+    from app.services import applications as applications_svc
+    return {"customers": applications_svc.list_applications("accepted")}
+
+
+@router.get("/profile/{user_key}")
+def profile_get(user_key: str, _: None = Depends(_auth)):
+    from app.services import user_brain
+    return user_brain.get_profile(user_key)
+
+
+@router.put("/profile")
+def profile_set(body: ProfileIn, _: None = Depends(_auth)):
+    from app.services import user_brain
+    fields = body.model_dump()
+    user_key = fields.pop("user_key")
+    return user_brain.set_profile(user_key, **fields)
+
+
 # ── Orders — submissions from the personal Second Brain page
 # (thelyceum.site/secondbrain): documents + a study schedule (self-built or
 # AI-suggested), submitted for the team to turn into a personalized plan.

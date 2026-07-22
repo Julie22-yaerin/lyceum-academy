@@ -296,6 +296,7 @@ from app.routers  import commander   as commander_router
 from app.routers  import content_guard as content_guard_router
 from app.routers  import ai_registry as ai_registry_router
 from app.routers  import schedule    as schedule_router
+from app.routers  import content_catalog as content_catalog_router
 from app.routers  import ai_roles    as ai_roles_router
 from app.routers  import lyceum      as lyceum_router
 
@@ -395,10 +396,37 @@ async def lifespan(_app: FastAPI):
                 wait_sec = (target - now).total_seconds()
                 logger.info("Coach: next batch in %.0fs (at %s UTC)", wait_sec, target.strftime("%H:%M"))
                 await asyncio.sleep(wait_sec)
-                # TODO: iterate active students and call generate_curriculum()
-                # For now, the batch loop is wired — actual student iteration
-                # requires a user query against the DB (out of scope for setup).
-                logger.info("Coach: daily batch tick — ready for student iteration")
+                # Iterate every (student, workspace) pair that's ever had a
+                # /coach/today lazy-selection — i.e. pre-warm tomorrow's pick
+                # for anyone actively using a workspace. There's no explicit
+                # "joined workspace" membership table yet, so a student's
+                # very first day in a workspace is always computed lazily on
+                # their first visit; the batch loop takes over from there.
+                try:
+                    from sqlalchemy import select
+                    from app.db.session import SessionLocal
+                    from app.models.entities import ServedMaterial
+                    from app.services import content_catalog as catalog_svc
+
+                    _db = SessionLocal()
+                    try:
+                        pairs = _db.execute(
+                            select(ServedMaterial.user_id, ServedMaterial.workspace_id).distinct()
+                        ).all()
+                    finally:
+                        _db.close()
+
+                    logger.info("Coach: daily batch tick — pre-warming %d (student, workspace) pairs", len(pairs))
+                    for user_id, workspace_id in pairs:
+                        _db2 = SessionLocal()
+                        try:
+                            await catalog_svc.get_or_create_today(_db2, user_id, str(workspace_id))
+                        except Exception as _pe:
+                            logger.warning("Coach batch: failed for user=%s workspace=%s: %s", user_id, workspace_id, _pe)
+                        finally:
+                            _db2.close()
+                except Exception as _be2:
+                    logger.warning("Coach batch: pre-warm pass failed: %s", _be2)
             except asyncio.CancelledError:
                 break
             except Exception as _ce:
@@ -499,6 +527,7 @@ app.include_router(commander_router.router)
 app.include_router(content_guard_router.router)
 app.include_router(ai_registry_router.router)
 app.include_router(schedule_router.router)
+app.include_router(content_catalog_router.router)
 app.include_router(ai_roles_router.router)
 app.include_router(lyceum_router.router)
 
@@ -510,6 +539,10 @@ if settings.app_env == "development":
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins,
+    # Vercel previews/prod + thelyceum.site subdomains are always allowed,
+    # independent of the API_CORS_ORIGINS env var — a missing entry there
+    # surfaced to users as "Failed to fetch" on the public apply form.
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*(vercel\.app|thelyceum\.site)",
     allow_credentials=_cors_origins != ["*"],   # credentials + wildcard is invalid
     allow_methods=["*"],
     allow_headers=["*"],
