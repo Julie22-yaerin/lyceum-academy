@@ -247,8 +247,15 @@ export function submitApplication(
   return publicPostJson('/applications/apply', { email, name, answers, vector, referral_code: referralCode });
 }
 
-export function getApplicationStatus(email: string): Promise<{ status: 'not_found' | 'pending' | 'accepted' | 'declined'; priority: boolean }> {
+export function getApplicationStatus(email: string): Promise<{ status: 'not_found' | 'pending' | 'meeting' | 'accepted' | 'declined'; priority: boolean }> {
   return publicGetJson(`/applications/status?email=${encodeURIComponent(email)}`);
+}
+
+/** Manual override for the accepted-application sign-up gate — an
+ * admin-generated one-time code, for when the normal review pipeline
+ * hasn't run for someone yet. */
+export function redeemAccessCode(code: string, email: string): Promise<{ ok: boolean; status: string }> {
+  return publicPostJson('/access-codes/redeem', { code, email });
 }
 
 // ── Library (thelyceum.site/library) ────────────────────────────────────────

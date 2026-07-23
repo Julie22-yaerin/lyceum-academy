@@ -148,6 +148,7 @@
       <button id="nav-orders" onclick="viewOrders()" class="sn-btn"><span>📦</span>Orders</button>
       <button id="nav-profiles" onclick="viewProfiles()" class="sn-btn"><span>🎯</span>Personalization</button>
       <button id="nav-trash" onclick="viewTrash()" class="sn-btn"><span>🗑️</span>Thùng rác</button>
+      <button id="nav-access-codes" onclick="viewAccessCodes()" class="sn-btn"><span>🔑</span>Mã truy cập</button>
     </div>
 
     <!-- Nhóm 2: chăm sóc & sự cố -->
@@ -174,6 +175,7 @@
     <div id="view-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
     <div id="view-workspace" class="hidden p-6 max-w-7xl mx-auto fade-in"></div>
     <div id="view-trash" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
+    <div id="view-access-codes" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-orders" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-errors" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
     <div id="view-ai-system" class="hidden p-6 max-w-5xl mx-auto fade-in"></div>
@@ -400,14 +402,15 @@ function clearRetry() { clearInterval(_retryTimer); _retryTimer=null; const e=do
 async function retryConnect() { clearRetry(); const ok=await pingApi(); if(ok){toast('✓ Connected'); startPing();} else startRetry(10); }
 
 function setActiveNav(id) {
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nav-btn, .sn-btn').forEach(b => b.classList.remove('active'));
   const btn = document.getElementById(id);
   if (btn) btn.classList.add('active');
 }
 
 function hideAllViews() {
-  ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-orders','view-errors','view-ai-system',
-   'view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback','view-second-brain'].forEach(hide);
+  ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-access-codes','view-orders',
+   'view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback',
+   'view-second-brain'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -793,6 +796,78 @@ async function restoreApplication(id) {
     await api(`/admin/applications/${id}/restore`, { method: 'POST' });
     toast('↩ Đã khôi phục về hàng chờ');
     renderTrash();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: ACCESS CODES ("Mã truy cập") — manual override for the accepted-
+// application sign-up gate. Admin generates a one-time code (optionally
+// pinned to one email); the user enters it on AuthPage if the normal
+// review pipeline hasn't unlocked their account automatically.
+// ════════════════════════════════════════════════════════════════
+async function viewAccessCodes() {
+  hideAllViews();
+  setActiveNav('nav-access-codes');
+  show('view-access-codes');
+  await renderAccessCodes();
+}
+
+async function renderAccessCodes() {
+  const el = document.getElementById('view-access-codes');
+  el.innerHTML = `<div class="text-sm" style="color:var(--muted)">Loading…</div>`;
+  const { codes = [] } = await api(`/admin/access-codes`).then(r => r.json()).catch(() => ({ codes: [] }));
+
+  el.innerHTML = `
+    <div class="space-y-6 fade-in">
+      <div>
+        <h1 class="text-xl font-bold">Mã truy cập workspace</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">Dùng khi hồ sơ đã được duyệt nhưng cổng đăng ký tự động không mở — cấp một mã dùng một lần, học viên nhập ở màn hình đăng ký.</p>
+      </div>
+
+      <div class="flex gap-2" style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px">
+        <input id="ac-email" placeholder="Email (để trống = ai nhập cũng được, không khuyến khích)" class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        <input id="ac-note" placeholder="Ghi chú (tuỳ chọn)" class="text-xs flex-1" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px" />
+        <button onclick="generateAccessCode()" class="btn text-xs shrink-0" style="background:var(--amber);color:#1a1a1a">+ Tạo mã</button>
+      </div>
+
+      ${codes.length === 0 ? `<div class="text-sm" style="color:var(--muted)">Chưa có mã nào.</div>` : `
+      <div class="space-y-2">
+        ${codes.map(c => `
+          <div class="flex items-center justify-between gap-3 text-xs" style="border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:10px 14px">
+            <div class="min-w-0">
+              <span class="font-mono font-semibold">${esc(c.code)}</span>
+              <span class="ml-2" style="color:var(--muted)">${esc(c.email || 'bất kỳ email')}${c.note ? ' · ' + esc(c.note) : ''}</span>
+            </div>
+            <div class="flex items-center gap-2 shrink-0">
+              ${c.used_at
+                ? `<span class="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full" style="background:rgba(16,185,129,.15);color:#10b981">Đã dùng · ${esc(c.used_by)}</span>`
+                : `<button onclick="copyAccessCode('${esc(c.code)}')" class="btn btn-ghost text-xs">Copy</button>
+                   <button onclick="revokeAccessCode('${esc(c.code)}')" class="btn btn-ghost text-xs">Thu hồi</button>`}
+            </div>
+          </div>`).join('')}
+      </div>`}
+    </div>`;
+}
+
+async function generateAccessCode() {
+  const email = document.getElementById('ac-email').value.trim();
+  const note = document.getElementById('ac-note').value.trim();
+  try {
+    const r = await api(`/admin/access-codes`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ email, note }) }).then(r => r.json());
+    toast(`✓ Mã: ${r.code}`);
+    renderAccessCodes();
+  } catch (e) { toast('Failed: ' + e.message, 'err'); }
+}
+
+function copyAccessCode(code) {
+  navigator.clipboard?.writeText(code).then(() => toast('Đã copy: ' + code)).catch(() => {});
+}
+
+async function revokeAccessCode(code) {
+  try {
+    await api(`/admin/access-codes/${encodeURIComponent(code)}`, { method: 'DELETE' });
+    toast('Đã thu hồi mã');
+    renderAccessCodes();
   } catch (e) { toast('Failed: ' + e.message, 'err'); }
 }
 

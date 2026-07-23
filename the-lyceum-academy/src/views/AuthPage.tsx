@@ -14,7 +14,7 @@ import {
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
 import { checkLoginAttempt } from '../lib/api';
-import { getApplicationStatus } from '../lib/lyceumApi';
+import { getApplicationStatus, redeemAccessCode } from '../lib/lyceumApi';
 import { getRecaptchaToken } from '../lib/recaptcha';
 import { useTranslation } from '../i18n/I18nContext';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
@@ -33,7 +33,27 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showCodeEntry, setShowCodeEntry] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  const [codeBusy, setCodeBusy] = useState(false);
+  const [codeInfo, setCodeInfo] = useState('');
   const { user, emailVerified, resendVerificationEmail } = useAuth();
+
+  // Manual override for the accepted-application gate: an admin-issued
+  // one-time code, for when the normal review pipeline hasn't fired yet.
+  async function handleRedeemCode() {
+    if (!accessCode.trim() || !email.trim() || codeBusy) return;
+    setCodeBusy(true); setError(''); setCodeInfo('');
+    try {
+      await redeemAccessCode(accessCode.trim(), email.trim());
+      setCodeInfo('✓ Mã hợp lệ — bạn có thể đăng ký tài khoản ngay bây giờ.');
+      setShowCodeEntry(false);
+    } catch (e: any) {
+      setError(e?.message || 'Mã không hợp lệ hoặc đã được sử dụng.');
+    } finally {
+      setCodeBusy(false);
+    }
+  }
 
   // If user is logged in but unverified (e.g., persisted session), jump to verify screen
   useEffect(() => {
@@ -377,15 +397,40 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
                 </button>
               </p>
               {!isLogin && (
-                <p className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-50 mt-3">
-                  Chưa nộp đơn?
+                <>
+                  <p className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-50 mt-3">
+                    Chưa nộp đơn?
+                    <button
+                      onClick={() => onNavigate('apply')}
+                      className="text-on-surface font-bold hover:opacity-80 ml-1 border-b border-on-surface pb-[1px]"
+                    >
+                      Ứng tuyển tại đây
+                    </button>
+                  </p>
                   <button
-                    onClick={() => onNavigate('apply')}
-                    className="text-on-surface font-bold hover:opacity-80 ml-1 border-b border-on-surface pb-[1px]"
+                    onClick={() => setShowCodeEntry(v => !v)}
+                    className="font-sans text-[10px] uppercase tracking-[1px] text-on-surface opacity-40 hover:opacity-70 transition-opacity mt-2"
                   >
-                    Ứng tuyển tại đây
+                    {showCodeEntry ? '← Ẩn' : 'Đã được duyệt nhưng chưa vào được? Nhập mã truy cập'}
                   </button>
-                </p>
+                </>
+              )}
+
+              {!isLogin && showCodeEntry && (
+                <div className="mt-4 border border-on-surface/15 p-4 flex flex-col gap-2">
+                  <input
+                    value={accessCode} onChange={e => setAccessCode(e.target.value)}
+                    placeholder="Mã truy cập (do đội ngũ Lyceum cấp)"
+                    className="w-full bg-transparent border border-on-surface/20 px-3 py-2 text-xs text-on-surface outline-none focus:border-on-surface/50"
+                  />
+                  <LiquidMetalButton
+                    label={codeBusy ? 'Đang kiểm tra…' : 'Kích hoạt mã'}
+                    disabled={codeBusy}
+                    fullWidth
+                    onClick={handleRedeemCode}
+                  />
+                  {codeInfo && <p className="text-[10px] text-center text-emerald-700">{codeInfo}</p>}
+                </div>
               )}
             </div>
           </div>

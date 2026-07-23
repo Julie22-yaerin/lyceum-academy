@@ -64,26 +64,26 @@ const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
 const QUOTES = [
   { text: 'The unexamined life is not worth living.', by: 'Socrates' },
   { text: 'I cannot teach anybody anything. I can only make them think.', by: 'Socrates' },
+  { text: 'What you cannot derive, you do not own.', by: 'The house rule' },
   { text: 'Do things that don’t scale.', by: 'Paul Graham' },
-  { text: 'If you are not embarrassed by the first version of your product, you’ve launched too late.', by: 'Reid Hoffman' },
   { text: 'Make something people want.', by: 'motto, Y Combinator' },
 ];
 
 const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldQuestion,
-    title: 'You bring a real decision',
-    body: 'Pricing, hiring, positioning, fundraising — whatever you’re stuck on this week, at this stage.',
+    title: 'You bring the decision',
+    body: 'Pricing, hiring, positioning, fundraising — wherever you are actually stuck this week.',
   },
   {
     icon: MessagesSquare,
-    title: 'We answer with a question',
-    body: 'Never advice. One question, aimed exactly at the assumption your decision is resting on.',
+    title: 'We return a question',
+    body: 'Not advice. One question, placed exactly on the assumption your decision rests on.',
   },
   {
     icon: Sparkles,
     title: 'You decide for yourself',
-    body: 'Judgment you build under your own power compounds. Borrowed advice doesn’t.',
+    body: 'Judgment built under your own power compounds. Borrowed advice does not.',
   },
 ];
 
@@ -93,7 +93,7 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
 const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; body: string }[] = [
   {
     icon: Compass, name: 'Socrat', role: 'Lead Concierge', accent: 'text-purple-300',
-    body: 'Never hands you the playbook. Only asks the question that gets you to your own.',
+    body: 'Does not hand you the playbook. Asks the one question that gets you to your own.',
   },
   {
     icon: Gauge, name: 'Coach', role: 'Curriculum Architect', accent: 'text-blue-300',
@@ -101,15 +101,15 @@ const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; b
   },
   {
     icon: Brain, name: 'Leo', role: 'The Feynman Child', accent: 'text-amber-300',
-    body: 'Explain your business model to Leo in plain words. If he’s confused, so are your customers.',
+    body: 'Explain your business model to Leo. Where he stops following, so do your customers.',
   },
   {
     icon: FlaskConical, name: 'The Peer', role: 'Debate Partner', accent: 'text-cyan-300',
-    body: 'Argues in good faith. Attacks the assumption your whole plan is resting on.',
+    body: 'Argues in good faith. Attacks the assumption your whole plan rests on, nothing else.',
   },
   {
     icon: ScanSearch, name: 'The Grader', role: 'Solution Auditor', accent: 'text-rose-300',
-    body: 'Audits every decision’s logic. Never a false pass.',
+    body: 'Audits every decision’s logic. No false pass.',
   },
 ];
 
@@ -117,11 +117,11 @@ const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; b
 // This is the core repositioning: not a fixed course, a stage-aware
 // curriculum that changes as the business changes. ──────────────────────
 const STAGES: { icon: LucideIcon; name: string; body: string }[] = [
-  { icon: Lightbulb, name: 'Idea', body: 'Validate before you build. Learn to test demand, not your own ego.' },
-  { icon: Hammer, name: 'MVP', body: 'Ship the smallest thing that proves the point. Learn what to cut.' },
-  { icon: TrendingUp, name: 'Traction', body: 'First customers, first churn. Learn what retention is actually telling you.' },
-  { icon: Landmark, name: 'Fundraising', body: 'Learn the story investors need — and the metrics that make it true.' },
-  { icon: Rocket, name: 'Scale', body: 'Learn to hire, delegate, and stop being the bottleneck.' },
+  { icon: Lightbulb, name: 'Idea Validation', body: 'Kill the idea fast and cheap, before you spend real time or money on it.' },
+  { icon: Hammer, name: 'MVP', body: 'Scope the smallest build that tests the hypothesis — not a smaller product.' },
+  { icon: Rocket, name: 'Launch', body: 'Prove product-market fit for real, not by vibes. Get ready for the customers you meet.' },
+  { icon: TrendingUp, name: 'Growth', body: 'CAC, LTV, and your first hire outside the founding team. Learn what the numbers say.' },
+  { icon: Landmark, name: 'Scale', body: 'Departments, hiring, and process that hold under weight you haven’t felt yet.' },
 ];
 
 const PRINCIPLES = [
@@ -349,8 +349,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              The Socratic method, 2,400 years old, aimed at exactly one thing: knowing what a
-              founder needs to learn right now — and forcing you to actually learn it, stage by stage.
+              Not a course. A discipline — one method, 2,400 years old, aimed at exactly
+              one thing: knowing what a founder needs to learn right now, stage by stage.
+              Admission is by review.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
@@ -441,7 +442,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </TextReveal>
           </h2>
           <p className="text-slate-400 max-w-xl mx-auto">
-            Coach reads your Second Brain and sequences exactly what this stage demands — not a fixed curriculum.
+            Coach reads your Startup Second Brain and sequences exactly what this stage demands — not a fixed curriculum.
           </p>
         </motion.div>
 
@@ -481,10 +482,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Not a chatbot. A faculty.</p>
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
             <TextReveal per="word" preset="slide" delay={0.1}>
-              {"Five minds. One job each."}
+              {"Five minds. One office each."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Hard boundaries. The Grader never coaches. Leo never touches your cap table.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Each is a specialist, native to its subject. Hard boundaries — the Grader never coaches, Leo never touches your cap table.</p>
         </motion.div>
 
         <motion.div
@@ -579,15 +580,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic">
             <TextReveal per="word" preset="blur" delay={0.1}>
-              {"We don’t open for everyone."}
+              {"Admission is not open."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-md">One application. One minute. Reviewed by hand.</p>
+          <p className="text-slate-400 max-w-md">One application. Reviewed by hand. Most are declined.</p>
           <LiquidMetalButton
-            label="Apply as a Founder"
+            label="Request Admission"
             onClick={() => onNavigate('apply')}
           />
-          <p className="text-xs text-slate-500">Not everyone is accepted.</p>
+          <p className="text-xs text-slate-500">We accept those who intend to be excellent.</p>
         </motion.div>
       </section>
 

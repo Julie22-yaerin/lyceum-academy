@@ -116,6 +116,36 @@ def applications_trash(_: None = Depends(_auth)):
     return {"applications": applications_svc.list_trash()}
 
 
+# ── Workspace access codes — manual override for the accepted-application
+# sign-up gate, in case the normal admin-review pipeline doesn't fire for
+# someone (backend: app/services/access_codes.py).
+
+class AccessCodeIn(BaseModel):
+    email: str = ""
+    note: str = ""
+
+
+@router.get("/access-codes")
+def access_codes_list(_: None = Depends(_auth)):
+    from app.services import access_codes as access_codes_svc
+    return {"codes": access_codes_svc.list_codes()}
+
+
+@router.post("/access-codes")
+def access_codes_generate(body: AccessCodeIn, _: None = Depends(_auth)):
+    from app.services import access_codes as access_codes_svc
+    return access_codes_svc.generate(body.email, body.note)
+
+
+@router.delete("/access-codes/{code}")
+def access_codes_revoke(code: str, _: None = Depends(_auth)):
+    from app.services import access_codes as access_codes_svc
+    result = access_codes_svc.revoke(code)
+    if not result.get("ok"):
+        raise HTTPException(status_code=404, detail=result.get("error"))
+    return result
+
+
 # ── Per-user Second Brain — the admin builds a personalized brain WITH Opus
 # for each accepted student, then curates their tools. Everything scoped to
 # one workspace (backend: app/services/user_brain.py).
