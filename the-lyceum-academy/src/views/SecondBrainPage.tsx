@@ -210,7 +210,7 @@ export default function SecondBrainPage() {
       <div className="bg-[#050508] text-slate-200 min-h-screen flex items-center justify-center px-4">
         <div className="glass-card rounded-3xl p-10 text-center max-w-sm">
           <h1 className="font-serif text-xl mb-2">Sign in required</h1>
-          <p className="text-sm text-slate-400 mb-5">Your personal Second Brain is only for accepted Lyceum accounts.</p>
+          <p className="text-sm text-slate-400 mb-5">Your Startup Second Brain is only for accepted Lyceum founders.</p>
           <a href="/" className="text-sm text-purple-300 underline">Go to sign in</a>
         </div>
       </div>
@@ -221,14 +221,14 @@ export default function SecondBrainPage() {
     <div className="bg-[#050508] text-slate-200 font-sans antialiased min-h-screen">
       <header className="max-w-2xl mx-auto px-4 pt-10 pb-6 flex items-center justify-between">
         <a href="/" className="font-serif text-lg tracking-[3px] uppercase text-slate-300">The Lyceum</a>
-        <span className="text-xs uppercase tracking-[2px] text-purple-300">Second Brain</span>
+        <span className="text-xs uppercase tracking-[2px] text-purple-300">Startup Second Brain</span>
       </header>
 
       <main className="max-w-2xl mx-auto px-4 pb-20 flex flex-col gap-6">
         <div className="text-center mb-2">
-          <h1 className="font-garamond text-3xl text-metallic mb-2">Your Second Brain</h1>
+          <h1 className="font-garamond text-3xl text-metallic mb-2">Your Startup Second Brain</h1>
           <p className="text-slate-400 text-sm max-w-md mx-auto">
-            Add your documents and a study schedule — we'll turn it into a personalized plan.
+            Add your documents and a study schedule — we'll turn it into a personalized plan for your startup.
           </p>
         </div>
 

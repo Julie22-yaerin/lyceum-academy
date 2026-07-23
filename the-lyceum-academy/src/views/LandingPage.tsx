@@ -9,13 +9,18 @@ import {
   Compass,
   FlaskConical,
   Gauge,
+  Hammer,
+  Landmark,
   Library,
+  Lightbulb,
   MessagesSquare,
   Moon,
+  Rocket,
   ScanSearch,
   ShieldQuestion,
   Sparkles,
   Sun,
+  TrendingUp,
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
@@ -26,59 +31,59 @@ import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
 
-// ── Socratic dialogue demo — the same method, cycled across unrelated
-// domains to make the point that this isn't a "physics tutor with extras":
-// it's one method applied to anything. ──────────────────────────────────
+// ── Socratic dialogue demo — the same method, cycled across the real
+// decisions a founder actually gets stuck on, to make the point that this
+// isn't generic startup advice: it's one method, aimed at your business. ──
 const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
   [
-    { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
-    { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
-    { role: 'student', text: 'Gravity — it never really stops acting on it.' },
-    { role: 'lyceum', text: 'So what does that tell you about its velocity over time?' },
-    { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
-    { role: 'lyceum', text: 'You found it yourself. What changes on the Moon?' },
+    { role: 'student', text: 'Should I charge $9 or $29 a month for this?' },
+    { role: 'lyceum', text: 'Which of your users would cancel at $29 — and why haven’t you asked them?' },
+    { role: 'student', text: 'The free-tier ones who never got real value from it.' },
+    { role: 'lyceum', text: 'So what does that tell you about who $29 is actually priced for?' },
+    { role: 'student', text: 'Not everyone — just the ones already getting value.' },
+    { role: 'lyceum', text: 'Exactly. Now — how many of those do you actually have today?' },
   ],
   [
-    { role: 'student', text: 'Why did the Roman Republic collapse into an empire?' },
-    { role: 'lyceum', text: 'What happens to a system built for a city when it governs a continent?' },
-    { role: 'student', text: 'The old institutions couldn’t scale — the Senate, the legions loyal to generals...' },
-    { role: 'lyceum', text: 'So who benefits when institutions can’t keep up with power?' },
-    { role: 'student', text: 'Whoever controls the army instead of the law.' },
-    { role: 'lyceum', text: 'That’s Caesar’s whole biography. What does that predict about any republic?' },
+    { role: 'student', text: 'Should I raise a seed round now, or wait?' },
+    { role: 'lyceum', text: 'What would $500K let you prove that you can’t prove with $0?' },
+    { role: 'student', text: 'Honestly... nothing. I can already test demand with what I have.' },
+    { role: 'lyceum', text: 'So what’s actually driving the urge to raise right now?' },
+    { role: 'student', text: 'Seeing other founders announce rounds, if I’m being honest.' },
+    { role: 'lyceum', text: 'That’s a feeling, not a strategy. What does your own data say?' },
   ],
   [
-    { role: 'student', text: 'Why does my proof by induction feel like cheating?' },
-    { role: 'lyceum', text: 'What exactly are you assuming true before you’ve proven the next case?' },
-    { role: 'student', text: 'That it holds for n — but I haven’t shown that for every n yet.' },
-    { role: 'lyceum', text: 'Right — so what makes the base case non-negotiable?' },
-    { role: 'student', text: 'Without it the whole chain has nothing to start from.' },
-    { role: 'lyceum', text: 'Exactly. Now — where would this argument break for real numbers?' },
+    { role: 'student', text: 'Why does my MVP feel like it’s taking forever to ship?' },
+    { role: 'lyceum', text: 'How many of those features does your first paying customer actually need?' },
+    { role: 'student', text: 'Maybe two, out of the eight I’ve built.' },
+    { role: 'lyceum', text: 'So what are the other six actually protecting you from?' },
+    { role: 'student', text: 'Shipping before it feels "ready."' },
+    { role: 'lyceum', text: 'There’s your real blocker. What ships this week if you cut to two?' },
   ],
 ];
 
 const QUOTES = [
   { text: 'The unexamined life is not worth living.', by: 'Socrates' },
   { text: 'I cannot teach anybody anything. I can only make them think.', by: 'Socrates' },
-  { text: 'Wonder is the feeling of the philosopher, and philosophy begins in wonder.', by: 'Plato, Theaetetus' },
-  { text: 'Education is the kindling of a flame, not the filling of a vessel.', by: 'after Plutarch' },
-  { text: 'Nullius in verba — take nobody’s word for it.', by: 'motto, The Royal Society' },
+  { text: 'Do things that don’t scale.', by: 'Paul Graham' },
+  { text: 'If you are not embarrassed by the first version of your product, you’ve launched too late.', by: 'Reid Hoffman' },
+  { text: 'Make something people want.', by: 'motto, Y Combinator' },
 ];
 
 const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
     icon: ShieldQuestion,
-    title: 'You bring a real question',
-    body: 'Any subject. Any material. A point you are genuinely stuck on.',
+    title: 'You bring a real decision',
+    body: 'Pricing, hiring, positioning, fundraising — whatever you’re stuck on this week, at this stage.',
   },
   {
     icon: MessagesSquare,
     title: 'We answer with a question',
-    body: 'Never the answer. One question, aimed exactly where your understanding breaks.',
+    body: 'Never advice. One question, aimed exactly at the assumption your decision is resting on.',
   },
   {
     icon: Sparkles,
-    title: 'You derive it yourself',
-    body: 'What you build under your own power, you keep. Everything else evaporates.',
+    title: 'You decide for yourself',
+    body: 'Judgment you build under your own power compounds. Borrowed advice doesn’t.',
   },
 ];
 
@@ -88,29 +93,40 @@ const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
 const FACULTY: { icon: LucideIcon; name: string; role: string; accent: string; body: string }[] = [
   {
     icon: Compass, name: 'Socrat', role: 'Lead Concierge', accent: 'text-purple-300',
-    body: 'Never answers. Only asks the question that moves you forward.',
+    body: 'Never hands you the playbook. Only asks the question that gets you to your own.',
   },
   {
     icon: Gauge, name: 'Coach', role: 'Curriculum Architect', accent: 'text-blue-300',
-    body: 'Reads your mistakes overnight. Sequences tomorrow — gaps first.',
+    body: 'Reads what you got wrong yesterday. Sequences tomorrow’s stage — gaps first.',
   },
   {
     icon: Brain, name: 'Leo', role: 'The Feynman Child', accent: 'text-amber-300',
-    body: 'Explain it to Leo in plain words. If he’s confused, you’ve found the real gap.',
+    body: 'Explain your business model to Leo in plain words. If he’s confused, so are your customers.',
   },
   {
     icon: FlaskConical, name: 'The Peer', role: 'Debate Partner', accent: 'text-cyan-300',
-    body: 'Argues in good faith. Attacks your load-bearing assumption.',
+    body: 'Argues in good faith. Attacks the assumption your whole plan is resting on.',
   },
   {
     icon: ScanSearch, name: 'The Grader', role: 'Solution Auditor', accent: 'text-rose-300',
-    body: 'Audits every step. Never a false pass.',
+    body: 'Audits every decision’s logic. Never a false pass.',
   },
 ];
 
-const EQUATIONS = [
-  'E = mc²', '∇·E = ρ/ε₀', 'a² + b² = c²', 'iħ∂ψ/∂t = Ĥψ',
-  'F = ma', 'ΔG = ΔH − TΔS', 'PV = nRT', '∫f′(x)dx = f(x) + C', 'S = k log W',
+// ── The Stages — the founder journey Coach actually sequences against.
+// This is the core repositioning: not a fixed course, a stage-aware
+// curriculum that changes as the business changes. ──────────────────────
+const STAGES: { icon: LucideIcon; name: string; body: string }[] = [
+  { icon: Lightbulb, name: 'Idea', body: 'Validate before you build. Learn to test demand, not your own ego.' },
+  { icon: Hammer, name: 'MVP', body: 'Ship the smallest thing that proves the point. Learn what to cut.' },
+  { icon: TrendingUp, name: 'Traction', body: 'First customers, first churn. Learn what retention is actually telling you.' },
+  { icon: Landmark, name: 'Fundraising', body: 'Learn the story investors need — and the metrics that make it true.' },
+  { icon: Rocket, name: 'Scale', body: 'Learn to hire, delegate, and stop being the bottleneck.' },
+];
+
+const PRINCIPLES = [
+  'PMF > growth', 'CAC < LTV', 'Runway = Cash / Burn', 'Distribution > Product',
+  'Talk to users', 'MRR > vanity metrics', 'Do things that don’t scale', 'Default alive',
 ];
 
 function DialogueDemo() {
@@ -138,7 +154,7 @@ function DialogueDemo() {
     <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
       <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Same method, any subject</span>
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Same method, every stage of the build</span>
       </div>
       <div className="flex flex-col gap-3">
         <AnimatePresence initial={false} mode="popLayout">
@@ -164,8 +180,8 @@ function DialogueDemo() {
   );
 }
 
-function EquationMarquee() {
-  const doubled = [...EQUATIONS, ...EQUATIONS];
+function PrincipleMarquee() {
+  const doubled = [...PRINCIPLES, ...PRINCIPLES];
   return (
     <div className="relative overflow-hidden py-3 border-y border-white/5">
       <div className="absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[#050508] to-transparent z-10" />
@@ -175,7 +191,7 @@ function EquationMarquee() {
         animate={{ x: ['0%', '-50%'] }}
         transition={{ duration: 32, repeat: Infinity, ease: 'linear' }}
       >
-        {doubled.map((eq, i) => <span key={i}>{eq}</span>)}
+        {doubled.map((p, i) => <span key={i}>{p}</span>)}
       </motion.div>
     </div>
   );
@@ -249,6 +265,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           </div>
           <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
             <a href="#method" className="nav-link">The Method</a>
+            <a href="#stages" className="nav-link">The Stages</a>
             <a href="#faculty" className="nav-link">The Faculty</a>
             <a href="#voices" className="nav-link">Wisdom</a>
             <a href="/library" className="nav-link">Library</a>
@@ -298,7 +315,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             className="space-y-7 z-10"
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.5 }}>
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">By application only</span>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">For founders, by application only</span>
             </motion.div>
 
             <div className="relative">
@@ -311,7 +328,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                   delay={0.2}
                   speedReveal={1.2}
                 >
-                  {"We don't give answers."}
+                  {"We don't teach you everything."}
                 </TextReveal>
                 <br />
                 <TextReveal
@@ -322,7 +339,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
                   delay={0.6}
                   speedReveal={1.2}
                 >
-                  {"We make you find them."}
+                  {"We teach you what's next."}
                 </TextReveal>
               </h1>
             </div>
@@ -332,13 +349,13 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              This is not a course platform. One method, 2,400 years old, applied to any subject you bring:
-              the right question, at the exact point your understanding breaks.
+              The Socratic method, 2,400 years old, aimed at exactly one thing: knowing what a
+              founder needs to learn right now — and forcing you to actually learn it, stage by stage.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
               <LiquidMetalButton
-                label="Apply for Admission"
+                label="Apply as a Founder"
                 onClick={() => onNavigate('apply')}
               />
               <a
@@ -364,7 +381,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         </div>
       </main>
 
-      <EquationMarquee />
+      <PrincipleMarquee />
 
       {/* The Method */}
       <section id="method" className="max-w-7xl mx-auto px-6 py-20">
@@ -381,7 +398,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               {"Three steps. No shortcuts."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Every session is the same experiment, run on your own mind.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Every session is run on your real business, not a hypothetical case study.</p>
         </motion.div>
 
         <motion.div
@@ -408,6 +425,50 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         </motion.div>
       </section>
 
+      {/* The Stages — Coach sequences against wherever the business actually is */}
+      <section id="stages" className="max-w-7xl mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="mb-14 text-center"
+        >
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Wherever you are</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
+            <TextReveal per="word" preset="slide" delay={0.1}>
+              {"Every stage has a different lesson."}
+            </TextReveal>
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Coach reads your Second Brain and sequences exactly what this stage demands — not a fixed curriculum.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-80px' }}
+          variants={stagger}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5"
+        >
+          {STAGES.map((s, i) => (
+            <motion.div
+              key={s.name}
+              variants={fadeUp}
+              transition={{ duration: 0.5 }}
+              whileHover={{ y: -6 }}
+              className="relative p-6 rounded-3xl glass flex flex-col gap-3"
+            >
+              <span className="text-xs font-mono text-white/25">{String(i + 1).padStart(2, '0')}</span>
+              <s.icon className="w-6 h-6 text-blue-300" strokeWidth={1.5} />
+              <h3 className="text-base font-bold text-white">{s.name}</h3>
+              <p className="text-xs text-slate-400 leading-relaxed">{s.body}</p>
+            </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
       {/* The Faculty — five native AI personas */}
       <section id="faculty" className="max-w-7xl mx-auto px-6 py-20">
         <motion.div
@@ -423,7 +484,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               {"Five minds. One job each."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Hard boundaries. The Grader never coaches. Leo never knows calculus.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Hard boundaries. The Grader never coaches. Leo never touches your cap table.</p>
         </motion.div>
 
         <motion.div
@@ -450,7 +511,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </motion.div>
           ))}
 
-          {/* Second Brain callout — fills the 6th grid slot */}
+          {/* Startup Second Brain callout — fills the 6th grid slot */}
           <motion.div
             variants={fadeUp}
             transition={{ duration: 0.5 }}
@@ -459,11 +520,11 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           >
             <div>
               <BookMarked className="w-7 h-7 text-emerald-300 mb-3" strokeWidth={1.5} />
-              <h3 className="text-lg font-bold text-white mb-1">Your Second Brain</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">Every note, quest, and past mistake feeds the Faculty’s judgment. Add your own material any time, or let Coach request a plan built entirely around it.</p>
+              <h3 className="text-lg font-bold text-white mb-1">Your Startup Second Brain</h3>
+              <p className="text-sm text-slate-400 leading-relaxed">Every note, decision, and past mistake feeds the Faculty's judgment. Add your own material any time — pitch decks, customer interviews, financials — or let Coach build a plan around exactly where your startup is.</p>
             </div>
             <a href="/secondbrain" className="text-xs font-medium text-emerald-300 inline-flex items-center gap-1 hover:text-emerald-200 transition-colors">
-              Open your Second Brain <ArrowUpRight className="w-3.5 h-3.5" />
+              Open your Startup Second Brain <ArrowUpRight className="w-3.5 h-3.5" />
             </a>
           </motion.div>
         </motion.div>
@@ -484,7 +545,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             <Library className="w-10 h-10 text-amber-300 flex-shrink-0" strokeWidth={1.3} />
             <div>
               <h3 className="font-garamond text-2xl text-white mb-1">The Library</h3>
-              <p className="text-sm text-slate-400 max-w-lg">Blog write-ups and research papers shared by the community — open to read, no admission required. React, discuss, and publish once you’re in.</p>
+              <p className="text-sm text-slate-400 max-w-lg">Write-ups and playbooks shared by other founders in the program — open to read, no admission required. React, discuss, and publish once you're in.</p>
             </div>
           </div>
           <span className="text-sm font-medium text-amber-300 inline-flex items-center gap-1.5 shrink-0">
@@ -523,7 +584,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           </h2>
           <p className="text-slate-400 max-w-md">One application. One minute. Reviewed by hand.</p>
           <LiquidMetalButton
-            label="Apply for Admission"
+            label="Apply as a Founder"
             onClick={() => onNavigate('apply')}
           />
           <p className="text-xs text-slate-500">Not everyone is accepted.</p>
