@@ -651,6 +651,8 @@ async function renderApplications() {
             <div class="mt-2 text-xs"><span class="font-medium" style="color:var(--text)">Môn cần học:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
             ${a.answers.purpose ? `
             <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+            ${a.answers.international_program ? `
+            <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Chương trình quốc tế:</span> <span style="color:var(--muted)">${esc(a.answers.international_program)}</span></div>` : ''}
             ${a.answers.learning_goal ? `
             <div class="mt-1 text-xs"><span class="font-medium" style="color:var(--text)">Mục tiêu học tập:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
             ${a.answers.biggest_difficulty ? `
@@ -730,6 +732,7 @@ async function renderMeetings() {
                 <div class="text-xs mt-1" style="color:var(--muted)">Chấp nhận ${a.decided_at ? timeAgo(a.decided_at) : ''}</div>
                 ${a.answers.subjects ? `<div class="text-xs mt-1"><span style="color:var(--text)">Môn:</span> <span style="color:var(--muted)">${esc(a.answers.subjects)}</span></div>` : ''}
                 ${a.answers.purpose ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Học để:</span> <span style="color:var(--muted)">${esc(a.answers.purpose)}</span></div>` : ''}
+                ${a.answers.international_program ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Chương trình quốc tế:</span> <span style="color:var(--muted)">${esc(a.answers.international_program)}</span></div>` : ''}
                 ${a.answers.learning_goal ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Mục tiêu:</span> <span style="color:var(--muted)">${esc(a.answers.learning_goal)}</span></div>` : ''}
                 ${a.answers.deposit_usd ? `<div class="text-xs mt-0.5"><span style="color:var(--text)">Đã cọc:</span> <span style="color:var(--amber)">$${esc(a.answers.deposit_usd)}</span></div>` : ''}
               </div>

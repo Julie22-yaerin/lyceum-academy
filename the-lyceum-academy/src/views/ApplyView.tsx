@@ -26,6 +26,14 @@ const GRADE_LEVELS = [
 // Math and Science only.
 const SUBJECT_OPTIONS = ['Toán', 'Vật lý', 'Hoá học', 'Sinh học'];
 
+// Grades the "học chương trình quốc tế nào" question applies to — cấp 3.
+const HIGH_SCHOOL_GRADES = new Set(['lop_10', 'lop_11', 'lop_12']);
+
+// Matches the Second Brain vault's board field (backend/data/second_brain/
+// 01 - IGCSE, 02 - GCSE, 03 - A-Level, 04 - IB, 05 - AP) so an answer here
+// lines up directly with curriculum content already in the vault.
+const INTERNATIONAL_PROGRAMS = ['Không / chương trình trong nước', 'IGCSE', 'GCSE', 'A-Level', 'IB', 'AP'];
+
 // Submitted silently so the backend keeps its expected shape; no slider UI.
 const DEFAULT_VECTOR: LearningVector = {
   encoding_channel: 0.5,
@@ -45,6 +53,7 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
+  const [internationalProgram, setInternationalProgram] = useState('');
   const [subjectPicks, setSubjectPicks] = useState<string[]>([]);
   const [purpose, setPurpose] = useState('');
   const [learningGoal, setLearningGoal] = useState('');
@@ -57,9 +66,11 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [alreadyDecided, setAlreadyDecided] = useState<string | null>(null);
 
   const subjectsCombined = subjectPicks.join(', ');
+  const isHighSchool = HIGH_SCHOOL_GRADES.has(gradeLevel);
   const quizValid = email.includes('@') && name.trim() !== '' && gradeLevel !== ''
     && subjectsCombined !== '' && purpose.trim() !== '' && learningGoal.trim() !== ''
-    && difficulty.trim().length >= 10 && agreed;
+    && difficulty.trim().length >= 10 && agreed
+    && (!isHighSchool || internationalProgram !== '');
 
   function toggleSubject(s: string) {
     setSubjectPicks(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
@@ -77,6 +88,7 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
         biggest_difficulty: difficulty.trim(),
         budget_usd: Number(budget) || 0,
         agreed_terms: true,
+        international_program: isHighSchool ? internationalProgram : '',
       };
       const result = await submitApplication(email.trim(), name.trim(), answers, DEFAULT_VECTOR, referralCode.trim());
       if (result.already_decided) {
@@ -151,13 +163,31 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
               <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn đang học lớp nào?</p>
               <div className="flex flex-wrap gap-2">
                 {GRADE_LEVELS.map(g => (
-                  <button key={g.value} onClick={() => setGradeLevel(g.value)}
+                  <button key={g.value} onClick={() => { setGradeLevel(g.value); if (!HIGH_SCHOOL_GRADES.has(g.value)) setInternationalProgram(''); }}
                     className={`px-3 py-2 rounded-xl text-xs transition-colors ${gradeLevel === g.value ? 'glass-pill-active' : 'glass-pill'}`}>
                     {g.label}
                   </button>
                 ))}
               </div>
             </div>
+
+            {/* High-school-only: which international program (if any) —
+                lines the answer up with the Second Brain vault's curriculum
+                content (IGCSE/GCSE/A-Level/IB/AP) ahead of the admin's
+                onboarding meeting. */}
+            {isHighSchool && (
+              <div>
+                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn có đang học hoặc dự định học chương trình quốc tế nào không?</p>
+                <div className="flex flex-wrap gap-2">
+                  {INTERNATIONAL_PROGRAMS.map(p => (
+                    <button key={p} onClick={() => setInternationalProgram(p)}
+                      className={`px-3 py-1.5 rounded-xl text-xs transition-colors ${internationalProgram === p ? 'glass-pill-active' : 'glass-pill'}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div>
               <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn cần học môn nào? <span className="normal-case tracking-normal text-slate-500">(chọn nhiều được)</span></p>

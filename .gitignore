@@ -33,8 +33,10 @@ backend/__pycache__/
 .vercel
 .env*
 
-# Second Brain vault — the shared curriculum vault (international program
-# docs) was removed; custom/ (personal notes added via Settings/API) is a
-# runtime-generated directory, not committed.
-backend/data/second_brain/
+# Second Brain vault — the shared curriculum vault (IGCSE/GCSE/A-Level/IB/AP
+# international program docs, backend/data/second_brain/) IS committed;
+# only custom/ (personal notes added via Settings/API, runtime-generated,
+# per-deployment) and the Obsidian workspace-local state are ignored.
+backend/data/second_brain/custom/
+backend/data/second_brain/.obsidian/workspace.json
 node_modules

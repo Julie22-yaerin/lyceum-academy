@@ -237,6 +237,11 @@ export interface ApplicationAnswers {
   budget_usd: number;
   /** Records that the applicant accepted the Terms & Privacy Policy. */
   agreed_terms: boolean;
+  /** High-school-only (lớp 10-12): which international program (if any) they
+   * study or plan to — matches the Second Brain vault's board field
+   * (IGCSE/GCSE/A-Level/IB/AP), so their curriculum content is ready when
+   * their personal brain is built. '' for non-high-schoolers / none picked. */
+  international_program?: string;
 }
 
 export function submitApplication(
