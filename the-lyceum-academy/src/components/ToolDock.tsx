@@ -27,6 +27,10 @@ import StericSnapTool from './tools/StericSnapTool';
 import TopoLockTool from './tools/TopoLockTool';
 import TimeLapseTool from './tools/TimeLapseTool';
 import IllustrationTool from './tools/IllustrationTool';
+import LotusMapTool from './tools/LotusMapTool';
+import SheetOfPaperTool from './tools/SheetOfPaperTool';
+import ScreenShareTool from './tools/ScreenShareTool';
+import ExerciseCardsTool from './tools/ExerciseCardsTool';
 
 interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; subjects?: string }
 
@@ -37,6 +41,11 @@ const TOOLS: ToolMeta[] = [
   { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1 },
   { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1 },
   { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1 },
+  { id: 'lotus-map', icon: 'spa', label: 'Lotus Map', tier: 1 },
+  { id: 'sheet-of-paper', icon: 'edit_note', label: 'Large Sheet of Paper', tier: 1 },
+  { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1 },
+  { id: 'screen-share', icon: 'screen_share', label: 'Share Screen with AI', tier: 1 },
+  { id: 'exercise-cards', icon: 'style', label: 'Exercise Cards', tier: 1 },
   { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, subjects: 'Vật lý lượng tử · Toán đa biến' },
   { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, subjects: 'Cơ học · Cân bằng hoá học' },
   { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, subjects: 'Nhiệt động lực học · Điện từ' },
@@ -50,7 +59,7 @@ const TOOLS: ToolMeta[] = [
 const OVERLOAD_ACK_KEY = 'lyceum_tier2_ack_v1';
 
 export default function ToolDock() {
-  const { activeTool, payload, openTool, closeTool } = useToolDock();
+  const { activeTool, payload, openTool, closeTool, podcastOpen, togglePodcast } = useToolDock();
   const [hovered, setHovered] = useState<ToolId | null>(null);
   const [allowed, setAllowed] = useState<Set<ToolId> | null>(null);
   const [warnFor, setWarnFor] = useState<ToolId | null>(null);
@@ -60,7 +69,10 @@ export default function ToolDock() {
     getMyTools()
       .then(r => setAllowed(new Set(r.tools as ToolId[])))
       // If curation can't be fetched, fall back to tier-1 only.
-      .catch(() => setAllowed(new Set(['feynman', 'toolmap', 'reverse-build', 'games', 'spaced-repetition', 'illustrations'])));
+      .catch(() => setAllowed(new Set([
+        'feynman', 'toolmap', 'reverse-build', 'games', 'spaced-repetition', 'illustrations',
+        'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards',
+      ])));
   }, []);
 
   const visible = TOOLS.filter(t => !allowed || allowed.has(t.id));
@@ -90,6 +102,10 @@ export default function ToolDock() {
       case 'reverse-build': return <ReverseBuildTool />;
       case 'spaced-repetition': return <SpacedRepetitionTool />;
       case 'illustrations': return <IllustrationTool />;
+      case 'lotus-map': return <LotusMapTool seedTopic={(payload?.seedTopic as string) || ''} />;
+      case 'sheet-of-paper': return <SheetOfPaperTool />;
+      case 'screen-share': return <ScreenShareTool />;
+      case 'exercise-cards': return <ExerciseCardsTool />;
       case 'games': return <div className="p-1"><GameBuilder seedPrompt={(payload?.seedPrompt as string) || ''} /></div>;
       case 'node-map': return <NodeMapTool />;
       case 'tactile-friction': return <TactileFrictionTool />;
@@ -104,14 +120,15 @@ export default function ToolDock() {
   }
 
   function toolButton(t: ToolMeta) {
+    const active = t.id === 'podcast' ? podcastOpen : activeTool === t.id;
     return (
       <button
         key={t.id}
-        onClick={() => requestOpen(t.id)}
+        onClick={() => t.id === 'podcast' ? togglePodcast() : requestOpen(t.id)}
         onMouseEnter={() => setHovered(t.id)}
         onMouseLeave={() => setHovered(null)}
         className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
-          activeTool === t.id
+          active
             ? 'bg-purple-400/20 text-purple-200'
             : t.tier === 2
               ? 'text-red-300/70 hover:bg-red-400/10 hover:text-red-200'
@@ -151,7 +168,10 @@ export default function ToolDock() {
           onClick={closeTool}
         >
           <div
-            className={`glass-card rounded-3xl w-full ${activeTool === 'games' ? 'max-w-4xl' : activeTool && isTier2(activeTool) ? 'max-w-2xl' : 'max-w-lg'} max-h-[85vh] overflow-y-auto`}
+            className={`glass-card rounded-3xl w-full ${
+              activeTool === 'games' || activeTool === 'sheet-of-paper' || activeTool === 'screen-share' ? 'max-w-4xl'
+                : activeTool && isTier2(activeTool) ? 'max-w-2xl' : 'max-w-lg'
+            } max-h-[85vh] overflow-y-auto`}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 pt-5 pb-2 sticky top-0 bg-inherit">

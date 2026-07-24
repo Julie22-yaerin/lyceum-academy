@@ -39,6 +39,18 @@ Lyceum ship-day router — the new product surface added for launch:
                                     illustrations for a text — see
                                     app.services.illustration
 
+  Share Screen with AI (Tool Dock 'screen-share')
+    POST /ai/screen-share        — Socrat comments on a cropped screen
+                                    region — see app.services.ai.analyze_screen_share
+
+  Exercise Cards (Tool Dock 'exercise-cards') — see app.services.exercise_cards
+    POST /ai/exercise-cards/generate                — build a deck from a
+                                    chopped past paper / textbook excerpt,
+                                    pre-sorted medium → hard → easy
+    POST /ai/exercise-cards/reverse-build/reveal     — 20 Quanta
+    POST /ai/exercise-cards/reverse-build/evaluate   — free (paired with reveal)
+    POST /ai/exercise-cards/problem-image            — 150 Quanta
+
   Applications (registration is closed — "Get Started" applies to a waitlist)
     POST /applications/apply     — public, no auth: submit the onboarding
                                     quest (placement answers + learning-style
@@ -752,3 +764,129 @@ async def generate_illustrations_endpoint(request: Request, req: GenerateIllustr
     # Flat estimate: one shot-list LLM call + N local image generations.
     quanta_svc.spend_tokens(uid, tokens=400 + 150 * len(result.get("shots") or []), pool="standard", context="/ai/illustrations")
     return result
+
+
+# ── Share Screen with AI — student picks a screen region, Socrat looks at it
+# (see app.services.ai.analyze_screen_share). Tool Dock tool 'screen-share'.
+
+
+class ScreenShareRequest(BaseModel):
+    image: str  # base64 PNG, optionally with a data: URL prefix
+    question: str = ""
+
+
+@router.post("/ai/screen-share")
+@limiter.limit("6/minute")
+async def screen_share_endpoint(request: Request, req: ScreenShareRequest, auth: dict = Depends(require_auth)):
+    from app.services import ai as ai_svc
+
+    uid = _uid(auth)
+    image_b64 = req.image
+    if image_b64.startswith("data:"):
+        image_b64 = image_b64.split(",", 1)[-1]
+    if not image_b64.strip():
+        raise HTTPException(status_code=400, detail="image_required")
+
+    try:
+        result = await ai_svc.analyze_screen_share(image_b64, req.question)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    quanta_svc.spend_tokens(uid, tokens=200, pool="standard", context="/ai/screen-share")
+    return result
+
+
+# ── Exercise Cards (Tool Dock 'exercise-cards') — a deck built straight from
+# a chopped past paper or textbook excerpt, always presented medium → hard →
+# easy. Exactly three assists exist for these cards: Reverse Building (20
+# Quanta), Image Generator (150 Quanta, content-specific), and Lotus Map
+# (free, client-side only — see app.services.exercise_cards).
+
+
+class ExerciseCardsGenerateRequest(BaseModel):
+    source_text: str
+    max_cards: int = 6
+
+
+@router.post("/ai/exercise-cards/generate")
+@limiter.limit("4/minute")
+async def exercise_cards_generate(request: Request, req: ExerciseCardsGenerateRequest, auth: dict = Depends(require_auth)):
+    from app.services import exercise_cards as exercise_cards_svc
+
+    _uid(auth)
+    text = req.source_text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="source_text_required")
+    try:
+        cards = await exercise_cards_svc.generate_cards(text, req.max_cards)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return {"cards": cards}
+
+
+class ExerciseCardsRevealRequest(BaseModel):
+    problem: str
+    concepts: list[str] = []
+    subject: str = ""
+
+
+@router.post("/ai/exercise-cards/reverse-build/reveal")
+@limiter.limit("6/minute")
+async def exercise_cards_reveal(request: Request, req: ExerciseCardsRevealRequest, auth: dict = Depends(require_auth)):
+    """Reverse Building assist, step 1: reveal the worked solution — 20 Quanta."""
+    from app.services import ai as ai_svc
+
+    uid = _uid(auth)
+    try:
+        result = await ai_svc.reveal_solution(req.problem, req.concepts, req.subject)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    quanta_svc.spend_tokens(uid, tokens=20, pool="standard", context="/ai/exercise-cards/reverse-build")
+    return result
+
+
+class ExerciseCardsEvalRequest(BaseModel):
+    student_explanation: str
+    original_problem: str
+    required_tools: list[str] = []
+    subject_area: str = "math"
+
+
+@router.post("/ai/exercise-cards/reverse-build/evaluate")
+@limiter.limit("6/minute")
+async def exercise_cards_evaluate(request: Request, req: ExerciseCardsEvalRequest, auth: dict = Depends(require_auth)):
+    """Reverse Building assist, step 2: grade the student's rebuilt explanation.
+    No extra charge — the 20 Quanta is spent once, at reveal."""
+    from app.services import ai as ai_svc
+
+    _uid(auth)
+    try:
+        return await ai_svc.evaluate_reverse_build(
+            req.student_explanation, req.original_problem, req.required_tools, req.subject_area,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+class ExerciseCardsImageRequest(BaseModel):
+    problem: str
+
+
+@router.post("/ai/exercise-cards/problem-image")
+@limiter.limit("3/minute")
+async def exercise_cards_problem_image(request: Request, req: ExerciseCardsImageRequest, auth: dict = Depends(require_auth)):
+    """Image Generator assist: a diagram of THIS problem's concrete scenario
+    (not the underlying theory) — 150 Quanta."""
+    from app.services import exercise_cards as exercise_cards_svc
+    import base64
+
+    uid = _uid(auth)
+    problem = req.problem.strip()
+    if not problem:
+        raise HTTPException(status_code=400, detail="problem_required")
+    try:
+        png_bytes = await exercise_cards_svc.generate_problem_image(problem)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    quanta_svc.spend_tokens(uid, tokens=150, pool="standard", context="/ai/exercise-cards/problem-image")
+    return {"image_base64": base64.b64encode(png_bytes).decode("ascii")}

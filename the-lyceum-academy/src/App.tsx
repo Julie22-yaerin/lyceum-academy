@@ -31,6 +31,7 @@ import { scopedGateKey } from './lib/persist';
 import SupportChatWidget from './components/SupportChatWidget';
 import ReviewPopup from './components/ReviewPopup';
 import CookieConsent from './components/CookieConsent';
+import FloatingPodcast from './components/FloatingPodcast';
 import LegalPage from './views/LegalPage';
 
 
@@ -188,6 +189,7 @@ function AppInner() {
       </MainLayout>
       <SupportChatWidget context="workspace" />
       <ReviewPopup />
+      <FloatingPodcast />
     </>
   );
 }

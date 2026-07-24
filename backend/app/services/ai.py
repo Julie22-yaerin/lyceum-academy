@@ -1016,6 +1016,67 @@ async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
     }
 
 
+async def analyze_screen_share(image_b64: str, question: str = "") -> dict:
+    """
+    "Share Screen with AI" — Socrat looks at a cropped screen region the
+    student picked and comments on it, free-form (no assumed structure,
+    unlike analyze_mind_map_vision above). Same provider fallback chain,
+    generic tutoring prompt instead of a hardcoded diagram layout.
+
+    Returns { comment: str }.
+    """
+    import logging
+    log = logging.getLogger("pclick")
+
+    prompt = (
+        "You are Socrat, the Lyceum's Socratic guide, looking at a screenshot the student just "
+        "shared from their own screen. Never give a direct final answer — respond the way a "
+        "tutor glancing over a shoulder would: name what you see in one short line, then ask the "
+        "one question that moves the student's own thinking forward. Keep it to 2-4 sentences. "
+        "If the image is unclear or shows nothing useful, say so plainly and ask what you should "
+        "be looking at."
+    )
+    if question.strip():
+        prompt += f"\n\nThe student specifically asked: {question.strip()}"
+
+    messages = [{
+        "role": "user",
+        "content": [
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_b64}"}},
+            {"type": "text", "text": prompt},
+        ],
+    }]
+
+    if _use_google():
+        try:
+            resp = await _gemini_vision_call(messages, temperature=0.4, max_tokens=400)
+            text = extract_text(resp).strip()
+            if text:
+                return {"comment": text}
+        except Exception as e:
+            log.warning("analyze_screen_share Gemini failed: %s", e)
+
+    if _use_openai():
+        try:
+            resp = await _openai_vision_call(messages, temperature=0.4, max_tokens=400)
+            text = extract_text(resp).strip()
+            if text:
+                return {"comment": text}
+        except Exception as e:
+            log.warning("analyze_screen_share OpenAI failed: %s", e)
+
+    if settings.nvidia_vision_key:
+        try:
+            resp = await _nvidia_vision_call(messages, temperature=0.4, max_tokens=400)
+            text = extract_text(resp).strip()
+            if text:
+                return {"comment": text}
+        except Exception as e:
+            log.warning("analyze_screen_share NVIDIA fallback failed: %s", e)
+
+    return {"comment": "Couldn't analyze the screen — no vision provider available right now."}
+
+
 @_tag_task
 async def generate_roadmap(
     topic: str,

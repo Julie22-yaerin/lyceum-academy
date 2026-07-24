@@ -17,7 +17,9 @@
  */
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-export type Tier1ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations';
+export type Tier1ToolId =
+  | 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations'
+  | 'lotus-map' | 'sheet-of-paper' | 'podcast' | 'screen-share' | 'exercise-cards';
 export type Tier2ToolId =
   | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'
   | 'membrane-flow' | 'steric-snap' | 'topo-lock' | 'time-lapse';
@@ -39,6 +41,14 @@ interface ToolDockValue {
   payload: Record<string, unknown> | null;
   openTool: (id: ToolId, payload?: Record<string, unknown>) => void;
   closeTool: () => void;
+  /** The Floating Podcast lives outside the modal system entirely — it must
+   * stay on screen and playable while the student works in another tool
+   * (Lotus Map, Sheet of Paper, ...), so it gets its own independent
+   * open/seed state instead of going through activeTool. */
+  podcastOpen: boolean;
+  podcastSeedText: string;
+  togglePodcast: (seedText?: string) => void;
+  closePodcast: () => void;
 }
 
 const ToolDockContext = createContext<ToolDockValue>({
@@ -46,17 +56,30 @@ const ToolDockContext = createContext<ToolDockValue>({
   payload: null,
   openTool: () => {},
   closeTool: () => {},
+  podcastOpen: false,
+  podcastSeedText: '',
+  togglePodcast: () => {},
+  closePodcast: () => {},
 });
 
 export function ToolDockProvider({ children }: { children: ReactNode }) {
   const [activeTool, setActiveTool] = useState<ToolId | null>(null);
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
+  const [podcastOpen, setPodcastOpen] = useState(false);
+  const [podcastSeedText, setPodcastSeedText] = useState('');
   return (
     <ToolDockContext.Provider value={{
       activeTool,
       payload,
       openTool: (id, p) => { setActiveTool(id); setPayload(p || null); },
       closeTool: () => { setActiveTool(null); setPayload(null); },
+      podcastOpen,
+      podcastSeedText,
+      togglePodcast: (seedText) => {
+        if (seedText) setPodcastSeedText(seedText);
+        setPodcastOpen(v => !v);
+      },
+      closePodcast: () => setPodcastOpen(false),
     }}>
       {children}
     </ToolDockContext.Provider>

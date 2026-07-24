@@ -360,3 +360,43 @@ export interface IllustrationShot {
 export function generateIllustrations(text: string, maxShots = 5): Promise<{ shots: IllustrationShot[] }> {
   return postJson('/ai/illustrations', { text, max_shots: maxShots });
 }
+
+// ── Share Screen with AI — Socrat comments on a cropped screen region ──────
+
+export function analyzeScreenShare(imageBase64: string, question = ''): Promise<{ comment: string }> {
+  return postJson('/ai/screen-share', { image: imageBase64, question });
+}
+
+// ── Exercise Cards — deck from a chopped past paper / textbook excerpt,
+// always presented medium → hard → easy. Exactly 3 assists exist for these
+// cards: Reverse Building (20 Quanta), Image Generator (150 Quanta, content-
+// specific), and Lotus Map (free — opens the Lotus Map tool client-side). ──
+
+export interface ExerciseCard {
+  id: string;
+  question: string;
+  difficulty: 'easy' | 'medium' | 'hard';
+  subject: string;
+  concepts: string[];
+}
+
+export function generateExerciseCards(sourceText: string, maxCards = 6): Promise<{ cards: ExerciseCard[] }> {
+  return postJson('/ai/exercise-cards/generate', { source_text: sourceText, max_cards: maxCards });
+}
+
+export function revealCardSolution(problem: string, concepts: string[] = [], subject = ''): Promise<{ solution: string; required_tools: string[] }> {
+  return postJson('/ai/exercise-cards/reverse-build/reveal', { problem, concepts, subject });
+}
+
+export function evaluateCardReverseBuild(
+  studentExplanation: string, originalProblem: string, requiredTools: string[] = [], subjectArea = 'math',
+): Promise<{ verdict: 'pass' | 'partial' | 'fail'; feedback: string; next_state: string }> {
+  return postJson('/ai/exercise-cards/reverse-build/evaluate', {
+    student_explanation: studentExplanation, original_problem: originalProblem,
+    required_tools: requiredTools, subject_area: subjectArea,
+  });
+}
+
+export function generateProblemImage(problem: string): Promise<{ image_base64: string }> {
+  return postJson('/ai/exercise-cards/problem-image', { problem });
+}

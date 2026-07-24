@@ -104,7 +104,10 @@ LEARNING_METHODS_PROMPT = (
 # The full tool roster the Tool Dock can render, mirrored in
 # src/context/ToolDockContext.tsx. Tier 2 tools carry a neural-overload
 # warning client-side.
-TIER1_TOOLS = ["feynman", "toolmap", "reverse-build", "games", "spaced-repetition", "illustrations"]
+TIER1_TOOLS = [
+    "feynman", "toolmap", "reverse-build", "games", "spaced-repetition", "illustrations",
+    "lotus-map", "sheet-of-paper", "podcast", "screen-share", "exercise-cards",
+]
 TIER2_TOOLS = [
     "node-map", "tactile-friction", "shatter", "auditory-gating",
     "membrane-flow", "steric-snap", "topo-lock", "time-lapse",
