@@ -26,6 +26,7 @@ import MembraneFlowTool from './tools/MembraneFlowTool';
 import StericSnapTool from './tools/StericSnapTool';
 import TopoLockTool from './tools/TopoLockTool';
 import TimeLapseTool from './tools/TimeLapseTool';
+import IllustrationTool from './tools/IllustrationTool';
 
 interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; subjects?: string }
 
@@ -35,6 +36,7 @@ const TOOLS: ToolMeta[] = [
   { id: 'reverse-build', icon: 'undo', label: 'Reverse Build', tier: 1 },
   { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1 },
   { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1 },
+  { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1 },
   { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, subjects: 'Vật lý lượng tử · Toán đa biến' },
   { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, subjects: 'Cơ học · Cân bằng hoá học' },
   { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, subjects: 'Nhiệt động lực học · Điện từ' },
@@ -58,7 +60,7 @@ export default function ToolDock() {
     getMyTools()
       .then(r => setAllowed(new Set(r.tools as ToolId[])))
       // If curation can't be fetched, fall back to tier-1 only.
-      .catch(() => setAllowed(new Set(['feynman', 'toolmap', 'reverse-build', 'games', 'spaced-repetition'])));
+      .catch(() => setAllowed(new Set(['feynman', 'toolmap', 'reverse-build', 'games', 'spaced-repetition', 'illustrations'])));
   }, []);
 
   const visible = TOOLS.filter(t => !allowed || allowed.has(t.id));
@@ -87,6 +89,7 @@ export default function ToolDock() {
       case 'toolmap': return <ToolMapTool />;
       case 'reverse-build': return <ReverseBuildTool />;
       case 'spaced-repetition': return <SpacedRepetitionTool />;
+      case 'illustrations': return <IllustrationTool />;
       case 'games': return <div className="p-1"><GameBuilder seedPrompt={(payload?.seedPrompt as string) || ''} /></div>;
       case 'node-map': return <NodeMapTool />;
       case 'tactile-friction': return <TactileFrictionTool />;

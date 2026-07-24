@@ -1,5 +1,5 @@
 """
-Local CPU Image Generation — Playground Game-Asset Sprite Generator
+Local CPU Image Generation — shared tiny-diffusion pipeline
 ════════════════════════════════════════════════════════════════════
 
 No paid image API, no GPU — runs a small distilled Stable Diffusion model
@@ -13,6 +13,11 @@ Two guards keep this from taking down a resource-constrained deployment:
   - A process-wide semaphore serializes generations — running two diffusion
     inferences concurrently on a 2-4 core box would thrash and risk OOM, so
     requests queue instead of running in parallel.
+
+Two callers share this one pipeline, each with its own style suffix:
+  - generate_sprite()       — Game Builder's 2D game-asset sprites
+  - generate_illustration() — app.services.illustration's Xiaohei-style
+                               article illustrations
 """
 
 from __future__ import annotations
@@ -50,15 +55,18 @@ def _load_pipeline():
     return _pipeline
 
 
-def _run_generation(prompt: str, width: int, height: int, steps: int) -> bytes:
+def _run_generation(full_prompt: str, width: int, height: int, steps: int, negative_prompt: str = "") -> bytes:
     pipe = _load_pipeline()
-    styled_prompt = f"{prompt}, 2D game asset, pixel art style, simple flat background, game sprite"
+    kwargs = {}
+    if negative_prompt:
+        kwargs["negative_prompt"] = negative_prompt
     result = pipe(
-        styled_prompt,
+        full_prompt,
         width=width,
         height=height,
         num_inference_steps=steps,
         guidance_scale=7.0,
+        **kwargs,
     )
     image = result.images[0]
     buf = io.BytesIO()
@@ -72,5 +80,20 @@ async def generate_sprite(prompt: str, width: int = 384, height: int = 384, step
     height = min(max(height, 64), _MAX_HEIGHT)
     steps = min(max(steps, 4), _MAX_STEPS)
 
+    styled_prompt = f"{prompt}, 2D game asset, pixel art style, simple flat background, game sprite"
     async with _gen_lock:
-        return await asyncio.to_thread(_run_generation, prompt, width, height, steps)
+        return await asyncio.to_thread(_run_generation, styled_prompt, width, height, steps)
+
+
+async def generate_illustration(
+    full_prompt: str, negative_prompt: str = "", width: int = 512, height: int = 288, steps: int = 22,
+) -> bytes:
+    """Returns PNG bytes for a fully-composed prompt (caller supplies the
+    complete styled prompt — see app.services.illustration). Defaults to a
+    16:9-ish frame within this CPU pipeline's practical resolution ceiling."""
+    width = min(max(width, 64), _MAX_WIDTH)
+    height = min(max(height, 64), _MAX_HEIGHT)
+    steps = min(max(steps, 4), _MAX_STEPS)
+
+    async with _gen_lock:
+        return await asyncio.to_thread(_run_generation, full_prompt, width, height, steps, negative_prompt)

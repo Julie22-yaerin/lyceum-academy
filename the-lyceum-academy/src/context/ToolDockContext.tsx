@@ -17,7 +17,7 @@
  */
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
-export type Tier1ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition';
+export type Tier1ToolId = 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations';
 export type Tier2ToolId =
   | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'
   | 'membrane-flow' | 'steric-snap' | 'topo-lock' | 'time-lapse';

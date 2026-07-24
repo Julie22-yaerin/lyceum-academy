@@ -1,7 +1,7 @@
 /**
  * Client for the ship-day Lyceum backend surface (backend:
  * app/routers/lyceum.py): Quanta wallet, referral, plans catalog, teams
- * (group plan), authored documents, Second Brain customization, Open-Sora.
+ * (group plan), authored documents, Second Brain customization.
  */
 import { authFetch } from './api';
 import { getApiBaseUrl } from './apiBase';
@@ -342,12 +342,21 @@ export function generateLessonPackage(subject: string, topic = '', language = 'e
   return postJson('/ai/generate-lesson', { subject, topic, language });
 }
 
-// ── Open-Sora (local video) ─────────────────────────────────────────────────
+// ── Xiaohei Illustrations — plain-white, hand-drawn, deadpan-absurd body
+// illustrations for an article/note (backend: app.services.illustration). ──
 
-export function getVideoStatus(): Promise<{ available: boolean; url: string }> {
-  return getJson('/ai/video/status');
+export interface IllustrationShot {
+  placement: string;
+  topic: string;
+  core_idea: string;
+  structure_type: string;
+  xiaohei_action: string;
+  objects: string[];
+  annotations: string[];
+  image_base64: string | null;
+  error: string | null;
 }
 
-export function generateVideo(prompt: string): Promise<{ video_base64?: string; video_url?: string }> {
-  return postJson('/ai/generate-video', { prompt });
+export function generateIllustrations(text: string, maxShots = 5): Promise<{ shots: IllustrationShot[] }> {
+  return postJson('/ai/illustrations', { text, max_shots: maxShots });
 }

@@ -245,8 +245,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
         className="fixed w-full z-50 top-0 px-6 py-4"
       >
         <div className="max-w-7xl mx-auto rounded-full px-6 py-3 flex justify-between items-center glass-strong">
-          <div className="flex items-center gap-2 text-xl font-bold tracking-wider text-white">
-            <span className="text-metallic">Lyceum</span>
+          <div className="flex items-center gap-2.5 text-xl font-bold tracking-wider text-white">
+            <img src="/logo.png" alt="" className="w-8 h-8 object-contain" />
+            <span className="text-metallic">The Lyceum</span>
           </div>
           <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
             <a href="#method" className="nav-link">The Method</a>

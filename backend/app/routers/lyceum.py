@@ -30,13 +30,14 @@ Lyceum ship-day router — the new product surface added for launch:
     POST /second-brain/custom    — add material into the vault + index
     GET  /second-brain/custom    — list custom material
 
-  Open-Sora (local video generation)
-    GET  /ai/video/status        — is the local server reachable
-    POST /ai/generate-video      — text → short video via local Open-Sora
-
   Coach lesson package (the standard content unit for one topic)
     POST /ai/generate-lesson     — note+images+refs, 2 card sets (≤15 each),
                                     1-2 break games — see app.services.lesson
+
+  Xiaohei Illustrations (Tool Dock 'illustrations')
+    POST /ai/illustrations       — shot list + generated 16:9 hand-drawn
+                                    illustrations for a text — see
+                                    app.services.illustration
 
   Applications (registration is closed — "Get Started" applies to a waitlist)
     POST /applications/apply     — public, no auth: submit the onboarding
@@ -723,31 +724,31 @@ async def generate_lesson(request: Request, req: GenerateLessonRequest, auth: di
     return package
 
 
-# ── Open-Sora local video generation ────────────────────────────────────────
+# ── Xiaohei Illustrations — plain-white, hand-drawn, deadpan-absurd body
+# illustrations for an article/note (see app.services.illustration). Tool
+# Dock tool 'illustrations'.
 
 
-class GenerateVideoRequest(BaseModel):
-    prompt: str
-    num_frames: int = 48
-    resolution: str = "360p"
+class GenerateIllustrationsRequest(BaseModel):
+    text: str
+    max_shots: int = 5
 
 
-@router.get("/ai/video/status")
-async def video_status(auth: dict = Depends(require_auth)):
-    from app.services import open_sora
-    _uid(auth)
-    return {"available": await open_sora.is_available(), "url": open_sora.OPEN_SORA_URL}
+@router.post("/ai/illustrations")
+@limiter.limit("3/minute")
+async def generate_illustrations_endpoint(request: Request, req: GenerateIllustrationsRequest, auth: dict = Depends(require_auth)):
+    from app.services import illustration as illustration_svc
 
-
-@router.post("/ai/generate-video")
-@limiter.limit("4/minute")
-async def generate_video(request: Request, req: GenerateVideoRequest, auth: dict = Depends(require_auth)):
-    from app.services import open_sora
     uid = _uid(auth)
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text_required")
+
     try:
-        result = await open_sora.generate_video(req.prompt, req.num_frames, req.resolution)
-    except RuntimeError as e:
-        raise HTTPException(status_code=503, detail=str(e))
-    # Video generation is a heavy standard-pool spend; bill a flat estimate.
-    quanta_svc.spend_tokens(uid, tokens=250, pool="standard", context="open_sora_video")
+        result = await illustration_svc.generate_illustrations(text, req.max_shots)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    # Flat estimate: one shot-list LLM call + N local image generations.
+    quanta_svc.spend_tokens(uid, tokens=400 + 150 * len(result.get("shots") or []), pool="standard", context="/ai/illustrations")
     return result

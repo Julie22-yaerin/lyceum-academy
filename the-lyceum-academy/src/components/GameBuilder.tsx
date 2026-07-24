@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent } from 'react';
 import { generateSpriteImage } from '../lib/api';
-import { getVideoStatus, generateVideo } from '../lib/lyceumApi';
 import { loadNotes, loadPSets, type SavedNote, type SavedPSet } from '../lib/persist';
 import { loadScenes, saveScene, deleteScene, type GameObject, type GameScene, type Behavior } from '../lib/gameBuilder';
 
@@ -41,17 +40,6 @@ export default function GameBuilder({ seedPrompt }: { seedPrompt?: string } = {}
   const [buildingFrom, setBuildingFrom] = useState('');
   const [buildProgress, setBuildProgress] = useState('');
 
-  // ── Open-Sora local video (cutscenes) ────────────────────────────────────
-  const [soraAvailable, setSoraAvailable] = useState<boolean | null>(null);
-  const [videoPrompt, setVideoPrompt] = useState('');
-  const [videoBusy, setVideoBusy] = useState(false);
-  const [videoSrc, setVideoSrc] = useState('');
-  const [videoError, setVideoError] = useState('');
-
-  useEffect(() => {
-    getVideoStatus().then(s => setSoraAvailable(s.available)).catch(() => setSoraAvailable(false));
-  }, []);
-
   /** Pull the key concepts out of a saved note or quest set. */
   function conceptsOf(source: SavedNote | SavedPSet): string[] {
     if ('note' in source) {
@@ -73,7 +61,6 @@ export default function GameBuilder({ seedPrompt }: { seedPrompt?: string } = {}
     setBuildingFrom(label);
     setGenError('');
     setSceneName(label);
-    if (!videoPrompt) setVideoPrompt(`A short 2D game cutscene about ${concepts.join(', ')}`);
     try {
       for (let i = 0; i < concepts.length; i++) {
         setBuildProgress(`Sprite ${i + 1}/${concepts.length}: ${concepts[i]}`);
@@ -86,19 +73,6 @@ export default function GameBuilder({ seedPrompt }: { seedPrompt?: string } = {}
       setBuildingFrom('');
       setBuildProgress('');
     }
-  }
-
-  async function handleGenerateVideo() {
-    if (!videoPrompt.trim() || videoBusy) return;
-    setVideoBusy(true); setVideoError(''); setVideoSrc('');
-    try {
-      const result = await generateVideo(videoPrompt.trim());
-      if (result.video_base64) setVideoSrc(`data:video/mp4;base64,${result.video_base64}`);
-      else if (result.video_url) setVideoSrc(result.video_url);
-      else setVideoError('Open-Sora returned no video.');
-    } catch (e: any) {
-      setVideoError(e.message || 'Video generation failed.');
-    } finally { setVideoBusy(false); }
   }
 
   async function handleGenerate() {
@@ -368,43 +342,6 @@ export default function GameBuilder({ seedPrompt }: { seedPrompt?: string } = {}
               <p className="font-sans text-xs opacity-40">Select an object on the stage.</p>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Open-Sora cutscene (local video generation) */}
-      <div className="bg-surface border border-outline/10 p-6">
-        <div className="flex items-center gap-2 mb-3">
-          <label className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Cutscene — Open-Sora (local)</label>
-          {soraAvailable === true && <span className="font-sans text-[9px] uppercase tracking-[1px] text-emerald-600">● online</span>}
-          {soraAvailable === false && <span className="font-sans text-[9px] uppercase tracking-[1px] text-red-500">● offline</span>}
-        </div>
-        <div className="flex gap-3">
-          <input
-            value={videoPrompt}
-            onChange={e => setVideoPrompt(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleGenerateVideo(); }}
-            placeholder="Describe the cutscene — e.g. a pixel-art hero exploring a chemistry lab"
-            disabled={videoBusy}
-            className="flex-1 bg-transparent border-b border-outline/30 px-0 py-2 font-sans text-sm outline-none focus:border-on-surface transition-colors disabled:opacity-50"
-          />
-          <button
-            onClick={handleGenerateVideo}
-            disabled={videoBusy || !videoPrompt.trim() || soraAvailable === false}
-            className="px-6 py-2 bg-on-surface text-surface font-sans text-[10px] uppercase tracking-[2px] font-bold disabled:opacity-30 flex items-center gap-2"
-          >
-            {videoBusy && <div className="w-3 h-3 border border-surface/40 border-t-surface rounded-full animate-spin" />}
-            {videoBusy ? 'Rendering…' : 'Generate video'}
-          </button>
-        </div>
-        {soraAvailable === false && (
-          <p className="font-sans text-[11px] opacity-50 mt-2">Open-Sora isn't reachable — start the local server (OPEN_SORA_URL) to enable cutscenes.</p>
-        )}
-        {videoBusy && (
-          <p className="font-sans text-[11px] opacity-50 mt-2">Rendering locally — this can take several minutes. Leave this tab open.</p>
-        )}
-        {videoError && <p className="font-sans text-sm text-red-600 mt-2">{videoError}</p>}
-        {videoSrc && (
-          <video src={videoSrc} controls loop className="mt-4 w-full max-w-lg border border-outline/20 bg-black" />
         )}
       </div>
 
