@@ -1,14 +1,13 @@
 /**
  * ApplyView — registration is closed. "Get Started" leads here instead of
- * straight to sign-up: a short placement quiz + a 4-axis learning-style
- * slider dashboard, submitted as a waitlist application. An admin reviews
- * it in the "Xét duyệt người dùng" console (backend: app/routers/admin.py
+ * straight to sign-up: a short waitlist application. An admin reviews it in
+ * the "Xét duyệt người dùng" console (backend: app/routers/admin.py
  * applications_* — accept/decline); AuthPage's sign-up is gated on
  * status === 'accepted' for the applicant's email.
  *
- * The slider dashboard produces the "Vector Matrix" the Coach uses as a
- * personalization preset (which view renders first, hint-ladder style,
- * opening line) — see backend app/services/applications.py.
+ * Scope: The Lyceum takes learners from grade 10 to first-year university,
+ * in Math and Science only. The form collects who they are and what they
+ * want to learn, and requires agreement to the Terms and Privacy Policy.
  */
 
 import { useState } from 'react';
@@ -16,70 +15,27 @@ import { NavigationProps } from '../types';
 import { submitApplication, type ApplicationAnswers, type LearningVector } from '../lib/lyceumApi';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
+// Eligible levels only: grade 10 → first-year university.
 const GRADE_LEVELS = [
-  { value: 'high_school', label: 'High school' },
-  { value: 'undergrad', label: 'Undergraduate' },
-  { value: 'aftergrad', label: 'Aftergraduate' },
-  { value: 'master', label: "Master's" },
-  { value: 'research', label: 'Research' },
-  { value: 'other', label: 'Other' },
+  { value: 'lop_10', label: 'Lớp 10' },
+  { value: 'lop_11', label: 'Lớp 11' },
+  { value: 'lop_12', label: 'Lớp 12' },
+  { value: 'nam_nhat', label: 'Năm nhất đại học' },
 ];
 
-const RESEARCH_FREQUENCIES = [
-  { value: 'chua_bao_gio', label: 'Chưa bao giờ' },
-  { value: 'thinh_thoang', label: 'Thỉnh thoảng' },
-  { value: 'thuong_xuyen', label: 'Thường xuyên' },
-  { value: 'rat_thuong_xuyen', label: 'Rất thường xuyên' },
-];
+// Math and Science only.
+const SUBJECT_OPTIONS = ['Toán', 'Vật lý', 'Hoá học', 'Sinh học'];
 
-const SANDBOXES: { value: LearningVector['target_sandbox']; label: string }[] = [
-  { value: 'stem', label: 'STEM (tổng quát)' },
-  { value: 'physics', label: 'Vật lý' },
-  { value: 'chemistry', label: 'Hoá học' },
-  { value: 'math', label: 'Toán' },
-  { value: 'general_research', label: 'Nghiên cứu tổng quát' },
-];
-
-interface SliderDef {
-  key: keyof Pick<LearningVector, 'encoding_channel' | 'processing_structure' | 'engagement_mode'>;
-  left: string; leftSub: string;
-  right: string; rightSub: string;
-}
-
-const SLIDERS: SliderDef[] = [
-  {
-    key: 'encoding_channel',
-    left: 'SPATIAL / VISUAL', leftSub: 'Sơ đồ, hình họa, 3D vector',
-    right: 'VERBAL / NARRATIVE', rightSub: 'Văn bản, ẩn dụ, kể chuyện',
-  },
-  {
-    key: 'processing_structure',
-    left: 'GLOBAL / INTUITIVE', leftSub: 'Bức tranh toàn cảnh trước',
-    right: 'SEQUENTIAL / PROCEDURAL', rightSub: 'Từng bước 1 → 2 → 3',
-  },
-  {
-    key: 'engagement_mode',
-    left: 'ACTIVE / DERIVATION', leftSub: 'Va chạm ngay, thử-sai',
-    right: 'REFLECTIVE / CONCEPTUAL', rightSub: 'Trầm tư trước khi giải',
-  },
-];
-
-// Common subjects offered as multi-select chips; anything else goes in the
-// free-text box and is merged into the same answer.
-const SUBJECT_OPTIONS = [
-  'Toán', 'Vật lý', 'Hoá học', 'Sinh học', 'Tin học / CS',
-  'Tiếng Anh', 'Văn học', 'Lịch sử', 'Địa lý', 'Kinh tế',
-];
-
+// Submitted silently so the backend keeps its expected shape; no slider UI.
 const DEFAULT_VECTOR: LearningVector = {
-  encoding_channel: 0.65,
+  encoding_channel: 0.5,
   processing_structure: 0.5,
   engagement_mode: 0.5,
   target_sandbox: 'stem',
   cognitive_friction: 0.5,
 };
 
-type Phase = 'start' | 'quiz' | 'vectors' | 'result';
+type Phase = 'start' | 'quiz' | 'result';
 
 export default function ApplyView({ onNavigate }: NavigationProps) {
   const [phase, setPhase] = useState<Phase>('start');
@@ -89,57 +45,40 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [gradeLevel, setGradeLevel] = useState('');
-  const [gradeOther, setGradeOther] = useState('');
   const [subjectPicks, setSubjectPicks] = useState<string[]>([]);
-  const [subjectsExtra, setSubjectsExtra] = useState('');
   const [purpose, setPurpose] = useState('');
   const [learningGoal, setLearningGoal] = useState('');
-  const [doesResearch, setDoesResearch] = useState<'yes' | 'no' | ''>('');
-  const [researchFrequency, setResearchFrequency] = useState('');
   const [difficulty, setDifficulty] = useState('');
   const [budget, setBudget] = useState('');
-  const [deposit, setDeposit] = useState('');
-
-  const [vector, setVector] = useState<LearningVector>(DEFAULT_VECTOR);
   const [referralCode, setReferralCode] = useState('');
+  const [agreed, setAgreed] = useState(false);
 
   const [resultPriority, setResultPriority] = useState(false);
   const [alreadyDecided, setAlreadyDecided] = useState<string | null>(null);
 
-  // Chips + free text merge into one subjects answer.
-  const subjectsCombined = [...subjectPicks, subjectsExtra.trim()].filter(Boolean).join(', ');
-  const gradeResolved = gradeLevel === 'other' ? gradeOther.trim() : gradeLevel;
-
-  // Deposit is required to join the waitlist — the amount signals urgency.
-  const depositValid = Number(deposit) > 0;
-  const quizValid = email.includes('@') && name.trim() !== '' && gradeResolved !== '' && subjectsCombined !== ''
-    && purpose.trim() !== '' && learningGoal.trim() !== '' && doesResearch
-    && difficulty.trim().length >= 10 && budget.trim() !== '' && depositValid;
-
-  function setSlider(key: SliderDef['key'], value: number) {
-    setVector(v => ({ ...v, [key]: value }));
-  }
+  const subjectsCombined = subjectPicks.join(', ');
+  const quizValid = email.includes('@') && name.trim() !== '' && gradeLevel !== ''
+    && subjectsCombined !== '' && purpose.trim() !== '' && learningGoal.trim() !== ''
+    && difficulty.trim().length >= 10 && agreed;
 
   function toggleSubject(s: string) {
     setSubjectPicks(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   }
 
   async function handleSubmit() {
-    if (!email.includes('@') || busy) return;
+    if (!quizValid || busy) return;
     setBusy(true); setError('');
     try {
       const answers: ApplicationAnswers = {
-        grade_level: gradeResolved,
+        grade_level: gradeLevel,
         subjects: subjectsCombined,
         purpose: purpose.trim(),
         learning_goal: learningGoal.trim(),
-        does_research: doesResearch as 'yes' | 'no',
-        research_frequency: doesResearch === 'yes' ? researchFrequency : 'n/a',
         biggest_difficulty: difficulty.trim(),
         budget_usd: Number(budget) || 0,
-        deposit_usd: Number(deposit) || 0,
+        agreed_terms: true,
       };
-      const result = await submitApplication(email.trim(), name.trim(), answers, vector, referralCode.trim());
+      const result = await submitApplication(email.trim(), name.trim(), answers, DEFAULT_VECTOR, referralCode.trim());
       if (result.already_decided) {
         setAlreadyDecided(result.status);
       } else {
@@ -164,46 +103,43 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
         </div>
 
         {/* Progress */}
-        {phase !== 'result' && phase !== 'start' && (
+        {phase === 'quiz' && (
           <div className="h-[2px] bg-white/10 rounded-full mb-10">
-            <div
-              className="h-full bg-gradient-to-r from-purple-400 to-amber-300 rounded-full transition-all duration-500"
-              style={{ width: phase === 'quiz' ? '45%' : '85%' }}
-            />
+            <div className="h-full bg-white/40 rounded-full transition-all duration-500" style={{ width: '60%' }} />
           </div>
         )}
 
         {/* ── Phase 0: start ── */}
         {phase === 'start' && (
           <div className="glass-card rounded-3xl p-10 text-center flex flex-col items-center gap-5">
-            <span className="text-5xl">✦</span>
-            <h1 className="font-serif text-3xl">Chào mừng đến The Lyceum</h1>
+            <span className="text-4xl">✦</span>
+            <h1 className="font-serif text-3xl">Nộp đơn vào The Lyceum</h1>
             <p className="text-sm text-slate-400 max-w-sm leading-relaxed">
-              Đăng ký hiện đang đóng — chúng tôi xét duyệt từng hồ sơ để thiết kế lộ trình học riêng cho bạn.
-              Hãy trả lời vài câu hỏi ngắn để chúng tôi hiểu bạn.
+              Dành cho học sinh, sinh viên từ lớp 10 đến năm nhất đại học. Chỉ dạy Toán và Khoa học.
+              Chúng tôi xét duyệt từng hồ sơ. Trả lời vài câu hỏi ngắn để bắt đầu.
             </p>
             <LiquidMetalButton label="Bắt đầu" onClick={() => setPhase('quiz')} />
           </div>
         )}
 
-        {/* ── Phase 1: placement quiz ── */}
+        {/* ── Phase 1: application ── */}
         {phase === 'quiz' && (
           <div className="glass-card rounded-3xl p-8 flex flex-col gap-6">
             <div className="text-center">
-              <h1 className="font-serif text-2xl mb-1">Kể cho chúng tôi về bạn</h1>
-              <p className="text-sm text-slate-400">Mọi câu trả lời sẽ giúp Lyceum thiết kế lộ trình riêng cho bạn.</p>
+              <h1 className="font-serif text-2xl mb-1">Vài câu hỏi ngắn</h1>
+              <p className="text-sm text-slate-400">Giúp chúng tôi hiểu bạn cần gì.</p>
             </div>
 
             <div className="flex flex-col gap-3">
               <div>
-                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Email của bạn</p>
+                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Email</p>
                 <input
                   type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com"
                   className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
                 />
               </div>
               <div>
-                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Chúng tôi có thể gọi bạn là gì?</p>
+                <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Chúng tôi gọi bạn là gì?</p>
                 <input
                   value={name} onChange={e => setName(e.target.value)} placeholder="Tên của bạn"
                   className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
@@ -212,7 +148,7 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn đang học ở cấp độ nào?</p>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn đang học lớp nào?</p>
               <div className="flex flex-wrap gap-2">
                 {GRADE_LEVELS.map(g => (
                   <button key={g.value} onClick={() => setGradeLevel(g.value)}
@@ -221,18 +157,11 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                   </button>
                 ))}
               </div>
-              {gradeLevel === 'other' && (
-                <input
-                  value={gradeOther} onChange={e => setGradeOther(e.target.value)}
-                  placeholder="Mô tả cấp độ / hoàn cảnh học của bạn…"
-                  className="mt-2 w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
-                />
-              )}
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Những môn nào bạn cần học? <span className="normal-case tracking-normal text-slate-500">(chọn nhiều được)</span></p>
-              <div className="flex flex-wrap gap-2 mb-2">
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn cần học môn nào? <span className="normal-case tracking-normal text-slate-500">(chọn nhiều được)</span></p>
+              <div className="flex flex-wrap gap-2">
                 {SUBJECT_OPTIONS.map(s => (
                   <button key={s} onClick={() => toggleSubject(s)}
                     className={`px-3 py-1.5 rounded-xl text-xs transition-colors ${subjectPicks.includes(s) ? 'glass-pill-active' : 'glass-pill'}`}>
@@ -240,216 +169,109 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                   </button>
                 ))}
               </div>
-              <input
-                value={subjectsExtra} onChange={e => setSubjectsExtra(e.target.value)}
-                placeholder="Môn khác / chi tiết hơn — ví dụ: Vật lý lượng tử, Giải tích 3, Hoá hữu cơ…"
-                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
-              />
-              {subjectsCombined && (
-                <p className="mt-1.5 text-[11px] text-slate-500">Sẽ gửi: <span className="text-slate-300">{subjectsCombined}</span></p>
-              )}
             </div>
 
             <div>
               <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn học để làm gì?</p>
               <textarea
                 value={purpose} onChange={e => setPurpose(e.target.value)} rows={2}
-                placeholder="Ví dụ: thi Olympic, nghiên cứu, chuyển ngành, tò mò thuần tuý…"
+                placeholder="Ví dụ: thi học kỳ, thi đại học, thi Olympic, học chắc nền tảng…"
                 className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
               />
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Mục tiêu học tập của bạn là gì?</p>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Mục tiêu cụ thể của bạn?</p>
               <textarea
                 value={learningGoal} onChange={e => setLearningGoal(e.target.value)} rows={2}
-                placeholder="Ví dụ: nắm vững Giải tích 2 trong 3 tháng, đạt 8.0 IELTS, hoàn thành đề tài nghiên cứu…"
+                placeholder="Ví dụ: nắm vững Giải tích trong 3 tháng, đạt 9+ môn Hoá…"
                 className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
               />
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn có làm nghiên cứu khoa học không?</p>
-              <div className="flex gap-2 mb-3">
-                {(['yes', 'no'] as const).map(v => (
-                  <button key={v} onClick={() => setDoesResearch(v)}
-                    className={`px-4 py-2 rounded-xl text-xs transition-colors ${doesResearch === v ? 'glass-pill-active' : 'glass-pill'}`}>
-                    {v === 'yes' ? 'Có' : 'Không'}
-                  </button>
-                ))}
-              </div>
-              {doesResearch === 'yes' && (
-                <div className="flex flex-wrap gap-2">
-                  {RESEARCH_FREQUENCIES.map(f => (
-                    <button key={f.value} onClick={() => setResearchFrequency(f.value)}
-                      className={`px-3 py-1.5 rounded-xl text-[11px] transition-colors ${researchFrequency === f.value ? 'glass-pill-active' : 'glass-pill'}`}>
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Điều gì khiến bạn gặp khó khăn nhất trong học tập?</p>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Bạn thấy khó nhất ở đâu?</p>
               <textarea
-                value={difficulty}
-                onChange={e => setDifficulty(e.target.value)}
-                rows={4}
-                placeholder="Càng cụ thể càng tốt — điều này giúp Lyceum hiểu đúng vấn đề của bạn…"
+                value={difficulty} onChange={e => setDifficulty(e.target.value)} rows={3}
+                placeholder="Càng cụ thể càng tốt — giúp chúng tôi hiểu đúng vấn đề của bạn…"
                 className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25 resize-y"
               />
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Ngân sách của bạn cho sản phẩm hỗ trợ học tập là bao nhiêu? ($/tháng)</p>
+              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Ngân sách cho việc học ($/tháng) <span className="normal-case tracking-normal text-slate-500">(không bắt buộc)</span></p>
               <div className="flex items-center gap-2">
                 <span className="text-slate-400">$</span>
                 <input
-                  type="number" min={0} value={budget} onChange={e => setBudget(e.target.value)}
-                  placeholder="0"
+                  type="number" min={0} value={budget} onChange={e => setBudget(e.target.value)} placeholder="0"
                   className="flex-1 bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
                 />
               </div>
             </div>
 
             <div>
-              <p className="text-xs uppercase tracking-[2px] text-slate-400 mb-2">Đặt cọc để vào danh sách chờ ($)</p>
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400">$</span>
-                <input
-                  type="number" min={1} value={deposit} onChange={e => setDeposit(e.target.value)}
-                  placeholder="0"
-                  className="flex-1 bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
-                />
-              </div>
-              <p className="mt-1.5 text-[11px] text-slate-500">
-                Tuỳ theo độ gấp về thời gian của bạn mà nhập số tiền đặt cọc — càng gấp, mức cọc càng cao sẽ được ưu tiên xét duyệt sớm hơn. Bắt buộc để vào danh sách chờ.
-              </p>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <LiquidMetalButton label="Tiếp tục" onClick={() => quizValid && setPhase('vectors')} />
-            </div>
-            {!quizValid && (
-              <p className="text-[11px] text-slate-500 text-right -mt-4">Hoàn thành tất cả các mục để tiếp tục.</p>
-            )}
-          </div>
-        )}
-
-        {/* ── Phase 2: learning-style vector dashboard ── */}
-        {phase === 'vectors' && (
-          <div className="glass-card rounded-3xl p-8 flex flex-col gap-7">
-            <div className="text-center">
-              <h1 className="font-serif text-2xl mb-1">Bộ não của bạn vận hành thế nào?</h1>
-              <p className="text-sm text-slate-400">Kéo các thanh trượt — không có câu trả lời đúng/sai, chỉ có cách phù hợp với bạn.</p>
-            </div>
-
-            {SLIDERS.map(s => (
-              <div key={s.key}>
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="text-left">
-                    <p className="text-[11px] font-semibold text-purple-300">{s.left}</p>
-                    <p className="text-[10px] text-slate-500">{s.leftSub}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-[11px] font-semibold text-amber-300">{s.right}</p>
-                    <p className="text-[10px] text-slate-500">{s.rightSub}</p>
-                  </div>
-                </div>
-                <input
-                  type="range" min={0} max={100} value={Math.round(vector[s.key] * 100)}
-                  onChange={e => setSlider(s.key, Number(e.target.value) / 100)}
-                  className="w-full accent-purple-400"
-                  style={{
-                    background: `linear-gradient(to right, rgba(196,164,255,0.6) 0%, rgba(196,164,255,0.6) ${vector[s.key] * 100}%, rgba(252,211,77,0.6) ${vector[s.key] * 100}%, rgba(252,211,77,0.6) 100%)`,
-                    height: 4, borderRadius: 2, appearance: 'none', WebkitAppearance: 'none', outline: 'none', cursor: 'pointer',
-                  }}
-                />
-              </div>
-            ))}
-
-            <div>
-              <p className="text-[11px] uppercase tracking-[2px] text-slate-400 mb-2">Vùng kiến thức mục tiêu</p>
-              <div className="flex flex-wrap gap-2">
-                {SANDBOXES.map(sb => (
-                  <button key={sb.value} onClick={() => setVector(v => ({ ...v, target_sandbox: sb.value }))}
-                    className={`px-3 py-1.5 rounded-xl text-[11px] transition-colors ${vector.target_sandbox === sb.value ? 'glass-pill-active' : 'glass-pill'}`}>
-                    {sb.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <p className="text-[11px] font-semibold text-emerald-300">LOW FRICTION</p>
-                <p className="text-[11px] font-semibold text-red-300">HIGH — PURE LYCEUM MODE</p>
-              </div>
-              <input
-                type="range" min={0} max={100} value={Math.round(vector.cognitive_friction * 100)}
-                onChange={e => setVector(v => ({ ...v, cognitive_friction: Number(e.target.value) / 100 }))}
-                className="w-full"
-                style={{
-                  background: `linear-gradient(to right, rgba(110,231,183,0.6) 0%, rgba(110,231,183,0.6) ${vector.cognitive_friction * 100}%, rgba(252,165,165,0.6) ${vector.cognitive_friction * 100}%, rgba(252,165,165,0.6) 100%)`,
-                  height: 4, borderRadius: 2, appearance: 'none', WebkitAppearance: 'none', outline: 'none', cursor: 'pointer',
-                }}
-              />
-              <p className="text-[10px] text-slate-500 mt-1">
-                {vector.cognitive_friction < 0.5
-                  ? 'AI sẽ gợi ý nhanh hơn khi bạn bị kẹt.'
-                  : 'AI sẽ liên tục hỏi ngược, ép bạn tự vắt óc đến tận cùng — không đưa đáp án sẵn.'}
-              </p>
-            </div>
-
-            <div className="border-t border-white/10 pt-6 flex flex-col gap-3">
-              <p className="text-xs text-slate-400">Gửi đơn với tên <span className="text-slate-200">{name || '—'}</span> · {email || '—'}</p>
               <input
                 value={referralCode} onChange={e => setReferralCode(e.target.value)} placeholder="Mã giới thiệu (nếu có) — được xét ưu tiên"
-                className="bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-slate-200 outline-none border border-white/10 focus:border-white/25"
               />
             </div>
+
+            {/* Required Terms + Privacy agreement */}
+            <label className="flex items-start gap-2.5 cursor-pointer">
+              <input
+                type="checkbox" checked={agreed} onChange={e => setAgreed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 shrink-0 accent-white"
+              />
+              <span className="text-xs text-slate-400 leading-relaxed">
+                Tôi đồng ý với{' '}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-slate-200 underline hover:text-white">Điều khoản dịch vụ</a>
+                {' '}và{' '}
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-slate-200 underline hover:text-white">Chính sách quyền riêng tư</a>.
+              </span>
+            </label>
 
             {error && <p className="text-xs text-red-300/80">{error}</p>}
 
             <div className="flex items-center justify-between pt-1">
-              <button onClick={() => setPhase('quiz')} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+              <button onClick={() => setPhase('start')} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
                 ← Quay lại
               </button>
-              <LiquidMetalButton
-                label={busy ? 'Đang gửi…' : 'Nộp đơn'}
-                onClick={handleSubmit}
-              />
+              <LiquidMetalButton label={busy ? 'Đang gửi…' : 'Nộp đơn'} onClick={handleSubmit} />
             </div>
+            {!quizValid && (
+              <p className="text-[11px] text-slate-500 text-right -mt-3">
+                {agreed ? 'Hoàn thành các mục để nộp đơn.' : 'Cần đồng ý Điều khoản và Chính sách quyền riêng tư để tiếp tục.'}
+              </p>
+            )}
           </div>
         )}
 
-        {/* ── Phase 3: result ── */}
+        {/* ── Phase 2: result ── */}
         {phase === 'result' && (
           <div className="glass-card rounded-3xl p-10 text-center flex flex-col items-center gap-4">
             {alreadyDecided === 'accepted' ? (
               <>
-                <span className="text-5xl">✦</span>
+                <span className="text-4xl">✦</span>
                 <h1 className="font-serif text-2xl">Hồ sơ của bạn đã được duyệt</h1>
                 <p className="text-sm text-slate-400 max-w-sm">Bạn có thể đăng ký tài khoản ngay bây giờ.</p>
                 <LiquidMetalButton label="Đăng ký tài khoản" onClick={() => onNavigate('auth')} />
               </>
             ) : alreadyDecided === 'declined' ? (
               <>
-                <span className="text-5xl">✦</span>
+                <span className="text-4xl">✦</span>
                 <h1 className="font-serif text-2xl">Hồ sơ đã được xem xét</h1>
                 <p className="text-sm text-slate-400 max-w-sm">Rất tiếc, hồ sơ này chưa phù hợp ở thời điểm hiện tại.</p>
               </>
             ) : (
               <>
-                <span className="text-5xl">🕊️</span>
-                <h1 className="font-serif text-2xl">Chúc mừng — bạn đã vào danh sách chờ!</h1>
+                <span className="text-4xl">✦</span>
+                <h1 className="font-serif text-2xl">Đã nhận hồ sơ của bạn</h1>
                 <p className="text-sm text-slate-400 max-w-sm">
-                  Đội ngũ Lyceum sẽ xem xét hồ sơ của bạn sớm nhất có thể. Chúng tôi sẽ báo qua email khi bạn được duyệt.
+                  Chúng tôi sẽ xem xét và báo qua email khi bạn được duyệt.
                 </p>
                 {resultPriority && (
-                  <span className="text-[10px] uppercase tracking-[2px] text-amber-300 bg-amber-400/10 rounded-full px-3 py-1">
-                    ✓ Nhóm ưu tiên xét duyệt
+                  <span className="text-[10px] uppercase tracking-[2px] text-slate-300 bg-white/10 rounded-full px-3 py-1">
+                    Nhóm ưu tiên xét duyệt
                   </span>
                 )}
               </>

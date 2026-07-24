@@ -25,6 +25,7 @@ import { useTheme } from '../context/ThemeContext';
 import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
+import BookCallButton from '../components/BookCallButton';
 
 // ── Socratic dialogue demo — the same method, cycled across unrelated
 // domains to make the point that this isn't a "physics tutor with extras":
@@ -39,12 +40,12 @@ const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
     { role: 'lyceum', text: 'You found it yourself. What changes on the Moon?' },
   ],
   [
-    { role: 'student', text: 'Why did the Roman Republic collapse into an empire?' },
-    { role: 'lyceum', text: 'What happens to a system built for a city when it governs a continent?' },
-    { role: 'student', text: 'The old institutions couldn’t scale — the Senate, the legions loyal to generals...' },
-    { role: 'lyceum', text: 'So who benefits when institutions can’t keep up with power?' },
-    { role: 'student', text: 'Whoever controls the army instead of the law.' },
-    { role: 'lyceum', text: 'That’s Caesar’s whole biography. What does that predict about any republic?' },
+    { role: 'student', text: 'Why does adding salt make water boil at a higher temperature?' },
+    { role: 'lyceum', text: 'What do the salt ions do to the water molecules trying to escape as vapor?' },
+    { role: 'student', text: 'They get in the way — fewer molecules can leave the surface.' },
+    { role: 'lyceum', text: 'So to reach the same escaping rate, what has to change?' },
+    { role: 'student', text: 'You need more heat — a higher temperature.' },
+    { role: 'lyceum', text: 'You derived it. Now — what happens to the freezing point?' },
   ],
   [
     { role: 'student', text: 'Why does my proof by induction feel like cheating?' },
@@ -138,7 +139,7 @@ function DialogueDemo() {
     <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
       <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
         <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Same method, any subject</span>
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Một phương pháp · Toán &amp; Khoa học</span>
       </div>
       <div className="flex flex-col gap-3">
         <AnimatePresence initial={false} mode="popLayout">
@@ -252,6 +253,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             <a href="#faculty" className="nav-link">The Faculty</a>
             <a href="#voices" className="nav-link">Wisdom</a>
             <a href="/library" className="nav-link">Library</a>
+            <BookCallButton label="Book a call" className="nav-link" />
           </div>
           <div className="flex items-center gap-3">
             <motion.button
@@ -298,7 +300,7 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             className="space-y-7 z-10"
           >
             <motion.div variants={fadeUp} transition={{ duration: 0.5 }}>
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">By application only</span>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">Toán & Khoa học · Lớp 10 → năm nhất đại học</span>
             </motion.div>
 
             <div className="relative">
@@ -332,21 +334,25 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               transition={{ duration: 0.6 }}
               className="text-lg text-slate-400 max-w-lg leading-relaxed"
             >
-              Not a course. A discipline — one method, 2,400 years old, held to
-              without exception: the right question, at the exact point your
-              understanding breaks. Admission is by review.
+              Chúng tôi không đưa đáp án. Chúng tôi đặt đúng câu hỏi, ngay tại
+              chỗ bạn đang mắc. Chỉ dạy Toán và Khoa học, cho học sinh lớp 10
+              đến sinh viên năm nhất. Vào học theo xét duyệt.
             </motion.p>
 
             <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
               <LiquidMetalButton
-                label="Apply for Admission"
+                label="Nộp đơn"
                 onClick={() => onNavigate('apply')}
+              />
+              <BookCallButton
+                label="Đặt lịch trò chuyện"
+                className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
               />
               <a
                 href="#method"
                 className="text-sm font-medium text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
               >
-                See how it teaches
+                Xem cách dạy
                 <ArrowDown className="w-4 h-4" />
               </a>
             </motion.div>
@@ -537,7 +543,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <span className="text-sm font-semibold tracking-wider text-white/60">LYCEUM</span>
           <div className="flex items-center gap-6 text-xs text-white/40">
             <a href="/library" className="hover:text-white/70 transition-colors">Library</a>
-            <span className="text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy &middot; named after the school Aristotle founded</span>
+            <a href="/privacy" className="hover:text-white/70 transition-colors">Quyền riêng tư</a>
+            <a href="/terms" className="hover:text-white/70 transition-colors">Điều khoản</a>
+            <span className="text-white/30">&copy; {new Date().getFullYear()} The Lyceum Academy</span>
           </div>
         </div>
       </footer>

@@ -30,6 +30,8 @@ import { detectLocale, setDocumentLocale } from './lib/locale';
 import { scopedGateKey } from './lib/persist';
 import SupportChatWidget from './components/SupportChatWidget';
 import ReviewPopup from './components/ReviewPopup';
+import CookieConsent from './components/CookieConsent';
+import LegalPage from './views/LegalPage';
 
 
 function AppInner() {
@@ -210,6 +212,14 @@ export default function App() {
       <I18nProvider><ThemeProvider><AuthProvider><SecondBrainPage /></AuthProvider></ThemeProvider></I18nProvider>
     );
   }
+  // Legal documents — public, standalone (linked from the waitlist consent
+  // checkbox, the cookie banner, and the footer).
+  if (path === '/privacy') {
+    return <I18nProvider><ThemeProvider><LegalPage doc="privacy" /></ThemeProvider></I18nProvider>;
+  }
+  if (path === '/terms') {
+    return <I18nProvider><ThemeProvider><LegalPage doc="terms" /></ThemeProvider></I18nProvider>;
+  }
 
   return (
     <I18nProvider>
@@ -218,6 +228,7 @@ export default function App() {
         <WorkspaceProvider>
           <ToolDockProvider>
             <AppInner />
+            <CookieConsent />
           </ToolDockProvider>
         </WorkspaceProvider>
       </AuthProvider>

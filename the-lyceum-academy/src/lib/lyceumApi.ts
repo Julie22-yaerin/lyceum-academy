@@ -230,15 +230,13 @@ export interface LearningVector {
 
 export interface ApplicationAnswers {
   grade_level: string;
-  subjects: string;          // free text — which subjects they need to learn
+  subjects: string;          // Math / Science picks
   purpose: string;           // free text — what they're learning it for
   learning_goal: string;     // free text — their concrete study goal
-  does_research: 'yes' | 'no';
-  research_frequency: string;
   biggest_difficulty: string;
   budget_usd: number;
-  /** Waitlist deposit — amount signals urgency; required to join. */
-  deposit_usd: number;
+  /** Records that the applicant accepted the Terms & Privacy Policy. */
+  agreed_terms: boolean;
 }
 
 export function submitApplication(
