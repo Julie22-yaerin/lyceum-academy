@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowDown,
+  ArrowRight,
   ArrowUpRight,
   Atom,
   BookMarked,
   Brain,
+  CalendarClock,
   Compass,
   FlaskConical,
   Gauge,
@@ -22,40 +24,76 @@ import { NavigationProps } from '../types';
 import FeedbackWidget from '../components/FeedbackWidget';
 import SupportChatWidget from '../components/SupportChatWidget';
 import { useTheme } from '../context/ThemeContext';
-import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
 import BookCallButton from '../components/BookCallButton';
+import AboutSection from '../components/landing/AboutSection';
+import FeaturedVideoSection from '../components/landing/FeaturedVideoSection';
+import PhilosophySection from '../components/landing/PhilosophySection';
+import ServicesSection from '../components/landing/ServicesSection';
 
-// ── Socratic dialogue demo — the same method, cycled across unrelated
-// domains to make the point that this isn't a "physics tutor with extras":
-// it's one method applied to anything. ──────────────────────────────────
-const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
-  [
-    { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
-    { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
-    { role: 'student', text: 'Gravity — it never really stops acting on it.' },
-    { role: 'lyceum', text: 'So what does that tell you about its velocity over time?' },
-    { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
-    { role: 'lyceum', text: 'You found it yourself. What changes on the Moon?' },
-  ],
-  [
-    { role: 'student', text: 'Why does adding salt make water boil at a higher temperature?' },
-    { role: 'lyceum', text: 'What do the salt ions do to the water molecules trying to escape as vapor?' },
-    { role: 'student', text: 'They get in the way — fewer molecules can leave the surface.' },
-    { role: 'lyceum', text: 'So to reach the same escaping rate, what has to change?' },
-    { role: 'student', text: 'You need more heat — a higher temperature.' },
-    { role: 'lyceum', text: 'You derived it. Now — what happens to the freezing point?' },
-  ],
-  [
-    { role: 'student', text: 'Why does my proof by induction feel like cheating?' },
-    { role: 'lyceum', text: 'What exactly are you assuming true before you’ve proven the next case?' },
-    { role: 'student', text: 'That it holds for n — but I haven’t shown that for every n yet.' },
-    { role: 'lyceum', text: 'Right — so what makes the base case non-negotiable?' },
-    { role: 'student', text: 'Without it the whole chain has nothing to start from.' },
-    { role: 'lyceum', text: 'Exactly. Now — where would this argument break for real numbers?' },
-  ],
-];
+// ── Hero background video — placeholder footage. Swap for real Lyceum
+// campus/session footage before shipping to production. ──────────────────
+const HERO_VIDEO_SRC = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_074625_a81f018a-956b-43fb-9aee-4d1508e30e6a.mp4';
+
+// Vanilla-JS crossfade loop (no CSS transitions): fades in once the video
+// is playable, fades to black in the final ~0.55s of each play-through,
+// then pauses 100ms before looping — avoids the jump-cut a plain `loop`
+// attribute leaves. Opacity is written directly to the DOM node rather than
+// through a React `style` prop, so re-renders elsewhere on the page (e.g.
+// the email field's onChange) can't stomp on the animation mid-flight.
+function useHeroVideoLoop(videoRef: RefObject<HTMLVideoElement | null>) {
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.style.opacity = '0';
+    let raf = 0;
+    let fadingOut = false;
+
+    function animateOpacity(from: number, to: number, duration: number) {
+      cancelAnimationFrame(raf);
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min((now - start) / duration, 1);
+        video!.style.opacity = String(from + (to - from) * t);
+        if (t < 1) raf = requestAnimationFrame(step);
+      };
+      raf = requestAnimationFrame(step);
+    }
+
+    function handleCanPlay() {
+      video!.play().catch(() => {});
+      animateOpacity(0, 1, 500);
+    }
+    function handleTimeUpdate() {
+      const remaining = video!.duration - video!.currentTime;
+      if (remaining <= 0.55 && !fadingOut) {
+        fadingOut = true;
+        animateOpacity(parseFloat(video!.style.opacity || '1'), 0, 500);
+      }
+    }
+    function handleEnded() {
+      fadingOut = false;
+      video!.style.opacity = '0';
+      setTimeout(() => {
+        video!.currentTime = 0;
+        video!.play().catch(() => {});
+        animateOpacity(0, 1, 500);
+      }, 100);
+    }
+
+    video.addEventListener('canplay', handleCanPlay);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+    video.addEventListener('ended', handleEnded);
+    return () => {
+      video.removeEventListener('canplay', handleCanPlay);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+      video.removeEventListener('ended', handleEnded);
+      cancelAnimationFrame(raf);
+    };
+  }, [videoRef]);
+}
 
 const QUOTES = [
   { text: 'The unexamined life is not worth living.', by: 'Socrates' },
@@ -113,57 +151,6 @@ const EQUATIONS = [
   'E = mc²', '∇·E = ρ/ε₀', 'a² + b² = c²', 'iħ∂ψ/∂t = Ĥψ',
   'F = ma', 'ΔG = ΔH − TΔS', 'PV = nRT', '∫f′(x)dx = f(x) + C', 'S = k log W',
 ];
-
-function DialogueDemo() {
-  const [setIdx, setSetIdx] = useState(0);
-  const [step, setStep] = useState(1);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setStep((s) => {
-        const script = DIALOGUE_SETS[setIdx];
-        if (s >= script.length) {
-          setSetIdx((si) => (si + 1) % DIALOGUE_SETS.length);
-          return 1;
-        }
-        return s + 1;
-      });
-    }, 2200);
-    return () => clearInterval(id);
-  }, [setIdx]);
-
-  const script = DIALOGUE_SETS[setIdx];
-  const visible = script.slice(0, step);
-
-  return (
-    <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
-      <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Một phương pháp · Toán &amp; Khoa học</span>
-      </div>
-      <div className="flex flex-col gap-3">
-        <AnimatePresence initial={false} mode="popLayout">
-          {visible.map((m, i) => (
-            <motion.div
-              key={`${setIdx}-${i}`}
-              initial={{ opacity: 0, y: 10, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.35, ease: 'easeOut' }}
-              className={
-                m.role === 'student'
-                  ? 'self-end max-w-[85%] rounded-2xl rounded-br-sm bg-white/10 px-4 py-2.5 text-[13px] leading-relaxed text-white/90'
-                  : 'self-start max-w-[85%] rounded-2xl rounded-bl-sm bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-400/20 px-4 py-2.5 text-[13px] leading-relaxed text-purple-100'
-              }
-            >
-              {m.text}
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
 
 function EquationMarquee() {
   const doubled = [...EQUATIONS, ...EQUATIONS];
@@ -225,6 +212,17 @@ const stagger = {
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
   const { theme, toggleTheme } = useTheme();
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const [email, setEmail] = useState('');
+  useHeroVideoLoop(heroVideoRef);
+
+  function handleEmailSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (email.trim()) {
+      try { window.localStorage.setItem('lyceum_prefill_email', email.trim()); } catch { /* best-effort only */ }
+    }
+    onNavigate('apply');
+  }
 
   return (
     <div className="relative bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500">
@@ -237,140 +235,132 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
 
       <FeedbackWidget context="landing" />
 
-      {/* Nav */}
-      <motion.nav
-        initial={{ opacity: 0, y: -16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="fixed w-full z-50 top-0 px-6 py-4"
-      >
-        <div className="max-w-7xl mx-auto rounded-full px-6 py-3 flex justify-between items-center glass-strong">
-          <div className="flex items-center gap-2.5 text-xl font-bold tracking-wider text-white">
-            <img src="/logo.png" alt="" className="w-8 h-8 object-contain" />
-            <span className="text-metallic">The Lyceum</span>
-          </div>
-          <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
-            <a href="#method" className="nav-link">The Method</a>
-            <a href="#faculty" className="nav-link">The Faculty</a>
-            <a href="#voices" className="nav-link">Wisdom</a>
-            <a href="/library" className="nav-link">Library</a>
-            <BookCallButton label="Book a call" className="nav-link" />
-          </div>
-          <div className="flex items-center gap-3">
-            <motion.button
-              whileHover={{ scale: 1.08 }}
-              whileTap={{ scale: 0.92 }}
-              onClick={toggleTheme}
-              aria-label="Toggle light / dark mode"
-              className="w-9 h-9 flex items-center justify-center rounded-full text-white glass-btn"
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={theme}
-                  initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
-                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                  exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
-                  transition={{ duration: 0.25 }}
-                  className="flex items-center justify-center"
-                >
-                  {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                </motion.span>
-              </AnimatePresence>
-            </motion.button>
-            <LiquidMetalButton
-              label="Launch Workspace"
-              onClick={() => onNavigate('auth')}
-            />
-          </div>
-        </div>
-      </motion.nav>
-
-      {/* Hero */}
-      <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-16 min-h-screen flex items-center">
-        <div className="hero-shader pointer-events-none absolute inset-0 -z-0 overflow-hidden flex items-center justify-center">
-          <div className="relative w-full max-w-6xl aspect-[16/10]">
-            <ShaderAnimation />
-          </div>
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
-          {/* Left: headline + CTA */}
-          <motion.div
-            initial="hidden"
-            animate="show"
-            variants={stagger}
-            className="space-y-7 z-10"
-          >
-            <motion.div variants={fadeUp} transition={{ duration: 0.5 }}>
-              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">Toán & Khoa học · Lớp 10 → năm nhất đại học</span>
-            </motion.div>
-
-            <div className="relative">
-              <h1 className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic">
-                <TextReveal
-                  as="span"
-                  className="inline"
-                  per="word"
-                  preset="fade-in-blur"
-                  delay={0.2}
-                  speedReveal={1.2}
-                >
-                  {"We don't give answers."}
-                </TextReveal>
-                <br />
-                <TextReveal
-                  as="span"
-                  className="inline"
-                  per="word"
-                  preset="fade-in-blur"
-                  delay={0.6}
-                  speedReveal={1.2}
-                >
-                  {"We make you find them."}
-                </TextReveal>
-              </h1>
+      {/* Cinematic marketing block — Hero + About + Featured Video +
+          Philosophy + Services. Deliberately committed to bg-black
+          regardless of the app's light/dark toggle (see .lyceum-cinematic
+          overrides in index.css). */}
+      <div className="lyceum-cinematic relative bg-black">
+        {/* Nav */}
+        <motion.nav
+          initial={{ opacity: 0, y: -16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="fixed w-full z-50 top-0 px-6 py-4"
+        >
+          <div className="max-w-5xl mx-auto liquid-glass rounded-full px-6 py-3 flex justify-between items-center">
+            <div className="flex items-center gap-2.5">
+              <img src="/logo.png" alt="" className="w-6 h-6 object-contain" />
+              <span className="text-white font-semibold text-lg">The Lyceum</span>
+              <div className="hidden md:flex items-center gap-8 ml-8">
+                <a href="#method" className="text-white/80 hover:text-white text-sm font-medium transition-colors">The Method</a>
+                <a href="#faculty" className="text-white/80 hover:text-white text-sm font-medium transition-colors">The Faculty</a>
+                <a href="/library" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Library</a>
+              </div>
             </div>
-
-            <motion.p
-              variants={fadeUp}
-              transition={{ duration: 0.6 }}
-              className="text-lg text-slate-400 max-w-lg leading-relaxed"
-            >
-              Chúng tôi không đưa đáp án. Chúng tôi đặt đúng câu hỏi, ngay tại
-              chỗ bạn đang mắc. Chỉ dạy Toán và Khoa học, cho học sinh lớp 10
-              đến sinh viên năm nhất. Vào học theo xét duyệt.
-            </motion.p>
-
-            <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
-              <LiquidMetalButton
-                label="Nộp đơn"
-                onClick={() => onNavigate('apply')}
-              />
-              <BookCallButton
-                label="Đặt lịch trò chuyện"
-                className="text-sm font-medium text-slate-400 hover:text-white transition-colors"
-              />
-              <a
-                href="#method"
-                className="text-sm font-medium text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => onNavigate('auth')}
+                className="text-white text-sm font-medium hover:text-white/80 transition-colors"
               >
-                Xem cách dạy
-                <ArrowDown className="w-4 h-4" />
-              </a>
-            </motion.div>
-          </motion.div>
+                Log in
+              </button>
+              <motion.button
+                whileHover={{ scale: 1.08 }}
+                whileTap={{ scale: 0.92 }}
+                onClick={toggleTheme}
+                aria-label="Toggle light / dark mode"
+                className="liquid-glass w-9 h-9 flex items-center justify-center rounded-full text-white"
+              >
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.span
+                    key={theme}
+                    initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
+                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                    exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
+                    transition={{ duration: 0.25 }}
+                    className="flex items-center justify-center"
+                  >
+                    {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                  </motion.span>
+                </AnimatePresence>
+              </motion.button>
+              <button
+                type="button"
+                onClick={() => onNavigate('apply')}
+                className="liquid-glass rounded-full px-6 py-2 text-white text-sm font-medium"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </motion.nav>
 
-          {/* Right: live dialogue demo */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.94 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-            className="relative w-full flex justify-center lg:justify-end z-10"
-          >
-            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 to-purple-500/20 rounded-full blur-3xl transform scale-75" />
-            <DialogueDemo />
-          </motion.div>
-        </div>
-      </main>
+        {/* Hero */}
+        <main className="relative min-h-screen overflow-hidden flex flex-col">
+          <video
+            ref={heroVideoRef}
+            className="absolute inset-0 w-full h-full object-cover object-bottom"
+            src={HERO_VIDEO_SRC}
+            muted
+            autoPlay
+            playsInline
+            preload="auto"
+          />
+          <div className="absolute inset-0 bg-black/30" />
+
+          <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-12 text-center gap-8">
+            <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">Toán &amp; Khoa học · Lớp 10 → năm nhất đại học</span>
+
+            <h1 className="font-instrument text-6xl md:text-7xl lg:text-8xl text-white tracking-tight leading-[1.05] whitespace-nowrap">
+              Know it. Then <em className="italic">derive</em> it.
+            </h1>
+
+            <form onSubmit={handleEmailSubmit} className="w-full max-w-xl liquid-glass rounded-full pl-6 pr-2 py-2 flex items-center gap-3">
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                className="flex-1 bg-transparent text-white placeholder:text-white/40 text-sm outline-none"
+              />
+              <button type="submit" aria-label="Continue to application" className="bg-white rounded-full p-3 text-black shrink-0">
+                <ArrowRight className="w-5 h-5" />
+              </button>
+            </form>
+
+            <p className="max-w-md text-white text-sm leading-relaxed px-4">
+              Nhận email khi hồ sơ tuyển sinh mở, cùng ghi chú ngắn từ Coach về cách tự học Toán và Khoa học cho đúng.
+            </p>
+
+            <a
+              href="#method"
+              className="liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors"
+            >
+              Đọc Tuyên ngôn
+            </a>
+          </div>
+
+          {/* Quick links — real internal destinations, not fabricated social accounts */}
+          <div className="relative z-10 flex justify-center gap-4 pb-12">
+            <a href="/library" aria-label="Library" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
+              <Library className="w-5 h-5" />
+            </a>
+            <a href="/secondbrain" aria-label="Second Brain" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
+              <BookMarked className="w-5 h-5" />
+            </a>
+            <BookCallButton label="Book a call" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
+              <CalendarClock className="w-5 h-5" />
+            </BookCallButton>
+          </div>
+        </main>
+
+        <AboutSection />
+        <FeaturedVideoSection />
+        <PhilosophySection />
+        <ServicesSection />
+      </div>
 
       <EquationMarquee />
 

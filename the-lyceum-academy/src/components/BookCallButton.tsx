@@ -5,7 +5,7 @@
  *
  * Cal link: nhu-y-pham-aliana-afiwbr/thelyceum.site (namespace "thelyceum.site").
  */
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 
 const CAL_NAMESPACE = 'thelyceum.site';
 const CAL_LINK = 'nhu-y-pham-aliana-afiwbr/thelyceum.site';
@@ -45,9 +45,10 @@ function ensureCalLoaded() {
 interface Props {
   label?: string;
   className?: string;
+  children?: ReactNode;
 }
 
-export default function BookCallButton({ label = 'Book a call', className = '' }: Props) {
+export default function BookCallButton({ label = 'Book a call', className = '', children }: Props) {
   useEffect(() => { ensureCalLoaded(); }, []);
 
   return (
@@ -58,7 +59,7 @@ export default function BookCallButton({ label = 'Book a call', className = '' }
       data-cal-config='{"layout":"month_view","useSlotsViewOnSmallScreen":"true"}'
       className={className || 'text-sm font-medium text-slate-300 hover:text-white transition-colors'}
     >
-      {label}
+      {children ?? label}
     </button>
   );
 }
