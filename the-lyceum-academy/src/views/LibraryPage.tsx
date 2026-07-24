@@ -23,6 +23,19 @@ function timeAgo(iso: string): string {
   return 'just now';
 }
 
+// Posts store plain text (no HTML/markdown rendering, to stay XSS-safe) —
+// this is the one exception: **word** renders as a bold keyword highlight,
+// everything else stays literal text.
+function renderHighlighted(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={i} className="text-white font-semibold">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+}
+
 function ComposeModal({ onClose, onPosted }: { onClose: () => void; onPosted: () => void }) {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -119,7 +132,11 @@ function PostDetail({ postId, onBack }: { postId: string; onBack: () => void }) 
         </a>
       )}
 
-      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap mb-8">{post.body}</p>
+      {post.image_data_url && (
+        <img src={post.image_data_url} alt="" className="w-full rounded-2xl border border-white/10 mb-6" />
+      )}
+
+      <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-wrap mb-8">{renderHighlighted(post.body)}</p>
 
       <div className="flex flex-wrap gap-2 mb-8">
         {REACTION_EMOJI.map(e => (
@@ -215,7 +232,7 @@ export default function LibraryPage() {
                       <span className="text-[11px] text-slate-500">{p.author_name} · {timeAgo(p.created_at)}</span>
                     </div>
                     <p className="font-serif text-lg text-white mb-1">{p.title}</p>
-                    <p className="text-xs text-slate-500 line-clamp-2">{p.body.slice(0, 160)}</p>
+                    <p className="text-xs text-slate-500 line-clamp-2">{p.body.replace(/\*\*/g, '').slice(0, 160)}</p>
                     <div className="flex items-center gap-3 mt-3 text-xs text-slate-500">
                       <span>💬 {p.comment_count}</span>
                       {Object.entries(p.reactions).map(([e, n]) => <span key={e}>{e} {n}</span>)}

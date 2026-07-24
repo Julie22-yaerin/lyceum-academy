@@ -1,0 +1,24 @@
+**Câu hỏi đầu tiên:** một electron bay quanh hạt nhân — vậy nó đang ở vị trí nào, tại đúng khoảnh khắc này?
+
+Nghe có vẻ dễ. Nhưng electron nhỏ đến mức nó không có "đường bay" cố định như một hành tinh quay quanh mặt trời. Đây là ý đầu tiên, và cũng là ý khó chấp nhận nhất: **không có quỹ đạo tròn**. Mô hình Bohr (vòng tròn quanh hạt nhân) chỉ là hình vẽ dễ hiểu, không phải sự thật.
+
+Vậy nếu không phải một đường tròn, thì là gì? Vì electron vừa là hạt vừa là **sóng**, vị trí của nó chỉ có thể mô tả bằng **xác suất** — nơi nào electron có khả năng xuất hiện nhiều nhất, nơi nào ít hơn. Vùng không gian đó gọi là **orbital**: một đám mây xác suất quanh hạt nhân, không phải một con đường.
+
+Đám mây đó được tính ra từ một phương trình duy nhất, gọi là **phương trình Schrödinger**:
+
+Ĥψ = Eψ
+
+Đừng sợ ký hiệu này. **ψ** (hàm sóng) chứa toàn bộ thông tin về electron; bình phương của nó, **ψ²**, chính là xác suất tìm thấy electron tại một điểm. Phương trình chỉ nói một điều rất đơn giản: năng lượng (E) của electron gắn liền với hình dạng của đám mây xác suất đó (ψ). Đổi hình dạng đám mây, năng lượng cũng đổi theo.
+
+Giải phương trình này cho ra các đám mây với hình dạng khác nhau — mỗi hình dạng có một cái tên:
+
+- **orbital s**: hình cầu, đối xứng mọi hướng quanh hạt nhân.
+- **orbital p**: hình quả tạ đôi (hai thùy), luôn có 3 hướng vuông góc với nhau: **px, py, pz**.
+
+(Ở mức 9701, bạn chỉ cần nhận diện hình dạng s và p — d và f phức tạp hơn, để dành cho sau.)
+
+Mỗi orbital còn có một "địa chỉ" riêng, gồm ba con số gọi là **số lượng tử**: **n** (lớp electron đang ở, năng lượng cao hay thấp), **l** (hình dạng — s, p, d…), và **ml** (hướng orbital chỉ về đâu trong không gian). Giống một địa chỉ nhà thật: thành phố (n), loại nhà (l), và số nhà trên phố đó (ml).
+
+Và mỗi orbital chỉ chứa được **tối đa 2 electron**, quay theo hai chiều spin ngược nhau — hệ quả trực tiếp của **nguyên lý loại trừ Pauli**.
+
+**Câu hỏi để bạn tự đào sâu:** nếu electron không có vị trí cố định, vậy câu "electron đang ở lớp 2" thật ra đang nói về năng lượng, hay đang nói về vị trí?

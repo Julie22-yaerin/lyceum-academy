@@ -26,14 +26,15 @@ ALLOWED_EMOJI = {"👍", "❤️", "🤯", "💡", "🔥", "🤔"}
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS library_posts (
-    id           TEXT PRIMARY KEY,
-    author_uid   TEXT NOT NULL,
-    author_name  TEXT NOT NULL DEFAULT '',
-    title        TEXT NOT NULL,
-    type         TEXT NOT NULL DEFAULT 'blog',
-    body         TEXT NOT NULL DEFAULT '',
-    paper_url    TEXT NOT NULL DEFAULT '',
-    created_at   TEXT NOT NULL
+    id             TEXT PRIMARY KEY,
+    author_uid     TEXT NOT NULL,
+    author_name    TEXT NOT NULL DEFAULT '',
+    title          TEXT NOT NULL,
+    type           TEXT NOT NULL DEFAULT 'blog',
+    body           TEXT NOT NULL DEFAULT '',
+    paper_url      TEXT NOT NULL DEFAULT '',
+    image_data_url TEXT NOT NULL DEFAULT '',
+    created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_library_posts_created ON library_posts(created_at DESC);
 
@@ -68,6 +69,16 @@ def _conn() -> sqlite3.Connection:
 def init_db() -> None:
     with _conn() as c:
         c.executescript(_DDL)
+        _migrate(c)
+
+
+def _migrate(c: sqlite3.Connection) -> None:
+    """Defensive column add for DBs created before image_data_url existed —
+    a no-op once the column is present (a parallel deploy may have already
+    created the table via the older DDL before this shipped)."""
+    cols = {r[1] for r in c.execute("PRAGMA table_info(library_posts)").fetchall()}
+    if "image_data_url" not in cols:
+        c.execute("ALTER TABLE library_posts ADD COLUMN image_data_url TEXT NOT NULL DEFAULT ''")
 
 
 def _now() -> str:
@@ -83,6 +94,7 @@ def _reaction_counts(c: sqlite3.Connection, post_id: str) -> dict[str, int]:
 
 def create_post(
     uid: str, author_name: str, title: str, body: str, post_type: str = "blog", paper_url: str = "",
+    image_data_url: str = "",
 ) -> dict[str, Any]:
     title = (title or "").strip()
     if not title:
@@ -93,10 +105,12 @@ def create_post(
     now = _now()
     with _conn() as c:
         c.executescript(_DDL)
+        _migrate(c)
         c.execute(
-            "INSERT INTO library_posts (id, author_uid, author_name, title, type, body, paper_url, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (post_id, uid, author_name[:80], title[:200], post_type, body[:20000], paper_url[:500], now),
+            "INSERT INTO library_posts (id, author_uid, author_name, title, type, body, paper_url, image_data_url, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (post_id, uid, author_name[:80], title[:200], post_type, body[:20000], paper_url[:500],
+             image_data_url[:2_000_000], now),
         )
     return {"ok": True, "id": post_id}
 
@@ -104,6 +118,7 @@ def create_post(
 def list_posts(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
     with _conn() as c:
         c.executescript(_DDL)
+        _migrate(c)
         rows = c.execute(
             "SELECT * FROM library_posts ORDER BY created_at DESC LIMIT ? OFFSET ?", (limit, offset)
         ).fetchall()
@@ -122,6 +137,7 @@ def list_posts(limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
 def get_post(post_id: str) -> dict[str, Any] | None:
     with _conn() as c:
         c.executescript(_DDL)
+        _migrate(c)
         row = c.execute("SELECT * FROM library_posts WHERE id=?", (post_id,)).fetchone()
         if not row:
             return None
@@ -133,6 +149,16 @@ def get_post(post_id: str) -> dict[str, Any] | None:
         ).fetchall()
         post["comments"] = [dict(cm) for cm in comments]
     return post
+
+
+def find_post_by_title(title: str) -> dict[str, Any] | None:
+    """Used by one-time content seeds (see app.seed_content) to stay
+    idempotent across repeated deploys/restarts."""
+    with _conn() as c:
+        c.executescript(_DDL)
+        _migrate(c)
+        row = c.execute("SELECT id FROM library_posts WHERE title=? LIMIT 1", (title,)).fetchone()
+        return dict(row) if row else None
 
 
 def add_comment(post_id: str, uid: str, author_name: str, content: str) -> dict[str, Any]:

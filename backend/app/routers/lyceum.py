@@ -154,6 +154,7 @@ class LibraryPostRequest(BaseModel):
     body: str = ""
     type: str = "blog"  # 'blog' | 'paper'
     paper_url: str = ""
+    image_data_url: str = ""  # optional "data:image/png;base64,..." inline illustration
 
 
 class LibraryCommentRequest(BaseModel):
@@ -187,7 +188,9 @@ async def library_get_post(post_id: str):
 @limiter.limit("10/minute")
 async def library_create_post(request: Request, req: LibraryPostRequest, auth: dict = Depends(require_auth)):
     from app.services import library as library_svc
-    result = library_svc.create_post(_uid(auth), _display_name(auth), req.title, req.body, req.type, req.paper_url)
+    result = library_svc.create_post(
+        _uid(auth), _display_name(auth), req.title, req.body, req.type, req.paper_url, req.image_data_url,
+    )
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error"))
     return result

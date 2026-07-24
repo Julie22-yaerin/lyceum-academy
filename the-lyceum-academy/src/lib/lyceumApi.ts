@@ -265,7 +265,7 @@ export function redeemAccessCode(code: string, email: string): Promise<{ ok: boo
 
 export interface LibraryPost {
   id: string; author_uid: string; author_name: string; title: string;
-  type: 'blog' | 'paper'; body: string; paper_url: string; created_at: string;
+  type: 'blog' | 'paper'; body: string; paper_url: string; image_data_url: string; created_at: string;
   comment_count: number; reactions: Record<string, number>;
 }
 
@@ -281,8 +281,8 @@ export function getLibraryPost(id: string): Promise<LibraryPostDetail> {
   return publicGetJson(`/library/posts/${id}`);
 }
 
-export function createLibraryPost(title: string, body: string, type: 'blog' | 'paper' = 'blog', paperUrl = ''): Promise<{ ok: boolean; id: string }> {
-  return postJson('/library/posts', { title, body, type, paper_url: paperUrl });
+export function createLibraryPost(title: string, body: string, type: 'blog' | 'paper' = 'blog', paperUrl = '', imageDataUrl = ''): Promise<{ ok: boolean; id: string }> {
+  return postJson('/library/posts', { title, body, type, paper_url: paperUrl, image_data_url: imageDataUrl });
 }
 
 export function addLibraryComment(postId: string, content: string): Promise<{ ok: boolean; id: string }> {

@@ -328,6 +328,12 @@ async def lifespan(_app: FastAPI):
     from app.services import access_codes as access_codes_svc
     access_codes_svc.init_db()
 
+    from app.seed_content import seed_atomic_orbitals_note
+    try:
+        seed_atomic_orbitals_note()
+    except Exception:
+        logger.warning("seed_content: atomic orbitals note seed failed", exc_info=True)
+
     # ── Start background AI agents ─────────────────────────────────────────
     from app.services.ai_agents import AGENTS as _ai_agents
     for _aid, _agent in _ai_agents.items():
