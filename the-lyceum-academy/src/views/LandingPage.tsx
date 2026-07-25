@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
-  ArrowDown,
-  ArrowRight,
   ArrowUpRight,
   Atom,
   BookMarked,
@@ -13,29 +11,23 @@ import {
   Gauge,
   Library,
   MessagesSquare,
-  Moon,
+  ArrowRight,
   ScanSearch,
   ShieldQuestion,
   Sparkles,
-  Sun,
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
 import FeedbackWidget from '../components/FeedbackWidget';
 import SupportChatWidget from '../components/SupportChatWidget';
-import { useTheme } from '../context/ThemeContext';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
 import BookCallButton from '../components/BookCallButton';
-import AboutSection from '../components/landing/AboutSection';
-import { WindowStarsScene, DeskLampScene, OrbitScene } from '../components/landing/LandingScenes';
-import FeaturedVideoSection from '../components/landing/FeaturedVideoSection';
-import PhilosophySection from '../components/landing/PhilosophySection';
-import ServicesSection from '../components/landing/ServicesSection';
+import { DeskLampScene, OrbitScene } from '../components/landing/LandingScenes';
 
 // ── Hero background video — placeholder footage. Swap for real Lyceum
 // campus/session footage before shipping to production. ──────────────────
-const HERO_VIDEO_SRC = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_074625_a81f018a-956b-43fb-9aee-4d1508e30e6a.mp4';
+const HERO_VIDEO_SRC = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4';
 
 // Vanilla-JS crossfade loop (no CSS transitions): fades in once the video
 // is playable, fades to black in the final ~0.55s of each play-through,
@@ -212,7 +204,6 @@ const stagger = {
 
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
-  const { theme, toggleTheme } = useTheme();
   const heroVideoRef = useRef<HTMLVideoElement>(null);
   const [email, setEmail] = useState('');
   useHeroVideoLoop(heroVideoRef);
@@ -236,56 +227,42 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
 
       <FeedbackWidget context="landing" />
 
-      {/* Cinematic marketing block — Hero + About + Featured Video +
-          Philosophy + Services. Deliberately committed to bg-black
-          regardless of the app's light/dark toggle (see .lyceum-cinematic
-          overrides in index.css). */}
-      <div className="lyceum-cinematic relative bg-black">
+      {/* Cinematic hero block — deliberately committed to bg-black regardless
+          of the app's light/dark toggle (see .lyceum-cinematic overrides in
+          index.css). Nav sits in normal flow here (not fixed) and scrolls
+          away with the hero, by design of this layout. */}
+      <div className="lyceum-cinematic relative min-h-screen bg-black overflow-hidden flex flex-col">
+        <video
+          ref={heroVideoRef}
+          className="absolute inset-0 w-full h-full object-cover translate-y-[17%]"
+          src={HERO_VIDEO_SRC}
+          muted
+          autoPlay
+          playsInline
+          preload="auto"
+        />
+
         {/* Nav */}
         <motion.nav
           initial={{ opacity: 0, y: -16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed w-full z-50 top-0 px-6 py-4"
+          className="relative z-20 pl-6 pr-6 py-6"
         >
-          <div className="max-w-5xl mx-auto liquid-glass rounded-full px-6 py-3 flex justify-between items-center">
-            <div className="flex items-center gap-2.5">
+          <div className="max-w-5xl mx-auto liquid-glass rounded-full px-6 py-3 flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <img src="/logo.png" alt="" className="w-6 h-6 object-contain" />
               <span className="text-white font-semibold text-lg">The Lyceum</span>
               <div className="hidden md:flex items-center gap-8 ml-8">
-                <a href="#method" className="text-white/80 hover:text-white text-sm font-medium transition-colors">The Method</a>
-                <a href="#faculty" className="text-white/80 hover:text-white text-sm font-medium transition-colors">The Faculty</a>
-                <a href="/library" className="text-white/80 hover:text-white text-sm font-medium transition-colors">Library</a>
+                <a href="#method" className="text-white/80 hover:text-white transition-colors text-sm font-medium">The Method</a>
+                <a href="#faculty" className="text-white/80 hover:text-white transition-colors text-sm font-medium">The Faculty</a>
+                <a href="/library" className="text-white/80 hover:text-white transition-colors text-sm font-medium">Library</a>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => onNavigate('auth')}
-                className="text-white text-sm font-medium hover:text-white/80 transition-colors"
-              >
+            <div className="flex items-center gap-4">
+              <button type="button" onClick={() => onNavigate('auth')} className="text-white text-sm font-medium">
                 Log in
               </button>
-              <motion.button
-                whileHover={{ scale: 1.08 }}
-                whileTap={{ scale: 0.92 }}
-                onClick={toggleTheme}
-                aria-label="Toggle light / dark mode"
-                className="liquid-glass w-9 h-9 flex items-center justify-center rounded-full text-white"
-              >
-                <AnimatePresence mode="wait" initial={false}>
-                  <motion.span
-                    key={theme}
-                    initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
-                    animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                    exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
-                    transition={{ duration: 0.25 }}
-                    className="flex items-center justify-center"
-                  >
-                    {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                  </motion.span>
-                </AnimatePresence>
-              </motion.button>
               <button
                 type="button"
                 onClick={() => onNavigate('apply')}
@@ -297,47 +274,36 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           </div>
         </motion.nav>
 
-        {/* Hero */}
-        <main className="relative min-h-screen overflow-hidden flex flex-col">
-          <video
-            ref={heroVideoRef}
-            className="absolute inset-0 w-full h-full object-cover object-bottom"
-            src={HERO_VIDEO_SRC}
-            muted
-            autoPlay
-            playsInline
-            preload="auto"
-          />
-          <div className="absolute inset-0 bg-black/30" />
-
-          <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-12 text-center gap-8">
-            <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">Toán &amp; Khoa học · Lớp 10 → năm nhất đại học</span>
-
-            <h1 className="font-instrument text-6xl md:text-7xl lg:text-8xl text-white tracking-tight leading-[1.05] whitespace-nowrap">
-              Know it. Then <em className="italic">derive</em> it.
+        {/* Hero content */}
+        <main className="relative z-10 flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center -translate-y-[20%]">
+            <h1 className="font-instrument text-5xl md:text-6xl lg:text-7xl text-white mb-8 tracking-tight whitespace-nowrap">
+              Built for the curious
             </h1>
 
-            <form onSubmit={handleEmailSubmit} className="w-full max-w-xl liquid-glass rounded-full pl-6 pr-2 py-2 flex items-center gap-3">
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="flex-1 bg-transparent text-white placeholder:text-white/40 text-sm outline-none"
-              />
-              <button type="submit" aria-label="Continue to application" className="bg-white rounded-full p-3 text-black shrink-0">
-                <ArrowRight className="w-5 h-5" />
-              </button>
-            </form>
+            <div className="max-w-xl w-full space-y-4">
+              <form onSubmit={handleEmailSubmit} className="liquid-glass rounded-full pl-6 pr-2 py-2 flex items-center gap-3">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="flex-1 bg-transparent text-white placeholder:text-white/40 text-base outline-none"
+                />
+                <button type="submit" aria-label="Continue to application" className="bg-white rounded-full p-3 text-black shrink-0">
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </form>
 
-            <p className="max-w-md text-white text-sm leading-relaxed px-4">
-              Nhận email khi hồ sơ tuyển sinh mở, cùng ghi chú ngắn từ Coach về cách tự học Toán và Khoa học cho đúng.
-            </p>
+              <p className="text-white text-sm leading-relaxed px-4">
+                Nhận email khi hồ sơ tuyển sinh mở, cùng ghi chú ngắn từ Coach về cách tự học Toán và Khoa học cho đúng.
+              </p>
+            </div>
 
             <a
               href="#method"
-              className="liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors"
+              className="mt-6 liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors"
             >
               Đọc Tuyên ngôn
             </a>
@@ -356,11 +322,6 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </BookCallButton>
           </div>
         </main>
-
-        <AboutSection />
-        <FeaturedVideoSection />
-        <PhilosophySection />
-        <ServicesSection />
       </div>
 
       <EquationMarquee />
@@ -381,9 +342,6 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </TextReveal>
           </h2>
           <p className="text-slate-400 max-w-xl mx-auto">Every session is the same experiment, run on your own mind.</p>
-          <div className="w-56 h-36 mx-auto mt-8 rounded-2xl overflow-hidden glass">
-            <WindowStarsScene className="w-full h-full" />
-          </div>
         </motion.div>
 
         <motion.div

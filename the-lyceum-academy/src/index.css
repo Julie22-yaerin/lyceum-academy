@@ -402,22 +402,8 @@ body {
 /* ── Landing "scene" loops — see src/components/landing/LandingScenes.tsx ─
    Small SVG vignettes standing in for real photography/video. Every
    animation shares a 5s period so each scene reads as one seamless loop,
-   even though individual elements (stars, dust motes) are phase-offset via
-   inline animation-delay. */
-@keyframes scene-twinkle {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 1; }
-}
-@keyframes scene-shooting-star {
-  0% { transform: translate(0, 0); opacity: 0; }
-  4% { opacity: 1; }
-  22% { transform: translate(64px, 36px); opacity: 0; }
-  100% { transform: translate(64px, 36px); opacity: 0; }
-}
-@keyframes scene-boy-bob {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
-}
+   even though individual elements (dust motes) are phase-offset via inline
+   animation-delay. */
 @keyframes scene-lamp-glow {
   0%, 100% { opacity: 0.2; transform: scale(1); }
   50% { opacity: 0.4; transform: scale(1.08); }
@@ -427,17 +413,9 @@ body {
   15% { opacity: 0.8; }
   100% { transform: translateY(-46px); opacity: 0; }
 }
-@keyframes scene-moon-glow {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 1; }
-}
 
-.scene-twinkle { animation: scene-twinkle 5s ease-in-out infinite; }
-.scene-shooting-star { animation: scene-shooting-star 5s ease-in infinite; }
-.scene-boy-bob { animation: scene-boy-bob 5s ease-in-out infinite; transform-origin: bottom center; }
 .scene-lamp-glow { animation: scene-lamp-glow 5s ease-in-out infinite; transform-origin: center; }
 .scene-dust-rise { animation: scene-dust-rise 5s ease-in-out infinite; }
-.scene-moon-glow { animation: scene-moon-glow 5s ease-in-out infinite; }
 
 /* ── Text utilities ───────────────────────────────────────────────────── */
 

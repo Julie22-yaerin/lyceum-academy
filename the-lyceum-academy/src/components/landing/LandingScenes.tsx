@@ -5,46 +5,6 @@
  * generation dependency — a stand-in until real footage exists.
  */
 
-export function WindowStarsScene({ className = '' }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 280 180" className={className} preserveAspectRatio="xMidYMid slice">
-      <rect width="280" height="180" fill="#0b0e1c" />
-      {/* stars */}
-      {STAR_POSITIONS.map((s, i) => (
-        <circle
-          key={i} cx={s.x} cy={s.y} r={s.r} fill="#fff"
-          className="scene-twinkle" style={{ animationDelay: `${s.delay}s` }}
-        />
-      ))}
-      {/* moon */}
-      <circle cx="226" cy="34" r="14" fill="#f3e9c8" className="scene-moon-glow" />
-      {/* shooting star */}
-      <line x1="40" y1="30" x2="66" y2="42" stroke="#fff" strokeWidth="2" strokeLinecap="round"
-        className="scene-shooting-star" opacity="0" />
-      {/* window frame */}
-      <rect x="90" y="10" width="100" height="130" rx="6" fill="none" stroke="#e8e6df" strokeWidth="5" />
-      <line x1="140" y1="10" x2="140" y2="140" stroke="#e8e6df" strokeWidth="4" />
-      <line x1="90" y1="75" x2="190" y2="75" stroke="#e8e6df" strokeWidth="4" />
-      {/* sill */}
-      <rect x="82" y="140" width="116" height="8" rx="2" fill="#e8e6df" />
-      {/* boy silhouette, standing at the sill looking up */}
-      <g className="scene-boy-bob">
-        <circle cx="140" cy="122" r="9" fill="#0b0e1c" />
-        <path d="M126 148 Q140 118 154 148 L152 160 Q140 152 128 160 Z" fill="#0b0e1c" />
-      </g>
-    </svg>
-  );
-}
-
-const STAR_POSITIONS = [
-  { x: 30, y: 20, r: 1.4, delay: 0 }, { x: 55, y: 55, r: 1, delay: 0.6 },
-  { x: 18, y: 90, r: 1.6, delay: 1.2 }, { x: 70, y: 18, r: 1, delay: 1.8 },
-  { x: 105, y: 25, r: 1.2, delay: 0.3 }, { x: 175, y: 22, r: 1.3, delay: 2.1 },
-  { x: 205, y: 60, r: 1, delay: 0.9 }, { x: 250, y: 90, r: 1.5, delay: 1.5 },
-  { x: 260, y: 40, r: 1, delay: 2.6 }, { x: 15, y: 140, r: 1.2, delay: 3.1 },
-  { x: 240, y: 130, r: 1.4, delay: 1.0 }, { x: 195, y: 100, r: 1, delay: 3.6 },
-];
-
 export function DeskLampScene({ className = '' }: { className?: string }) {
   return (
     <svg viewBox="0 0 280 180" className={className} preserveAspectRatio="xMidYMid slice">
