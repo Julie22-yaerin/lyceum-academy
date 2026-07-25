@@ -51,6 +51,11 @@ Lyceum ship-day router — the new product surface added for launch:
     POST /ai/exercise-cards/reverse-build/evaluate   — free (paired with reveal)
     POST /ai/exercise-cards/problem-image            — 150 Quanta
 
+  Text-to-speech (Floating Podcast narration — see app.services.cloudflare_ai)
+    GET  /ai/tts/status          — is server-side narration configured?
+    POST /ai/tts                 — script -> MP3 (free; falls back client-side
+                                    to browser speechSynthesis when absent)
+
   Applications (registration is closed — "Get Started" applies to a waitlist)
     POST /applications/apply     — public, no auth: submit the onboarding
                                     quest (placement answers + learning-style
@@ -893,3 +898,37 @@ async def exercise_cards_problem_image(request: Request, req: ExerciseCardsImage
         raise HTTPException(status_code=502, detail=str(e))
     quanta_svc.spend_tokens(uid, tokens=150, pool="standard", context="/ai/exercise-cards/problem-image")
     return {"image_base64": base64.b64encode(png_bytes).decode("ascii")}
+
+
+class TtsRequest(BaseModel):
+    text: str
+    lang: str = "en"
+
+
+@router.get("/ai/tts/status")
+async def tts_status():
+    """Whether server-side narration is available. The Floating Podcast asks
+    first and falls back to the browser's own speechSynthesis if not."""
+    from app.services import cloudflare_ai
+    return {"available": cloudflare_ai.tts_configured()}
+
+
+@router.post("/ai/tts")
+@limiter.limit("10/minute")
+async def text_to_speech(request: Request, req: TtsRequest, auth: dict = Depends(require_auth)):
+    """Narrate a script (typically the podcast script Coach wrote) as audio.
+    Returns MP3 bytes. Free — no Quanta: this is a delivery format for
+    material the student already paid to generate, not a new generation."""
+    from app.services import cloudflare_ai
+    from fastapi import Response
+
+    text = req.text.strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text_required")
+    if not cloudflare_ai.tts_configured():
+        raise HTTPException(status_code=503, detail="tts_not_configured")
+    try:
+        audio = await cloudflare_ai.text_to_speech(text, req.lang)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    return Response(content=audio, media_type="audio/mpeg")

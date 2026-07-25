@@ -517,7 +517,7 @@ def concept_answer(
 
 
 async def get_image(session_id: str, item_id: str) -> bytes:
-    from app.services import local_image
+    from app.services import image_gen
 
     session = _get_session(session_id)
     item = session["items"].get(item_id)
@@ -534,7 +534,7 @@ async def get_image(session_id: str, item_id: str) -> bytes:
     negative = (
         "text, watermark, signature, cartoon mascot, photorealistic, gradient, blurry, cluttered"
     )
-    png = await local_image.generate_illustration(prompt, negative, width=512, height=384)
+    png = await image_gen.generate_illustration(prompt, negative, width=512, height=384)
     item["_image_cache"] = png
     return png
 

@@ -3,12 +3,18 @@
  * the Tool Dock's modal system on purpose: the whole point is listening
  * while doing something else (Lotus Map, Sheet of Paper, a problem set).
  * Narrates pasted text or the seed text handed in via ToolDockContext
- * (e.g. "read this note aloud") using the browser's built-in
- * speechSynthesis — no backend dependency, no per-use cost.
+ * (e.g. "read this note aloud" / a script Coach wrote).
+ *
+ * Two narration backends: real server-side TTS (Cloudflare Workers AI, via
+ * POST /ai/tts) when it's configured, otherwise the browser's own
+ * speechSynthesis. The server voice sounds far better but needs a round trip,
+ * so the fallback stays in place rather than being replaced — a student with
+ * no TTS configured still gets audio.
  */
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'motion/react';
 import { useToolDock } from '../context/ToolDockContext';
+import { getTtsStatus, synthesizeSpeech } from '../lib/lyceumApi';
 
 export default function FloatingPodcast() {
   const { podcastOpen, podcastSeedText, closePodcast } = useToolDock();
@@ -17,7 +23,31 @@ export default function FloatingPodcast() {
   const [speaking, setSpeaking] = useState(false);
   const [paused, setPaused] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [serverTts, setServerTts] = useState(false);
+  const [loadingAudio, setLoadingAudio] = useState(false);
   const utterRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  // Ask once whether the server can narrate; falls back silently if not.
+  useEffect(() => {
+    getTtsStatus().then(s => setServerTts(s.available)).catch(() => setServerTts(false));
+  }, []);
+
+  // The speed slider must affect audio already playing, not just the next
+  // clip (speechSynthesis can't be re-rated mid-utterance, but audio can).
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.playbackRate = rate;
+  }, [rate]);
+
+  function releaseAudio() {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+  }
 
   useEffect(() => {
     if (podcastSeedText) setText(podcastSeedText);
@@ -25,15 +55,15 @@ export default function FloatingPodcast() {
 
   useEffect(() => {
     // Stop narration if the widget is closed outright.
-    if (!podcastOpen) { window.speechSynthesis.cancel(); setSpeaking(false); setPaused(false); }
+    if (!podcastOpen) { window.speechSynthesis.cancel(); releaseAudio(); setSpeaking(false); setPaused(false); }
   }, [podcastOpen]);
 
-  useEffect(() => () => { window.speechSynthesis.cancel(); }, []);
+  useEffect(() => () => { window.speechSynthesis.cancel(); releaseAudio(); }, []);
 
   const supported = typeof window !== 'undefined' && 'speechSynthesis' in window;
 
-  function play() {
-    if (!supported || !text.trim()) return;
+  function speakInBrowser() {
+    if (!supported) return;
     window.speechSynthesis.cancel();
     const utter = new SpeechSynthesisUtterance(text.trim());
     utter.rate = rate;
@@ -44,14 +74,45 @@ export default function FloatingPodcast() {
     setSpeaking(true); setPaused(false);
   }
 
+  async function play() {
+    if (!text.trim() || loadingAudio) return;
+    if (!serverTts) { speakInBrowser(); return; }
+
+    setLoadingAudio(true);
+    try {
+      releaseAudio();
+      const url = await synthesizeSpeech(text.trim());
+      audioUrlRef.current = url;
+      const audio = new Audio(url);
+      audio.playbackRate = rate;
+      audio.onended = () => { setSpeaking(false); setPaused(false); };
+      audio.onerror = () => { setSpeaking(false); setPaused(false); };
+      audioRef.current = audio;
+      await audio.play();
+      setSpeaking(true); setPaused(false);
+    } catch {
+      // Server narration unavailable or refused — use the browser voice.
+      speakInBrowser();
+    } finally {
+      setLoadingAudio(false);
+    }
+  }
+
   function togglePause() {
     if (!speaking) return;
+    const audio = audioRef.current;
+    if (audio) {
+      if (paused) { audio.play().catch(() => {}); setPaused(false); }
+      else { audio.pause(); setPaused(true); }
+      return;
+    }
     if (paused) { window.speechSynthesis.resume(); setPaused(false); }
     else { window.speechSynthesis.pause(); setPaused(true); }
   }
 
   function stop() {
     window.speechSynthesis.cancel();
+    releaseAudio();
     setSpeaking(false); setPaused(false);
   }
 

@@ -400,3 +400,21 @@ export function evaluateCardReverseBuild(
 export function generateProblemImage(problem: string): Promise<{ image_base64: string }> {
   return postJson('/ai/exercise-cards/problem-image', { problem });
 }
+
+// ── Text-to-speech (Floating Podcast narration) ─────────────────────────────
+
+export function getTtsStatus(): Promise<{ available: boolean }> {
+  return publicGetJson('/ai/tts/status');
+}
+
+/** Narrates `text` server-side. Returns an object URL for an <audio> element;
+ *  the caller owns it and must revokeObjectURL when done. */
+export async function synthesizeSpeech(text: string, lang = 'en'): Promise<string> {
+  const res = await authFetch(`${API_BASE}/ai/tts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, lang }),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.detail || `TTS failed (${res.status})`);
+  return URL.createObjectURL(await res.blob());
+}

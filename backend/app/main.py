@@ -25,7 +25,7 @@ from app.models.entities import FeatureUsageLog, AuthProviderEnum
 from app.services.content_safety import check_prompt, check_messages, check_upload
 from app.services import pii_filter as pii_svc
 from app.services import rag as rag_svc
-from app.services import local_image as local_image_svc
+from app.services import image_gen as image_gen_svc
 from app.services import wolfram as wolfram_svc
 from app.services import safety_guard as safety_guard_svc
 from app.services import data_retention as data_retention_svc
@@ -1686,7 +1686,7 @@ async def ai_generate_sprite(request: Request, req: GenerateSpriteRequest, _: di
     """
     check_prompt(req.prompt, "prompt")
     try:
-        png_bytes = await local_image_svc.generate_sprite(req.prompt, width=req.width, height=req.height)
+        png_bytes = await image_gen_svc.generate_sprite(req.prompt, width=req.width, height=req.height)
         return {"image": base64.b64encode(png_bytes).decode()}
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))

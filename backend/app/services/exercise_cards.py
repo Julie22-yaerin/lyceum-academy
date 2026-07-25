@@ -102,7 +102,7 @@ async def generate_problem_image(problem_text: str) -> bytes:
     distills the literal visual setup (diffusion prompts don't parse long
     exam-question text well), then the local CPU pipeline renders it."""
     from app.services import ai as ai_svc
-    from app.services import local_image
+    from app.services import image_gen
 
     resp = await ai_svc.chat(
         [
@@ -123,4 +123,4 @@ async def generate_problem_image(problem_text: str) -> bytes:
         "cute mascot, cartoon character, watermark, signature, photorealistic, gradient, shadow, "
         "paper texture, blurry, abstract art, decorative border"
     )
-    return await local_image.generate_illustration(prompt, negative, width=512, height=384)
+    return await image_gen.generate_illustration(prompt, negative, width=512, height=384)

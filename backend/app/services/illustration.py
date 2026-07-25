@@ -12,7 +12,7 @@ Two deviations from the source skill, both deliberate:
   - Everything (shot-list fields, annotation words) is in ENGLISH, not
     Chinese — Lyceum's primary content language.
   - Actual pixel generation runs on the same local CPU tiny-diffusion
-    pipeline Game Builder uses (app.services.local_image) rather than a
+    pipeline Game Builder uses (app.services.image_gen) rather than a
     dedicated external image model — this deployment has no paid image API
     configured. Quality is a rough sketch approximation of the style, not
     a faithful reproduction; treat it as a placeholder renderer until a
@@ -122,15 +122,15 @@ async def build_shot_list(text: str, max_shots: int = DEFAULT_SHOTS) -> list[dic
 
 async def generate_illustrations(text: str, max_shots: int = DEFAULT_SHOTS) -> dict[str, Any]:
     """Full pipeline: shot list, then one image generation per shot (serial —
-    the local pipeline is single-lane, see app.services.local_image)."""
-    from app.services import local_image
+    the local fallback pipeline is single-lane, see app.services.image_gen)."""
+    from app.services import image_gen
 
     shots = await build_shot_list(text, max_shots)
     results: list[dict[str, Any]] = []
     for shot in shots:
         prompt, negative = _build_image_prompt(shot)
         try:
-            png_bytes = await local_image.generate_illustration(prompt, negative)
+            png_bytes = await image_gen.generate_illustration(prompt, negative)
             image_b64 = _to_base64(png_bytes)
             error = None
         except Exception as exc:  # local CPU pipeline unavailable / OOM / etc.

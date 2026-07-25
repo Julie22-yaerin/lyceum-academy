@@ -184,6 +184,20 @@ class Settings(BaseSettings):
     openrouter_primary_model: str = "nvidia/nemotron-3-super-120b-a12b:free"
     openrouter_fallback_model: str = "qwen/qwen3-coder:free"
 
+    # ── Cloudflare Workers AI (image generation + text-to-speech) ────
+    # REST shape: POST https://api.cloudflare.com/client/v4/accounts/
+    #   {account_id}/ai/run/{model}   with  Authorization: Bearer <token>
+    # The account id is part of the URL, so BOTH the id and a token are
+    # required — a token alone cannot address the endpoint. All three live in
+    # .env (gitignored); nothing here is ever committed with a real value.
+    # Leave any of them empty and the callers fall back to their local paths
+    # (tiny-sd for images, browser speechSynthesis for audio).
+    cloudflare_account_id: str = ""     # CLOUDFLARE_ACCOUNT_ID
+    cloudflare_image_token: str = ""    # CLOUDFLARE_IMAGE_TOKEN — image generation
+    cloudflare_tts_token: str = ""      # CLOUDFLARE_TTS_TOKEN   — podcast narration
+    cloudflare_image_model: str = "@cf/bytedance/stable-diffusion-xl-lightning"
+    cloudflare_tts_model: str = "@cf/myshell-ai/melotts"
+
     # ── WolframAlpha (computation plugin, SOC-17) ─────────────────
     # Free AppID at https://developer.wolframalpha.com/access — used for exact
     # arithmetic/equation-solving instead of burning an LLM call, and as a
