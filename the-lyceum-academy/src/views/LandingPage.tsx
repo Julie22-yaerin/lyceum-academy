@@ -28,6 +28,7 @@ import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
 import BookCallButton from '../components/BookCallButton';
 import AboutSection from '../components/landing/AboutSection';
+import { WindowStarsScene, DeskLampScene, OrbitScene } from '../components/landing/LandingScenes';
 import FeaturedVideoSection from '../components/landing/FeaturedVideoSection';
 import PhilosophySection from '../components/landing/PhilosophySection';
 import ServicesSection from '../components/landing/ServicesSection';
@@ -380,6 +381,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             </TextReveal>
           </h2>
           <p className="text-slate-400 max-w-xl mx-auto">Every session is the same experiment, run on your own mind.</p>
+          <div className="w-56 h-36 mx-auto mt-8 rounded-2xl overflow-hidden glass">
+            <WindowStarsScene className="w-full h-full" />
+          </div>
         </motion.div>
 
         <motion.div
@@ -453,14 +457,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
             variants={fadeUp}
             transition={{ duration: 0.5 }}
             whileHover={{ y: -6 }}
-            className="p-8 rounded-3xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-400/20 flex flex-col gap-3 justify-between"
+            className="relative overflow-hidden p-8 rounded-3xl bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-400/20 flex flex-col gap-3 justify-between"
           >
-            <div>
+            <OrbitScene className="absolute inset-0 w-full h-full opacity-40 pointer-events-none" />
+            <div className="relative z-10">
               <BookMarked className="w-7 h-7 text-emerald-300 mb-3" strokeWidth={1.5} />
               <h3 className="text-lg font-bold text-white mb-1">Your Second Brain</h3>
               <p className="text-sm text-slate-400 leading-relaxed">Every note, quest, and past mistake feeds the Faculty’s judgment. Add your own material any time, or let Coach request a plan built entirely around it.</p>
             </div>
-            <a href="/secondbrain" className="text-xs font-medium text-emerald-300 inline-flex items-center gap-1 hover:text-emerald-200 transition-colors">
+            <a href="/secondbrain" className="relative z-10 text-xs font-medium text-emerald-300 inline-flex items-center gap-1 hover:text-emerald-200 transition-colors">
               Open your Second Brain <ArrowUpRight className="w-3.5 h-3.5" />
             </a>
           </motion.div>
@@ -479,6 +484,9 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           className="block rounded-3xl glass-strong p-10 flex flex-col md:flex-row items-center justify-between gap-6"
         >
           <div className="flex items-center gap-5">
+            <div className="hidden sm:block w-20 h-20 rounded-2xl overflow-hidden flex-shrink-0">
+              <DeskLampScene className="w-full h-full" />
+            </div>
             <Library className="w-10 h-10 text-amber-300 flex-shrink-0" strokeWidth={1.3} />
             <div>
               <h3 className="font-garamond text-2xl text-white mb-1">The Library</h3>
