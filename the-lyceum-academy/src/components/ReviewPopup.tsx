@@ -1,9 +1,12 @@
 /**
- * ReviewPopup — the 3-7-21 spaced-repetition prompt. Polls the review queue
- * (lib/reviewReminders) and, when a checkpoint comes due, surfaces a modal
- * that makes the student re-anchor an old topic: a compact AI summary plus
- * 1-3 short questions graded easy → medium → hard. Clearing them retires that
- * checkpoint; dismissing snoozes it a day.
+ * ReviewPopup — step 7 of the house topic pipeline (see backend
+ * user_brain.LYCEUM_PIPELINE_PROMPT): the 3-7-21-30 spaced-repetition prompt.
+ * Polls the review queue (lib/reviewReminders) and, when a checkpoint comes
+ * due, surfaces a modal that makes the student re-anchor an old topic — first
+ * re-explain the core idea in their own words, then a compact AI summary plus
+ * 2-3 short retention questions. Per the pipeline this stays at medium and is
+ * deliberately NOT escalated to hard: it is retention, not interrogation.
+ * Clearing it retires that checkpoint; dismissing snoozes it a day.
  */
 import { useEffect, useState } from 'react';
 import { nextDueReview, clearCheckpoint, snoozeCheckpoint, type ReviewItem } from '../lib/reviewReminders';
@@ -29,6 +32,11 @@ export default function ReviewPopup() {
   const [loading, setLoading] = useState(false);
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
   const [dismissed, setDismissed] = useState(false);
+  // Pipeline step 7 opens with the student re-explaining the topic from
+  // memory. The recap and questions stay hidden until they have — reading the
+  // summary first would hand them the answer and kill the retrieval practice.
+  const [recall, setRecall] = useState('');
+  const [recallDone, setRecallDone] = useState(false);
 
   // Poll every 60s (and once shortly after mount) for a due checkpoint.
   useEffect(() => {
@@ -44,14 +52,19 @@ export default function ReviewPopup() {
     if (!due || pack || loading) return;
     const item: ReviewItem = due.item;
     setLoading(true);
-    const nQ = due.stage === 3 ? 1 : due.stage === 7 ? 2 : 3;
+    // Pipeline step 7: 2-3 error-spotting questions held at medium. Earlier
+    // checkpoints get 2, the long-interval ones (21/30 days) get 3 — the count
+    // rises with the gap, the difficulty deliberately does not.
+    const nQ = due.stage <= 7 ? 2 : 3;
     const sys =
       'You build spaced-repetition review packs. Return ONLY JSON, no fences: ' +
       '{"summary":"<=120-word crisp recap of the material>","questions":' +
-      '[{"q":"<short question>","a":"<concise answer>","level":"easy|medium|hard"}]}. ' +
-      `Produce exactly ${nQ} question(s)` +
-      (nQ === 1 ? ' at "easy".' : nQ === 2 ? ', graded easy then medium.' : ', graded easy, medium, hard.') +
-      ' Keep questions answerable in a sentence. Mirror the material\'s language.';
+      '[{"q":"<short question>","a":"<concise answer>","level":"medium"}]}. ' +
+      `Produce exactly ${nQ} questions, all at "medium". ` +
+      'Favour error-spotting: state a short flawed claim or half-right step drawn from the ' +
+      'material and ask what is wrong with it. This is retention practice, not an exam — do ' +
+      'not reach for the hardest edge cases. Keep each answerable in a sentence. ' +
+      "Mirror the material's language.";
     chatMessage([
       { role: 'system', content: sys },
       { role: 'user', content: `Topic: ${item.topic}\nSubject: ${item.subject}\n\nMaterial:\n${item.summarySeed}` },
@@ -59,12 +72,12 @@ export default function ReviewPopup() {
       .then(({ reply }) => {
         setPack(parsePack(reply) || {
           summary: item.summarySeed.slice(0, 400),
-          questions: [{ q: `Nhắc lại ý chính của "${item.topic}"?`, a: '', level: 'easy' }],
+          questions: [{ q: `Nhắc lại ý chính của "${item.topic}"?`, a: '', level: 'medium' }],
         });
       })
       .catch(() => setPack({
         summary: item.summarySeed.slice(0, 400),
-        questions: [{ q: `Nhắc lại ý chính của "${item.topic}"?`, a: '', level: 'easy' }],
+        questions: [{ q: `Nhắc lại ý chính của "${item.topic}"?`, a: '', level: 'medium' }],
       }))
       .finally(() => setLoading(false));
   }, [due, pack, loading]);
@@ -82,6 +95,7 @@ export default function ReviewPopup() {
   }
   function reset() {
     setDue(null); setPack(null); setRevealed(new Set());
+    setRecall(''); setRecallDone(false);
   }
 
   const levelColor: Record<string, string> = {
@@ -101,13 +115,50 @@ export default function ReviewPopup() {
           <span className="text-2xl">🔁</span>
         </div>
 
-        {loading && <p className="text-sm text-white/50 animate-pulse py-6 text-center">Đang chuẩn bị bài ôn…</p>}
+        {/* The pack loads in the background while they recall, so this only
+            shows if they finished recalling before it arrived. */}
+        {loading && recallDone && (
+          <p className="text-sm text-white/50 animate-pulse py-6 text-center">Đang chuẩn bị bài ôn…</p>
+        )}
 
-        {pack && !loading && (
+        {/* Recall first — from memory, before anything is shown. */}
+        {!recallDone && (
+          <>
+            <div className="rounded-2xl bg-white/5 p-4 flex flex-col gap-2">
+              <p className="text-[10px] uppercase tracking-[2px] text-white/40">Nhắc lại từ đầu · chưa xem tóm tắt</p>
+              <p className="text-sm text-white/80 leading-relaxed">
+                Giải thích ngắn ý cốt lõi của <span className="text-white">{due.item.topic}</span> bằng lời của bạn.
+              </p>
+              <textarea
+                value={recall} onChange={e => setRecall(e.target.value)} rows={4}
+                placeholder="Viết những gì bạn còn nhớ — không cần hoàn hảo…"
+                className="w-full bg-white/5 rounded-xl px-3 py-2.5 text-sm text-white/90 outline-none border border-white/10 focus:border-white/25 resize-y"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button onClick={later}
+                className="flex-1 rounded-xl px-4 py-2.5 text-[11px] uppercase tracking-[2px] bg-white/10 text-white/60 hover:bg-white/20 transition-colors">
+                Để mai
+              </button>
+              <button onClick={() => setRecallDone(true)} disabled={recall.trim().length < 20}
+                className="flex-1 rounded-xl px-4 py-2.5 text-[11px] uppercase tracking-[2px] bg-purple-400/15 text-purple-200 hover:bg-purple-400/25 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                Xong · xem lại
+              </button>
+            </div>
+          </>
+        )}
+
+        {pack && !loading && recallDone && (
           <>
             <div className="rounded-2xl bg-white/5 p-4">
               <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Tóm tắt nhanh</p>
               <p className="text-sm text-white/80 leading-relaxed whitespace-pre-wrap">{pack.summary}</p>
+            </div>
+
+            <div className="rounded-2xl bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Bạn đã nhắc lại</p>
+              <p className="text-xs text-white/60 leading-relaxed whitespace-pre-wrap">{recall.trim()}</p>
+              <p className="text-[10px] text-white/35 mt-2">So với tóm tắt trên — chỗ nào bạn bỏ sót?</p>
             </div>
 
             <div className="flex flex-col gap-2">

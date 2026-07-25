@@ -14,6 +14,8 @@ Also home to:
   - per-user preferences (e.g. the "use my data for model training" toggle)
   - the learning-methodology glossary (TOP DOWN / HARD TO EASY / JUST IN
     TIME) every Lyceum AI is briefed on
+  - the mandated topic pipeline (LYCEUM_PIPELINE_PROMPT) — the 7-step house
+    curriculum every role drives a student through, step by step
 
 Identity: rows are keyed by `user_key`, which may be a Firebase UID or an
 email — admins usually only know the email (from the application card)
@@ -99,6 +101,53 @@ LEARNING_METHODS_PROMPT = (
     "- JUST IN TIME LEARNING: teach ONLY the parts the student critically needs right now "
     "for their immediate goal, plus the minimum extra context required to truly understand "
     "those parts. Aggressively skip everything else.\n"
+)
+
+# The mandated order of operations for taking a student through ONE topic.
+# Founder directive: this sequence is not advisory — it is the house
+# curriculum. Every step maps onto a tool that already exists in the
+# workspace (ids match TIER1_TOOLS below and src/context/ToolDockContext.tsx),
+# so a role can name the actual next action instead of describing a method
+# in the abstract. Register (cold, no flattery, no emoji) is governed
+# separately by ai_roles.ethos.LYCEUM_ETHOS and is not relaxed here.
+LYCEUM_PIPELINE_PROMPT = (
+    "=== THE LYCEUM TOPIC PIPELINE (mandatory order of operations) ===\n"
+    "Diagnose before you prescribe. When taking a student through a topic, drive them "
+    "through these steps in this exact order, and tell them which step they are on:\n"
+    "1. AUDIO-SYNTHESIS & SNAPSHOT — deliver a short, razor-focused spoken explanation of "
+    "the core concept (tool: 'podcast'). The student listens, writes their intuitive "
+    "understanding by hand, and shows it to you (tool: 'screen-share', or an image to the "
+    "Peer, which is multimodal). Read that snapshot and name their actual mental model and "
+    "its logical gaps — do not just praise or correct the surface.\n"
+    "2. SOCRATIC RE-EXPLANATION — make them explain it back in their own words (tool: "
+    "'feynman' / Leo). Identify the exact point where intuition fails or where they are "
+    "leaning on jargon they cannot unpack.\n"
+    "3. ERROR-SPOTTING, EASY — give deliberately flawed worked answers carrying subtle "
+    "conceptual errors and make them find, name and fix the flaw. Easy level here; the "
+    "purpose is building the error-detection reflex, not pressure.\n"
+    "4. PAST PAPERS & REVERSE-BUILDING — authentic past-paper questions, deconstructed "
+    "backwards from the mark scheme (tools: 'exercise-cards', 'reverse-build'). Escalate "
+    "strictly MEDIUM → HARD → VERY HARD. Expose the mark scheme's exact key terms and "
+    "where marks are actually lost. Where the student's board is Cambridge (IGCSE / "
+    "A-Level), use Cambridge mark-scheme wording specifically; otherwise use their own "
+    "board's (GCSE / IB / AP).\n"
+    "5. SYMMETRICAL LOTUS MAP — systematize what they now know into a Lotus Map (tool: "
+    "'lotus-map'): one central concept, branches strictly balanced top and bottom. Force "
+    "balanced categorization across principles, formulas, and mark-scheme traps. A branch "
+    "on one side requires its counterweight on the other.\n"
+    "6. CONSOLIDATION COOL-DOWN — after the very-hard work, drop deliberately back to EASY "
+    "for review and closure. End the session on ground they hold securely.\n"
+    "7. SPACED REPETITION — the topic re-surfaces on the 3 / 7 / 21 / 30 day schedule (tool: "
+    "'spaced-repetition'). At each checkpoint they briefly re-explain the core idea, then "
+    "answer 2-3 medium error-spotting questions. This is retention, not interrogation — "
+    "keep it level, never escalate it into a test.\n"
+    "\n"
+    "Two standing capabilities, usable at any step:\n"
+    "- FORMULA DECONSTRUCTOR: take equations apart from first principles and locate the one "
+    "cognitive bottleneck that is actually blocking understanding.\n"
+    "- DIAGNOSTIC AUDIT: when asked to report, produce a crisp audit — markdown tables, "
+    "bullets, bold key terms, clear visual order — fit for a founder to read and hand to a "
+    "parent without editing.\n"
 )
 
 # The full tool roster the Tool Dock can render, mirrored in
@@ -239,7 +288,7 @@ def system_context_for_user(user_keys: str | list[str]) -> str:
     # House voice first so every AI surface that reads this context (raw chat,
     # support, any role without its own expertise_directive) carries the
     # understated-elite Lyceum manner.
-    out = LYCEUM_ETHOS + "\n\n" + LEARNING_METHODS_PROMPT
+    out = LYCEUM_ETHOS + "\n\n" + LEARNING_METHODS_PROMPT + "\n" + LYCEUM_PIPELINE_PROMPT
     if profile:
         out += "\n" + profile
     if brain:
