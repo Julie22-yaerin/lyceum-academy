@@ -1,0 +1,74 @@
+[
+  {
+    "id": "math",
+    "subject": "Toán",
+    "chip": "A-LEVEL · GIẢI TÍCH",
+    "emoji": "🧠",
+    "accent": "#a78bfa",
+    "accent2": "#f0abfc",
+    "hook": ["HÀM HỢP", "KHÔNG KHÓ"],
+    "idea": "Đừng nhìn cả biểu thức. Bóc từng lớp một.",
+    "steps": [
+      "y = sin(x²)",
+      "lớp ngoài  →  sin(u)",
+      "lớp trong  →  u = x²",
+      "dy/dx = cos(x²) · 2x"
+    ],
+    "payoff": ["Nhân đạo hàm", "từng lớp. Hết."],
+    "diagram": "chain"
+  },
+  {
+    "id": "chemistry",
+    "subject": "Hoá",
+    "chip": "A-LEVEL 9701 · NGUYÊN TỬ",
+    "emoji": "⚛️",
+    "accent": "#22d3ee",
+    "accent2": "#67e8f9",
+    "hook": ["ELECTRON", "KHÔNG BAY VÒNG"],
+    "idea": "Không có quỹ đạo. Chỉ có vùng xác suất.",
+    "steps": [
+      "ψ  =  hàm sóng",
+      "|ψ|²  =  mật độ xác suất",
+      "s: hình cầu · p: hai thuỳ",
+      "mặt nút: |ψ|² = 0"
+    ],
+    "payoff": ["Bạn vẽ xác suất,", "không vẽ đường đi."],
+    "diagram": "orbital"
+  },
+  {
+    "id": "biology",
+    "subject": "Sinh",
+    "chip": "A-LEVEL · SINH LÝ NƠRON",
+    "emoji": "⚡",
+    "accent": "#34d399",
+    "accent2": "#a7f3d0",
+    "hook": ["TÍN HIỆU NÃO", "LÀ DÒNG ION"],
+    "idea": "Điện thế nghỉ −70 mV. Chạm ngưỡng là bùng.",
+    "steps": [
+      "−55 mV  →  mở cổng Na⁺",
+      "Na⁺ tràn vào  →  khử cực",
+      "+40 mV  →  K⁺ ra, tái cực",
+      "bơm Na⁺/K⁺ nạp lại"
+    ],
+    "payoff": ["Một xung.", "Tất cả hoặc không."],
+    "diagram": "membrane"
+  },
+  {
+    "id": "physics",
+    "subject": "Lý",
+    "chip": "A-LEVEL · DAO ĐỘNG",
+    "emoji": "🎢",
+    "accent": "#fbbf24",
+    "accent2": "#fde68a",
+    "hook": ["LÒ XO ĐANG", "VẼ HÌNH SIN"],
+    "idea": "Lực kéo về tỉ lệ với độ lệch. Chỉ vậy.",
+    "steps": [
+      "F  =  −k x",
+      "a  =  −ω² x",
+      "x  =  A cos(ωt)",
+      "T  =  2π √(m/k)"
+    ],
+    "payoff": ["Dao động là vòng tròn", "nhìn từ cạnh."],
+    "diagram": "shm"
+  }
+]

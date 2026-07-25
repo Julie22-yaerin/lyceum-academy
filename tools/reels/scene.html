@@ -1,0 +1,887 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Lyceum reel renderer</title>
+<style>
+  @font-face {
+    font-family: 'Instrument Serif';
+    src: url('./fonts/InstrumentSerif-Regular.ttf') format('truetype');
+    font-weight: 400;
+  }
+  html, body { margin: 0; background: #000; }
+  canvas { display: block; }
+</style>
+<canvas id="c" width="720" height="1280"></canvas>
+<script>
+/**
+ * Deterministic renderer for The Lyceum's break-time reels.
+ *
+ * Everything is drawn in canvas 2D from a single pure function of time, so
+ * render.mjs can step frame-by-frame and get byte-identical output on a
+ * re-run. No CSS animation, no requestAnimationFrame, no Math.random at
+ * frame time — the only randomness comes from a seeded PRNG evaluated once.
+ */
+
+const W = 720, H = 1280;
+const DUR = 13.5;                       // seconds — inside the 12-15s brief
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+// ── timeline ───────────────────────────────────────────────────────────────
+const TL = {
+  hook:   [0.00,  2.40],
+  idea:   [2.45,  6.50],
+  steps:  [6.55, 10.40],
+  payoff: [10.50, DUR],
+};
+const DIAG_WINDOW = [2.45, 10.40];
+const STEP_EVERY = (TL.steps[1] - TL.steps[0]) / 4;
+const BEATS = [0, TL.idea[0], TL.steps[0], TL.steps[0] + STEP_EVERY,
+               TL.steps[0] + 2 * STEP_EVERY, TL.steps[0] + 3 * STEP_EVERY,
+               TL.payoff[0]];
+
+// ── scene data (injected by render.mjs before the first frame) ─────────────
+let S = null;
+window.__setScene = s => { S = s; };
+
+// ── small maths ────────────────────────────────────────────────────────────
+const clamp = (v, a = 0, b = 1) => v < a ? a : v > b ? b : v;
+const lerp = (a, b, u) => a + (b - a) * u;
+const outCubic = u => 1 - Math.pow(1 - u, 3);
+const outQuint = u => 1 - Math.pow(1 - u, 5);
+const inOut = u => u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
+function outBack(u) {                     // slight overshoot, the "pop"
+  const c = 1.9;
+  return 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2);
+}
+/** progress through [a,b], eased, clamped both ends */
+const seg = (t, a, b, ease = outCubic) => ease(clamp((t - a) / (b - a)));
+
+function mulberry32(seed) {
+  return function () {
+    seed |= 0; seed = seed + 0x6D2B79F5 | 0;
+    let x = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    x = x + Math.imul(x ^ x >>> 7, 61 | x) ^ x;
+    return ((x ^ x >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
+}
+
+// ── grain: eight pre-baked noise tiles, cycled by frame index ──────────────
+const GRAIN = (() => {
+  const rnd = mulberry32(0x5EED);
+  const tiles = [];
+  for (let k = 0; k < 8; k++) {
+    const t = document.createElement('canvas');
+    t.width = t.height = 128;
+    const g = t.getContext('2d');
+    const img = g.createImageData(128, 128);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = rnd() * 255 | 0;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 26;
+    }
+    g.putImageData(img, 0, 0);
+    tiles.push(t);
+  }
+  return tiles;
+})();
+
+// ── background: drifting accent blobs on near-black ────────────────────────
+function drawBackground(t) {
+  ctx.fillStyle = '#05060a';
+  ctx.fillRect(0, 0, W, H);
+
+  const blobs = [
+    { c: S.accent,  ax: 0.17, ay: 0.11, r: 560, a: 0.30, px: 0.0, py: 1.1 },
+    { c: S.accent2, ax: 0.13, ay: 0.19, r: 460, a: 0.20, px: 2.1, py: 0.4 },
+    { c: '#4c1d95',  ax: 0.09, ay: 0.14, r: 620, a: 0.24, px: 4.0, py: 2.7 },
+  ];
+  ctx.globalCompositeOperation = 'lighter';
+  for (const b of blobs) {
+    const x = W * (0.5 + 0.42 * Math.sin(t * b.ax * 2 * Math.PI + b.px));
+    const y = H * (0.5 + 0.38 * Math.cos(t * b.ay * 2 * Math.PI + b.py));
+    const g = ctx.createRadialGradient(x, y, 0, x, y, b.r);
+    g.addColorStop(0, hexA(b.c, b.a));
+    g.addColorStop(1, hexA(b.c, 0));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // vignette keeps the eye in the middle third
+  const v = ctx.createRadialGradient(W / 2, H / 2, H * 0.24, W / 2, H / 2, H * 0.72);
+  v.addColorStop(0, 'rgba(0,0,0,0)');
+  v.addColorStop(1, 'rgba(0,0,0,0.72)');
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, W, H);
+}
+
+function drawGrain(t) {
+  const tile = GRAIN[Math.floor(t * 30) % GRAIN.length];
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  const p = ctx.createPattern(tile, 'repeat');
+  ctx.fillStyle = p;
+  ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+}
+
+// ── type helpers ───────────────────────────────────────────────────────────
+const SANS = '"Liberation Sans","DejaVu Sans",Arial,sans-serif';
+const MONO = '"DejaVu Sans Mono","Liberation Mono",monospace';
+const SERIF = '"Instrument Serif","DejaVu Serif",Georgia,serif';
+
+function font(weight, size, family = SANS) {
+  ctx.font = `${weight} ${size}px ${family}`;
+}
+
+/** greedy wrap against the current ctx.font */
+function wrap(text, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const probe = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(probe).width > maxWidth && cur) { lines.push(cur); cur = w; }
+    else cur = probe;
+  }
+  if (cur) lines.push(cur);
+  return lines;
+}
+
+/** letter-spaced centred text (canvas 2D has no tracking of its own) */
+function trackedText(text, cx, y, spacing) {
+  const chars = [...text];
+  let total = 0;
+  for (const c of chars) total += ctx.measureText(c).width + spacing;
+  total -= spacing;
+  const prevAlign = ctx.textAlign;
+  ctx.textAlign = 'left';                 // each glyph is placed by hand
+  let x = cx - total / 2;
+  for (const c of chars) {
+    ctx.fillText(c, x, y);
+    x += ctx.measureText(c).width + spacing;
+  }
+  ctx.textAlign = prevAlign;
+}
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+function arrow(x1, y1, x2, y2, color, width = 3) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  const a = Math.atan2(y2 - y1, x2 - x1), s = 12;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4));
+  ctx.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4));
+  ctx.closePath();
+  ctx.fill();
+}
+
+// ── chrome: progress bar, subject chip, brand mark ─────────────────────────
+function drawProgress(t) {
+  ctx.fillStyle = 'rgba(255,255,255,0.10)';
+  ctx.fillRect(0, 0, W, 6);
+  ctx.fillStyle = S.accent;
+  ctx.fillRect(0, 0, W * clamp(t / DUR), 6);
+}
+
+function drawChip(t) {
+  const a = seg(t, TL.idea[0], TL.idea[0] + 0.4) * (1 - seg(t, TL.payoff[0], TL.payoff[0] + 0.3));
+  if (a <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  font('bold', 22);
+  const label = `${S.emoji}  ${S.chip}`;
+  const w = ctx.measureText(label).width + 44;
+  ctx.fillStyle = 'rgba(255,255,255,0.07)';
+  roundRect(W / 2 - w / 2, 58, w, 54, 27);
+  ctx.fill();
+  ctx.strokeStyle = hexA(S.accent, 0.35);
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(label, W / 2, 87);
+  ctx.restore();
+}
+
+function drawBrand(t) {
+  const a = seg(t, TL.payoff[0] + 0.5, TL.payoff[0] + 1.2);
+  if (a <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'alphabetic';
+  font(400, 44, SERIF);
+  ctx.fillStyle = 'rgba(255,255,255,0.92)';
+  trackedText('THE LYCEUM', W / 2, 1130, 9);
+  font('bold', 20);
+  ctx.fillStyle = hexA(S.accent, 0.85);
+  trackedText('TOÁN & KHOA HỌC · CHO NGƯỜI KHÓ TẬP TRUNG', W / 2, 1176, 1.2);
+  ctx.fillStyle = 'rgba(255,255,255,0.35)';
+  font('bold', 20);
+  trackedText('THELYCEUM.SITE', W / 2, 1216, 3);
+  ctx.restore();
+}
+
+// ── segment 1: the hook ────────────────────────────────────────────────────
+function drawHook(t) {
+  const out = 1 - seg(t, TL.hook[1] - 0.25, TL.hook[1] + 0.05);
+  if (out <= 0.01) return;
+  ctx.save();
+  ctx.globalAlpha = out;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // emoji pop
+  const ea = seg(t, 0.05, 0.55, outBack);
+  ctx.save();
+  ctx.translate(W / 2, 440);
+  ctx.scale(ea, ea);
+  font(400, 200, SANS);
+  ctx.fillText(S.emoji, 0, 0);
+  ctx.restore();
+
+  S.hook.forEach((line, i) => {
+    const a = clamp((t - (0.28 + i * 0.16)) / 0.42);
+    if (a <= 0) return;
+    const e = outBack(a);
+    const y = 706 + i * 118;
+    ctx.save();
+    ctx.translate(W / 2, y);
+    ctx.translate(0, (1 - e) * 70);
+    ctx.globalAlpha = out * clamp(a * 1.6);
+    font('bold', 92);
+    // hard shadow gives the caption weight without a box behind it
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    trackedText(line, 5, 6, 1);
+    ctx.fillStyle = i === S.hook.length - 1 ? S.accent : '#ffffff';
+    trackedText(line, 0, 0, 1);
+    ctx.restore();
+  });
+
+  // swipe underline under the last line
+  const sw = seg(t, 0.85, 1.35, outQuint);
+  if (sw > 0) {
+    const y = 706 + (S.hook.length - 1) * 118 + 66;
+    font('bold', 92);
+    const lw = Math.min(560, ctx.measureText(S.hook[S.hook.length - 1]).width);
+    ctx.fillStyle = hexA(S.accent, 0.9);
+    ctx.fillRect(W / 2 - lw / 2, y, lw * sw, 8);
+  }
+  ctx.restore();
+}
+
+// ── segment 2: the idea, revealed word by word ─────────────────────────────
+function drawIdea(t) {
+  const [a0, a1] = TL.idea;
+  const inA = seg(t, a0, a0 + 0.3);
+  const outA = 1 - seg(t, a1 - 0.3, a1 + 0.05);
+  const alpha = inA * outA;
+  if (alpha <= 0.01) return;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  font('bold', 48);
+
+  const lines = wrap(S.idea, 590);
+  // Measure every line up front, while the font is known-good: the per-word
+  // draw loop below saves/restores ctx, and re-measuring inside it once cost
+  // us a mis-centred second line.
+  const lineWidths = lines.map(l => ctx.measureText(l).width);
+  const revealDur = (a1 - a0) * 0.62;
+  const perWord = revealDur / S.idea.split(' ').length;
+
+  let wi = 0;
+  lines.forEach((line, li) => {
+    const y = 258 + li * 70;
+    const lineWords = line.split(' ');
+    let x = W / 2 - lineWidths[li] / 2;
+    for (const word of lineWords) {
+      const shown = clamp((t - a0 - 0.25 - wi * perWord) / 0.28);
+      if (shown > 0) {
+        const lit = 1 - clamp((t - a0 - 0.25 - wi * perWord - perWord * 1.4) / 0.4);
+        ctx.save();
+        ctx.globalAlpha = alpha * shown;
+        ctx.translate(x, y + (1 - outCubic(shown)) * 16);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillText(word, 3, 4);
+        ctx.fillStyle = lit > 0.02
+          ? `rgba(${hexToRgb(S.accent)},1)`
+          : 'rgba(255,255,255,0.94)';
+        ctx.fillText(word, 0, 0);
+        ctx.restore();
+      }
+      x += ctx.measureText(word + ' ').width;
+      wi++;
+    }
+  });
+  ctx.restore();
+}
+
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return `${n >> 16 & 255},${n >> 8 & 255},${n & 255}`;
+}
+
+// ── segment 3: the four steps, one beat each ────────────────────────────────
+function drawSteps(t) {
+  const [s0, s1] = TL.steps;
+  const outA = 1 - seg(t, s1 - 0.25, s1 + 0.1);
+  if (t < s0 - 0.1 || outA <= 0.01) return;
+
+  ctx.save();
+  ctx.globalAlpha = outA;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'left';
+
+  const top = 250;
+  S.steps.forEach((step, i) => {
+    const at = s0 + i * STEP_EVERY;
+    const a = clamp((t - at) / 0.34);
+    if (a <= 0) return;
+    const e = outCubic(a);
+    const y = top + i * 86;
+    const active = t < at + STEP_EVERY * 1.05;
+
+    ctx.save();
+    ctx.globalAlpha = outA * (active ? 1 : 0.55);
+    ctx.translate(-(1 - e) * 90, 0);
+
+    const boxX = 62, boxW = 596, boxH = 68;
+    ctx.fillStyle = active ? hexA(S.accent, 0.16) : 'rgba(255,255,255,0.05)';
+    roundRect(boxX, y - boxH / 2, boxW, boxH, 18);
+    ctx.fill();
+    if (active) {
+      ctx.strokeStyle = hexA(S.accent, 0.55);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    // index dot
+    ctx.fillStyle = active ? S.accent : 'rgba(255,255,255,0.28)';
+    ctx.beginPath();
+    ctx.arc(boxX + 34, y, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sans, not mono: DejaVu Sans Mono has no precomposed Vietnamese glyphs,
+    // so combining diacritics land beside the letter instead of over it.
+    font('bold', 34);
+    ctx.fillStyle = active ? '#ffffff' : 'rgba(255,255,255,0.72)';
+    ctx.fillText(step, boxX + 64, y + 2);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+// ── segment 4: the payoff ──────────────────────────────────────────────────
+function drawPayoff(t) {
+  const a = seg(t, TL.payoff[0], TL.payoff[0] + 0.45);
+  if (a <= 0.01) return;
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // bookend the hook: the same emoji, once more, above the payoff
+  const ea = seg(t, TL.payoff[0], TL.payoff[0] + 0.5, outBack);
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.translate(W / 2, 400);
+  ctx.scale(ea, ea);
+  font(400, 130, SANS);
+  ctx.fillText(S.emoji, 0, 0);
+  ctx.restore();
+
+  // Flatten first: an entry that wraps to two visual lines must push the next
+  // entry down, not draw on top of it.
+  font('bold', 58);
+  const LH = 74;
+  const visual = [];
+  S.payoff.forEach((entry, i) => wrap(entry, 630).forEach(l => visual.push({ text: l, i })));
+  const y0 = 600 - ((visual.length - 1) * LH) / 2;
+
+  visual.forEach((vl, k) => {
+    const la = clamp((t - TL.payoff[0] - vl.i * 0.18) / 0.5);
+    if (la <= 0) return;
+    const e = outBack(la);
+    ctx.save();
+    ctx.globalAlpha = la;
+    ctx.translate(W / 2, y0 + k * LH);
+    ctx.scale(lerp(0.9, 1, e), lerp(0.9, 1, e));
+    font('bold', 58);
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillText(vl.text, 4, 5);
+    ctx.fillStyle = vl.i === 0 ? '#ffffff' : S.accent;
+    ctx.fillText(vl.text, 0, 0);
+    ctx.restore();
+  });
+  ctx.restore();
+}
+
+// ── diagrams ───────────────────────────────────────────────────────────────
+// The step list owns the top third (y 216-542); the diagram gets everything
+// below it, so the two never collide.
+const BOX = { x: 60, y: 555, w: 600, h: 440 };
+
+function diagramAlpha(t) {
+  const [d0, d1] = DIAG_WINDOW;
+  return seg(t, d0, d0 + 0.4) * (1 - seg(t, d1 - 0.35, d1 + 0.05));
+}
+
+/** Math — the chain rule as a stack of layers you peel */
+function diagChain(t, p) {
+  const cx = W / 2;
+  const nodes = [
+    { y: BOX.y + 40,  label: 'x',        kind: 'dot' },
+    { y: BOX.y + 150, label: 'u = x²',   kind: 'box' },
+    { y: BOX.y + 285, label: 'sin(u)',   kind: 'box' },
+    { y: BOX.y + 420, label: 'y',        kind: 'dot' },
+  ];
+  const derivs = ['· 2x', '· cos(u)'];
+
+  // connectors
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const y1 = nodes[i].y + (nodes[i].kind === 'box' ? 40 : 26);
+    const y2 = nodes[i + 1].y - (nodes[i + 1].kind === 'box' ? 40 : 26);
+    if (clamp((p - 0.08 - i * 0.14) / 0.2) <= 0) continue;
+    arrow(cx, y1, cx, y2, 'rgba(255,255,255,0.35)', 3);
+    if (i < derivs.length) {
+      const da = clamp((p - 0.34 - i * 0.16) / 0.22);
+      if (da > 0) {
+        ctx.save();
+        ctx.globalAlpha = da;
+        font('bold', 30, MONO);
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = S.accent2;
+        ctx.fillText(derivs[i], cx + 26, (y1 + y2) / 2);
+        ctx.restore();
+      }
+    }
+  }
+
+  // a pulse travelling the whole pipe, so the composition reads as a flow
+  const q = (t * 0.42) % 1;
+  const py = lerp(nodes[0].y, nodes[nodes.length - 1].y, q);
+  const g = ctx.createRadialGradient(cx, py, 0, cx, py, 46);
+  g.addColorStop(0, hexA(S.accent, 0.55));
+  g.addColorStop(1, hexA(S.accent, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(cx - 60, py - 60, 120, 120);
+
+  nodes.forEach((n, i) => {
+    const a = clamp((p - i * 0.13) / 0.22);
+    if (a <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (n.kind === 'box') {
+      const bw = 260, bh = 80;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      roundRect(cx - bw / 2, n.y - bh / 2, bw, bh, 20);
+      ctx.fill();
+      ctx.strokeStyle = hexA(S.accent, 0.5);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      font('bold', 38, MONO);
+      ctx.fillStyle = '#ffffff';
+    } else {
+      ctx.fillStyle = hexA(S.accent, 0.9);
+      ctx.beginPath();
+      ctx.arc(cx, n.y, 26, 0, Math.PI * 2);
+      ctx.fill();
+      font('bold', 34, MONO);
+      ctx.fillStyle = '#05060a';
+    }
+    ctx.fillText(n.label, cx, n.y + 2);
+    ctx.restore();
+  });
+}
+
+/** Chemistry — |ψ|² clouds for 1s and 2p_z, with the nodal plane */
+const ORB = (() => {
+  const rnd = mulberry32(0x0B17A1);
+  const s = [], p = [];
+  // 1s: radial density peaks near the Bohr radius; sample r from that shape
+  for (let i = 0; i < 900; i++) {
+    const u = rnd();
+    const r = -Math.log(1 - u) * 0.42;           // exponential-ish tail
+    const th = rnd() * Math.PI * 2, ph = Math.acos(2 * rnd() - 1);
+    s.push([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th)]);
+  }
+  // 2p_z: |ψ|² ∝ r²e^(-r)cos²θ — rejection-sample the cos²θ weight
+  for (let i = 0; i < 900; i++) {
+    let ph, w;
+    do { ph = Math.acos(2 * rnd() - 1); w = Math.cos(ph) ** 2; } while (rnd() > w);
+    const r = 0.35 + -Math.log(1 - rnd()) * 0.40;
+    const th = rnd() * Math.PI * 2;
+    p.push([r * Math.sin(ph) * Math.cos(th), r * Math.cos(ph), r * Math.sin(ph) * Math.sin(th)]);
+  }
+  return { s, p };
+})();
+
+function cloud(pts, cx, cy, scale, spin, color, alpha) {
+  const ca = Math.cos(spin), sa = Math.sin(spin);
+  for (const [x, y, z] of pts) {
+    const rx = x * ca - z * sa;            // spin about the vertical axis
+    const rz = x * sa + z * ca;
+    const depth = (rz + 1.4) / 2.8;        // fake depth cue
+    ctx.globalAlpha = alpha * (0.18 + 0.55 * clamp(depth));
+    ctx.fillStyle = color;
+    const r = 1.4 + 1.5 * clamp(depth);
+    ctx.fillRect(cx + rx * scale - r / 2, cy - y * scale - r / 2, r, r);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function diagOrbital(t, p) {
+  const spin = t * 0.55;
+  const lcx = BOX.x + 150, rcx = BOX.x + 450, cy = BOX.y + 190;
+
+  const aS = clamp(p / 0.22);
+  if (aS > 0) {
+    cloud(ORB.s, lcx, cy, 136, spin, S.accent2, aS * 0.9);
+    ctx.save();
+    ctx.globalAlpha = aS;
+    ctx.textAlign = 'center';
+    font('bold', 34, MONO);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText('1s', lcx, BOX.y + 390);
+    font('bold', 22);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('hình cầu', lcx, BOX.y + 428);
+    ctx.restore();
+  }
+
+  const aP = clamp((p - 0.3) / 0.22);
+  if (aP > 0) {
+    cloud(ORB.p, rcx, cy, 136, spin, S.accent, aP * 0.9);
+    ctx.save();
+    ctx.globalAlpha = aP;
+    ctx.textAlign = 'center';
+    font('bold', 34, MONO);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillText('2p', rcx, BOX.y + 390);
+    font('bold', 22);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText('hai thuỳ', rcx, BOX.y + 428);
+    ctx.restore();
+  }
+
+  // the nodal plane: the whole point of the p orbital
+  const aN = clamp((p - 0.56) / 0.22);
+  if (aN > 0) {
+    ctx.save();
+    ctx.globalAlpha = aN;
+    ctx.setLineDash([10, 9]);
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(rcx - 165, cy);
+    ctx.lineTo(rcx + 165 * aN, cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    font('bold', 22);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText('mặt nút · |ψ|² = 0', rcx, cy - 16);
+    ctx.restore();
+  }
+}
+
+/** Biology — the action potential trace over a gated membrane */
+const smooth = u => u * u * (3 - 2 * u);   // rounds each phase off at both ends
+function apVoltage(u) {                    // u in 0..1 → mV
+  if (u < 0.22) return -70 + 15 * smooth(u / 0.22);              // to threshold
+  if (u < 0.38) return -55 + 95 * smooth((u - 0.22) / 0.16);     // spike to +40
+  if (u < 0.60) return 40 - 130 * smooth((u - 0.38) / 0.22);     // repolarise
+  if (u < 0.80) return -90 + 20 * smooth((u - 0.60) / 0.20);     // pump back
+  return -70;
+}
+
+function diagMembrane(t, p) {
+  const gx = BOX.x + 30, gy = BOX.y + 20, gw = BOX.w - 60, gh = 210;
+  const u = clamp(p / 0.85);
+
+  const mv2y = mv => gy + gh * (1 - (mv + 100) / 150);
+
+  // axes
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(gx, gy);
+  ctx.lineTo(gx, gy + gh);
+  ctx.lineTo(gx + gw, gy + gh);
+  ctx.stroke();
+  ctx.setLineDash([6, 7]);
+  ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+  // −55 and −70 sit only 15 mV apart, so the resting label goes below its line
+  // while the others sit above theirs — and all three stay left, clear of the
+  // live readout that rides the head of the trace.
+  [[0, '0 mV', -5], [-55, 'ngưỡng −55', -5], [-70, 'nghỉ −70', 20]]
+    .forEach(([mv, lbl, dy]) => {
+      const y = mv2y(mv);
+      ctx.beginPath();
+      ctx.moveTo(gx, y);
+      ctx.lineTo(gx + gw, y);
+      ctx.stroke();
+      font('bold', 19);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.fillText(lbl, gx + 6, y + dy);
+    });
+  ctx.setLineDash([]);
+
+  // the trace, drawn up to u
+  ctx.strokeStyle = S.accent;
+  ctx.lineWidth = 4;
+  ctx.lineJoin = 'round';
+  ctx.beginPath();
+  for (let i = 0; i <= 200; i++) {
+    const uu = (i / 200) * u;
+    const x = gx + gw * uu, y = mv2y(apVoltage(uu));
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  }
+  ctx.stroke();
+  const hx = gx + gw * u, hy = mv2y(apVoltage(u));
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(hx, hy, 7, 0, Math.PI * 2);
+  ctx.fill();
+  // the live readout gets a plate behind it so it stays legible over the
+  // dashed reference lines it passes through
+  font('bold', 26, MONO);
+  const label = `${Math.round(apVoltage(u))} mV`;
+  const lw = ctx.measureText(label).width;
+  const lx = clamp(hx, gx + lw / 2 + 12, gx + gw - lw / 2 - 12);
+  ctx.fillStyle = 'rgba(5,6,10,0.85)';
+  roundRect(lx - lw / 2 - 10, hy - 52, lw + 20, 36, 10);
+  ctx.fill();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText(label, lx, hy - 33);
+  ctx.restore();
+
+  // the membrane, with two gates that open on cue
+  const my = BOX.y + 350;
+  const naOpen = clamp((p - 0.20) / 0.12) * (1 - clamp((p - 0.42) / 0.10));
+  const kOpen = clamp((p - 0.40) / 0.12) * (1 - clamp((p - 0.68) / 0.10));
+  const gates = [{ x: BOX.x + 190, open: naOpen, ion: 'Na⁺', dir: 1, col: S.accent },
+                 { x: BOX.x + 410, open: kOpen, ion: 'K⁺', dir: -1, col: '#93c5fd' }];
+
+  ctx.save();
+  // bilayer heads
+  ctx.fillStyle = 'rgba(255,255,255,0.20)';
+  for (let x = BOX.x + 10; x < BOX.x + BOX.w - 10; x += 24) {
+    const inGate = gates.some(g => Math.abs(x - g.x) < 34);
+    if (inGate) continue;
+    ctx.beginPath(); ctx.arc(x, my - 20, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, my + 20, 9, 0, Math.PI * 2); ctx.fill();
+  }
+  gates.forEach(g => {
+    ctx.strokeStyle = g.open > 0.5 ? g.col : 'rgba(255,255,255,0.3)';
+    ctx.lineWidth = 4;
+    const gap = lerp(6, 26, g.open);
+    [[-1], [1]].forEach(([s]) => {
+      ctx.beginPath();
+      ctx.moveTo(g.x + s * gap, my - 34);
+      ctx.lineTo(g.x + s * gap, my + 34);
+      ctx.stroke();
+    });
+    font('bold', 26, MONO);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = g.open > 0.4 ? g.col : 'rgba(255,255,255,0.4)';
+    ctx.fillText(g.ion, g.x, my + (g.dir > 0 ? 78 : -78));
+    // ions streaming through while open
+    if (g.open > 0.05) {
+      for (let k = 0; k < 5; k++) {
+        const q = ((t * 0.9 + k / 5) % 1);
+        const iy = g.dir > 0 ? lerp(my - 92, my + 92, q) : lerp(my + 92, my - 92, q);
+        ctx.globalAlpha = g.open * (1 - Math.abs(q - 0.5) * 0.9);
+        ctx.fillStyle = g.col;
+        ctx.beginPath(); ctx.arc(g.x, iy, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+    }
+  });
+  ctx.restore();
+}
+
+/** Physics — SHM as the shadow of circular motion */
+function diagShm(t, p) {
+  const w = 2 * Math.PI / 2.4;              // T = 2.4 s
+  const A = 78;
+  const phase = t * w;
+  const x = A * Math.cos(phase);
+
+  const springX = BOX.x + 90, anchorY = BOX.y + 20;
+  const massY = BOX.y + 190 + x;
+
+  // spring
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(springX - 40, anchorY);
+  ctx.lineTo(springX + 40, anchorY);
+  ctx.moveTo(springX, anchorY);
+  const coils = 9, span = massY - 34 - anchorY;
+  for (let i = 0; i <= coils * 2; i++) {
+    ctx.lineTo(springX + (i % 2 ? 22 : -22), anchorY + (span * i) / (coils * 2));
+  }
+  ctx.lineTo(springX, massY - 34);
+  ctx.stroke();
+
+  // mass
+  ctx.fillStyle = S.accent;
+  roundRect(springX - 34, massY - 34, 68, 68, 14);
+  ctx.fill();
+  font('bold', 30, MONO);
+  ctx.fillStyle = '#05060a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('m', springX, massY + 2);
+  ctx.restore();
+
+  // phase circle + the projection that makes the point
+  const pc = clamp((p - 0.18) / 0.25);
+  if (pc > 0) {
+    const ccx = BOX.x + 420, ccy = BOX.y + 190, R = A;
+    ctx.save();
+    ctx.globalAlpha = pc;
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ccx, ccy, R, 0, Math.PI * 2);
+    ctx.stroke();
+
+    const px = ccx + R * Math.sin(phase), py = ccy + R * Math.cos(phase);
+    ctx.strokeStyle = hexA(S.accent2, 0.55);
+    ctx.beginPath();
+    ctx.moveTo(ccx, ccy);
+    ctx.lineTo(px, py);
+    ctx.stroke();
+    ctx.setLineDash([7, 7]);
+    ctx.strokeStyle = hexA(S.accent2, 0.7);
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(springX, py);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = S.accent2;
+    ctx.beginPath();
+    ctx.arc(px, py, 9, 0, Math.PI * 2);
+    ctx.fill();
+    font('bold', 21);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText('chuyển động tròn', ccx, ccy + R + 34);
+    ctx.restore();
+  }
+
+  // the sine it traces
+  const sc = clamp((p - 0.42) / 0.28);
+  if (sc > 0) {
+    const tx = BOX.x + 20, ty = BOX.y + 400, tw = BOX.w - 40, th = 150;
+    ctx.save();
+    ctx.globalAlpha = sc;
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty + th / 2);
+    ctx.lineTo(tx + tw, ty + th / 2);
+    ctx.stroke();
+    ctx.strokeStyle = S.accent;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    for (let i = 0; i <= tw; i++) {
+      // time scrolls right-to-left; the right edge is "now"
+      const tt = phase - (tw - i) * 0.016;
+      const yy = ty + th / 2 + (th / 2 - 12) * Math.cos(tt);
+      i === 0 ? ctx.moveTo(tx + i, yy) : ctx.lineTo(tx + i, yy);
+    }
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(tx + tw, ty + th / 2 + (th / 2 - 12) * Math.cos(phase), 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+const DIAGRAMS = { chain: diagChain, orbital: diagOrbital, membrane: diagMembrane, shm: diagShm };
+
+function drawDiagram(t) {
+  const a = diagramAlpha(t);
+  if (a <= 0.01) return;
+  const [d0, d1] = DIAG_WINDOW;
+  const p = clamp((t - d0) / (d1 - d0));
+  ctx.save();
+  ctx.globalAlpha = a;
+  DIAGRAMS[S.diagram](t, p);
+  ctx.restore();
+}
+
+// ── the beat punch: a small scale bump on each cut ─────────────────────────
+function punch(t) {
+  let k = 0;
+  for (const b of BEATS) {
+    const dt = t - b;
+    if (dt >= 0 && dt < 0.34) k = Math.max(k, Math.pow(1 - dt / 0.34, 2));
+  }
+  return 1 + k * 0.028;
+}
+
+// ── the one entry point ────────────────────────────────────────────────────
+window.renderAt = function renderAt(t) {
+  drawBackground(t);
+
+  const s = punch(t);
+  ctx.save();
+  ctx.translate(W / 2, H / 2);
+  ctx.scale(s, s);
+  ctx.translate(-W / 2, -H / 2);
+
+  drawProgress(t);
+  drawChip(t);
+  drawDiagram(t);
+  drawHook(t);
+  drawIdea(t);
+  drawSteps(t);
+  drawPayoff(t);
+  drawBrand(t);
+  ctx.restore();
+
+  drawGrain(t);
+};
+
+window.__meta = { W, H, DUR };
+window.__frame = q => canvas.toDataURL('image/jpeg', q).slice('data:image/jpeg;base64,'.length);
+window.__fontsReady = () => document.fonts.ready.then(() => document.fonts.load('400 44px "Instrument Serif"'));
+</script>

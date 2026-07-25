@@ -13,6 +13,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Coffee, Pause, Play, RotateCcw, Timer as TimerIcon, X } from 'lucide-react';
+import { useWorkspace } from '../context/WorkspaceContext';
+import BreakReels from './BreakReels';
 
 const WORK_MS = 45 * 60_000;
 const BREAK_MIN_MS = 5 * 60_000;
@@ -26,6 +28,7 @@ function fmt(ms: number): string {
 }
 
 export default function StudyCycleTimer() {
+  const { activeTab } = useWorkspace();
   const [phase, setPhase] = useState<Phase>('idle');
   const [remaining, setRemaining] = useState(WORK_MS);
   const [paused, setPaused] = useState(false);
@@ -88,7 +91,10 @@ export default function StudyCycleTimer() {
 
   if (phase === 'break') {
     return (
-      <div className="fixed inset-0 z-[190] bg-black/85 backdrop-blur-md flex items-center justify-center p-6">
+      <div className="fixed inset-0 z-[190] bg-black/85 backdrop-blur-md flex flex-col md:flex-row items-center justify-center gap-8 p-6 overflow-y-auto">
+        {/* Reels sit beside the break card, not inside it: they are an offer,
+            not part of the instruction to rest. */}
+        <BreakReels subject={activeTab} />
         <div className="glass-card rounded-3xl p-10 max-w-sm w-full text-center flex flex-col items-center gap-4">
           <Coffee className="w-9 h-9 text-emerald-300" strokeWidth={1.4} />
           <p className="text-[10px] uppercase tracking-[2px] text-emerald-300">Nghỉ bắt buộc</p>
