@@ -19,7 +19,8 @@ import ProblemSetsView from './views/ProblemSetsView';
 import NoteView from './views/NoteView';
 import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
-import OnboardingModal from './components/OnboardingModal';
+import WeeklyScheduleSetup from './components/WeeklyScheduleSetup';
+import StudyCycleTimer from './components/StudyCycleTimer';
 import MistakeBankView from './views/MistakeBankView';
 // import ReferenceBankView from './views/ReferenceBankView';  // disabled, coming soon
 import SettingsView from './views/SettingsView';
@@ -41,7 +42,7 @@ function AppInner() {
   const { user, loading, devMode, emailVerified } = useAuth();
   const { activeTab } = useWorkspace();
   const [showTerms, setShowTerms] = useState(false);
-  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showScheduleSetup, setShowScheduleSetup] = useState(false);
   const [showTour, setShowTour] = useState(false);
   const tourCheckedRef = useRef(false);
 
@@ -104,8 +105,8 @@ function AppInner() {
           setShowTerms(true);
           return;
         }
-        if (!localStorage.getItem(scopedGateKey('lyceum_onboarding_done'))) {
-          setShowOnboarding(true);
+        if (!localStorage.getItem(scopedGateKey('lyceum_schedule_set'))) {
+          setShowScheduleSetup(true);
         }
       } catch { /* ignore */ }
     }
@@ -115,14 +116,14 @@ function AppInner() {
   // a one-time spotlight tour of the main features. tourCheckedRef guards
   // against re-checking on every render of the same page load.
   useEffect(() => {
-    if (loading || showTerms || showOnboarding) return;
+    if (loading || showTerms || showScheduleSetup) return;
     if (!((user && emailVerified) || devMode) || view === 'landing' || view === 'auth') return;
     if (tourCheckedRef.current) return;
     tourCheckedRef.current = true;
     try {
       if (!localStorage.getItem(scopedGateKey('lyceum_tour_done'))) setShowTour(true);
     } catch { /* ignore */ }
-  }, [loading, user, emailVerified, devMode, view, showTerms, showOnboarding]);
+  }, [loading, user, emailVerified, devMode, view, showTerms, showScheduleSetup]);
 
   function handleTourFinish() {
     try { localStorage.setItem(scopedGateKey('lyceum_tour_done'), '1'); } catch { /* ignore */ }
@@ -133,14 +134,15 @@ function AppInner() {
     try { localStorage.setItem(scopedGateKey('lyceum_terms_accepted'), '1'); } catch { /* ignore */ }
     setShowTerms(false);
     try {
-      if (!localStorage.getItem(scopedGateKey('lyceum_onboarding_done'))) {
-        setShowOnboarding(true);
+      if (!localStorage.getItem(scopedGateKey('lyceum_schedule_set'))) {
+        setShowScheduleSetup(true);
       }
     } catch { /* ignore */ }
   }
 
-  function handleOnboardingClose() {
-    setShowOnboarding(false);
+  function handleScheduleDone() {
+    try { localStorage.setItem(scopedGateKey('lyceum_schedule_set'), '1'); } catch { /* ignore */ }
+    setShowScheduleSetup(false);
   }
 
   if (loading) {
@@ -162,11 +164,10 @@ function AppInner() {
     return <AuthPage onNavigate={setView} currentView={view} />;
   }
 
-  // First-ever onboarding: don't mount the workspace behind it at all — the
-  // student sees a blank page with the Lyceum advisor, not a blurred
-  // dashboard, until the interview is done.
-  if (showOnboarding) {
-    return <OnboardingModal onClose={handleOnboardingClose} />;
+  // First entry: set the week before the workspace exists. No waitlist and no
+  // onboarding interview any more — the schedule IS the setup.
+  if (showScheduleSetup) {
+    return <WeeklyScheduleSetup onDone={handleScheduleDone} />;
   }
 
   return (
@@ -191,6 +192,7 @@ function AppInner() {
       <SupportChatWidget context="workspace" />
       <ReviewPopup />
       <FloatingPodcast />
+      <StudyCycleTimer />
     </>
   );
 }

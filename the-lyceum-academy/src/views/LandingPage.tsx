@@ -1,46 +1,61 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
+  ArrowDown,
   ArrowUpRight,
   Atom,
   BookMarked,
   Brain,
-  CalendarClock,
+  CalendarDays,
   Compass,
   FlaskConical,
   Gauge,
   Library,
   MessagesSquare,
-  ArrowRight,
+  Moon,
   ScanSearch,
-  ShieldQuestion,
-  Sparkles,
+  Sun,
+  Timer,
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
 import FeedbackWidget from '../components/FeedbackWidget';
 import SupportChatWidget from '../components/SupportChatWidget';
+import { useTheme } from '../context/ThemeContext';
+import { ShaderAnimation } from '../components/ui/shader-lines';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
-import BookCallButton from '../components/BookCallButton';
-import AnimatedGradient from '../../components/ui/animated-gradient';
 import { DeskLampScene, OrbitScene } from '../components/landing/LandingScenes';
 
-// Landing is a permanently-dark marketing surface — decoupled from the
-// workspace's own light/dark toggle (Settings). Force theme-light off for
-// as long as this view is mounted, restoring whatever it was on the way
-// out so the workspace/auth views the visitor lands on next still respect
-// their real preference.
-function useForcedDarkTheme() {
-  useEffect(() => {
-    const html = document.documentElement;
-    const hadLight = html.classList.contains('theme-light');
-    html.classList.remove('theme-light');
-    return () => {
-      if (hadLight) html.classList.add('theme-light');
-    };
-  }, []);
-}
+// ── Socratic dialogue demo — the same method, cycled across unrelated
+// domains to make the point that this isn't a "physics tutor with extras":
+// it's one method applied to anything. ──────────────────────────────────
+const DIALOGUE_SETS: { role: 'student' | 'lyceum'; text: string }[][] = [
+  [
+    { role: 'student', text: 'Why does a ball thrown upward eventually fall back down?' },
+    { role: 'lyceum', text: 'What is pulling on the ball the moment it leaves your hand?' },
+    { role: 'student', text: 'Gravity — it never really stops acting on it.' },
+    { role: 'lyceum', text: 'So what does that tell you about its velocity over time?' },
+    { role: 'student', text: 'It keeps decreasing going up, hits zero, then reverses.' },
+    { role: 'lyceum', text: 'You found it yourself. What changes on the Moon?' },
+  ],
+  [
+    { role: 'student', text: 'Why does adding salt make water boil at a higher temperature?' },
+    { role: 'lyceum', text: 'What do the salt ions do to the water molecules trying to escape as vapor?' },
+    { role: 'student', text: 'They get in the way — fewer molecules can leave the surface.' },
+    { role: 'lyceum', text: 'So to reach the same escaping rate, what has to change?' },
+    { role: 'student', text: 'You need more heat — a higher temperature.' },
+    { role: 'lyceum', text: 'You derived it. Now — what happens to the freezing point?' },
+  ],
+  [
+    { role: 'student', text: 'Why does my proof by induction feel like cheating?' },
+    { role: 'lyceum', text: 'What exactly are you assuming true before you’ve proven the next case?' },
+    { role: 'student', text: 'That it holds for n — but I haven’t shown that for every n yet.' },
+    { role: 'lyceum', text: 'Right — so what makes the base case non-negotiable?' },
+    { role: 'student', text: 'Without it the whole chain has nothing to start from.' },
+    { role: 'lyceum', text: 'Exactly. Now — where would this argument break for real numbers?' },
+  ],
+];
 
 const QUOTES = [
   { text: 'The unexamined life is not worth living.', by: 'Socrates' },
@@ -52,19 +67,19 @@ const QUOTES = [
 
 const METHOD_STEPS: { icon: LucideIcon; title: string; body: string }[] = [
   {
-    icon: ShieldQuestion,
-    title: 'You bring the question',
-    body: 'Any subject. Any material. The point where you are actually stuck.',
+    icon: CalendarDays,
+    title: 'You set the week',
+    body: 'Pick your days and hours. Three sessions a day, maximum — a plan you can actually keep.',
+  },
+  {
+    icon: Timer,
+    title: '45 on. 5–10 off.',
+    body: 'Every session runs the same cycle. The break is not optional; it is what makes the next 45 possible.',
   },
   {
     icon: MessagesSquare,
-    title: 'We return a question',
-    body: 'Not the answer. One question, placed where your understanding breaks.',
-  },
-  {
-    icon: Sparkles,
-    title: 'You derive it',
-    body: 'What you build under your own power, you keep. The rest does not count.',
+    title: 'One question at a time',
+    body: 'Never a wall of text. You get the next question only once you have answered this one.',
   },
 ];
 
@@ -98,6 +113,57 @@ const EQUATIONS = [
   'E = mc²', '∇·E = ρ/ε₀', 'a² + b² = c²', 'iħ∂ψ/∂t = Ĥψ',
   'F = ma', 'ΔG = ΔH − TΔS', 'PV = nRT', '∫f′(x)dx = f(x) + C', 'S = k log W',
 ];
+
+function DialogueDemo() {
+  const [setIdx, setSetIdx] = useState(0);
+  const [step, setStep] = useState(1);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setStep((s) => {
+        const script = DIALOGUE_SETS[setIdx];
+        if (s >= script.length) {
+          setSetIdx((si) => (si + 1) % DIALOGUE_SETS.length);
+          return 1;
+        }
+        return s + 1;
+      });
+    }, 2200);
+    return () => clearInterval(id);
+  }, [setIdx]);
+
+  const script = DIALOGUE_SETS[setIdx];
+  const visible = script.slice(0, step);
+
+  return (
+    <div className="relative w-full max-w-md rounded-3xl glass-strong p-5 flex flex-col gap-3 min-h-[340px]">
+      <div className="flex items-center gap-2 pb-2 mb-1 border-b border-white/10">
+        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className="text-[11px] uppercase tracking-[0.15em] text-white/40">Một phương pháp · Toán &amp; Khoa học</span>
+      </div>
+      <div className="flex flex-col gap-3">
+        <AnimatePresence initial={false} mode="popLayout">
+          {visible.map((m, i) => (
+            <motion.div
+              key={`${setIdx}-${i}`}
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className={
+                m.role === 'student'
+                  ? 'self-end max-w-[85%] rounded-2xl rounded-br-sm bg-white/10 px-4 py-2.5 text-[13px] leading-relaxed text-white/90'
+                  : 'self-start max-w-[85%] rounded-2xl rounded-bl-sm bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-400/20 px-4 py-2.5 text-[13px] leading-relaxed text-purple-100'
+              }
+            >
+              {m.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
 
 function EquationMarquee() {
   const doubled = [...EQUATIONS, ...EQUATIONS];
@@ -160,16 +226,7 @@ const stagger = {
 
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
-  const [email, setEmail] = useState('');
-  useForcedDarkTheme();
-
-  function handleEmailSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (email.trim()) {
-      try { window.localStorage.setItem('lyceum_prefill_email', email.trim()); } catch { /* best-effort only */ }
-    }
-    onNavigate('apply');
-  }
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div className="relative bg-[#050508] text-slate-200 font-sans antialiased overflow-x-hidden selection:bg-purple-500/30 min-h-screen transition-colors duration-500">
@@ -182,113 +239,135 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
 
       <FeedbackWidget context="landing" />
 
-      {/* Hero — WebGL animated gradient in Lyceum's own brand colors instead
-          of stock footage. Nav sits in normal flow here (not fixed) and
-          scrolls away with the hero, by design of this layout. */}
-      <div className="relative min-h-screen bg-black overflow-hidden flex flex-col">
-        <AnimatedGradient
-          config={{
-            preset: 'custom',
-            color1: '#050508',
-            color2: '#a78bfa',
-            color3: '#818cf8',
-            rotation: -50,
-            proportion: 30,
-            scale: 0.015,
-            speed: 20,
-            distortion: 6,
-            swirl: 40,
-            swirlIterations: 12,
-            softness: 60,
-            offset: -200,
-            shape: 'Checks',
-            shapeSize: 40,
-          }}
-          noise={{ opacity: 6 }}
-          style={{ zIndex: 0 }}
-        />
-
-        {/* Nav */}
-        <motion.nav
-          initial={{ opacity: 0, y: -16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="relative z-20 pl-6 pr-6 py-6"
-        >
-          <div className="max-w-5xl mx-auto liquid-glass rounded-full px-6 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <img src="/logo.png" alt="" className="w-6 h-6 object-contain" />
-              <span className="text-white font-semibold text-lg">The Lyceum</span>
-              <div className="hidden md:flex items-center gap-8 ml-8">
-                <a href="#method" className="text-white/80 hover:text-white transition-colors text-sm font-medium">The Method</a>
-                <a href="#faculty" className="text-white/80 hover:text-white transition-colors text-sm font-medium">The Faculty</a>
-                <a href="/library" className="text-white/80 hover:text-white transition-colors text-sm font-medium">Library</a>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <button type="button" onClick={() => onNavigate('auth')} className="text-white text-sm font-medium">
-                Log in
-              </button>
-              <button
-                type="button"
-                onClick={() => onNavigate('apply')}
-                className="liquid-glass rounded-full px-6 py-2 text-white text-sm font-medium"
-              >
-                Apply
-              </button>
-            </div>
+      {/* Nav */}
+      <motion.nav
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="fixed w-full z-50 top-0 px-6 py-4"
+      >
+        <div className="max-w-7xl mx-auto rounded-full px-6 py-3 flex justify-between items-center glass-strong">
+          <div className="flex items-center gap-2.5 text-xl font-bold tracking-wider text-white">
+            <img src="/logo.png" alt="" className="w-8 h-8 object-contain" />
+            <span className="text-metallic">The Lyceum</span>
           </div>
-        </motion.nav>
-
-        {/* Hero content */}
-        <main className="relative z-10 flex-1 flex flex-col">
-          <div className="flex-1 flex flex-col items-center justify-center px-6 py-12 text-center -translate-y-[20%]">
-            <h1 className="font-instrument text-5xl md:text-6xl lg:text-7xl text-white mb-8 tracking-tight whitespace-nowrap">
-              Built for the curious
-            </h1>
-
-            <div className="max-w-xl w-full space-y-4">
-              <form onSubmit={handleEmailSubmit} className="liquid-glass rounded-full pl-6 pr-2 py-2 flex items-center gap-3">
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="flex-1 bg-transparent text-white placeholder:text-white/40 text-base outline-none"
-                />
-                <button type="submit" aria-label="Continue to application" className="bg-white rounded-full p-3 text-black shrink-0">
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-              </form>
-
-              <p className="text-white text-sm leading-relaxed px-4">
-                Nhận email khi hồ sơ tuyển sinh mở, cùng ghi chú ngắn từ Coach về cách tự học Toán và Khoa học cho đúng.
-              </p>
-            </div>
-
-            <a
-              href="#method"
-              className="mt-6 liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors"
+          <div className="hidden md:flex space-x-8 text-sm font-medium text-slate-300">
+            <a href="#method" className="nav-link">The Method</a>
+            <a href="#faculty" className="nav-link">The Faculty</a>
+            <a href="#voices" className="nav-link">Wisdom</a>
+            <a href="/library" className="nav-link">Library</a>
+          </div>
+          <div className="flex items-center gap-3">
+            <motion.button
+              whileHover={{ scale: 1.08 }}
+              whileTap={{ scale: 0.92 }}
+              onClick={toggleTheme}
+              aria-label="Toggle light / dark mode"
+              className="w-9 h-9 flex items-center justify-center rounded-full text-white glass-btn"
             >
-              Đọc Tuyên ngôn
-            </a>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={theme}
+                  initial={{ opacity: 0, rotate: -90, scale: 0.6 }}
+                  animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                  exit={{ opacity: 0, rotate: 90, scale: 0.6 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex items-center justify-center"
+                >
+                  {theme === 'dark' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
+            <LiquidMetalButton
+              label="Launch Workspace"
+              onClick={() => onNavigate('auth')}
+            />
           </div>
+        </div>
+      </motion.nav>
 
-          {/* Quick links — real internal destinations, not fabricated social accounts */}
-          <div className="relative z-10 flex justify-center gap-4 pb-12">
-            <a href="/library" aria-label="Library" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
-              <Library className="w-5 h-5" />
-            </a>
-            <a href="/secondbrain" aria-label="Second Brain" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
-              <BookMarked className="w-5 h-5" />
-            </a>
-            <BookCallButton label="Book a call" className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all">
-              <CalendarClock className="w-5 h-5" />
-            </BookCallButton>
+      {/* Hero */}
+      <main className="relative max-w-7xl mx-auto px-6 pt-40 pb-16 min-h-screen flex items-center">
+        <div className="hero-shader pointer-events-none absolute inset-0 -z-0 overflow-hidden flex items-center justify-center">
+          <div className="relative w-full max-w-6xl aspect-[16/10]">
+            <ShaderAnimation />
           </div>
-        </main>
-      </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center w-full">
+          {/* Left: headline + CTA */}
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={stagger}
+            className="space-y-7 z-10"
+          >
+            <motion.div variants={fadeUp} transition={{ duration: 0.5 }}>
+              <span className="text-[11px] uppercase tracking-[0.25em] text-white/40">Toán &amp; Khoa học · cho người ADHD và khó tập trung</span>
+            </motion.div>
+
+            <div className="relative">
+              <h1 className="font-garamond text-5xl md:text-6xl font-medium leading-[1.15] tracking-tight text-metallic">
+                <TextReveal
+                  as="span"
+                  className="inline"
+                  per="word"
+                  preset="fade-in-blur"
+                  delay={0.2}
+                  speedReveal={1.2}
+                >
+                  {"Focus is not willpower."}
+                </TextReveal>
+                <br />
+                <TextReveal
+                  as="span"
+                  className="inline"
+                  per="word"
+                  preset="fade-in-blur"
+                  delay={0.6}
+                  speedReveal={1.2}
+                >
+                  {"It is structure."}
+                </TextReveal>
+              </h1>
+            </div>
+
+            <motion.p
+              variants={fadeUp}
+              transition={{ duration: 0.6 }}
+              className="text-lg text-slate-400 max-w-lg leading-relaxed"
+            >
+              Dành cho người có ADHD hoặc khó tập trung, học Toán và Khoa học.
+              Bạn tự đặt lịch tuần — tối đa 3 buổi mỗi ngày. Mỗi buổi chạy đúng
+              một nhịp: 45 phút học, 5–10 phút nghỉ. Không chờ xét duyệt.
+            </motion.p>
+
+            <motion.div variants={fadeUp} transition={{ duration: 0.6 }} className="pt-2 flex flex-wrap items-center gap-4">
+              <LiquidMetalButton
+                label="Bắt đầu học"
+                onClick={() => onNavigate('auth')}
+              />
+              <a
+                href="#method"
+                className="text-sm font-medium text-slate-400 hover:text-white transition-colors inline-flex items-center gap-1.5"
+              >
+                Xem cách dạy
+                <ArrowDown className="w-4 h-4" />
+              </a>
+            </motion.div>
+          </motion.div>
+
+          {/* Right: live dialogue demo */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, delay: 0.2 }}
+            className="relative w-full flex justify-center lg:justify-end z-10"
+          >
+            <div className="absolute inset-0 bg-gradient-to-tr from-blue-500/20 to-purple-500/20 rounded-full blur-3xl transform scale-75" />
+            <DialogueDemo />
+          </motion.div>
+        </div>
+      </main>
 
       <EquationMarquee />
 
@@ -304,10 +383,10 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">The method</p>
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
             <TextReveal per="word" preset="fade" delay={0.1}>
-              {"Three steps. No shortcuts."}
+              {"Three rules. Nothing to negotiate."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">Every session is the same experiment, run on your own mind.</p>
+          <p className="text-slate-400 max-w-xl mx-auto">Attention is a budget, not a virtue. The structure spends yours carefully.</p>
         </motion.div>
 
         <motion.div
@@ -448,15 +527,15 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
           <Atom className="w-9 h-9 text-purple-300" strokeWidth={1.3} />
           <h2 className="font-garamond text-3xl md:text-4xl text-metallic">
             <TextReveal per="word" preset="blur" delay={0.1}>
-              {"Admission is not open."}
+              {"No application. No waiting."}
             </TextReveal>
           </h2>
-          <p className="text-slate-400 max-w-md">One application. Reviewed by hand. Most are declined.</p>
+          <p className="text-slate-400 max-w-md">Set your week, then start. Most plans fail for being too big — yours caps at three sessions a day.</p>
           <LiquidMetalButton
-            label="Request Admission"
-            onClick={() => onNavigate('apply')}
+            label="Bắt đầu học"
+            onClick={() => onNavigate('auth')}
           />
-          <p className="text-xs text-slate-500">We accept those who intend to be excellent.</p>
+          <p className="text-xs text-slate-500">Bring the difficulty concentrating. We will build around it.</p>
         </motion.div>
       </section>
 

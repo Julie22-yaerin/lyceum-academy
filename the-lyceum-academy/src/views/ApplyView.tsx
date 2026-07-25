@@ -14,7 +14,6 @@ import { useState } from 'react';
 import { NavigationProps } from '../types';
 import { submitApplication, type ApplicationAnswers, type LearningVector } from '../lib/lyceumApi';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
-import InlineCalBooking from '../components/InlineCalBooking';
 
 // Eligible levels only: grade 10 → first-year university.
 const GRADE_LEVELS = [
@@ -312,18 +311,6 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
                 ← Về trang chủ
               </button>
             </div>
-
-            {/* Booking is offered regardless of the review outcome above —
-                only skipped for an outright decline, where inviting a call
-                would read as a mixed signal. */}
-            {alreadyDecided !== 'declined' && (
-              <div className="glass-card rounded-3xl p-6 mt-6">
-                <p className="text-center text-sm text-slate-400 mb-4">
-                  Trong lúc chờ xét duyệt, đặt lịch nói chuyện trực tiếp với The Lyceum:
-                </p>
-                <InlineCalBooking className="rounded-2xl overflow-hidden" />
-              </div>
-            )}
           </>
         )}
       </div>
