@@ -8,20 +8,20 @@ export default function FeedbackPanel({
   onNext: () => void;
 }) {
   return (
-    <div className="liquid-glass rounded-3xl p-8 text-center">
-      <p className={`text-xs uppercase tracking-widest mb-3 ${correct ? 'text-emerald-300' : 'text-red-300'}`}>
-        {correct ? 'Correct' : 'Wrong'} · {delta >= 0 ? '+' : ''}{delta} điểm
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
+      <p className={`text-xs uppercase tracking-widest mb-3 ${correct ? 'text-emerald-600' : 'text-red-600'}`}>
+        {correct ? '✅ Correct' : '❌ Wrong'} · {delta >= 0 ? '+' : ''}{delta} điểm
       </p>
-      <p className="text-white text-lg leading-relaxed mb-4">{taunt}</p>
+      <p className="text-slate-900 text-lg leading-relaxed mb-4">{taunt}</p>
       {explanation && (
-        <p className="text-white/50 text-sm leading-relaxed mb-6 border-t border-white/10 pt-4">{explanation}</p>
+        <p className="text-slate-500 text-sm leading-relaxed mb-6 border-t border-slate-200 pt-4">{explanation}</p>
       )}
       <button
         type="button"
         onClick={onNext}
-        className="mt-2 bg-white text-black rounded-full px-8 py-3 text-sm font-semibold hover:bg-white/90 transition-colors"
+        className="mt-2 bg-slate-900 text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-slate-800 transition-colors"
       >
-        Tiếp tục
+        Tiếp tục ➡️
       </button>
     </div>
   );

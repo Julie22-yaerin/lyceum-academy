@@ -79,16 +79,16 @@ export default function ConceptExplainItem({
 
   if (result) {
     return (
-      <div className="liquid-glass rounded-3xl p-8 text-center">
-        <p className={`text-xs uppercase tracking-widest mb-3 ${result.gave_up ? 'text-red-300' : 'text-emerald-300'}`}>
-          {result.gave_up ? 'Bỏ cuộc' : 'Đã cố gắng'} · {result.delta >= 0 ? '+' : ''}{result.delta} điểm
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8 text-center">
+        <p className={`text-xs uppercase tracking-widest mb-3 ${result.gave_up ? 'text-red-600' : 'text-emerald-600'}`}>
+          {result.gave_up ? '💀 Bỏ cuộc' : '💪 Đã cố gắng'} · {result.delta >= 0 ? '+' : ''}{result.delta} điểm
         </p>
-        <p className="text-white text-lg leading-relaxed mb-6">{result.taunt}</p>
+        <p className="text-slate-900 text-lg leading-relaxed mb-6">{result.taunt}</p>
         <button
           type="button" onClick={() => onDone(result.delta)}
-          className="bg-white text-black rounded-full px-8 py-3 text-sm font-semibold hover:bg-white/90 transition-colors"
+          className="bg-slate-900 text-white rounded-full px-8 py-3 text-sm font-semibold hover:bg-slate-800 transition-colors"
         >
-          Tiếp tục
+          Tiếp tục ➡️
         </button>
       </div>
     );
@@ -97,18 +97,18 @@ export default function ConceptExplainItem({
   const canSubmit = mode === 'text' ? text.trim().length > 0 : hasRecording;
 
   return (
-    <div className="liquid-glass rounded-3xl p-8">
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-white/40 text-xs uppercase tracking-widest">Giải thích khái niệm · câu {index + 1}/{total}</span>
-        <span className="text-white/40 text-xs uppercase tracking-widest">Mức {item.difficulty}</span>
+        <span className="text-slate-400 text-xs uppercase tracking-widest">🗣️ Giải thích khái niệm · câu {index + 1}/{total}</span>
+        <span className="text-slate-400 text-xs uppercase tracking-widest">Mức {item.difficulty}</span>
       </div>
-      <p className="text-white text-lg leading-relaxed mb-6">{item.prompt}</p>
+      <p className="text-slate-900 text-lg leading-relaxed mb-6">{item.prompt}</p>
 
       <div className="flex gap-2 mb-4">
         <button
           type="button" onClick={() => setMode('text')}
           className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
-            mode === 'text' ? 'bg-white text-black border-white' : 'bg-white/5 text-white/70 border-white/10'
+            mode === 'text' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'
           }`}
         >
           <Type className="w-3.5 h-3.5" /> Gõ chữ
@@ -116,7 +116,7 @@ export default function ConceptExplainItem({
         <button
           type="button" onClick={() => setMode('audio')}
           className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium border transition-colors ${
-            mode === 'audio' ? 'bg-white text-black border-white' : 'bg-white/5 text-white/70 border-white/10'
+            mode === 'audio' ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-600 border-slate-200'
           }`}
         >
           <Mic className="w-3.5 h-3.5" /> Ghi âm
@@ -127,43 +127,43 @@ export default function ConceptExplainItem({
         <textarea
           value={text} onChange={(e) => setText(e.target.value)} rows={5}
           placeholder="Giải thích bằng lời của bạn — đừng chỉ gõ &quot;không biết&quot;…"
-          className="w-full bg-white/5 rounded-xl px-4 py-3 text-sm text-white/90 outline-none border border-white/10 focus:border-white/30 resize-y mb-6"
+          className="w-full bg-slate-50 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none border border-slate-200 focus:border-slate-400 resize-y mb-6"
         />
       ) : (
-        <div className="bg-white/5 rounded-2xl p-6 mb-6 border border-white/10 flex flex-col items-center gap-3">
-          {micError && <p className="text-red-300 text-xs">{micError}</p>}
-          <p className={`text-2xl font-mono ${elapsed >= MIN_SECONDS ? 'text-emerald-300' : 'text-white/70'}`}>
+        <div className="bg-slate-50 rounded-2xl p-6 mb-6 border border-slate-200 flex flex-col items-center gap-3">
+          {micError && <p className="text-red-600 text-xs">⚠️ {micError}</p>}
+          <p className={`text-2xl font-mono ${elapsed >= MIN_SECONDS ? 'text-emerald-600' : 'text-slate-500'}`}>
             {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
           </p>
-          <p className="text-white/40 text-xs">Cần tối thiểu {MIN_SECONDS}s</p>
+          <p className="text-slate-400 text-xs">Cần tối thiểu {MIN_SECONDS}s ⏱️</p>
           {!recording ? (
             <button
               type="button" onClick={startRecording}
-              className="flex items-center gap-2 bg-white text-black rounded-full px-6 py-2.5 text-sm font-semibold hover:bg-white/90 transition-colors"
+              className="flex items-center gap-2 bg-slate-900 text-white rounded-full px-6 py-2.5 text-sm font-semibold hover:bg-slate-800 transition-colors"
             >
               <Mic className="w-4 h-4" /> {hasRecording ? 'Ghi lại' : 'Bắt đầu ghi âm'}
             </button>
           ) : (
             <button
               type="button" onClick={stopRecording}
-              className="flex items-center gap-2 bg-red-500 text-white rounded-full px-6 py-2.5 text-sm font-semibold hover:bg-red-400 transition-colors"
+              className="flex items-center gap-2 bg-red-600 text-white rounded-full px-6 py-2.5 text-sm font-semibold hover:bg-red-500 transition-colors"
             >
               <Square className="w-4 h-4" /> Dừng ghi âm
             </button>
           )}
           {hasRecording && !recording && (
-            <p className="text-emerald-300 text-xs">Đã ghi được {elapsed}s.</p>
+            <p className="text-emerald-600 text-xs">✅ Đã ghi được {elapsed}s.</p>
           )}
         </div>
       )}
 
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-white/40 hover:text-white/70 text-sm transition-colors">
-          Bỏ qua
+        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-slate-400 hover:text-slate-600 text-sm transition-colors">
+          Bỏ qua 🏃
         </button>
         <button
           type="button" disabled={!canSubmit || busy} onClick={() => submit(false)}
-          className="bg-white text-black rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/90 transition-colors"
+          className="bg-slate-900 text-white rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
         >
           Gửi
         </button>

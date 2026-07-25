@@ -36,19 +36,19 @@ export default function SpotMistakeItem({
   }
 
   return (
-    <div className="liquid-glass rounded-3xl p-8">
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-white/40 text-xs uppercase tracking-widest">
-          Soi lỗi sai · câu {index + 1}/{total}
+        <span className="text-slate-400 text-xs uppercase tracking-widest">
+          🔍 Soi lỗi sai · câu {index + 1}/{total}
         </span>
-        <span className="text-white/40 text-xs uppercase tracking-widest">Độ khó {item.difficulty}/10</span>
+        <span className="text-slate-400 text-xs uppercase tracking-widest">Độ khó {item.difficulty}/10</span>
       </div>
-      <p className="text-white text-lg leading-relaxed mb-4">{item.question}</p>
-      <div className="bg-white/5 rounded-2xl p-5 mb-6 border border-white/10">
-        <p className="text-white/50 text-xs uppercase tracking-widest mb-2">Bài giải được đưa ra</p>
-        <p className="text-white/85 text-sm leading-relaxed whitespace-pre-wrap">{item.shown_answer}</p>
+      <p className="text-slate-900 text-lg leading-relaxed mb-4">{item.question}</p>
+      <div className="bg-slate-50 rounded-2xl p-5 mb-6 border border-slate-200">
+        <p className="text-slate-400 text-xs uppercase tracking-widest mb-2">Bài giải được đưa ra</p>
+        <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">{item.shown_answer}</p>
       </div>
-      <p className="text-white/60 text-sm mb-3">Chỗ sai thực sự nằm ở đâu?</p>
+      <p className="text-slate-600 text-sm mb-3">Chỗ sai thực sự nằm ở đâu? 🤔</p>
       <div className="flex flex-col gap-2 mb-8">
         {item.choices.map((c, i) => (
           <button
@@ -56,7 +56,7 @@ export default function SpotMistakeItem({
             type="button"
             onClick={() => setSelected(i)}
             className={`text-left rounded-xl px-4 py-3 text-sm border transition-colors ${
-              selected === i ? 'bg-white text-black border-white' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30'
+              selected === i ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'
             }`}
           >
             {c}
@@ -64,12 +64,12 @@ export default function SpotMistakeItem({
         ))}
       </div>
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-white/40 hover:text-white/70 text-sm transition-colors">
-          Bỏ qua
+        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-slate-400 hover:text-slate-600 text-sm transition-colors">
+          Bỏ qua 🏃
         </button>
         <button
           type="button" disabled={selected === null || busy} onClick={() => submit(false)}
-          className="bg-white text-black rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/90 transition-colors"
+          className="bg-slate-900 text-white rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
         >
           Trả lời
         </button>

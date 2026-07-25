@@ -77,8 +77,8 @@ export default function GamePage() {
 
   if (phase === 'finishing') {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <p className="text-white/50 text-sm">Đang chấm điểm…</p>
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex items-center justify-center">
+        <p className="text-slate-500 text-sm">Đang chấm điểm… ⏳</p>
       </div>
     );
   }
@@ -91,16 +91,16 @@ export default function GamePage() {
   if (!item) return null;
 
   return (
-    <div className="min-h-screen bg-black px-6 py-10">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 px-6 py-10">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden mr-4">
+          <div className="flex-1 h-1.5 bg-slate-200 rounded-full overflow-hidden mr-4">
             <div
-              className="h-full bg-white transition-all duration-300"
+              className="h-full bg-slate-900 transition-all duration-300"
               style={{ width: `${((currentIndex) / items.length) * 100}%` }}
             />
           </div>
-          <span className="text-white/60 text-sm font-mono shrink-0">{score >= 0 ? '+' : ''}{score} điểm</span>
+          <span className="text-slate-600 text-sm font-mono shrink-0">{score >= 0 ? '+' : ''}{score} điểm</span>
         </div>
 
         {item.type === 'spot_mistake' && (

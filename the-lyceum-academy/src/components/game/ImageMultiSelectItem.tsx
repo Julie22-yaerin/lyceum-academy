@@ -47,15 +47,15 @@ export default function ImageMultiSelectItem({
   }
 
   return (
-    <div className="liquid-glass rounded-3xl p-8">
+    <div className="bg-white rounded-3xl shadow-xl border border-slate-200 p-8">
       <div className="flex items-center justify-between mb-4">
-        <span className="text-white/40 text-xs uppercase tracking-widest">Đọc hình · câu {index + 1}/{total}</span>
-        <span className="text-white/40 text-xs uppercase tracking-widest">Chọn đúng {item.max_select}</span>
+        <span className="text-slate-400 text-xs uppercase tracking-widest">🖼️ Đọc hình · câu {index + 1}/{total}</span>
+        <span className="text-slate-400 text-xs uppercase tracking-widest">Chọn đúng {item.max_select}</span>
       </div>
 
-      <div className="relative rounded-2xl overflow-hidden mb-6 bg-white/5 aspect-video flex items-center justify-center">
+      <div className="relative rounded-2xl overflow-hidden mb-6 bg-slate-50 border border-slate-200 aspect-video flex items-center justify-center">
         {!imgLoaded && (
-          <p className="absolute inset-0 flex items-center justify-center text-white/40 text-sm">Đang vẽ hình…</p>
+          <p className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm">Đang vẽ hình… ⏳</p>
         )}
         <img
           src={gameImageUrl(sessionId, item.id)}
@@ -64,8 +64,8 @@ export default function ImageMultiSelectItem({
         />
       </div>
 
-      <p className="text-white/60 text-sm mb-3">
-        Hình này thể hiện đúng {item.max_select} khái niệm — chọn đúng số đó.
+      <p className="text-slate-600 text-sm mb-3">
+        Hình này thể hiện đúng {item.max_select} khái niệm — chọn đúng số đó. 👀
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-8">
         {item.options.map((opt, i) => {
@@ -76,7 +76,7 @@ export default function ImageMultiSelectItem({
               type="button"
               onClick={() => toggle(i)}
               className={`text-left rounded-xl px-4 py-3 text-sm border transition-colors ${
-                active ? 'bg-white text-black border-white' : 'bg-white/5 text-white/80 border-white/10 hover:border-white/30'
+                active ? 'bg-slate-900 text-white border-slate-900' : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-400'
               }`}
             >
               {opt}
@@ -86,12 +86,12 @@ export default function ImageMultiSelectItem({
       </div>
 
       <div className="flex items-center justify-between">
-        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-white/40 hover:text-white/70 text-sm transition-colors">
-          Bỏ qua
+        <button type="button" onClick={() => submit(true)} disabled={busy} className="text-slate-400 hover:text-slate-600 text-sm transition-colors">
+          Bỏ qua 🏃
         </button>
         <button
           type="button" disabled={selected.length !== item.max_select || busy} onClick={() => submit(false)}
-          className="bg-white text-black rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/90 transition-colors"
+          className="bg-slate-900 text-white rounded-full px-8 py-2.5 text-sm font-semibold disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
         >
           Trả lời
         </button>

@@ -91,45 +91,45 @@ def is_copout(text: str) -> bool:
 # tone stays controlled (savage, ego-baiting, never identity-based). ───────
 
 _SPOT_CORRECT = [
-    "Correct. You're not completely hopeless.",
-    "Right. Don't let it go to your head.",
-    "Nailed it — beginner's luck or actual competence? We'll find out.",
-    "Correct. The bar was on the floor but hey, you stepped over it.",
-    "Yes. Basic pattern recognition — still counts.",
+    "✅ Correct. You're not completely hopeless.",
+    "✅ Right. Don't let it go to your head.",
+    "🎯 Nailed it — beginner's luck or actual competence? We'll find out.",
+    "✅ Correct. The bar was on the floor but hey, you stepped over it.",
+    "✅ Yes. Basic pattern recognition — still counts.",
 ]
 _SPOT_WRONG = [
-    "Wrong. That answer wouldn't survive a first read-through.",
-    "Nope. Confidently incorrect — the worst kind.",
-    "Wrong. Did you even read the question?",
-    "Incorrect. The mistake was staring right at you.",
-    "Nope. Back to basics for you.",
+    "❌ Wrong. That answer wouldn't survive a first read-through.",
+    "💀 Nope. Confidently incorrect — the worst kind.",
+    "❌ Wrong. Did you even read the question?",
+    "😬 Incorrect. The mistake was staring right at you.",
+    "❌ Nope. Back to basics for you.",
 ]
 _SPOT_SKIP = [
-    "Skipped. Coward's move, but at least it's honest.",
-    "Skipped. Noted.",
-    "Passed. We'll assume the worst.",
+    "🏃 Skipped. Coward's move, but at least it's honest.",
+    "🙄 Skipped. Noted.",
+    "🚪 Passed. We'll assume the worst.",
 ]
 _IMAGE_CORRECT = [
-    "Correct set. You can actually see the concepts, not just the picture.",
-    "All correct. Sharp eyes, for once.",
-    "Nailed the full set. Don't get used to it.",
+    "✅ Correct set. You can actually see the concepts, not just the picture.",
+    "👀 All correct. Sharp eyes, for once.",
+    "🎯 Nailed the full set. Don't get used to it.",
 ]
 _IMAGE_WRONG = [
-    "Wrong combination. You picked vibes, not concepts.",
-    "Nope — that's not what's in the image, that's what you wish was in it.",
-    "Incorrect set. Look at it like it's on the exam, because it basically is.",
+    "❌ Wrong combination. You picked vibes, not concepts.",
+    "🙃 Nope — that's not what's in the image, that's what you wish was in it.",
+    "❌ Incorrect set. Look at it like it's on the exam, because it basically is.",
 ]
 _CONCEPT_EFFORT = [
-    "Fine. At least you tried instead of folding.",
-    "Acceptable effort. Doesn't mean you were right — just that you showed up.",
-    "You actually attempted it. Rare quality around here.",
+    "💪 Fine. At least you tried instead of folding.",
+    "🙂 Acceptable effort. Doesn't mean you were right — just that you showed up.",
+    "😮 You actually attempted it. Rare quality around here.",
 ]
 _CONCEPT_COPOUT = [
-    "\"I don't know\"? That's not an answer, that's a surrender flag. Loser move.",
-    "Congratulations, you just gave up on camera. Certified loser behavior.",
-    "That's the whole contribution? Pathetic.",
-    "You had one job — talk for 30 seconds about something you supposedly learned. Couldn't even do that.",
-    "Giving up this fast? A Magic 8-Ball tries harder than you.",
+    "💀 \"I don't know\"? That's not an answer, that's a surrender flag. Loser move.",
+    "🤡 Congratulations, you just gave up on camera. Certified loser behavior.",
+    "😭 That's the whole contribution? Pathetic.",
+    "🥱 You had one job — talk for 30 seconds about something you supposedly learned. Couldn't even do that.",
+    "🎱 Giving up this fast? A Magic 8-Ball tries harder than you.",
 ]
 
 
@@ -143,27 +143,27 @@ def score_tier(score: int) -> dict[str, str]:
     if score <= 0:
         return {
             "label": "NPC Tier",
-            "copy": f"You scored {score}. Statistically, a coin flip does better. "
+            "copy": f"💀 You scored {score}. Statistically, a coin flip does better. "
                     "The Lyceum doesn't hand out participation trophies.",
         }
     if score <= 6:
         return {
             "label": "Casual Tier",
-            "copy": f"You scored {score}. You know things exist. That isn't the same as knowing things.",
+            "copy": f"🤷 You scored {score}. You know things exist. That isn't the same as knowing things.",
         }
     if score <= 12:
         return {
             "label": "Contender Tier",
-            "copy": f"You scored {score}. Not bad, not good — the vast, forgettable middle.",
+            "copy": f"🙂 You scored {score}. Not bad, not good — the vast, forgettable middle.",
         }
     if score <= 17:
         return {
             "label": "Sharp Tier",
-            "copy": f"You scored {score}. Actually respectable. You might survive a real curriculum.",
+            "copy": f"🔥 You scored {score}. Actually respectable. You might survive a real curriculum.",
         }
     return {
         "label": "Lyceum Material",
-        "copy": f"You scored {score}. Rare. Most people fold before they get here. "
+        "copy": f"👑 You scored {score}. Rare. Most people fold before they get here. "
                 "Come find out if you can keep it up.",
     }
 
