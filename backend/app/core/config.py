@@ -197,6 +197,21 @@ class Settings(BaseSettings):
     cloudflare_tts_token: str = ""      # CLOUDFLARE_TTS_TOKEN   — podcast narration
     cloudflare_image_model: str = "@cf/bytedance/stable-diffusion-xl-lightning"
     cloudflare_tts_model: str = "@cf/myshell-ai/melotts"
+    # Break-time short "reels". NOTE: Workers AI has no text-to-video model —
+    # its catalogue is text / image / TTS / ASR / embeddings. So a reel here is
+    # assembled from generated stills + narration rather than being an encoded
+    # video file. This token is used for that generation.
+    cloudflare_reels_token: str = ""    # CLOUDFLARE_REELS_TOKEN
+
+    # ── Retention offers (shown when a subscriber tries to cancel) ────
+    # Stripe coupon applying the 65% save-offer. Created once in the Stripe
+    # dashboard (Products -> Coupons); leave empty and the offer is recorded
+    # for manual follow-up instead of applied automatically.
+    stripe_retention_coupon_id: str = ""   # STRIPE_RETENTION_COUPON_ID
+    # Quanta granted for booking an onboarding call during the cancel flow.
+    retention_call_bonus_quanta: int = 200
+    # Free trial length, in days, attached to the Stripe checkout session.
+    trial_period_days: int = 4
 
     # ── WolframAlpha (computation plugin, SOC-17) ─────────────────
     # Free AppID at https://developer.wolframalpha.com/access — used for exact

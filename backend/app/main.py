@@ -330,6 +330,8 @@ async def lifespan(_app: FastAPI):
     access_codes_svc.init_db()
     from app.services import game as game_svc
     game_svc.init_db()
+    from app.services import retention as retention_svc
+    retention_svc.init_db()
 
     from app.seed_content import seed_atomic_orbitals_note
     try:

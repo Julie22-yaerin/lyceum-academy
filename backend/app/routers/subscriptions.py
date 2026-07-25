@@ -239,6 +239,10 @@ def create_checkout_session(
     success_url = body.success_url or f"{FRONTEND_URL}/subscription/success"
     cancel_url = body.cancel_url or f"{FRONTEND_URL}/pricing"
 
+    # Card is captured up front, then a free trial before the first charge.
+    # Length lives in settings so it can change without touching Stripe.
+    from app.core.config import settings as app_settings
+
     session = stripe.checkout.Session.create(
         customer=customer_id,
         mode="subscription",
@@ -249,6 +253,7 @@ def create_checkout_session(
                 "quantity": 1,
             }
         ],
+        subscription_data={"trial_period_days": app_settings.trial_period_days},
         success_url=success_url,
         cancel_url=cancel_url,
         metadata={
@@ -580,3 +585,57 @@ def log_feature_usage(
     db.commit()
 
     return {"status": "ok"}
+
+
+# ── Retention (the cancel flow's three layers) ───────────────────────────
+# See app/services/retention.py. The cancel option itself is always
+# reachable — these endpoints exist to make the two save offers work, not to
+# obstruct cancellation.
+
+
+class CancelReasonRequest(BaseModel):
+    reason: str = ""
+
+
+@router.post("/retention/intent")
+def retention_intent(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+):
+    """Cancel flow opened — top of the funnel."""
+    from app.services import retention
+    return retention.record_intent(str(current_user.id))
+
+
+@router.post("/retention/discount")
+def retention_discount(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+    db: Session = Depends(get_db),
+):
+    """Layer 1: user accepted the 65% save offer."""
+    from app.services import retention
+    subscription, _ = get_user_subscription(db, str(current_user.id))
+    sub_id = subscription.stripe_subscription_id if subscription else ""
+    return retention.accept_discount(str(current_user.id), sub_id or "")
+
+
+@router.post("/retention/call-bonus")
+def retention_call_bonus(
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+):
+    """Layer 2: user booked a call — credit the bonus Quanta (once per user)."""
+    from app.services import retention
+    return retention.accept_call_bonus(str(current_user.id))
+
+
+@router.post("/retention/cancelled")
+def retention_cancelled(
+    body: CancelReasonRequest,
+    current_user: Annotated[UserProfile, Depends(get_current_user)],
+):
+    """Layer 3: they went through with cancelling. Logged for churn analysis.
+
+    Stripe-side cancellation still happens through the customer portal
+    (POST /subscriptions/portal) — this only records the outcome.
+    """
+    from app.services import retention
+    return retention.record_cancelled(str(current_user.id), body.reason)

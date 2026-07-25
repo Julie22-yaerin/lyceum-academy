@@ -20,6 +20,7 @@ import NoteView from './views/NoteView';
 import ProgressView from './views/ProgressView';
 import NotepadWindow from './views/NotepadWindow';
 import WeeklyScheduleSetup from './components/WeeklyScheduleSetup';
+import BillingGate from './views/BillingGate';
 import StudyCycleTimer from './components/StudyCycleTimer';
 import MistakeBankView from './views/MistakeBankView';
 // import ReferenceBankView from './views/ReferenceBankView';  // disabled, coming soon
@@ -43,6 +44,10 @@ function AppInner() {
   const { activeTab } = useWorkspace();
   const [showTerms, setShowTerms] = useState(false);
   const [showScheduleSetup, setShowScheduleSetup] = useState(false);
+  // null = still checking; true/false = whether billing is settled. The
+  // workspace stays unmounted until this resolves so a paying-required account
+  // never sees it flash.
+  const [billingOk, setBillingOk] = useState<boolean | null>(null);
   const [showTour, setShowTour] = useState(false);
   const tourCheckedRef = useRef(false);
 
@@ -125,6 +130,24 @@ function AppInner() {
     } catch { /* ignore */ }
   }, [loading, user, emailVerified, devMode, view, showTerms, showScheduleSetup]);
 
+  // Paywall check: an account without an active or trialing subscription gets
+  // BillingGate instead of the workspace. devMode bypasses it (local/admin
+  // testing), and a failed lookup fails OPEN — a billing API outage must not
+  // lock out people who have already paid.
+  useEffect(() => {
+    if (loading || view === 'landing' || view === 'auth') return;
+    if (devMode) { setBillingOk(true); return; }
+    if (!user || !emailVerified) return;
+    let cancelled = false;
+    import('./lib/subscriptionApi')
+      .then(m => m.getCurrentSubscription())
+      .then(sub => {
+        if (!cancelled) setBillingOk(sub.status === 'active' || sub.status === 'trialing');
+      })
+      .catch(() => { if (!cancelled) setBillingOk(true); });
+    return () => { cancelled = true; };
+  }, [loading, user, emailVerified, devMode, view]);
+
   function handleTourFinish() {
     try { localStorage.setItem(scopedGateKey('lyceum_tour_done'), '1'); } catch { /* ignore */ }
     setShowTour(false);
@@ -162,6 +185,21 @@ function AppInner() {
   // Guard: unauthenticated or unverified email users get sent to auth
   if ((!user || !emailVerified) && !devMode) {
     return <AuthPage onNavigate={setView} currentView={view} />;
+  }
+
+  // Paywall sits ahead of everything in the workspace: full page, no overlay
+  // to dismiss. Signing out is offered inside it.
+  if (billingOk === false) {
+    return <BillingGate />;
+  }
+  if (billingOk === null) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface opacity-40 animate-pulse">
+          The Lyceum
+        </div>
+      </div>
+    );
   }
 
   // First entry: set the week before the workspace exists. No waitlist and no

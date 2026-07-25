@@ -15,6 +15,7 @@ import { loadSchedule, saveSchedule, syncScheduleToServer, type ScheduleBlock } 
 import { SUBJECT_META } from '../lib/persist';
 import LanguagePicker from '../components/LanguagePicker';
 import TeamSpace from '../components/TeamSpace';
+import CancelFlow from '../components/CancelFlow';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
 const THEME_OPTIONS: { value: AppTheme; label: string; icon: string }[] = [
@@ -573,6 +574,24 @@ function UnlimitedAccessSection() {
   );
 }
 
+/** Entry point into the cancel flow (retention layers live in CancelFlow). */
+function SubscriptionSection() {
+  const [showCancel, setShowCancel] = useState(false);
+  return (
+    <div className="glass-card rounded-3xl p-6">
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Đăng ký</p>
+      <p className="text-xs text-white/30 mb-4">Quản lý thẻ, hoá đơn, hoặc huỷ đăng ký.</p>
+      <button
+        onClick={() => setShowCancel(true)}
+        className="glass-btn rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px]"
+      >
+        Huỷ đăng ký
+      </button>
+      {showCancel && <CancelFlow onClose={() => setShowCancel(false)} />}
+    </div>
+  );
+}
+
 export default function SettingsView() {
   const { t } = useTranslation();
 
@@ -587,6 +606,7 @@ export default function SettingsView() {
       <AppearanceSection />
       <LanguagePicker mode="inline" />
       <PlanSection />
+      <SubscriptionSection />
       <TeamSpace />
       <InviteSection />
       <UnlimitedAccessSection />

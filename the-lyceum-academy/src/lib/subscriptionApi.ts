@@ -213,3 +213,37 @@ export async function logFeatureUsage(featureType: string, metadata?: Record<str
     throw new Error('Failed to log feature usage');
   }
 }
+
+// ── Retention (cancel flow, three layers) ───────────────────────────────────
+// Backend: app/routers/subscriptions.py retention_* / app/services/retention.py
+
+async function retentionPost<T>(path: string, body?: unknown): Promise<T> {
+  const token = await getAuthToken();
+  const response = await fetch(`${API_BASE}/subscriptions/retention/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`Retention request failed (${response.status})`);
+  return response.json();
+}
+
+/** Cancel flow opened — records the top of the funnel. */
+export function recordCancelIntent(): Promise<{ ok: boolean }> {
+  return retentionPost('intent');
+}
+
+/** Layer 1: accept the 65% save offer. */
+export function acceptRetentionDiscount(): Promise<{ ok: boolean; applied: boolean; message?: string }> {
+  return retentionPost('discount');
+}
+
+/** Layer 2: booked a call — credits the bonus Quanta (once per account). */
+export function acceptRetentionCallBonus(): Promise<{ ok: boolean; granted_quanta: number; message?: string }> {
+  return retentionPost('call-bonus');
+}
+
+/** Layer 3: went through with cancelling. */
+export function recordCancellation(reason = ''): Promise<{ ok: boolean }> {
+  return retentionPost('cancelled', { reason });
+}
