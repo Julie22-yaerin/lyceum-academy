@@ -299,6 +299,7 @@ from app.routers  import schedule    as schedule_router
 from app.routers  import content_catalog as content_catalog_router
 from app.routers  import ai_roles    as ai_roles_router
 from app.routers  import lyceum      as lyceum_router
+from app.routers  import game        as game_router
 
 
 @asynccontextmanager
@@ -327,6 +328,8 @@ async def lifespan(_app: FastAPI):
     user_brain_svc.init_db()
     from app.services import access_codes as access_codes_svc
     access_codes_svc.init_db()
+    from app.services import game as game_svc
+    game_svc.init_db()
 
     from app.seed_content import seed_atomic_orbitals_note
     try:
@@ -536,6 +539,7 @@ app.include_router(schedule_router.router)
 app.include_router(content_catalog_router.router)
 app.include_router(ai_roles_router.router)
 app.include_router(lyceum_router.router)
+app.include_router(game_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port

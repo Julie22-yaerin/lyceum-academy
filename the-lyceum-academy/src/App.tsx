@@ -33,6 +33,7 @@ import ReviewPopup from './components/ReviewPopup';
 import CookieConsent from './components/CookieConsent';
 import FloatingPodcast from './components/FloatingPodcast';
 import LegalPage from './views/LegalPage';
+import GamePage from './views/GamePage';
 
 
 function AppInner() {
@@ -213,6 +214,10 @@ export default function App() {
     return (
       <I18nProvider><ThemeProvider><AuthProvider><SecondBrainPage /></AuthProvider></ThemeProvider></I18nProvider>
     );
+  }
+  // Marketing quiz — fully public, no auth, no workspace context needed.
+  if (path === '/game' || path.startsWith('/game/')) {
+    return <I18nProvider><ThemeProvider><GamePage /></ThemeProvider></I18nProvider>;
   }
   // Legal documents — public, standalone (linked from the waitlist consent
   // checkbox, the cookie banner, and the footer).
