@@ -791,22 +791,6 @@ body {
 .theme-light .text-white\/10 { color: rgba(15, 23, 42, 0.26); }
 .theme-light .text-black { color: #0f172a; }
 
-/* The new cinematic marketing block (Hero/About/Featured Video/Philosophy/
-   Services — see LandingPage.tsx .lyceum-cinematic wrapper) is deliberately
-   bg-black regardless of the site's light/dark toggle. Re-pin the handful
-   of white/* utilities it uses back to their dark-mode values so the
-   theme-light remaps above (which assume a white page background) don't
-   wash it out. Extra class in the selector gives these higher specificity
-   than the rules being overridden, so source order doesn't matter. */
-.theme-light .lyceum-cinematic .text-white { color: #ffffff; }
-.theme-light .lyceum-cinematic .text-white\/80 { color: rgba(255, 255, 255, 0.8); }
-.theme-light .lyceum-cinematic .text-white\/70 { color: rgba(255, 255, 255, 0.7); }
-.theme-light .lyceum-cinematic .text-white\/60 { color: rgba(255, 255, 255, 0.6); }
-.theme-light .lyceum-cinematic .text-white\/50 { color: rgba(255, 255, 255, 0.5); }
-.theme-light .lyceum-cinematic .text-white\/40 { color: rgba(255, 255, 255, 0.4); }
-.theme-light .lyceum-cinematic .bg-white\/5 { background-color: rgba(255, 255, 255, 0.05); }
-.theme-light .lyceum-cinematic .bg-white\/10 { background-color: rgba(255, 255, 255, 0.1); }
-
 .theme-light .text-slate-200 { color: #1e293b; }
 .theme-light .text-slate-300 { color: #334155; }
 .theme-light .text-slate-400 { color: #475569; }

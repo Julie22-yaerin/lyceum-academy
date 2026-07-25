@@ -238,9 +238,11 @@ def _extract_json(raw: str) -> dict[str, Any]:
     return json.loads(raw[start:end + 1])
 
 
+_LEVEL = "grade 10 through first-year university"
+
 _SPOT_SYSTEM = (
-    "You write 10 'spot the mistake' items for a {subject} quiz aimed at a student following the "
-    "{curriculum} curriculum. Each item: a short question, then a worked answer ('shown_answer') "
+    "You write 10 'spot the mistake' items for a {subject} quiz aimed at students spanning {level}. "
+    "Each item: a short question, then a worked answer ('shown_answer') "
     "that contains exactly ONE deliberately planted mistake (a wrong sign, a swapped formula, a "
     "misapplied rule, a unit error, a conceptual slip — vary the kind of mistake). Then give exactly "
     "4 short candidate statements ('choices') describing possible flaws in the answer — only ONE of "
@@ -255,8 +257,8 @@ _SPOT_SYSTEM = (
 )
 
 _CONCEPT_SYSTEM = (
-    "You write 5 'explain this concept' prompts for a {subject} quiz aimed at a student following "
-    "the {curriculum} curriculum. Each asks the student to explain ONE named concept out loud or in "
+    "You write 5 'explain this concept' prompts for a {subject} quiz aimed at students spanning "
+    "{level}. Each asks the student to explain ONE named concept out loud or in "
     "writing, in their own words. Order them from difficulty 'medium' to 'very_hard' (use exactly "
     "these 5 difficulty labels in order: medium, medium, hard, hard, very_hard).\n\n"
     "Return ONLY JSON, no markdown fences:\n"
@@ -266,11 +268,11 @@ _CONCEPT_SYSTEM = (
 )
 
 _IMAGE_SYSTEM = (
-    "You design 5 'spot the concepts in this image' items for a {subject} quiz ({curriculum} "
-    "curriculum). Each item names 1-3 concepts that a simple illustration will depict (you don't "
-    "draw it — you just describe what should be in the image and list the concepts). Then give "
-    "5-6 short answer options total, where exactly the concepts you listed are the correct ones and "
-    "the rest are plausible-but-wrong distractor concepts from the same subject area.\n\n"
+    "You design 5 'spot the concepts in this image' items for a {subject} quiz aimed at students "
+    "spanning {level}. Each item names 1-3 concepts that a simple illustration will depict (you "
+    "don't draw it — you just describe what should be in the image and list the concepts). Then "
+    "give 5-6 short answer options total, where exactly the concepts you listed are the correct "
+    "ones and the rest are plausible-but-wrong distractor concepts from the same subject area.\n\n"
     "Return ONLY JSON, no markdown fences:\n"
     '{{"items": [{{"concepts": ["concept A", "concept B"], "image_prompt": "<a clear, literal '
     'visual description an illustrator could draw, depicting concept A and concept B together, '
@@ -280,10 +282,10 @@ _IMAGE_SYSTEM = (
 )
 
 
-async def _generate_spot_mistakes(subject_label: str, curriculum: str) -> list[dict[str, Any]]:
+async def _generate_spot_mistakes(subject_label: str) -> list[dict[str, Any]]:
     from app.services import ai as ai_svc
 
-    system = _SPOT_SYSTEM.format(subject=subject_label, curriculum=curriculum)
+    system = _SPOT_SYSTEM.format(subject=subject_label, level=_LEVEL)
     resp = await ai_svc.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": "Generate the 10 items now."}],
         temperature=0.8, max_tokens=3000,
@@ -312,10 +314,10 @@ async def _generate_spot_mistakes(subject_label: str, curriculum: str) -> list[d
     return cleaned
 
 
-async def _generate_concept_explains(subject_label: str, curriculum: str) -> list[dict[str, Any]]:
+async def _generate_concept_explains(subject_label: str) -> list[dict[str, Any]]:
     from app.services import ai as ai_svc
 
-    system = _CONCEPT_SYSTEM.format(subject=subject_label, curriculum=curriculum)
+    system = _CONCEPT_SYSTEM.format(subject=subject_label, level=_LEVEL)
     resp = await ai_svc.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": "Generate the 5 items now."}],
         temperature=0.8, max_tokens=1200,
@@ -335,10 +337,10 @@ async def _generate_concept_explains(subject_label: str, curriculum: str) -> lis
     return cleaned
 
 
-async def _generate_image_concepts(subject_label: str, curriculum: str) -> list[dict[str, Any]]:
+async def _generate_image_concepts(subject_label: str) -> list[dict[str, Any]]:
     from app.services import ai as ai_svc
 
-    system = _IMAGE_SYSTEM.format(subject=subject_label, curriculum=curriculum)
+    system = _IMAGE_SYSTEM.format(subject=subject_label, level=_LEVEL)
     resp = await ai_svc.chat(
         [{"role": "system", "content": system}, {"role": "user", "content": "Generate the 5 items now."}],
         temperature=0.8, max_tokens=1800,
@@ -374,6 +376,39 @@ def _sweep_expired() -> None:
         _SESSIONS.pop(sid, None)
 
 
+# One canonical 20-item set per subject, generated once and reused by every
+# player — curriculum is deliberately NOT a generation input, only a
+# display label the player types in for the leaderboard. This also means
+# each item's illustration (see get_image) is generated once total, not
+# once per session, since the same shared item dicts are referenced by
+# every session for that subject.
+_SUBJECT_CONTENT: dict[str, list[dict[str, Any]]] = {}
+_SUBJECT_LOCKS: dict[str, asyncio.Lock] = {s: asyncio.Lock() for s in SUBJECTS}
+
+
+async def _get_subject_content(subject: str) -> list[dict[str, Any]]:
+    cached = _SUBJECT_CONTENT.get(subject)
+    if cached:
+        return cached
+
+    async with _SUBJECT_LOCKS[subject]:
+        cached = _SUBJECT_CONTENT.get(subject)
+        if cached:  # another request generated it while we waited for the lock
+            return cached
+
+        subject_label = SUBJECT_LABELS[subject]
+        spot, concept, image = await asyncio.gather(
+            _generate_spot_mistakes(subject_label),
+            _generate_concept_explains(subject_label),
+            _generate_image_concepts(subject_label),
+        )
+        items = spot + concept + image
+        if len(items) < 15:
+            raise RuntimeError("game generation came back too thin — try again")
+        _SUBJECT_CONTENT[subject] = items
+        return items
+
+
 async def start_game(subject: str, curriculum: str, player_name: str) -> dict[str, Any]:
     subject = subject.strip().lower()
     if subject not in SUBJECTS:
@@ -382,17 +417,7 @@ async def start_game(subject: str, curriculum: str, player_name: str) -> dict[st
     player_name = (player_name or "Anonymous").strip()[:60] or "Anonymous"
 
     _sweep_expired()
-    subject_label = SUBJECT_LABELS[subject]
-
-    spot, concept, image = await asyncio.gather(
-        _generate_spot_mistakes(subject_label, curriculum),
-        _generate_concept_explains(subject_label, curriculum),
-        _generate_image_concepts(subject_label, curriculum),
-    )
-
-    items = spot + concept + image
-    if len(items) < 15:
-        raise RuntimeError("game generation came back too thin — try again")
+    items = await _get_subject_content(subject)
 
     session_id = uuid.uuid4().hex
     _SESSIONS[session_id] = {

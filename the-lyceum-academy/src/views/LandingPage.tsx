@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import {
   ArrowUpRight,
@@ -23,69 +23,23 @@ import SupportChatWidget from '../components/SupportChatWidget';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 import { TextReveal } from '../../components/ui/text-reveal';
 import BookCallButton from '../components/BookCallButton';
+import AnimatedGradient from '../../components/ui/animated-gradient';
 import { DeskLampScene, OrbitScene } from '../components/landing/LandingScenes';
 
-// ── Hero background video — placeholder footage. Swap for real Lyceum
-// campus/session footage before shipping to production. ──────────────────
-const HERO_VIDEO_SRC = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260328_115001_bcdaa3b4-03de-47e7-ad63-ae3e392c32d4.mp4';
-
-// Vanilla-JS crossfade loop (no CSS transitions): fades in once the video
-// is playable, fades to black in the final ~0.55s of each play-through,
-// then pauses 100ms before looping — avoids the jump-cut a plain `loop`
-// attribute leaves. Opacity is written directly to the DOM node rather than
-// through a React `style` prop, so re-renders elsewhere on the page (e.g.
-// the email field's onChange) can't stomp on the animation mid-flight.
-function useHeroVideoLoop(videoRef: RefObject<HTMLVideoElement | null>) {
+// Landing is a permanently-dark marketing surface — decoupled from the
+// workspace's own light/dark toggle (Settings). Force theme-light off for
+// as long as this view is mounted, restoring whatever it was on the way
+// out so the workspace/auth views the visitor lands on next still respect
+// their real preference.
+function useForcedDarkTheme() {
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-
-    video.style.opacity = '0';
-    let raf = 0;
-    let fadingOut = false;
-
-    function animateOpacity(from: number, to: number, duration: number) {
-      cancelAnimationFrame(raf);
-      const start = performance.now();
-      const step = (now: number) => {
-        const t = Math.min((now - start) / duration, 1);
-        video!.style.opacity = String(from + (to - from) * t);
-        if (t < 1) raf = requestAnimationFrame(step);
-      };
-      raf = requestAnimationFrame(step);
-    }
-
-    function handleCanPlay() {
-      video!.play().catch(() => {});
-      animateOpacity(0, 1, 500);
-    }
-    function handleTimeUpdate() {
-      const remaining = video!.duration - video!.currentTime;
-      if (remaining <= 0.55 && !fadingOut) {
-        fadingOut = true;
-        animateOpacity(parseFloat(video!.style.opacity || '1'), 0, 500);
-      }
-    }
-    function handleEnded() {
-      fadingOut = false;
-      video!.style.opacity = '0';
-      setTimeout(() => {
-        video!.currentTime = 0;
-        video!.play().catch(() => {});
-        animateOpacity(0, 1, 500);
-      }, 100);
-    }
-
-    video.addEventListener('canplay', handleCanPlay);
-    video.addEventListener('timeupdate', handleTimeUpdate);
-    video.addEventListener('ended', handleEnded);
+    const html = document.documentElement;
+    const hadLight = html.classList.contains('theme-light');
+    html.classList.remove('theme-light');
     return () => {
-      video.removeEventListener('canplay', handleCanPlay);
-      video.removeEventListener('timeupdate', handleTimeUpdate);
-      video.removeEventListener('ended', handleEnded);
-      cancelAnimationFrame(raf);
+      if (hadLight) html.classList.add('theme-light');
     };
-  }, [videoRef]);
+  }, []);
 }
 
 const QUOTES = [
@@ -191,9 +145,11 @@ function RotatingQuote() {
   );
 }
 
+// Sitewide reveal direction: everything slides in from the left as it
+// scrolls into view, text and cards alike.
 const fadeUp = {
-  hidden: { opacity: 0, y: 24 },
-  show: { opacity: 1, y: 0 },
+  hidden: { opacity: 0, x: -40 },
+  show: { opacity: 1, x: 0 },
 };
 
 const stagger = {
@@ -204,9 +160,8 @@ const stagger = {
 
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
-  const heroVideoRef = useRef<HTMLVideoElement>(null);
   const [email, setEmail] = useState('');
-  useHeroVideoLoop(heroVideoRef);
+  useForcedDarkTheme();
 
   function handleEmailSubmit(e: FormEvent) {
     e.preventDefault();
@@ -227,19 +182,30 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
 
       <FeedbackWidget context="landing" />
 
-      {/* Cinematic hero block — deliberately committed to bg-black regardless
-          of the app's light/dark toggle (see .lyceum-cinematic overrides in
-          index.css). Nav sits in normal flow here (not fixed) and scrolls
-          away with the hero, by design of this layout. */}
-      <div className="lyceum-cinematic relative min-h-screen bg-black overflow-hidden flex flex-col">
-        <video
-          ref={heroVideoRef}
-          className="absolute inset-0 w-full h-full object-cover translate-y-[17%]"
-          src={HERO_VIDEO_SRC}
-          muted
-          autoPlay
-          playsInline
-          preload="auto"
+      {/* Hero — WebGL animated gradient in Lyceum's own brand colors instead
+          of stock footage. Nav sits in normal flow here (not fixed) and
+          scrolls away with the hero, by design of this layout. */}
+      <div className="relative min-h-screen bg-black overflow-hidden flex flex-col">
+        <AnimatedGradient
+          config={{
+            preset: 'custom',
+            color1: '#050508',
+            color2: '#a78bfa',
+            color3: '#818cf8',
+            rotation: -50,
+            proportion: 30,
+            scale: 0.015,
+            speed: 20,
+            distortion: 6,
+            swirl: 40,
+            swirlIterations: 12,
+            softness: 60,
+            offset: -200,
+            shape: 'Checks',
+            shapeSize: 40,
+          }}
+          noise={{ opacity: 6 }}
+          style={{ zIndex: 0 }}
         />
 
         {/* Nav */}
@@ -329,8 +295,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       {/* The Method */}
       <section id="method" className="max-w-7xl mx-auto px-6 py-20">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           className="mb-14 text-center"
@@ -371,8 +337,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       {/* The Faculty — five native AI personas */}
       <section id="faculty" className="max-w-7xl mx-auto px-6 py-20">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           className="mb-12 text-center"
@@ -434,8 +400,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       <section className="max-w-7xl mx-auto px-6 py-4">
         <motion.a
           href="/library"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           whileHover={{ y: -4 }}
@@ -460,8 +426,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       {/* Wisdom / rotating quotes band */}
       <section id="voices" className="relative max-w-5xl mx-auto px-6 py-16">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           className="rounded-3xl glass-strong px-8 py-14"
@@ -473,8 +439,8 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
       {/* Final CTA */}
       <section className="max-w-4xl mx-auto px-6 pb-28 text-center">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.6 }}
           className="rounded-3xl glass p-12 flex flex-col items-center gap-6"

@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { NavigationProps } from '../types';
 import { submitApplication, type ApplicationAnswers, type LearningVector } from '../lib/lyceumApi';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
+import InlineCalBooking from '../components/InlineCalBooking';
 
 // Eligible levels only: grade 10 → first-year university.
 const GRADE_LEVELS = [
@@ -106,7 +107,7 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
 
   return (
     <div className="relative bg-[#050508] text-slate-200 font-sans antialiased min-h-screen flex flex-col items-center px-4 py-14">
-      <div className="w-full max-w-xl">
+      <div className={`w-full ${phase === 'result' ? 'max-w-2xl' : 'max-w-xl'}`}>
         <div
           className="font-serif text-xl tracking-[4px] uppercase text-slate-300 cursor-pointer text-center mb-10"
           onClick={() => onNavigate('landing')}
@@ -278,38 +279,52 @@ export default function ApplyView({ onNavigate }: NavigationProps) {
 
         {/* ── Phase 2: result ── */}
         {phase === 'result' && (
-          <div className="glass-card rounded-3xl p-10 text-center flex flex-col items-center gap-4">
-            {alreadyDecided === 'accepted' ? (
-              <>
-                <span className="text-4xl">✦</span>
-                <h1 className="font-serif text-2xl">Hồ sơ của bạn đã được duyệt</h1>
-                <p className="text-sm text-slate-400 max-w-sm">Bạn có thể đăng ký tài khoản ngay bây giờ.</p>
-                <LiquidMetalButton label="Đăng ký tài khoản" onClick={() => onNavigate('auth')} />
-              </>
-            ) : alreadyDecided === 'declined' ? (
-              <>
-                <span className="text-4xl">✦</span>
-                <h1 className="font-serif text-2xl">Hồ sơ đã được xem xét</h1>
-                <p className="text-sm text-slate-400 max-w-sm">Rất tiếc, hồ sơ này chưa phù hợp ở thời điểm hiện tại.</p>
-              </>
-            ) : (
-              <>
-                <span className="text-4xl">✦</span>
-                <h1 className="font-serif text-2xl">Đã nhận hồ sơ của bạn</h1>
-                <p className="text-sm text-slate-400 max-w-sm">
-                  Chúng tôi sẽ xem xét và báo qua email khi bạn được duyệt.
+          <>
+            <div className="glass-card rounded-3xl p-10 text-center flex flex-col items-center gap-4">
+              {alreadyDecided === 'accepted' ? (
+                <>
+                  <span className="text-4xl">✦</span>
+                  <h1 className="font-serif text-2xl">Hồ sơ của bạn đã được duyệt</h1>
+                  <p className="text-sm text-slate-400 max-w-sm">Bạn có thể đăng ký tài khoản ngay bây giờ.</p>
+                  <LiquidMetalButton label="Đăng ký tài khoản" onClick={() => onNavigate('auth')} />
+                </>
+              ) : alreadyDecided === 'declined' ? (
+                <>
+                  <span className="text-4xl">✦</span>
+                  <h1 className="font-serif text-2xl">Hồ sơ đã được xem xét</h1>
+                  <p className="text-sm text-slate-400 max-w-sm">Rất tiếc, hồ sơ này chưa phù hợp ở thời điểm hiện tại.</p>
+                </>
+              ) : (
+                <>
+                  <span className="text-4xl">✦</span>
+                  <h1 className="font-serif text-2xl">Đã nhận hồ sơ của bạn</h1>
+                  <p className="text-sm text-slate-400 max-w-sm">
+                    Chúng tôi sẽ xem xét và báo qua email khi bạn được duyệt.
+                  </p>
+                  {resultPriority && (
+                    <span className="text-[10px] uppercase tracking-[2px] text-slate-300 bg-white/10 rounded-full px-3 py-1">
+                      Nhóm ưu tiên xét duyệt
+                    </span>
+                  )}
+                </>
+              )}
+              <button onClick={() => onNavigate('landing')} className="text-xs text-slate-500 hover:text-slate-300 transition-colors mt-2">
+                ← Về trang chủ
+              </button>
+            </div>
+
+            {/* Booking is offered regardless of the review outcome above —
+                only skipped for an outright decline, where inviting a call
+                would read as a mixed signal. */}
+            {alreadyDecided !== 'declined' && (
+              <div className="glass-card rounded-3xl p-6 mt-6">
+                <p className="text-center text-sm text-slate-400 mb-4">
+                  Trong lúc chờ xét duyệt, đặt lịch nói chuyện trực tiếp với The Lyceum:
                 </p>
-                {resultPriority && (
-                  <span className="text-[10px] uppercase tracking-[2px] text-slate-300 bg-white/10 rounded-full px-3 py-1">
-                    Nhóm ưu tiên xét duyệt
-                  </span>
-                )}
-              </>
+                <InlineCalBooking className="rounded-2xl overflow-hidden" />
+              </div>
             )}
-            <button onClick={() => onNavigate('landing')} className="text-xs text-slate-500 hover:text-slate-300 transition-colors mt-2">
-              ← Về trang chủ
-            </button>
-          </div>
+          </>
         )}
       </div>
     </div>
