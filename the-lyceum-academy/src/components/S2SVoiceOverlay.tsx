@@ -823,7 +823,7 @@ export default function S2SVoiceOverlay({
   return (
     <>
       {toast && (
-        <div className="fixed bottom-24 md:bottom-28 right-6 z-40 max-w-xs glass-strong rounded-2xl p-3 shadow-2xl animate-scale-in">
+        <div className="fixed bottom-40 right-6 z-40 max-w-xs glass-strong rounded-2xl p-3 shadow-2xl animate-scale-in">
           <div className="flex gap-3 items-start">
             {toast.images && toast.images.length > 0 && (
               <SmartImage src={toast.images[0]} alt="" onClick={() => setLightboxImage(toast.images![0])}
@@ -866,7 +866,7 @@ export default function S2SVoiceOverlay({
 
       {/* Live captions — small, non-blocking, only while there's something to show */}
       {(liveUserTranscription || liveAiTranscription) && status !== 'paused' && (
-        <div className="fixed bottom-24 md:bottom-28 left-6 z-30 max-w-xs glass-strong rounded-2xl px-4 py-3 pointer-events-none">
+        <div className="fixed bottom-40 left-6 z-30 max-w-xs glass-strong rounded-2xl px-4 py-3 pointer-events-none">
           {liveUserTranscription && (
             <p className="font-sans text-xs text-white/60 leading-relaxed mb-1">{liveUserTranscription}</p>
           )}
@@ -877,14 +877,18 @@ export default function S2SVoiceOverlay({
       )}
 
       {(status === 'error' || status === 'fallback') && errorMessage && (
-        <div className={`fixed bottom-24 md:bottom-28 right-24 z-30 max-w-[220px] glass-strong rounded-2xl px-4 py-3 text-[11px] leading-relaxed ${status === 'error' ? 'text-red-300' : 'text-amber-300'}`}>
+        <div className={`fixed bottom-40 right-24 z-30 max-w-[220px] glass-strong rounded-2xl px-4 py-3 text-[11px] leading-relaxed ${status === 'error' ? 'text-red-300' : 'text-amber-300'}`}>
           {errorMessage}
         </div>
       )}
 
       {/* Persistent HUD — mic + pause sit right next to the colorful orb,
-          fixed on top of the workspace, never blocking it */}
-      <div className="fixed bottom-24 md:bottom-8 right-6 z-40 flex items-center gap-3">
+          fixed on top of the workspace, never blocking it. Part of the
+          bottom-right stack shared with FloatingPodcast (bottom-6),
+          StudyCycleTimer (bottom-[12rem]) and Support (bottom-[17rem]) —
+          fixed at bottom-24 on every breakpoint so it never collapses back
+          onto Podcast's slot the way the old md:bottom-8 override did. */}
+      <div className="fixed bottom-24 right-6 z-40 flex items-center gap-3">
         <button
           onClick={() => setIsMuted(m => !m)}
           className={`w-10 h-10 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${

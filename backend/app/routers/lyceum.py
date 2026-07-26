@@ -781,10 +781,11 @@ async def generate_illustrations_endpoint(request: Request, req: GenerateIllustr
 class ScreenShareRequest(BaseModel):
     image: str  # base64 PNG, optionally with a data: URL prefix
     question: str = ""
+    command: str = ""  # "" (free-form, Socratic) | "kiem_tra" | "tai_sao"
 
 
 @router.post("/ai/screen-share")
-@limiter.limit("6/minute")
+@limiter.limit("10/minute")
 async def screen_share_endpoint(request: Request, req: ScreenShareRequest, auth: dict = Depends(require_auth)):
     from app.services import ai as ai_svc
 
@@ -796,12 +797,98 @@ async def screen_share_endpoint(request: Request, req: ScreenShareRequest, auth:
         raise HTTPException(status_code=400, detail="image_required")
 
     try:
-        result = await ai_svc.analyze_screen_share(image_b64, req.question)
+        result = await ai_svc.analyze_screen_share(image_b64, req.question, req.command)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
     quanta_svc.spend_tokens(uid, tokens=200, pool="standard", context="/ai/screen-share")
     return result
+
+
+class ScreenShareIllustrateRequest(BaseModel):
+    image: str
+
+
+@router.post("/ai/screen-share/illustrate")
+@limiter.limit("4/minute")
+async def screen_share_illustrate(request: Request, req: ScreenShareIllustrateRequest, auth: dict = Depends(require_auth)):
+    """
+    The "Tạo illustration" quick-command from Share Screen with AI: describe
+    the selected region, then hand that straight to the same illustration
+    pipeline the standalone Illustration tool uses (see services/illustration.py)
+    for one shot. Two AI calls chained (vision describe -> shot-build ->
+    image gen), so it's costed above a plain screen-share comment.
+    """
+    from app.services import ai as ai_svc, illustration as illustration_svc
+
+    uid = _uid(auth)
+    image_b64 = req.image
+    if image_b64.startswith("data:"):
+        image_b64 = image_b64.split(",", 1)[-1]
+    if not image_b64.strip():
+        raise HTTPException(status_code=400, detail="image_required")
+
+    try:
+        described = await ai_svc.analyze_screen_share(image_b64, command="describe_for_illustration")
+        description = described.get("comment", "").strip()
+        if not description:
+            raise HTTPException(status_code=502, detail="could_not_describe_region")
+        result = await illustration_svc.generate_illustrations(description, max_shots=1)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    quanta_svc.spend_tokens(uid, tokens=450, pool="standard", context="/ai/screen-share/illustrate")
+    return {**result, "description": description}
+
+
+class ScreenShareAnimateRequest(BaseModel):
+    image: str
+
+
+@router.post("/ai/screen-share/animate")
+@limiter.limit("2/minute")
+async def screen_share_animate(request: Request, req: ScreenShareAnimateRequest, auth: dict = Depends(require_auth)):
+    """
+    The "Tạo video" counterpart to /ai/screen-share/illustrate — describes
+    the selected region, then generates a short clip via Veo (see
+    app.services.veo). Quanta is only spent on success: Veo is a paid-tier
+    Gemini capability that currently has no billing enabled on this
+    deployment's key (returns 429 with limit 0 — see veo.py's docstring),
+    so most calls here will fail with a clear 503 rather than silently
+    charging for a video that was never produced.
+    """
+    from app.services import ai as ai_svc, veo as veo_svc
+
+    uid = _uid(auth)
+    image_b64 = req.image
+    if image_b64.startswith("data:"):
+        image_b64 = image_b64.split(",", 1)[-1]
+    if not image_b64.strip():
+        raise HTTPException(status_code=400, detail="image_required")
+
+    if not veo_svc.configured():
+        raise HTTPException(status_code=503, detail="video_generation_not_configured")
+
+    try:
+        described = await ai_svc.analyze_screen_share(image_b64, command="describe_for_illustration")
+        description = described.get("comment", "").strip()
+        if not description:
+            raise HTTPException(status_code=502, detail="could_not_describe_region")
+        video_bytes = await veo_svc.generate_clip(
+            f"Cinematic, no on-screen text: {description}", aspect_ratio="16:9", duration_seconds=6,
+        )
+    except HTTPException:
+        raise
+    except veo_svc.VeoQuotaError:
+        raise HTTPException(status_code=503, detail="veo_billing_not_enabled")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    quanta_svc.spend_tokens(uid, tokens=2000, pool="standard", context="/ai/screen-share/animate")
+    import base64 as _b64
+    return {"video_base64": _b64.b64encode(video_bytes).decode(), "description": description}
 
 
 # ── Exercise Cards (Tool Dock 'exercise-cards') — a deck built straight from

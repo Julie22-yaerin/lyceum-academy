@@ -156,6 +156,7 @@ LYCEUM_PIPELINE_PROMPT = (
 TIER1_TOOLS = [
     "feynman", "reverse-build", "games", "spaced-repetition", "illustrations",
     "lotus-map", "sheet-of-paper", "podcast", "screen-share", "exercise-cards",
+    "material-upload", "gallery",
 ]
 TIER2_TOOLS = [
     "node-map", "tactile-friction", "shatter", "auditory-gating",

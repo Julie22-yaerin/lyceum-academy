@@ -913,6 +913,35 @@ async def validate_tool_map(
     }
 
 
+async def classify_json(system: str, user: str, model: str | None = None) -> dict | None:
+    """
+    Generic one-shot "classify/pick into JSON" helper — Gemini-first (cheap,
+    fast for short classification prompts), same pattern already used inline
+    by map_tool_analysis/validate_tool_map. Callers own their own fallback
+    logic; this returns None (never raises) on any failure so a caller can
+    fall back to a rule-based default rather than surfacing an AI error to
+    the end user.
+    """
+    if not _use_google():
+        return None
+    try:
+        resp = await _google_call(
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user",   "content": user},
+            ],
+            model=model or settings.google_primary_model,
+            temperature=0.2,
+            max_tokens=512,
+        )
+        raw = extract_text(resp)
+        return _parse_json_robust(raw)
+    except Exception:
+        import logging
+        logging.getLogger("pclick").warning("Gemini classify_json failed", exc_info=True)
+        return None
+
+
 @_tag_task
 async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
     """
@@ -1016,26 +1045,55 @@ async def analyze_mind_map_vision(image_b64: str, context: str = "") -> dict:
     }
 
 
-async def analyze_screen_share(image_b64: str, question: str = "") -> dict:
+_SCREEN_SHARE_COMMAND_PROMPTS = {
+    # Free-form questions stay Socratic (withhold the direct answer) — the
+    # house rule everywhere else Socrat shows up. The two preset commands
+    # below are explicit requests for a real answer, not a concept probe, so
+    # they get one: asking "kiểm tra" and getting a question back instead of
+    # a verdict would just be annoying, not pedagogically useful.
+    "kiem_tra": (
+        "You are Socrat, the Lyceum's guide, looking at a screenshot of the student's own work. "
+        "They asked you to CHECK it. Give a direct verdict: correct, or point out exactly what's "
+        "wrong and why, in plain terms. Do not turn this into a Socratic question — they asked "
+        "for a check, give them one. Keep it to 3-6 sentences."
+    ),
+    "tai_sao": (
+        "You are Socrat, the Lyceum's guide, looking at a screenshot of the student's own work. "
+        "They asked WHY — explain the underlying reason or mechanism behind what's shown, "
+        "directly and clearly. This is an explanation request, not a probe — answer it. "
+        "Keep it to 3-6 sentences."
+    ),
+    # Not shown to the student — feeds the illustration shot-builder a plain
+    # description of the cropped region instead of a Socratic comment.
+    "describe_for_illustration": (
+        "Describe, in one or two plain sentences, the single concept, formula, or diagram shown "
+        "in this screenshot — factual description only, no questions, no commentary, no praise. "
+        "This description will be handed to an illustrator, not shown to the student."
+    ),
+}
+
+
+async def analyze_screen_share(image_b64: str, question: str = "", command: str = "") -> dict:
     """
     "Share Screen with AI" — Socrat looks at a cropped screen region the
-    student picked and comments on it, free-form (no assumed structure,
-    unlike analyze_mind_map_vision above). Same provider fallback chain,
-    generic tutoring prompt instead of a hardcoded diagram layout.
+    student picked and comments on it. Free-form questions stay Socratic (no
+    assumed structure, unlike analyze_mind_map_vision above); the preset
+    quick-commands ("kiểm tra", "tại sao") switch to a direct-answer prompt
+    instead — see _SCREEN_SHARE_COMMAND_PROMPTS.
 
     Returns { comment: str }.
     """
     import logging
     log = logging.getLogger("pclick")
 
-    prompt = (
+    prompt = _SCREEN_SHARE_COMMAND_PROMPTS.get(command, (
         "You are Socrat, the Lyceum's Socratic guide, looking at a screenshot the student just "
         "shared from their own screen. Never give a direct final answer — respond the way a "
         "tutor glancing over a shoulder would: name what you see in one short line, then ask the "
         "one question that moves the student's own thinking forward. Keep it to 2-4 sentences. "
         "If the image is unclear or shows nothing useful, say so plainly and ask what you should "
         "be looking at."
-    )
+    ))
     if question.strip():
         prompt += f"\n\nThe student specifically asked: {question.strip()}"
 

@@ -23,7 +23,8 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type Tier1ToolId =
   | 'feynman' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations'
-  | 'lotus-map' | 'sheet-of-paper' | 'podcast' | 'screen-share' | 'exercise-cards';
+  | 'lotus-map' | 'sheet-of-paper' | 'podcast' | 'screen-share' | 'exercise-cards'
+  | 'material-upload' | 'gallery';
 export type Tier2ToolId =
   | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'
   | 'membrane-flow' | 'steric-snap' | 'topo-lock' | 'time-lapse';

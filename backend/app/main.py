@@ -303,6 +303,7 @@ from app.routers  import game        as game_router
 from app.routers  import trip        as trip_router
 from app.routers  import forum       as forum_router
 from app.routers  import podcast     as podcast_router
+from app.routers  import gallery     as gallery_router
 
 
 @asynccontextmanager
@@ -329,6 +330,8 @@ async def lifespan(_app: FastAPI):
     orders_svc.init_db()
     from app.services import user_brain as user_brain_svc
     user_brain_svc.init_db()
+    from app.services import gallery as gallery_svc
+    gallery_svc.init_db()
     from app.services import access_codes as access_codes_svc
     access_codes_svc.init_db()
     from app.services import game as game_svc
@@ -554,6 +557,7 @@ app.include_router(game_router.router)
 app.include_router(trip_router.router)
 app.include_router(forum_router.router)
 app.include_router(podcast_router.router)
+app.include_router(gallery_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port

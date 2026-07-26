@@ -119,7 +119,10 @@ export default function StudyCycleTimer() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[120]">
+    // Part of the bottom-right stack (Podcast bottom-6, ARI ~bottom-24,
+    // Support bottom-[17rem]) — this sits between ARI and Support so none
+    // of the four trigger buttons overlap.
+    <div className="fixed bottom-[12rem] right-6 z-[120]">
       {phase === 'idle' ? (
         <button
           onClick={() => startPhase('work')}

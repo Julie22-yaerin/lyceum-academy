@@ -363,8 +363,50 @@ export function generateIllustrations(text: string, maxShots = 5): Promise<{ sho
 
 // ── Share Screen with AI — Socrat comments on a cropped screen region ──────
 
-export function analyzeScreenShare(imageBase64: string, question = ''): Promise<{ comment: string }> {
-  return postJson('/ai/screen-share', { image: imageBase64, question });
+export type ScreenShareCommand = '' | 'kiem_tra' | 'tai_sao';
+
+export function analyzeScreenShare(
+  imageBase64: string, question = '', command: ScreenShareCommand = '',
+): Promise<{ comment: string }> {
+  return postJson('/ai/screen-share', { image: imageBase64, question, command });
+}
+
+export function illustrateScreenShare(imageBase64: string): Promise<{ shots: IllustrationShot[]; description: string }> {
+  return postJson('/ai/screen-share/illustrate', { image: imageBase64 });
+}
+
+/** Video counterpart — see backend/app/services/veo.py. Currently fails
+ *  with a 503 on this deployment's key (no billing enabled on Veo yet);
+ *  callers should show that plainly rather than retrying silently. */
+export function animateScreenShare(imageBase64: string): Promise<{ video_base64: string; description: string }> {
+  return postJson('/ai/screen-share/animate', { image: imageBase64 });
+}
+
+// ── Gallery — persistent, opt-in storage for generated artifacts ───────────
+
+export interface GalleryItem {
+  id: string; kind: 'image' | 'video'; mime: string; title: string;
+  subject: string; source: string; created_at: string; bytes: number;
+}
+
+export function listGallery(): Promise<{ items: GalleryItem[] }> {
+  return getJson('/gallery');
+}
+
+export function saveToGallery(
+  kind: 'image' | 'video', mime: string, dataBase64: string, title = '', subject = '', source = '',
+): Promise<{ ok: boolean; id: string }> {
+  return postJson('/gallery/save', { kind, mime, data_base64: dataBase64, title, subject, source });
+}
+
+export function galleryFileUrl(id: string): string {
+  return `${API_BASE}/gallery/${id}/file`;
+}
+
+export async function deleteGalleryItem(id: string): Promise<{ ok: boolean }> {
+  const res = await authFetch(`${API_BASE}/gallery/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.detail || `Request failed (${res.status})`);
+  return res.json();
 }
 
 // ── Exercise Cards — deck from a chopped past paper / textbook excerpt,

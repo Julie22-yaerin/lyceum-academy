@@ -85,12 +85,20 @@ export default function SupportChatWidget({ context = 'workspace' }: { context?:
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-[200] font-sans">
-      {/* Floating button */}
+    // Bottom-right is a shared stack with FloatingPodcast, ARI, and
+    // StudyCycleTimer's idle button — each trigger sits at its own bottom
+    // offset (see the comment on each) so they never overlap. Support's
+    // trigger sits topmost since it's reached for least often, but the open
+    // panel drops back to the natural bottom-6 corner — a 500px panel
+    // anchored 17rem up would leave a dead gap underneath it.
+    <div className={`fixed right-6 z-[200] font-sans ${open ? 'bottom-6' : 'bottom-[17rem]'}`}>
+      {/* Floating button — blue/indigo on purpose: distinct from Podcast's
+          purple, ARI's warm ring, and Timer's neutral glass, so the stack
+          reads as separate controls at a glance. */}
       {!open && (
         <button
           onClick={() => setOpen(true)}
-          className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-orange-500/25 transition-all hover:shadow-xl hover:shadow-orange-500/40 hover:scale-105 active:scale-95"
+          className="group flex items-center gap-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-3 text-sm font-medium text-white shadow-lg shadow-indigo-500/25 transition-all hover:shadow-xl hover:shadow-indigo-500/40 hover:scale-105 active:scale-95"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />

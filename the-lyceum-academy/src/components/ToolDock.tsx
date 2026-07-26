@@ -33,6 +33,9 @@ import IllustrationTool from './tools/IllustrationTool';
 import LotusMapTool from './tools/LotusMapTool';
 import SheetOfPaperTool from './tools/SheetOfPaperTool';
 import ScreenShareTool from './tools/ScreenShareTool';
+import IllustrationCaptureFlow from './tools/IllustrationCaptureFlow';
+import MaterialUploadPanel from './tools/MaterialUploadPanel';
+import GalleryPanel from './tools/GalleryPanel';
 import ExerciseCardsTool from './tools/ExerciseCardsTool';
 
 type ToolCategory = 'theory' | 'practice';
@@ -46,6 +49,8 @@ const TOOLS: ToolMeta[] = [
   { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1, category: 'theory' },
   { id: 'lotus-map', icon: 'spa', label: 'Lotus Map', tier: 1, category: 'theory' },
   { id: 'sheet-of-paper', icon: 'edit_note', label: 'Large Sheet of Paper', tier: 1, category: 'theory' },
+  { id: 'material-upload', icon: 'upload_file', label: 'Upload tài liệu', tier: 1, category: 'theory' },
+  { id: 'gallery', icon: 'photo_library', label: 'Gallery', tier: 1, category: 'theory' },
   { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1, category: 'theory' },
   { id: 'screen-share', icon: 'screen_share', label: 'Share Screen with AI', tier: 1, category: 'theory' },
   // Thực hành — drilling it: past papers, quizzes, recall, cognitive-stress practice.
@@ -79,6 +84,12 @@ export default function ToolDock() {
   // max-w-lg modal.
   const [podcastChooserOpen, setPodcastChooserOpen] = useState(false);
   const [podcastCompanion, setPodcastCompanion] = useState<PodcastCompanion | null>(null);
+  // Browser-tab-style display: collapsed (a hidden tab peeking off the right
+  // edge), popup (a floating window, workspace still visible around it), or
+  // fullscreen (the old full takeover). Defaults to popup — least disruptive.
+  const [companionDisplay, setCompanionDisplay] = useState<'collapsed' | 'popup' | 'fullscreen'>('popup');
+  const [screenShareOpen, setScreenShareOpen] = useState(false);
+  const [illustrationFlow, setIllustrationFlow] = useState<'image' | 'video' | null>(null);
 
   useEffect(() => {
     getMyTools()
@@ -86,7 +97,7 @@ export default function ToolDock() {
       // If curation can't be fetched, fall back to tier-1 only.
       .catch(() => setAllowed(new Set([
         'feynman', 'reverse-build', 'games', 'spaced-repetition', 'illustrations',
-        'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards',
+        'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards', 'material-upload', 'gallery',
       ])));
   }, []);
 
@@ -101,6 +112,10 @@ export default function ToolDock() {
   }
 
   function requestOpen(id: ToolId) {
+    // Screen Share owns the whole viewport (capture -> fullscreen crop ->
+    // side chat) — it can't live inside the generic centered-card modal
+    // every other tool uses.
+    if (id === 'screen-share') { setScreenShareOpen(true); return; }
     if (isTier2(id) && !hasAcked()) { setWarnFor(id); return; }
     openTool(id);
   }
@@ -118,9 +133,17 @@ export default function ToolDock() {
 
   function pickPodcastCompanion(companion: PodcastCompanion) {
     setPodcastCompanion(companion);
+    setCompanionDisplay('popup');
     setPodcastChooserOpen(false);
     togglePodcast();
   }
+
+  const companionMeta = podcastCompanion === 'whiteboard'
+    ? { icon: 'edit_note', label: 'Whiteboard' }
+    : { icon: 'spa', label: 'Lotus Map' };
+  const companionBody = podcastCompanion === 'whiteboard'
+    ? <SheetOfPaperTool />
+    : <LotusMapTool seedTopic={(payload?.seedTopic as string) || ''} />;
 
   function renderActivePanel() {
     switch (activeTool) {
@@ -130,7 +153,8 @@ export default function ToolDock() {
       case 'illustrations': return <IllustrationTool />;
       case 'lotus-map': return <LotusMapTool seedTopic={(payload?.seedTopic as string) || ''} />;
       case 'sheet-of-paper': return <SheetOfPaperTool />;
-      case 'screen-share': return <ScreenShareTool />;
+      case 'material-upload': return <MaterialUploadPanel />;
+      case 'gallery': return <GalleryPanel />;
       case 'exercise-cards': return <ExerciseCardsTool />;
       case 'games': return <div className="p-1"><GameBuilder seedPrompt={(payload?.seedPrompt as string) || ''} /></div>;
       case 'node-map': return <NodeMapTool />;
@@ -146,7 +170,42 @@ export default function ToolDock() {
   }
 
   function toolButton(t: ToolMeta) {
-    const active = t.id === 'podcast' ? podcastOpen : activeTool === t.id;
+    const active = t.id === 'podcast' ? podcastOpen : t.id === 'screen-share' ? screenShareOpen : activeTool === t.id;
+
+    // Illustrations gets a hover flyout instead of a plain tooltip: two new
+    // scan-a-region actions (image/video) plus the original paste-text flow,
+    // kept as a third option rather than replaced.
+    if (t.id === 'illustrations') {
+      return (
+        <div key={t.id} className="relative" onMouseEnter={() => setHovered(t.id)} onMouseLeave={() => setHovered(null)}>
+          <button
+            onClick={() => requestOpen(t.id)}
+            className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
+              active ? 'bg-purple-400/20 text-purple-200' : 'text-white/60 hover:bg-white/10 hover:text-white/90'
+            }`}
+          >
+            <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
+          </button>
+          {hovered === t.id && (
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 glass-strong rounded-xl p-1.5 flex flex-col gap-1 w-40 z-10">
+              <button onClick={() => setIllustrationFlow('image')}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-white/80 hover:bg-white/10 text-left transition-colors">
+                🖼️ Tạo ảnh
+              </button>
+              <button onClick={() => setIllustrationFlow('video')}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-white/80 hover:bg-white/10 text-left transition-colors">
+                🎬 Tạo video
+              </button>
+              <button onClick={() => requestOpen('illustrations')}
+                className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] text-white/80 hover:bg-white/10 text-left transition-colors">
+                📝 Từ văn bản
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     return (
       <button
         key={t.id}
@@ -271,26 +330,73 @@ export default function ToolDock() {
         </div>
       )}
 
-      {/* Podcast companion — full page, not the Tool Dock's cramped modal.
-          Sits under the floating podcast (z-[250] > this z-[180]). */}
-      {podcastOpen && podcastCompanion && (
-        <div className="fixed inset-0 z-[180] bg-[#0a0c14] overflow-y-auto">
-          <div className="flex items-center justify-between px-6 py-4 sticky top-0 bg-[#0a0c14]/95 backdrop-blur-sm border-b border-white/10 z-10">
-            <p className="text-sm font-serif text-white flex items-center gap-2">
-              <span className="material-symbols-outlined text-[18px] text-white/60">
-                {podcastCompanion === 'whiteboard' ? 'edit_note' : 'spa'}
-              </span>
-              {podcastCompanion === 'whiteboard' ? 'Whiteboard' : 'Lotus Map'}
+      {/* Podcast companion — a hidden right-edge tab (collapsed), a floating
+          popup window, or a fullscreen takeover, switchable like browser
+          tab modes. Sits under the floating podcast (z-[250] > z-[175]). */}
+      {podcastOpen && podcastCompanion && companionDisplay === 'collapsed' && (
+        <button
+          onClick={() => setCompanionDisplay('popup')}
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-[175] flex flex-col items-center gap-1 bg-[#12141c] border border-white/10 border-r-0 rounded-l-2xl px-2 py-3 hover:bg-[#1a1d28] transition-colors"
+          title={`Mở lại ${companionMeta.label}`}
+        >
+          <span className="material-symbols-outlined text-[18px] text-white/60">{companionMeta.icon}</span>
+          <span className="text-[9px] uppercase tracking-[1.5px] text-white/40" style={{ writingMode: 'vertical-rl' }}>
+            {companionMeta.label}
+          </span>
+        </button>
+      )}
+
+      {podcastOpen && podcastCompanion && companionDisplay === 'popup' && (
+        <div className="fixed top-20 right-6 z-[175] w-[420px] max-h-[65vh] bg-[#0a0c14] border border-white/10 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+            <p className="text-xs font-serif text-white flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[16px] text-white/60">{companionMeta.icon}</span>
+              {companionMeta.label}
             </p>
-            <button onClick={() => setPodcastCompanion(null)} className="text-white/40 hover:text-white/80 flex items-center gap-1 text-[11px] uppercase tracking-[1.5px]">
-              Đóng <span className="material-symbols-outlined text-[16px]">close</span>
-            </button>
+            <div className="flex items-center gap-2.5">
+              <button onClick={() => setCompanionDisplay('collapsed')} title="Ẩn xuống tab" className="text-white/40 hover:text-white/80">
+                <span className="material-symbols-outlined text-[15px]">remove</span>
+              </button>
+              <button onClick={() => setCompanionDisplay('fullscreen')} title="Toàn màn hình" className="text-white/40 hover:text-white/80">
+                <span className="material-symbols-outlined text-[15px]">open_in_full</span>
+              </button>
+              <button onClick={() => setPodcastCompanion(null)} title="Đóng" className="text-white/40 hover:text-white/80">
+                <span className="material-symbols-outlined text-[15px]">close</span>
+              </button>
+            </div>
           </div>
-          <div className="max-w-5xl mx-auto p-6">
-            {podcastCompanion === 'whiteboard' ? <SheetOfPaperTool /> : <LotusMapTool seedTopic={(payload?.seedTopic as string) || ''} />}
-          </div>
+          <div className="overflow-y-auto">{companionBody}</div>
         </div>
       )}
+
+      {podcastOpen && podcastCompanion && companionDisplay === 'fullscreen' && (
+        <div className="fixed inset-0 z-[175] bg-[#0a0c14] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 sticky top-0 bg-[#0a0c14]/95 backdrop-blur-sm border-b border-white/10 z-10">
+            <p className="text-sm font-serif text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-white/60">{companionMeta.icon}</span>
+              {companionMeta.label}
+            </p>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setCompanionDisplay('popup')} title="Thu về popup" className="text-white/40 hover:text-white/80">
+                <span className="material-symbols-outlined text-[18px]">close_fullscreen</span>
+              </button>
+              <button onClick={() => setCompanionDisplay('collapsed')} title="Ẩn xuống tab" className="text-white/40 hover:text-white/80">
+                <span className="material-symbols-outlined text-[18px]">remove</span>
+              </button>
+              <button onClick={() => setPodcastCompanion(null)} className="text-white/40 hover:text-white/80 flex items-center gap-1 text-[11px] uppercase tracking-[1.5px]">
+                Đóng <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </div>
+          </div>
+          <div className="max-w-5xl mx-auto p-6">{companionBody}</div>
+        </div>
+      )}
+
+      {/* Share Screen with AI — owns the whole viewport, not the generic modal */}
+      {screenShareOpen && <ScreenShareTool onClose={() => setScreenShareOpen(false)} />}
+
+      {/* Illustration hover flyout's scan-a-region actions */}
+      {illustrationFlow && <IllustrationCaptureFlow mode={illustrationFlow} onClose={() => setIllustrationFlow(null)} />}
 
       {/* Neural-overload warning — first open of any Tier 2 tool */}
       {warnFor && (

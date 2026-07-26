@@ -1,172 +1,181 @@
 /**
- * ScreenShareTool — "Share Screen with AI": capture the screen (browser's
- * native picker lets the student choose window/tab/screen), freeze a
- * frame, drag-select just the region that matters, and send that crop to
- * Socrat for a look — a question back, not a direct answer, the same
- * house rule as everywhere else Socrat shows up.
+ * ScreenShareTool — "Share Screen with AI".
+ *
+ * Capture/crop mechanics live in ScreenCropCapture (shared with the
+ * Illustration tool's "scan a region" step) — this component owns what
+ * happens after: the crop pins as a chip on a chat panel that slides in on
+ * the right. Free-form questions stay Socratic (the house rule — a question
+ * back, not an answer), but the two quick-command presets ("Kiểm tra",
+ * "Tại sao") are explicit answer requests and get real answers — see
+ * backend/app/services/ai.py's _SCREEN_SHARE_COMMAND_PROMPTS. "Tạo
+ * illustration" routes the crop through the illustration pipeline instead
+ * of the chat model entirely (POST /ai/screen-share/illustrate).
+ *
+ * Mounted directly by ToolDock (bypassing its generic modal wrapper) so
+ * this can own the whole viewport instead of living in a centered card.
  */
-import { useRef, useState, type MouseEvent as ReactMouseEvent } from 'react';
-import { analyzeScreenShare } from '../../lib/lyceumApi';
+import { useEffect, useRef, useState } from 'react';
+import {
+  analyzeScreenShare, illustrateScreenShare, type ScreenShareCommand, type IllustrationShot,
+} from '../../lib/lyceumApi';
+import ScreenCropCapture from './ScreenCropCapture';
 
-type Phase = 'idle' | 'sharing' | 'frozen' | 'result';
+type ChatTurn =
+  | { role: 'user'; kind: 'command'; label: string }
+  | { role: 'user'; kind: 'text'; text: string }
+  | { role: 'ai'; kind: 'comment'; text: string }
+  | { role: 'ai'; kind: 'illustration'; shots: IllustrationShot[] }
+  | { role: 'ai'; kind: 'error'; text: string };
 
-export default function ScreenShareTool() {
-  const [phase, setPhase] = useState<Phase>('idle');
-  const [error, setError] = useState('');
+const QUICK_COMMANDS: { id: ScreenShareCommand; label: string }[] = [
+  { id: 'kiem_tra', label: 'Kiểm tra' },
+  { id: 'tai_sao', label: 'Tại sao' },
+];
+
+export default function ScreenShareTool({ onClose }: { onClose: () => void }) {
+  const [cropDataUrl, setCropDataUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [comment, setComment] = useState('');
-  const [question, setQuestion] = useState('');
-  const [selection, setSelection] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [input, setInput] = useState('');
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const frameCanvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const dragStart = useRef<{ x: number; y: number } | null>(null);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [turns]);
 
-  async function startShare() {
-    setError('');
+  function handleCropped(dataUrl: string) {
+    setCropDataUrl(dataUrl);
+    setTurns([]);
+  }
+
+  async function sendCommand(command: ScreenShareCommand, label: string) {
+    if (!cropDataUrl || busy) return;
+    setBusy(true);
+    setTurns(t => [...t, { role: 'user', kind: 'command', label }]);
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setPhase('sharing');
-    } catch (e: any) {
-      setError(e?.message || 'Screen share was cancelled or denied.');
-    }
-  }
-
-  function freezeFrame() {
-    const video = videoRef.current, canvas = frameCanvasRef.current;
-    if (!video || !canvas) return;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    setSelection(null);
-    setPhase('frozen');
-  }
-
-  function stopAll() {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
-    setPhase('idle'); setSelection(null); setComment('');
-  }
-
-  function relativePos(e: ReactMouseEvent<HTMLCanvasElement>) {
-    const canvas = frameCanvasRef.current!;
-    const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width, scaleY = canvas.height / rect.height;
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
-  }
-
-  function onMouseDown(e: ReactMouseEvent<HTMLCanvasElement>) {
-    dragStart.current = relativePos(e);
-    setSelection({ x: dragStart.current.x, y: dragStart.current.y, w: 0, h: 0 });
-  }
-  function onMouseMove(e: ReactMouseEvent<HTMLCanvasElement>) {
-    if (!dragStart.current) return;
-    const p = relativePos(e);
-    const a = dragStart.current;
-    setSelection({ x: Math.min(a.x, p.x), y: Math.min(a.y, p.y), w: Math.abs(p.x - a.x), h: Math.abs(p.y - a.y) });
-  }
-  function onMouseUp() { dragStart.current = null; }
-
-  async function sendToAI() {
-    const canvas = frameCanvasRef.current;
-    if (!canvas || !selection || selection.w < 10 || selection.h < 10 || busy) return;
-    const crop = document.createElement('canvas');
-    crop.width = selection.w; crop.height = selection.h;
-    crop.getContext('2d')?.drawImage(canvas, selection.x, selection.y, selection.w, selection.h, 0, 0, selection.w, selection.h);
-    const dataUrl = crop.toDataURL('image/png');
-
-    setBusy(true); setError('');
-    try {
-      const result = await analyzeScreenShare(dataUrl, question.trim());
-      setComment(result.comment);
-      setPhase('result');
-    } catch (e: any) {
-      setError(e?.message || 'Could not analyze the region — please try again.');
+      const result = await analyzeScreenShare(cropDataUrl, '', command);
+      setTurns(t => [...t, { role: 'ai', kind: 'comment', text: result.comment }]);
+    } catch (e) {
+      setTurns(t => [...t, { role: 'ai', kind: 'error', text: e instanceof Error ? e.message : 'Không phân tích được.' }]);
     } finally {
       setBusy(false);
     }
   }
 
+  async function sendIllustrate() {
+    if (!cropDataUrl || busy) return;
+    setBusy(true);
+    setTurns(t => [...t, { role: 'user', kind: 'command', label: 'Tạo illustration' }]);
+    try {
+      const result = await illustrateScreenShare(cropDataUrl);
+      setTurns(t => [...t, { role: 'ai', kind: 'illustration', shots: result.shots }]);
+    } catch (e) {
+      setTurns(t => [...t, { role: 'ai', kind: 'error', text: e instanceof Error ? e.message : 'Không tạo được illustration.' }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendText() {
+    const text = input.trim();
+    if (!text || !cropDataUrl || busy) return;
+    setInput('');
+    setBusy(true);
+    setTurns(t => [...t, { role: 'user', kind: 'text', text }]);
+    try {
+      const result = await analyzeScreenShare(cropDataUrl, text, '');
+      setTurns(t => [...t, { role: 'ai', kind: 'comment', text: result.comment }]);
+    } catch (e) {
+      setTurns(t => [...t, { role: 'ai', kind: 'error', text: e instanceof Error ? e.message : 'Không phân tích được.' }]);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!cropDataUrl) {
+    return <ScreenCropCapture title="Kéo chuột để chọn vùng cần hỏi AI" onCropped={handleCropped} onCancel={onClose} />;
+  }
+
   return (
-    <div className="p-4 flex flex-col gap-3">
-      <p className="text-[11px] text-white/50 leading-relaxed">
-        Share your screen, freeze a moment, then drag a box around just the part you want Socrat to look at.
-      </p>
-
-      {phase === 'idle' && (
-        <button onClick={startShare}
-          className="self-center rounded-xl px-5 py-2.5 text-[11px] uppercase tracking-[2px] bg-purple-400/15 text-purple-200 hover:bg-purple-400/25 transition-colors">
-          Start screen share
-        </button>
-      )}
-
-      {phase === 'sharing' && (
-        <div className="flex flex-col gap-2">
-          <video ref={videoRef} className="w-full rounded-xl border border-white/10 bg-black" muted />
-          <button onClick={freezeFrame}
-            className="self-center rounded-xl px-5 py-2.5 text-[11px] uppercase tracking-[2px] bg-amber-400/15 text-amber-200 hover:bg-amber-400/25 transition-colors">
-            Freeze this frame
-          </button>
-        </div>
-      )}
-      {/* Hidden while sharing so the video element above stays the visible one */}
-      <div className="relative" style={{ display: phase === 'frozen' || phase === 'result' ? 'block' : 'none' }}>
-        <canvas
-          ref={frameCanvasRef}
-          onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp}
-          className="w-full rounded-xl border border-white/10 cursor-crosshair"
-        />
-        {selection && (
-          <div className="absolute border-2 border-purple-300 bg-purple-400/10 pointer-events-none"
-            style={{
-              left: `${(selection.x / (frameCanvasRef.current?.width || 1)) * 100}%`,
-              top: `${(selection.y / (frameCanvasRef.current?.height || 1)) * 100}%`,
-              width: `${(selection.w / (frameCanvasRef.current?.width || 1)) * 100}%`,
-              height: `${(selection.h / (frameCanvasRef.current?.height || 1)) * 100}%`,
-            }}
-          />
-        )}
+    <div className="fixed inset-0 z-[195] bg-[#050508] flex">
+      <div className="flex-1 flex items-center justify-center bg-black/40 p-6">
+        <img src={cropDataUrl} alt="Vùng đã chọn" className="max-w-full max-h-full rounded-xl border border-white/10 shadow-2xl" />
       </div>
-
-      {phase === 'frozen' && (
-        <>
-          <input
-            value={question} onChange={e => setQuestion(e.target.value)}
-            placeholder="Optional — what should Socrat focus on?"
-            className="w-full bg-white/5 rounded-xl px-3 py-2 text-sm text-white/85 outline-none border border-white/10 focus:border-white/25"
-          />
-          <div className="flex gap-2 justify-center">
-            <button onClick={stopAll} className="rounded-xl px-4 py-2 text-[10px] uppercase tracking-[2px] bg-white/10 text-white/60 hover:bg-white/20 transition-colors">
-              Cancel
-            </button>
-            <button onClick={sendToAI} disabled={!selection || selection.w < 10 || busy}
-              className="rounded-xl px-5 py-2 text-[10px] uppercase tracking-[2px] bg-purple-400/15 text-purple-200 hover:bg-purple-400/25 disabled:opacity-30 transition-colors">
-              {busy ? 'Looking…' : 'Send region to Socrat'}
-            </button>
-          </div>
-        </>
-      )}
-
-      {phase === 'result' && (
-        <div className="flex flex-col gap-3">
-          <div className="rounded-2xl bg-white/[0.03] p-4">
-            <p className="text-[10px] uppercase tracking-[2px] text-purple-300/70 mb-1.5">Socrat</p>
-            <p className="text-sm text-white/85 leading-relaxed">{comment}</p>
-          </div>
-          <button onClick={stopAll} className="self-center rounded-xl px-5 py-2 text-[10px] uppercase tracking-[2px] bg-white/10 text-white/60 hover:bg-white/20 transition-colors">
-            New capture
+      <div className="w-[400px] shrink-0 border-l border-white/10 bg-[#0a0c14] flex flex-col">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+          <p className="text-sm font-serif text-white">Hỏi AI về vùng này</p>
+          <button onClick={onClose} className="text-white/40 hover:text-white/80">
+            <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         </div>
-      )}
 
-      {error && <p className="text-xs text-red-300/80">{error}</p>}
+        <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-3">
+          {turns.map((turn, i) => (
+            <div key={i} className={turn.role === 'user' ? 'self-end max-w-[85%]' : 'self-start max-w-[92%]'}>
+              {turn.role === 'user' && turn.kind === 'command' && (
+                <p className="rounded-2xl rounded-br-md px-3 py-1.5 text-xs bg-purple-400/20 text-purple-100">{turn.label}</p>
+              )}
+              {turn.role === 'user' && turn.kind === 'text' && (
+                <p className="rounded-2xl rounded-br-md px-3 py-1.5 text-xs bg-white/10 text-white/90">{turn.text}</p>
+              )}
+              {turn.role === 'ai' && turn.kind === 'comment' && (
+                <p className="rounded-2xl rounded-bl-md px-3 py-2 text-xs bg-white/[0.04] text-white/80 leading-relaxed">{turn.text}</p>
+              )}
+              {turn.role === 'ai' && turn.kind === 'error' && (
+                <p className="rounded-2xl rounded-bl-md px-3 py-2 text-xs bg-red-400/10 text-red-300">{turn.text}</p>
+              )}
+              {turn.role === 'ai' && turn.kind === 'illustration' && (
+                <div className="rounded-2xl bg-white/[0.04] p-2.5 flex flex-col gap-2">
+                  {turn.shots.map((s, si) => (
+                    s.image_base64 ? (
+                      <img key={si} src={`data:image/png;base64,${s.image_base64}`} alt={s.topic || 'illustration'} className="rounded-lg w-full" />
+                    ) : (
+                      <p key={si} className="text-[11px] text-red-300/80">{s.error || 'Không tạo được ảnh.'}</p>
+                    )
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+          {busy && <p className="text-[11px] text-white/35">AI đang xem…</p>}
+          <div ref={chatEndRef} />
+        </div>
+
+        <div className="p-3 border-t border-white/10 flex flex-col gap-2">
+          {/* The crop stays pinned here as a chip — every send below reuses it. */}
+          <div className="flex items-center gap-2 bg-white/5 rounded-xl px-2 py-1.5">
+            <img src={cropDataUrl} alt="" className="w-8 h-8 rounded object-cover border border-white/10" />
+            <span className="text-[10px] text-white/40 flex-1">Vùng đã chọn</span>
+            <button onClick={() => setCropDataUrl(null)} className="text-white/30 hover:text-white/70 text-[10px] uppercase tracking-[1.5px]">
+              Chọn lại
+            </button>
+          </div>
+
+          <div className="flex gap-1.5 flex-wrap">
+            {QUICK_COMMANDS.map(c => (
+              <button key={c.id} onClick={() => sendCommand(c.id, c.label)} disabled={busy}
+                className="rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[1.5px] bg-white/5 text-white/65 hover:bg-white/10 disabled:opacity-30 transition-colors">
+                {c.label}
+              </button>
+            ))}
+            <button onClick={sendIllustrate} disabled={busy}
+              className="rounded-lg px-3 py-1.5 text-[10px] uppercase tracking-[1.5px] bg-white/5 text-white/65 hover:bg-white/10 disabled:opacity-30 transition-colors">
+              Tạo illustration
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') sendText(); }}
+              placeholder="Hỏi gì đó về vùng này…"
+              className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-xs text-white/85 outline-none border border-white/10 focus:border-white/25"
+            />
+            <button onClick={sendText} disabled={!input.trim() || busy}
+              className="rounded-xl px-3 py-2 text-white/70 hover:text-white disabled:opacity-30">
+              <span className="material-symbols-outlined text-[18px]">send</span>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

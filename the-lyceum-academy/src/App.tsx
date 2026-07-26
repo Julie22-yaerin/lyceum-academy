@@ -12,6 +12,7 @@ import AuthPage from './views/AuthPage';
 import ApplyView from './views/ApplyView';
 import LibraryPage from './views/LibraryPage';
 import SecondBrainPage from './views/SecondBrainPage';
+import ForumPage from './views/ForumPage';
 import MainLayout from './components/MainLayout';
 import DialogueView from './views/DialogueView';
 import ExerciseView from './views/ExerciseView';
@@ -22,6 +23,7 @@ import NotepadWindow from './views/NotepadWindow';
 import WeeklyScheduleSetup from './components/WeeklyScheduleSetup';
 import BillingGate from './views/BillingGate';
 import StudyCycleTimer from './components/StudyCycleTimer';
+import HyperfocusButton from './components/HyperfocusButton';
 import MistakeBankView from './views/MistakeBankView';
 // import ReferenceBankView from './views/ReferenceBankView';  // disabled, coming soon
 import SettingsView from './views/SettingsView';
@@ -238,6 +240,7 @@ function AppInner() {
       <ReviewPopup />
       <FloatingPodcast />
       <StudyCycleTimer />
+      <HyperfocusButton />
     </>
   );
 }
@@ -280,6 +283,11 @@ export default function App() {
   }
   if (path === '/terms') {
     return <I18nProvider><ThemeProvider><LegalPage doc="terms" /></ThemeProvider></I18nProvider>;
+  }
+  if (path === '/forum' || path.startsWith('/forum/')) {
+    return (
+      <I18nProvider><ThemeProvider><AuthProvider><ForumPage /></AuthProvider></ThemeProvider></I18nProvider>
+    );
   }
 
   return (
