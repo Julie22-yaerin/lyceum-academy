@@ -4,13 +4,17 @@
  * Builder in Socrat) are now workspace-wide, reachable from the left-edge
  * ToolDock on every screen.
  *
- * Tools are split into two tiers:
- *   Tier 1 — the standard learning aids (Feynman, Tool Map, Reverse Build,
- *            Games, Spaced Repetition).
- *   Tier 2 — high-intensity "cognitive stress" tools that deliberately
- *            overload the senses (Dark Room, Kinetic Stress, Paradox Engine,
- *            Hostile Mode, Scalpel). Opening one the first time shows a
- *            neural-overload warning the student must accept.
+ * Tools are split two ways:
+ *   By tier — Tier 1 (standard learning aids) vs Tier 2, high-intensity
+ *            "cognitive stress" tools that deliberately overload the senses
+ *            (Dark Room, Kinetic Stress, Paradox Engine, Hostile Mode,
+ *            Scalpel). Opening one the first time shows a neural-overload
+ *            warning the student must accept.
+ *   By purpose — theory (understanding a concept: Feynman, Illustrations,
+ *            Lotus Map, Sheet of Paper, Podcast, Share Screen) vs practice
+ *            (drilling it: Reverse Build, Games, Spaced Repetition, Exercise
+ *            Cards, and every Tier 2 tool). See TOOLS in ToolDock.tsx for the
+ *            per-tool category and how the dock groups them.
  *
  * Which tools an account may see is curated per-user by the admin+Opus
  * (backend GET /me/tools); the dock filters against that list.
@@ -18,7 +22,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 
 export type Tier1ToolId =
-  | 'feynman' | 'toolmap' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations'
+  | 'feynman' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations'
   | 'lotus-map' | 'sheet-of-paper' | 'podcast' | 'screen-share' | 'exercise-cards';
 export type Tier2ToolId =
   | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'

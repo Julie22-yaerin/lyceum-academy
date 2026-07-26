@@ -154,7 +154,7 @@ LYCEUM_PIPELINE_PROMPT = (
 # src/context/ToolDockContext.tsx. Tier 2 tools carry a neural-overload
 # warning client-side.
 TIER1_TOOLS = [
-    "feynman", "toolmap", "reverse-build", "games", "spaced-repetition", "illustrations",
+    "feynman", "reverse-build", "games", "spaced-repetition", "illustrations",
     "lotus-map", "sheet-of-paper", "podcast", "screen-share", "exercise-cards",
 ]
 TIER2_TOOLS = [

@@ -1,10 +1,14 @@
 /**
  * ToolDock — a vertical, drag-repositionable dock pinned to the left edge
- * of the workspace. Feynman, Tool Map, Reverse Build, Games, and Spaced
- * Repetition (Tier 1) are reachable from anywhere; below a divider sit the
- * Tier 2 "cognitive stress" tools (Dark Room, Kinetic Stress, Paradox
- * Engine, Hostile Mode, Scalpel), which carry a neural-overload warning on
- * first open.
+ * of the workspace, grouped into two stacks:
+ *   Lý thuyết (theory) — build or organize understanding: Feynman,
+ *     Illustrations, Lotus Map, Sheet of Paper, Podcast, Share Screen.
+ *   Thực hành (practice) — drill it: Reverse Build, Games, Spaced
+ *     Repetition, Exercise Cards, and — below a second divider — the Tier 2
+ *     "cognitive stress" tools (Dark Room, Kinetic Stress, Paradox Engine,
+ *     Hostile Mode, Scalpel), which carry a neural-overload warning on first
+ *     open. Tier 2 is a practice-intensity tag, not a third category — every
+ *     Tier 2 tool is itself a practice tool.
  *
  * The set of tools an account may see is curated per-user by the admin+Opus
  * (backend GET /me/tools) — the dock only renders tools in that list.
@@ -14,7 +18,6 @@ import { motion } from 'motion/react';
 import { useToolDock, isTier2, type ToolId } from '../context/ToolDockContext';
 import { getMyTools } from '../lib/lyceumApi';
 import FeynmanTool from './tools/FeynmanTool';
-import ToolMapTool from './tools/ToolMapTool';
 import ReverseBuildTool from './tools/ReverseBuildTool';
 import SpacedRepetitionTool from './tools/SpacedRepetitionTool';
 import GameBuilder from './GameBuilder';
@@ -32,28 +35,32 @@ import SheetOfPaperTool from './tools/SheetOfPaperTool';
 import ScreenShareTool from './tools/ScreenShareTool';
 import ExerciseCardsTool from './tools/ExerciseCardsTool';
 
-interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; subjects?: string }
+type ToolCategory = 'theory' | 'practice';
+const CATEGORY_LABEL: Record<ToolCategory, string> = { theory: 'Lý thuyết', practice: 'Thực hành' };
+
+interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; category: ToolCategory; subjects?: string }
 
 const TOOLS: ToolMeta[] = [
-  { id: 'feynman', icon: 'psychology', label: 'Feynman Technique', tier: 1 },
-  { id: 'toolmap', icon: 'account_tree', label: 'Tool Map', tier: 1 },
-  { id: 'reverse-build', icon: 'undo', label: 'Reverse Build', tier: 1 },
-  { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1 },
-  { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1 },
-  { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1 },
-  { id: 'lotus-map', icon: 'spa', label: 'Lotus Map', tier: 1 },
-  { id: 'sheet-of-paper', icon: 'edit_note', label: 'Large Sheet of Paper', tier: 1 },
-  { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1 },
-  { id: 'screen-share', icon: 'screen_share', label: 'Share Screen with AI', tier: 1 },
-  { id: 'exercise-cards', icon: 'style', label: 'Exercise Cards', tier: 1 },
-  { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, subjects: 'Vật lý lượng tử · Toán đa biến' },
-  { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, subjects: 'Cơ học · Cân bằng hoá học' },
-  { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, subjects: 'Nhiệt động lực học · Điện từ' },
-  { id: 'auditory-gating', icon: 'graphic_eq', label: 'Auditory Gating', tier: 2, subjects: 'Toán rời rạc · Giải thuật' },
-  { id: 'membrane-flow', icon: 'water_drop', label: 'Purification Sandbox', tier: 2, subjects: 'Hoá lý · Kỹ thuật hoá học' },
-  { id: 'steric-snap', icon: 'hub', label: 'Steric Repulsion', tier: 2, subjects: 'Hoá hữu cơ' },
-  { id: 'topo-lock', icon: 'biotech', label: 'Topological Lock', tier: 2, subjects: 'Sinh học phân tử · Hoá sinh' },
-  { id: 'time-lapse', icon: 'timelapse', label: 'Generative Sandbox', tier: 2, subjects: 'Sinh thái · Di truyền' },
+  // Lý thuyết — building or organizing understanding of a concept.
+  { id: 'feynman', icon: 'psychology', label: 'Feynman Technique', tier: 1, category: 'theory' },
+  { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1, category: 'theory' },
+  { id: 'lotus-map', icon: 'spa', label: 'Lotus Map', tier: 1, category: 'theory' },
+  { id: 'sheet-of-paper', icon: 'edit_note', label: 'Large Sheet of Paper', tier: 1, category: 'theory' },
+  { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1, category: 'theory' },
+  { id: 'screen-share', icon: 'screen_share', label: 'Share Screen with AI', tier: 1, category: 'theory' },
+  // Thực hành — drilling it: past papers, quizzes, recall, cognitive-stress practice.
+  { id: 'reverse-build', icon: 'undo', label: 'Reverse Build', tier: 1, category: 'practice' },
+  { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1, category: 'practice' },
+  { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1, category: 'practice' },
+  { id: 'exercise-cards', icon: 'style', label: 'Exercise Cards', tier: 1, category: 'practice' },
+  { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, category: 'practice', subjects: 'Vật lý lượng tử · Toán đa biến' },
+  { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, category: 'practice', subjects: 'Cơ học · Cân bằng hoá học' },
+  { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, category: 'practice', subjects: 'Nhiệt động lực học · Điện từ' },
+  { id: 'auditory-gating', icon: 'graphic_eq', label: 'Auditory Gating', tier: 2, category: 'practice', subjects: 'Toán rời rạc · Giải thuật' },
+  { id: 'membrane-flow', icon: 'water_drop', label: 'Purification Sandbox', tier: 2, category: 'practice', subjects: 'Hoá lý · Kỹ thuật hoá học' },
+  { id: 'steric-snap', icon: 'hub', label: 'Steric Repulsion', tier: 2, category: 'practice', subjects: 'Hoá hữu cơ' },
+  { id: 'topo-lock', icon: 'biotech', label: 'Topological Lock', tier: 2, category: 'practice', subjects: 'Sinh học phân tử · Hoá sinh' },
+  { id: 'time-lapse', icon: 'timelapse', label: 'Generative Sandbox', tier: 2, category: 'practice', subjects: 'Sinh thái · Di truyền' },
 ];
 
 const OVERLOAD_ACK_KEY = 'lyceum_tier2_ack_v1';
@@ -70,14 +77,15 @@ export default function ToolDock() {
       .then(r => setAllowed(new Set(r.tools as ToolId[])))
       // If curation can't be fetched, fall back to tier-1 only.
       .catch(() => setAllowed(new Set([
-        'feynman', 'toolmap', 'reverse-build', 'games', 'spaced-repetition', 'illustrations',
+        'feynman', 'reverse-build', 'games', 'spaced-repetition', 'illustrations',
         'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards',
       ])));
   }, []);
 
   const visible = TOOLS.filter(t => !allowed || allowed.has(t.id));
-  const tier1 = visible.filter(t => t.tier === 1);
-  const tier2 = visible.filter(t => t.tier === 2);
+  const theoryTools = visible.filter(t => t.category === 'theory');
+  const practiceTools = visible.filter(t => t.category === 'practice' && t.tier === 1);
+  const practiceIntense = visible.filter(t => t.category === 'practice' && t.tier === 2);
   const activeLabel = TOOLS.find(t => t.id === activeTool)?.label;
 
   function hasAcked(): boolean {
@@ -98,7 +106,6 @@ export default function ToolDock() {
   function renderActivePanel() {
     switch (activeTool) {
       case 'feynman': return <FeynmanTool />;
-      case 'toolmap': return <ToolMapTool />;
       case 'reverse-build': return <ReverseBuildTool />;
       case 'spaced-repetition': return <SpacedRepetitionTool />;
       case 'illustrations': return <IllustrationTool />;
@@ -139,10 +146,23 @@ export default function ToolDock() {
         {hovered === t.id && (
           <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap glass-strong rounded-lg px-2.5 py-1 text-[11px] text-white/85">
             {t.label}{t.tier === 2 && <span className="text-red-300"> · intense</span>}
-            {t.subjects && <span className="block text-[10px] text-white/45">{t.subjects}</span>}
+            <span className="block text-[10px] text-white/40">
+              {CATEGORY_LABEL[t.category]}{t.subjects && ` · ${t.subjects}`}
+            </span>
           </span>
         )}
       </button>
+    );
+  }
+
+  function groupLabel(text: string) {
+    return (
+      <p
+        className="text-[8px] uppercase tracking-[1.5px] text-white/30 text-center py-0.5 select-none"
+        style={{ writingMode: 'vertical-rl' }}
+      >
+        {text}
+      </p>
     );
   }
 
@@ -156,11 +176,19 @@ export default function ToolDock() {
         className="fixed left-4 top-1/2 -translate-y-1/2 z-40 dock rounded-2xl p-2 flex flex-col gap-1 cursor-grab active:cursor-grabbing"
         title="Drag to reposition"
       >
-        {tier1.map(toolButton)}
-        {tier2.length > 0 && (
+        {theoryTools.length > 0 && groupLabel('Lý thuyết')}
+        {theoryTools.map(toolButton)}
+
+        {practiceTools.length + practiceIntense.length > 0 && (
+          <div className="my-1 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+        )}
+        {(practiceTools.length > 0 || practiceIntense.length > 0) && groupLabel('Thực hành')}
+        {practiceTools.map(toolButton)}
+
+        {practiceIntense.length > 0 && (
           <div className="my-1 h-px bg-gradient-to-r from-transparent via-red-400/30 to-transparent" title="Tier 2 — high intensity" />
         )}
-        {tier2.map(toolButton)}
+        {practiceIntense.map(toolButton)}
       </motion.div>
 
       {activeTool && (
