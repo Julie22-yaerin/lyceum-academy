@@ -14,7 +14,6 @@ import LibraryPage from './views/LibraryPage';
 import SecondBrainPage from './views/SecondBrainPage';
 import ForumPage from './views/ForumPage';
 import MainLayout from './components/MainLayout';
-import DialogueView from './views/DialogueView';
 import ExerciseView from './views/ExerciseView';
 import ProblemSetsView from './views/ProblemSetsView';
 import NoteView from './views/NoteView';
@@ -196,6 +195,20 @@ function AppInner() {
     return <AuthPage onNavigate={setView} currentView={view} />;
   }
 
+  // Email OTP gate — required at every login, not just a one-time signup
+  // step. sessionStorage (not localStorage) on purpose: a persisted
+  // Firebase session surviving a page reload doesn't re-challenge within
+  // the same browser session, but a fresh browser session does — matching
+  // "every login" without re-prompting on every refresh.
+  const otpVerified = (() => {
+    if (devMode || !user?.email) return true;
+    try { return sessionStorage.getItem(`lyceum_otp_verified_${user.email.toLowerCase()}`) === '1'; }
+    catch { return true; } // storage unavailable — fail open rather than lock everyone out
+  })();
+  if (!otpVerified) {
+    return <AuthPage onNavigate={setView} currentView={view} />;
+  }
+
   // Paywall sits ahead of everything in the workspace: full page, no overlay
   // to dismiss. Signing out is offered inside it.
   if (billingOk === false) {
@@ -225,7 +238,6 @@ function AppInner() {
         onNavigate={setView}
         tourActive={showTour}
       >
-        {view === 'dialogue' && <DialogueView />}
         {view === 'exercise' && <ExerciseView />}
         {view === 'problem-sets' && <ProblemSetsView onNavigate={setView} />}
         {view === 'notes' && <NoteView />}

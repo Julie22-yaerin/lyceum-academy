@@ -102,6 +102,34 @@ export async function checkLoginAttempt(recaptchaToken: string | null = null): P
 }
 
 /**
+ * Email OTP — required at both signup and every login (see
+ * backend/app/routers/auth.py's /auth/otp/* endpoints, app.services.email_otp).
+ * New subsystem, independent of Firebase's own link-based email
+ * verification (untouched, still used for the 'verify-email' screen).
+ */
+export async function requestOtp(email: string, purpose: 'signup' | 'login'): Promise<{ ok: boolean; delivered: boolean }> {
+  const res = await authFetch(`${API_BASE}/auth/otp/request`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, purpose }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body?.detail || `Request failed (${res.status})`);
+  }
+  return res.json();
+}
+
+export async function verifyOtp(email: string, purpose: 'signup' | 'login', code: string): Promise<boolean> {
+  const res = await authFetch(`${API_BASE}/auth/otp/verify`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, purpose, code }),
+  });
+  return res.ok;
+}
+
+/**
  * Establish (or refresh) the backend's HttpOnly __session cookie for the
  * current Firebase user. Supplementary to the app's real auth mechanism
  * (the Bearer token every authFetch call already sends) — best-effort, so

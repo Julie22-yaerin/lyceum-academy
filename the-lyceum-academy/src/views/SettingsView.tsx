@@ -538,6 +538,39 @@ function AppearanceSection() {
   );
 }
 
+const ARI_MODE_KEY = 'ari-default-mode';
+
+/** ARI is the default help/Q&A surface (Dialogue was removed) — this just
+ * picks which mode it opens in. Switchable live from the HUD regardless;
+ * this only sets what greets you at the start of a session. */
+function AssistantSection() {
+  const [mode, setMode] = useState<'voice' | 'text'>(() => {
+    try { return localStorage.getItem(ARI_MODE_KEY) === 'text' ? 'text' : 'voice'; } catch { return 'voice'; }
+  });
+
+  function choose(next: 'voice' | 'text') {
+    setMode(next);
+    try { localStorage.setItem(ARI_MODE_KEY, next); } catch { /* ignore */ }
+  }
+
+  return (
+    <div className="glass-card rounded-3xl p-6">
+      <p className="text-[10px] uppercase tracking-[2px] text-white/40 mb-1">Trợ lý mặc định</p>
+      <p className="text-xs text-white/30 mb-5">ARI trả lời mọi câu hỏi trong workspace — chọn cách nó mở đầu mỗi phiên. Đổi lại bất cứ lúc nào ngay trên ARI.</p>
+      <div className="flex gap-3">
+        <button onClick={() => choose('voice')}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm transition-colors ${mode === 'voice' ? 'glass-pill-active' : 'glass-pill'}`}>
+          <span className="material-symbols-outlined text-[16px]">mic</span> Giọng nói
+        </button>
+        <button onClick={() => choose('text')}
+          className={`flex-1 flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm transition-colors ${mode === 'text' ? 'glass-pill-active' : 'glass-pill'}`}>
+          <span className="material-symbols-outlined text-[16px]">keyboard</span> Gõ chữ
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function UnlimitedAccessSection() {
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -604,6 +637,7 @@ export default function SettingsView() {
       <ProfileSection />
       <ScheduleSection />
       <AppearanceSection />
+      <AssistantSection />
       <LanguagePicker mode="inline" />
       <PlanSection />
       <SubscriptionSection />

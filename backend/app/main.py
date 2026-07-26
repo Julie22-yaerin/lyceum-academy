@@ -332,6 +332,8 @@ async def lifespan(_app: FastAPI):
     user_brain_svc.init_db()
     from app.services import gallery as gallery_svc
     gallery_svc.init_db()
+    from app.services import email_otp as email_otp_svc
+    email_otp_svc.init_db()
     from app.services import access_codes as access_codes_svc
     access_codes_svc.init_db()
     from app.services import game as game_svc
@@ -1569,7 +1571,7 @@ async def ai_gemini(request: Request, req: ChatRequest, _: dict = Depends(requir
 
 @app.post("/ai/upload-pset")
 @limiter.limit("3/minute")
-async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
+async def ai_upload_pset(request: Request, file: UploadFile = File(...), auth: dict = Depends(require_auth)):
     """
     Upload a PDF or PNG/JPG image containing a playground.
     1. Quick difficulty scan (title + overview only, Gemini Flash)
@@ -1590,6 +1592,14 @@ async def ai_upload_pset(request: Request, file: UploadFile = File(...), _: dict
                 status_code=400,
                 detail=file_safety.get("reason", "File failed safety check"),
             )
+
+        # Invisible 12h safety net (retry path only, never surfaced to the
+        # student) — see app.services.raw_material_cache.
+        try:
+            from app.services import raw_material_cache
+            raw_material_cache.save_raw(auth.get("user_id") or auth.get("sub") or "", "pset", fname, mime, content)
+        except Exception:
+            pass
 
         # ── Step 1: Quick difficulty scan ─────────────────────────────────
         difficulty_info = {"difficulty": "medium", "rationale": "skipped", "subject_area": "other"}
@@ -1870,7 +1880,7 @@ async def ai_clean_question(request: Request, req: CleanQuestionRequest, _: dict
 
 @app.post("/ai/note-upload")
 @limiter.limit("3/minute")
-async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: dict = Depends(require_auth)):
+async def ai_note_from_file(request: Request, file: UploadFile = File(...), auth: dict = Depends(require_auth)):
     """
     Synthesize a PDF or image into a structured study note.
     """
@@ -1887,6 +1897,14 @@ async def ai_note_from_file(request: Request, file: UploadFile = File(...), _: d
                 status_code=400,
                 detail=file_safety.get("reason", "File failed safety check"),
             )
+
+        # Invisible 12h safety net (retry path only, never surfaced to the
+        # student) — see app.services.raw_material_cache.
+        try:
+            from app.services import raw_material_cache
+            raw_material_cache.save_raw(auth.get("user_id") or auth.get("sub") or "", "note", fname, mime, content)
+        except Exception:
+            pass
 
         if mime == "application/pdf" or fname.lower().endswith(".pdf"):
             raw_text = await ai_svc.extract_pdf_text(content)

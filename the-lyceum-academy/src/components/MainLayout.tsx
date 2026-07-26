@@ -51,7 +51,7 @@ export default function MainLayout({ currentView, onNavigate, children, tourActi
 
   // Subject-scoped views get the workspace tab strip; Settings stays
   // cross-subject overviews and don't show it.
-  const SUBJECT_SCOPED_VIEWS = new Set(['dialogue', 'notes', 'problem-sets', 'mistake-bank', 'progress' /* , 'reference-bank' */]);
+  const SUBJECT_SCOPED_VIEWS = new Set(['notes', 'problem-sets', 'mistake-bank', 'progress' /* , 'reference-bank' */]);
   const showTabBar = SUBJECT_SCOPED_VIEWS.has(currentView);
 
   return (

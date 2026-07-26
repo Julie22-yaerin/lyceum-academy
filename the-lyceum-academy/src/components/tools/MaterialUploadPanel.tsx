@@ -2,24 +2,31 @@
  * MaterialUploadPanel — "Upload trước mỗi buổi" made concrete: three
  * categorized drop zones instead of one generic uploader, so the student
  * sorts material on the way in rather than the AI guessing what a file is
- * for.
+ * for. Each zone auto-saves into the real place that category belongs —
+ * the AI's own generated title/summary (it already reads the whole file to
+ * produce one) doubles as "skimming to know the topic," so no separate
+ * classification step is needed on top of what synthesis already does:
  *
- *   Note              -> POST /ai/note-upload (structured note synthesis)
- *   Practice problems -> POST /ai/upload-pset (difficulty scan + analysis)
+ *   Note              -> POST /ai/note-upload -> saveNote() (Notes list)
+ *   Practice problems -> POST /ai/upload-pset -> savePSet() (Problem Sets list)
  *   Others            -> vocabulary lists, answer sheets, anything that
  *                         isn't a lecture note or a problem set. There is
  *                         no dedicated backend pipeline for this category —
  *                         it reuses note synthesis (the closest fit) rather
- *                         than pretending a bespoke analyzer exists. The
- *                         free-text label is for the student's own
- *                         organization, not sent anywhere structured.
+ *                         than pretending a bespoke analyzer exists, and
+ *                         lands in Notes tagged sourceType 'other' so it's
+ *                         visually distinct from real lecture notes. The
+ *                         free-text label becomes part of the saved title.
  *
- * Everything here is session-only by design (nothing is written to the
- * student's Second Brain) — that's the whole point of "Upload" mode versus
- * "Second Brain" mode in onboarding: free, ephemeral, no Quanta.
+ * This does NOT touch the student's Second Brain (backend) — it's local
+ * persistence only (localStorage, same as the rest of Notes/Problem Sets),
+ * still free and still per-device, just no longer thrown away when the
+ * panel closes.
  */
 import { useRef, useState, type DragEvent } from 'react';
 import { synthesizeNoteFromFile, uploadProblemSet, type NoteResult } from '../../lib/api';
+import { saveNote, savePSet } from '../../lib/persist';
+import { useWorkspace } from '../../context/WorkspaceContext';
 
 type Category = 'note' | 'practice' | 'others';
 
@@ -79,14 +86,14 @@ function DropZone({ id, icon, title, hint, busy, result, othersLabel, onOthersLa
       {result?.kind === 'error' && <p className="text-[11px] text-red-300/80">{result.message}</p>}
       {result?.kind === 'note' && (
         <div className="rounded-xl bg-white/[0.03] p-3 flex flex-col gap-1">
-          <p className="text-[11px] text-emerald-300">✓ Đã tổng hợp</p>
+          <p className="text-[11px] text-emerald-300">✓ Đã lưu vào Notes</p>
           <p className="text-xs text-white/80 font-medium">{result.data.title}</p>
           <p className="text-[11px] text-white/50 line-clamp-3">{result.data.tldr || result.data.summary}</p>
         </div>
       )}
       {result?.kind === 'pset' && (
         <div className="rounded-xl bg-white/[0.03] p-3 flex flex-col gap-1">
-          <p className="text-[11px] text-emerald-300">✓ Đã phân tích</p>
+          <p className="text-[11px] text-emerald-300">✓ Đã lưu vào Problem Sets</p>
           <p className="text-[11px] text-white/60">{result.data.problems.length} bài tập tìm thấy</p>
         </div>
       )}
@@ -95,6 +102,7 @@ function DropZone({ id, icon, title, hint, busy, result, othersLabel, onOthersLa
 }
 
 export default function MaterialUploadPanel() {
+  const { activeTab } = useWorkspace();
   const [busy, setBusy] = useState<Category | null>(null);
   const [results, setResults] = useState<Partial<Record<Category, ZoneResult>>>({});
   const [othersLabel, setOthersLabel] = useState('');
@@ -105,12 +113,33 @@ export default function MaterialUploadPanel() {
     try {
       if (category === 'practice') {
         const data = await uploadProblemSet(file);
+        savePSet({
+          id: `upload-${Date.now()}`,
+          name: data.summary?.slice(0, 80) || file.name,
+          savedAt: Date.now(),
+          questions: data.questions,
+          currentIdx: 0,
+          lensMode: data.lensMode,
+          totalPages: data.totalPages,
+          subject: activeTab || undefined,
+        });
         setResults(r => ({ ...r, practice: { kind: 'pset', data } }));
       } else {
         // 'note' and 'others' share the same synthesis pipeline — see the
         // file header for why 'others' has no dedicated analyzer yet.
         const data = await synthesizeNoteFromFile(file);
-        setResults(r => ({ ...r, [category]: { kind: 'note', data } }));
+        const title = category === 'others' && othersLabel.trim()
+          ? `${othersLabel.trim()} — ${data.title}`
+          : data.title;
+        saveNote({
+          id: `upload-${category}-${Date.now()}`,
+          title,
+          savedAt: Date.now(),
+          sourceType: category === 'others' ? 'other' : (data.source_type || 'upload'),
+          note: data,
+          subject: activeTab || undefined,
+        });
+        setResults(r => ({ ...r, [category]: { kind: 'note', data: { ...data, title } } }));
       }
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Không xử lý được file này.';
@@ -123,8 +152,8 @@ export default function MaterialUploadPanel() {
   return (
     <div className="p-4 flex flex-col gap-3">
       <p className="text-[11px] text-white/50 leading-relaxed">
-        Thả tài liệu vào đúng ô — không lưu lại cho buổi sau, miễn phí mỗi lần.
-        Cần dùng lại nhiều lần thì chọn Second Brain hoặc AI Research thay vì Upload.
+        Thả tài liệu vào đúng ô — AI đọc lướt để lấy tên chủ đề rồi tự lưu vào đúng chỗ
+        (Note/Others → Notes, Practice problems → Problem Sets), miễn phí mỗi lần.
       </p>
       <div className="flex flex-col sm:flex-row gap-3">
         {ZONES.map(z => (

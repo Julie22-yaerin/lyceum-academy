@@ -53,6 +53,14 @@ export default function S2SVoiceOverlay({
   const [toast, setToast] = useState<{ message: string; type: 'note' | 'mistake' | 'research'; images?: string[] } | null>(null);
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
   const [voiceSessionId, setVoiceSessionId] = useState<string | null>(null);
+  // Typed mode — ARI is the default help/Q&A surface now that Dialogue is
+  // gone, and not everyone wants to talk out loud. Defaults from Settings'
+  // "Trợ lý mặc định" toggle; switchable live from the HUD regardless.
+  const [textMode, setTextMode] = useState(() => {
+    try { return localStorage.getItem('ari-default-mode') === 'text'; } catch { return false; }
+  });
+  const [typedInput, setTypedInput] = useState('');
+  const [typedBusy, setTypedBusy] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -254,6 +262,18 @@ export default function S2SVoiceOverlay({
       if (attachMatch) handleAttach(attachMatch[1], attachMatch[2].trim());
     } catch (e) {
       console.error('GPT fallback chat failed:', e);
+    }
+  }
+
+  async function submitTyped() {
+    const text = typedInput.trim();
+    if (!text || typedBusy) return;
+    setTypedInput('');
+    setTypedBusy(true);
+    try {
+      await runFallbackTurn(text, false);
+    } finally {
+      setTypedBusy(false);
     }
   }
 
@@ -888,7 +908,35 @@ export default function S2SVoiceOverlay({
           StudyCycleTimer (bottom-[12rem]) and Support (bottom-[17rem]) —
           fixed at bottom-24 on every breakpoint so it never collapses back
           onto Podcast's slot the way the old md:bottom-8 override did. */}
+      {textMode && (
+        <div className="fixed bottom-[9.5rem] right-6 z-40 w-72 glass-strong rounded-2xl p-2.5 flex items-center gap-2">
+          <input
+            value={typedInput} onChange={e => setTypedInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') submitTyped(); }}
+            placeholder="Hỏi ARI…"
+            autoFocus
+            className="flex-1 bg-white/5 rounded-xl px-3 py-2 text-xs text-white/85 outline-none border border-white/10 focus:border-white/25"
+          />
+          <button onClick={submitTyped} disabled={!typedInput.trim() || typedBusy}
+            className="text-white/70 hover:text-white disabled:opacity-30 flex-shrink-0">
+            <span className="material-symbols-outlined text-[18px]">send</span>
+          </button>
+        </div>
+      )}
+
       <div className="fixed bottom-24 right-6 z-40 flex items-center gap-3">
+        <button
+          onClick={() => setTextMode(m => !m)}
+          className={`w-10 h-10 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${
+            textMode
+              ? 'bg-purple-500/20 border-purple-500/40 text-purple-300'
+              : 'glass hover:bg-white/10 border-white/10 text-white/80'
+          }`}
+          title={textMode ? 'Chuyển sang giọng nói' : 'Gõ thay vì nói'}
+        >
+          <span className="material-symbols-outlined text-[16px]">{textMode ? 'keyboard_voice' : 'keyboard'}</span>
+        </button>
+
         <button
           onClick={() => setIsMuted(m => !m)}
           className={`w-10 h-10 rounded-full border transition-all flex items-center justify-center flex-shrink-0 ${

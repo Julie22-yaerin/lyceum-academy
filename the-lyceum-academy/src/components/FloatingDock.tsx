@@ -12,7 +12,6 @@ import Confetti from './Confetti';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
-  { view: 'dialogue',      labelKey: 'nav.dialogue',       icon: 'forum' },
   { view: 'problem-sets',  labelKey: 'nav.problemSets',   icon: 'library_books' },
   { view: 'notes',         labelKey: 'nav.notes',          icon: 'edit_note' },
   { view: 'mistake-bank',  labelKey: 'nav.mistakeVault',  icon: 'error_outline' },
@@ -262,6 +261,17 @@ function CornerMenu({ onNavigate }: NavigationProps) {
         </div>
       )}
       {levelUp && <Confetti />}
+
+      {/* The only entry point into Forum — a paid-plan gated community, not
+          a public/invite-code funnel. Reached exclusively from inside the
+          workspace on purpose (see ForumPage.tsx / services/forum.py). */}
+      <a
+        href="/forum"
+        className="glass rounded-full w-9 h-9 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+        title="Forum"
+      >
+        <span className="material-symbols-outlined text-[18px]">groups</span>
+      </a>
 
       <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
         <ReportBugButton onNavigate={onNavigate} />

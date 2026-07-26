@@ -11,13 +11,14 @@ import {
   sendPasswordResetEmail,
 } from '../lib/firebase';
 import { useAuth } from '../context/AuthContext';
-import { checkLoginAttempt } from '../lib/api';
+import { checkLoginAttempt, requestOtp, verifyOtp } from '../lib/api';
 import { redeemAccessCode } from '../lib/lyceumApi';
 import { getRecaptchaToken } from '../lib/recaptcha';
 import { useTranslation } from '../i18n/I18nContext';
 import { LiquidMetalButton } from '../../components/ui/liquid-metal-button';
 
-type Screen = 'auth' | 'verify-email' | 'forgot-password';
+type Screen = 'auth' | 'verify-email' | 'verify-otp' | 'forgot-password';
+type OtpPurpose = 'signup' | 'login';
 
 export default function AuthPage({ onNavigate }: NavigationProps) {
   const { t } = useTranslation();
@@ -33,6 +34,58 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
   const [codeBusy, setCodeBusy] = useState(false);
   const [codeInfo, setCodeInfo] = useState('');
   const { user, emailVerified, resendVerificationEmail } = useAuth();
+
+  // Email OTP — required at both signup and every login, on top of (not
+  // instead of) Firebase's own auth. Pending until a code is verified.
+  const [otpPurpose, setOtpPurpose] = useState<OtpPurpose>('login');
+  const [otpEmail, setOtpEmail] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [otpInfo, setOtpInfo] = useState('');
+
+  function otpVerifiedKey(forEmail: string) { return `lyceum_otp_verified_${forEmail.toLowerCase()}`; }
+
+  async function beginOtpChallenge(forEmail: string, purpose: OtpPurpose) {
+    setOtpEmail(forEmail);
+    setOtpPurpose(purpose);
+    setOtpCode('');
+    setOtpError('');
+    setOtpInfo('');
+    setScreen('verify-otp');
+    try {
+      const r = await requestOtp(forEmail, purpose);
+      setOtpInfo(r.delivered ? 'Đã gửi mã tới email của bạn.' : 'Không gửi được email — thử "Gửi lại mã" sau ít phút.');
+    } catch (e: any) {
+      setOtpError(e?.message || 'Không gửi được mã.');
+    }
+  }
+
+  async function handleVerifyOtp() {
+    if (!otpCode.trim() || otpBusy) return;
+    setOtpBusy(true); setOtpError('');
+    try {
+      const ok = await verifyOtp(otpEmail, otpPurpose, otpCode.trim());
+      if (!ok) { setOtpError('Mã không đúng hoặc đã hết hạn.'); return; }
+      try { sessionStorage.setItem(otpVerifiedKey(otpEmail), '1'); } catch { /* ignore */ }
+      onNavigate('problem-sets');
+    } finally {
+      setOtpBusy(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    if (otpBusy) return;
+    setOtpBusy(true); setOtpError(''); setOtpInfo('');
+    try {
+      const r = await requestOtp(otpEmail, otpPurpose);
+      setOtpInfo(r.delivered ? 'Đã gửi mã mới.' : 'Không gửi được email — thử lại sau ít phút.');
+    } catch (e: any) {
+      setOtpError(e?.message || 'Không gửi được mã.');
+    } finally {
+      setOtpBusy(false);
+    }
+  }
 
   // Manual override for the accepted-application gate: an admin-issued
   // one-time code, for when the normal review pipeline hasn't fired yet.
@@ -57,16 +110,33 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
     }
   }, [user, emailVerified]);
 
-  // If already verified, let App.tsx redirect
-  if (emailVerified) return null;
+  function isOtpVerifiedThisSession(forEmail: string): boolean {
+    try { return sessionStorage.getItem(otpVerifiedKey(forEmail)) === '1'; } catch { return true; }
+  }
+
+  // Firebase considers this a valid, verified session (e.g. a persisted
+  // login surviving a page reload) but the OTP challenge hasn't been
+  // cleared yet this browser session — App.tsx's gate sends them back here
+  // for exactly this reason. Fire the challenge automatically rather than
+  // showing the normal sign-in form to someone who's already signed in.
+  useEffect(() => {
+    if (user?.email && emailVerified && screen === 'auth' && !isOtpVerifiedThisSession(user.email)) {
+      beginOtpChallenge(user.email, 'login');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, emailVerified, screen]);
+
+  // If already verified (Firebase + OTP), let App.tsx redirect
+  if (emailVerified && user?.email && isOtpVerifiedThisSession(user.email)) return null;
 
   async function handleGoogle() {
     setError(''); setBusy(true);
     try {
       // Registration is open — no waitlist, no application review. Anyone
       // can create an account and go straight to setting their week.
-      await signInWithPopup(auth, googleProvider);
-      onNavigate('problem-sets');
+      const cred = await signInWithPopup(auth, googleProvider);
+      const isNew = cred.user.metadata.creationTime === cred.user.metadata.lastSignInTime;
+      await beginOtpChallenge(cred.user.email || '', isNew ? 'signup' : 'login');
     } catch (e: any) {
       if (e.code === 'auth/popup-blocked' || e.code === 'auth/cancelled-popup-request') {
         await signInWithRedirect(auth, googleProvider);
@@ -86,12 +156,12 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
         const token = await getRecaptchaToken('login');
         await checkLoginAttempt(token);
         await signInWithEmailAndPassword(auth, email, password);
-        onNavigate('problem-sets');
+        await beginOtpChallenge(email, 'login');
       } else {
         const token = await getRecaptchaToken('signup');
         await checkLoginAttempt(token);
         await createUserWithEmailAndPassword(auth, email, password);
-        onNavigate('problem-sets');
+        await beginOtpChallenge(email, 'signup');
       }
     } catch (err: any) {
       const msg = (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential')
@@ -171,6 +241,75 @@ export default function AuthPage({ onNavigate }: NavigationProps) {
               <button
                 onClick={() => { setScreen('auth'); setError(''); setInfo(''); }}
                 className="font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
+              >
+                {t('auth.backToSignIn')}
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ── Email OTP Screen — required at both signup and every login ──────────
+  if (screen === 'verify-otp') {
+    return (
+      <div className="bg-surface text-on-surface min-h-screen flex flex-col">
+        <header className="w-full">
+          <div className="flex justify-between items-baseline w-full px-10 py-8 mx-auto">
+            <div className="font-serif text-2xl tracking-[4px] uppercase text-on-surface cursor-pointer" onClick={() => onNavigate('landing')}>
+              {t('landing.title')}
+            </div>
+          </div>
+        </header>
+        <main className="flex-grow flex items-center justify-center px-4 py-12">
+          <div className="w-full max-w-md">
+            <div className="bg-surface border border-outline/10 p-12 shadow-sm relative text-center">
+              <div className="absolute top-0 left-0 w-8 h-8 border-t border-l border-on-surface/20" />
+              <div className="absolute top-0 right-0 w-8 h-8 border-t border-r border-on-surface/20" />
+              <div className="absolute bottom-0 left-0 w-8 h-8 border-b border-l border-on-surface/20" />
+              <div className="absolute bottom-0 right-0 w-8 h-8 border-b border-r border-on-surface/20" />
+
+              <div className="text-4xl mb-6">🔐</div>
+              <h1 className="font-serif text-2xl text-on-surface tracking-[2px] mb-3">Nhập mã xác nhận</h1>
+              <p className="font-sans text-xs text-on-surface/60 uppercase tracking-[1px] mb-8">
+                Mã 6 số vừa gửi tới<br />{otpEmail}
+              </p>
+
+              <input
+                value={otpCode}
+                onChange={e => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={e => { if (e.key === 'Enter') handleVerifyOtp(); }}
+                placeholder="000000"
+                inputMode="numeric"
+                autoFocus
+                className="w-full text-center text-2xl tracking-[8px] font-mono border border-outline/20 bg-transparent px-4 py-3 mb-4 outline-none focus:border-on-surface/40"
+              />
+
+              {otpError && (
+                <p className="text-red-600 text-xs text-center mb-4 font-sans border border-red-200 bg-red-50 px-4 py-2">{otpError}</p>
+              )}
+              {otpInfo && !otpError && (
+                <p className="text-green-700 text-xs text-center mb-4 font-sans border border-green-200 bg-green-50 px-4 py-2">{otpInfo}</p>
+              )}
+
+              <LiquidMetalButton
+                label={otpBusy ? t('common.loading') : 'Xác nhận'}
+                disabled={otpBusy || otpCode.length !== 6}
+                fullWidth
+                onClick={handleVerifyOtp}
+              />
+
+              <button
+                onClick={handleResendOtp}
+                disabled={otpBusy}
+                className="block w-full mt-4 font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
+              >
+                Gửi lại mã
+              </button>
+              <button
+                onClick={() => { setScreen('auth'); setOtpError(''); setOtpInfo(''); }}
+                className="mt-2 font-sans text-[10px] text-on-surface/40 hover:text-on-surface/70 uppercase tracking-[1px] transition-colors"
               >
                 {t('auth.backToSignIn')}
               </button>
