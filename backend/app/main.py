@@ -332,8 +332,6 @@ async def lifespan(_app: FastAPI):
     user_brain_svc.init_db()
     from app.services import gallery as gallery_svc
     gallery_svc.init_db()
-    from app.services import email_otp as email_otp_svc
-    email_otp_svc.init_db()
     from app.services import access_codes as access_codes_svc
     access_codes_svc.init_db()
     from app.services import game as game_svc

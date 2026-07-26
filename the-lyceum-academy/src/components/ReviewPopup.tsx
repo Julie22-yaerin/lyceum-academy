@@ -10,6 +10,7 @@
  */
 import { useEffect, useState } from 'react';
 import { nextDueReview, clearCheckpoint, snoozeCheckpoint, type ReviewItem } from '../lib/reviewReminders';
+import { getSortedMistakes } from '../lib/mistakes';
 import { chatMessage } from '../lib/api';
 
 interface ReviewPack { summary: string; questions: { q: string; a: string; level: 'easy' | 'medium' | 'hard' }[]; }
@@ -52,22 +53,35 @@ export default function ReviewPopup() {
     if (!due || pack || loading) return;
     const item: ReviewItem = due.item;
     setLoading(true);
-    // Pipeline step 7: 2-3 error-spotting questions held at medium. Earlier
-    // checkpoints get 2, the long-interval ones (21/30 days) get 3 — the count
-    // rises with the gap, the difficulty deliberately does not.
-    const nQ = due.stage <= 7 ? 2 : 3;
+
+    // Prefer mistakes actually tied to this topic (matched by concept);
+    // fall back to the subject's most recent ones if none match exactly —
+    // still real mistakes from this subject, just not concept-tagged.
+    const subjectMistakes = getSortedMistakes(item.subject);
+    const topicMistakes = subjectMistakes.filter(m => m.concept === item.topic);
+    const pastMistakes = (topicMistakes.length ? topicMistakes : subjectMistakes).slice(0, 2);
+    const mistakeBlock = pastMistakes.length
+      ? pastMistakes.map((m, i) => `${i + 1}. Sai lầm cũ: "${m.mistake}" (ở: ${m.location}). Đúng ra: ${m.explanation}`).join('\n')
+      : '(chưa có sai lầm nào ghi nhận cho chủ đề này)';
+
+    // Pipeline step 7: reuse what actually tripped them up on this topic —
+    // real retrieval practice, not a generic recap — plus 1-2 fresh
+    // realistic questions so it isn't pure rote replay of the same items.
+    const nNew = due.stage <= 7 ? 1 : 2;
     const sys =
       'You build spaced-repetition review packs. Return ONLY JSON, no fences: ' +
       '{"summary":"<=120-word crisp recap of the material>","questions":' +
       '[{"q":"<short question>","a":"<concise answer>","level":"medium"}]}. ' +
-      `Produce exactly ${nQ} questions, all at "medium". ` +
-      'Favour error-spotting: state a short flawed claim or half-right step drawn from the ' +
-      'material and ask what is wrong with it. This is retention practice, not an exam — do ' +
-      'not reach for the hardest edge cases. Keep each answerable in a sentence. ' +
-      "Mirror the material's language.";
+      `You are given the student's OWN past mistakes on this exact topic. Turn each one into a ` +
+      'question that makes them redo the same misstep and catch it themselves — reuse the same ' +
+      'wording/setup that tripped them up the first time, not a paraphrase that hides the trap. ' +
+      `Then add ${nNew} new question(s) at "medium": a realistic, applied scenario for this topic ` +
+      'they have not seen phrased this way before — not another instance of the same mistake. ' +
+      'All questions "medium". This is retention practice, not an exam. Keep each answerable in ' +
+      "a sentence. Mirror the material's language.";
     chatMessage([
       { role: 'system', content: sys },
-      { role: 'user', content: `Topic: ${item.topic}\nSubject: ${item.subject}\n\nMaterial:\n${item.summarySeed}` },
+      { role: 'user', content: `Topic: ${item.topic}\nSubject: ${item.subject}\n\nMaterial:\n${item.summarySeed}\n\nCác sai lầm cũ của học sinh về chủ đề này:\n${mistakeBlock}` },
     ])
       .then(({ reply }) => {
         setPack(parsePack(reply) || {

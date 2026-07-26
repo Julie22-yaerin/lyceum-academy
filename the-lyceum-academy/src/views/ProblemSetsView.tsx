@@ -4,7 +4,7 @@ import { checkMastery, describeDrawing, getUsage, cleanQuestion, gradeAll, grade
 import { saveGradeSession } from '../lib/progress';
 import { saveMistake } from '../lib/mistakes';
 import { loadKaTeX, renderMath } from '../lib/math';
-import { loadPSets, savePSet, deletePSet, loadPages, timeAgo, detectSubject, type SavedPSet } from '../lib/persist';
+import { loadPSets, savePSet, deletePSet, loadPages, timeAgo, detectSubject, setPSetFolder, listPSetFolders, shortTitle, type SavedPSet } from '../lib/persist';
 import { fetchTodayMaterials, type CatalogItem } from '../lib/coach';
 import { getWorkspaceId } from '../lib/catalogMembership';
 import { recordProfileEvent } from '../lib/profile';
@@ -1681,6 +1681,9 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
   const [, setKatexTick] = useState(0);
   const [usage, setUsage] = useState<{ total_tokens?: number; total_calls?: number } | null>(null);
   const [savedSets, setSavedSets] = useState<SavedPSet[]>([]);
+  const [psetFolders, setPsetFolders] = useState<string[]>(() => listPSetFolders());
+  const [activePsetFolder, setActivePsetFolder] = useState('');
+  const newPsetFolderRef = useRef<HTMLInputElement>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [analyzedPageCount, setAnalyzedPageCount] = useState(0);
   // Pages the AI found zero questions on (cover/instructions pages) — cut from
@@ -2129,8 +2132,36 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
             <span className="font-sans text-[10px] uppercase tracking-[2px] opacity-50">Uploaded PDFs</span>
             <span className="font-sans text-[9px] opacity-30 border border-outline/20 px-1.5 py-0.5">kept for 24h</span>
           </div>
+
+          {/* Folder filter + creation — mirrors NoteView's pattern */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
+            <button onClick={() => setActivePsetFolder('')}
+              className={`font-sans text-[10px] uppercase tracking-[1.5px] px-2.5 py-1 border ${activePsetFolder === '' ? 'border-outline/60 opacity-100' : 'border-outline/20 opacity-50'}`}>
+              All
+            </button>
+            {psetFolders.map(f => (
+              <button key={f} onClick={() => setActivePsetFolder(f)}
+                className={`font-sans text-[10px] uppercase tracking-[1.5px] px-2.5 py-1 border ${activePsetFolder === f ? 'border-outline/60 opacity-100' : 'border-outline/20 opacity-50'}`}>
+                📁 {f}
+              </button>
+            ))}
+            <input
+              ref={newPsetFolderRef}
+              placeholder="New folder…"
+              onKeyDown={e => {
+                if (e.key !== 'Enter') return;
+                const name = (newPsetFolderRef.current?.value || '').trim();
+                if (!name) return;
+                if (!psetFolders.includes(name)) setPsetFolders([...psetFolders, name].sort());
+                setActivePsetFolder(name);
+                if (newPsetFolderRef.current) newPsetFolderRef.current.value = '';
+              }}
+              className="font-sans text-[10px] px-2 py-1 border border-outline/15 bg-transparent outline-none w-24"
+            />
+          </div>
+
           <div className="flex flex-col gap-2">
-            {savedSets.map(s => {
+            {savedSets.filter(s => !activePsetFolder || s.folder === activePsetFolder).map(s => {
               const now = Date.now();
               const hasCached = !!(s.hasCachedPages && s.expiresAt > now);
               const msLeft = s.expiresAt - now;
@@ -2144,9 +2175,9 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                       {hasCached ? 'picture_as_pdf' : 'picture_as_pdf'}
                     </span>
                     <div className="min-w-0">
-                      <p className="font-sans text-sm text-on-surface truncate">{s.name}</p>
+                      <p className="font-sans text-sm text-on-surface truncate" title={s.name}>{shortTitle(s.name)}</p>
                       <p className="font-sans text-[9px] uppercase tracking-[1.5px] opacity-40 mt-0.5">
-                        {s.questions.length} questions · Q{s.currentIdx + 1}/{s.questions.length}
+                        {s.folder ? `📁 ${s.folder} · ` : ''}{s.questions.length} questions · Q{s.currentIdx + 1}/{s.questions.length}
                         {hasCached ? (
                           <span className="text-amber-600 opacity-80"> · {timeLeft}</span>
                         ) : (
@@ -2156,6 +2187,15 @@ export default function ProblemSetsView({ onNavigate }: { onNavigate?: (view: st
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+                    <select
+                      value={s.folder || ''}
+                      onChange={e => { setPSetFolder(s.id, e.target.value); setSavedSets(loadPSets(activeTab || undefined)); setPsetFolders(listPSetFolders()); }}
+                      className="border border-outline/20 bg-transparent px-1.5 py-1 font-sans text-[10px] outline-none opacity-50 hover:opacity-100 max-w-[110px]"
+                      title="Move to folder"
+                    >
+                      <option value="">Unfiled</option>
+                      {psetFolders.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
                     {hasCached ? (
                       <button
                         onClick={() => openSavedSet(s)}

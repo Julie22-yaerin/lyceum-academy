@@ -7,6 +7,7 @@
 import { useState, useRef } from 'react';
 import { feynmanTest, type FeynmanResult } from '../../lib/api';
 import { loadNotes, detectSubject, type SavedNote } from '../../lib/persist';
+import IllustrationCaptureFlow from './IllustrationCaptureFlow';
 
 type Phase = 'pick' | 'idle' | 'recording' | 'processing' | 'result';
 
@@ -17,6 +18,10 @@ export default function FeynmanTool() {
   const [result, setResult] = useState<FeynmanResult | null>(null);
   const [error, setError] = useState('');
   const [seconds, setSeconds] = useState(0);
+  // Stuck on a gap Leo/the grader flagged? Let Illustration draw it out as
+  // a short silent video instead — same scan-a-region flow as the dock's
+  // Illustration hover menu, just reached from inside Feynman's result.
+  const [showVideoHelp, setShowVideoHelp] = useState(false);
   const mrRef = useRef<MediaRecorder | null>(null);
   const chunks = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -139,13 +144,20 @@ export default function FeynmanTool() {
               ))}
             </div>
           )}
-          <button onClick={reset} className="self-start text-[10px] uppercase tracking-[1.5px] text-white/40 hover:text-white/70">
-            ↺ Try again
-          </button>
+          <div className="flex items-center gap-4">
+            <button onClick={reset} className="text-[10px] uppercase tracking-[1.5px] text-white/40 hover:text-white/70">
+              ↺ Try again
+            </button>
+            <button onClick={() => setShowVideoHelp(true)} className="text-[10px] uppercase tracking-[1.5px] text-purple-300 hover:text-purple-200 flex items-center gap-1">
+              <span className="material-symbols-outlined text-[14px]">movie</span> Tạo video minh hoạ (không lời)
+            </button>
+          </div>
         </div>
       )}
 
       {error && <p className="text-xs text-red-300/80 mt-3">{error}</p>}
+
+      {showVideoHelp && <IllustrationCaptureFlow mode="video" onClose={() => setShowVideoHelp(false)} />}
     </div>
   );
 }

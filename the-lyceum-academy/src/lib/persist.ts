@@ -27,6 +27,8 @@ export interface SavedPSet {
   hasCachedPages?: boolean;
   /** SUBJECT_META key — the workspace tab active when this set was saved. */
   subject?: string;
+  /** User-created folder name, mirrors SavedNote.folder — '' = unfiled. */
+  folder?: string;
 }
 
 export interface SavedGraph {
@@ -107,7 +109,8 @@ export function loadPSets(subjectFilter?: string): SavedPSet[] {
     expired.forEach(p => deletePages(p.id));
     try { localStorage.setItem(PSETS_KEY, JSON.stringify(live)); } catch {}
   }
-  return subjectFilter ? live.filter(p => p.subject === subjectFilter) : live;
+  const filtered = subjectFilter ? live.filter(p => p.subject === subjectFilter) : live;
+  return filtered.sort((a, b) => b.savedAt - a.savedAt);
 }
 
 export function savePSet(pset: Omit<SavedPSet, 'expiresAt'> & { expiresAt?: number }): void {
@@ -120,6 +123,21 @@ export function savePSet(pset: Omit<SavedPSet, 'expiresAt'> & { expiresAt?: numb
 export function deletePSet(id: string): void {
   deletePages(id);
   try { localStorage.setItem(PSETS_KEY, JSON.stringify(loadPSets().filter(p => p.id !== id))); } catch {}
+}
+
+/** Move a saved problem set into a folder ('' = unfiled) — mirrors setNoteFolder. */
+export function setPSetFolder(id: string, folder: string): void {
+  const all = loadPSets();
+  const target = all.find(p => p.id === id);
+  if (!target) return;
+  savePSet({ ...target, folder });
+}
+
+/** Distinct folder names across saved problem sets. */
+export function listPSetFolders(): string[] {
+  const set = new Set<string>();
+  loadPSets().forEach(p => { if (p.folder) set.add(p.folder); });
+  return [...set].sort();
 }
 
 // ── Exercise Cards (24h TTL) ────────────────────────────────────────────────
@@ -184,7 +202,11 @@ export function loadNotes(subjectFilter?: string): SavedNote[] {
   if (live.length !== all.length) {
     try { localStorage.setItem(NOTES_KEY, JSON.stringify(live)); } catch {}
   }
-  return subjectFilter ? live.filter(n => n.subject === subjectFilter) : live;
+  const filtered = subjectFilter ? live.filter(n => n.subject === subjectFilter) : live;
+  // Explicit sort (not just insertion order) — moving a note into a folder
+  // re-persists it without touching savedAt, and relying on array order to
+  // stay "recent first" breaks the moment any code touches the list.
+  return filtered.sort((a, b) => b.savedAt - a.savedAt);
 }
 
 export function saveNote(note: Omit<SavedNote, 'expiresAt'> & { expiresAt?: number }): void {
@@ -216,6 +238,14 @@ export function setNoteFolder(id: string, folder: string): void {
   const target = all.find(n => n.id === id);
   if (!target) return;
   saveNote({ ...target, folder });
+}
+
+/** Compact display title for workspace listings (Notes, Problem Sets) — the
+ * full title is always still available via a `title=` tooltip attribute at
+ * the call site, this only shortens what's shown inline in a crowded list. */
+export function shortTitle(title: string, max = 10): string {
+  const clean = title.replace(/[\u{1F300}-\u{1FAFF}]/gu, '').trim() || title;
+  return clean.length > max ? clean.slice(0, max) + '…' : clean;
 }
 
 /** Distinct folder names across saved notes (per current account/browser). */

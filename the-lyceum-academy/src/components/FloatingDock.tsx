@@ -9,6 +9,7 @@ import ReportBugButton from './ReportBugButton';
 import { getQuantaProfile, type QuantaProfile, type QuantaAwardResult } from '../lib/quanta';
 import { getQuantaBalance, getReferralInfo, buildInviteLink, type QuantaBalance } from '../lib/lyceumApi';
 import Confetti from './Confetti';
+import { useToolDock } from '../context/ToolDockContext';
 
 // ── Dock items ──────────────────────────────────────────────────────────
 const DOCK_ITEMS: { view: View; labelKey: string; icon: string }[] = [
@@ -195,6 +196,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
   const { t } = useTranslation();
   const { user, devMode } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { focusActive } = useToolDock();
   const [showStreak, setShowStreak] = useState(false);
   const [streak, setStreak] = useState<StreakState | null>(null);
   const [showQuanta, setShowQuanta] = useState(false);
@@ -221,6 +223,8 @@ function CornerMenu({ onNavigate }: NavigationProps) {
     try { await signOut(auth); } catch {}
     onNavigate('auth');
   }
+
+  if (focusActive) return null;
 
   return (
     <div className="fixed top-6 right-6 z-50 flex items-center gap-2">
@@ -319,12 +323,15 @@ function CornerMenu({ onNavigate }: NavigationProps) {
 export default function FloatingDock({ currentView, onNavigate }: NavigationProps) {
   const { t } = useTranslation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { focusActive } = useToolDock();
 
   return (
     <>
       <CornerMenu currentView={currentView} onNavigate={onNavigate} />
 
-      {/* Desktop floating dock — bottom center, visionOS style */}
+      {/* Desktop floating dock — bottom center, visionOS style — hidden
+          while a tool has taken over the screen, same as CornerMenu. */}
+      {!focusActive && (
       <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 dock rounded-3xl px-3 py-3 items-end gap-1">
         {DOCK_ITEMS.map(({ view, labelKey, icon }) => {
           const active = currentView === view;
@@ -361,8 +368,10 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
           );
         })}
       </nav>
+      )}
 
-      {/* Mobile: compact bottom bar + expandable sheet */}
+      {/* Mobile: compact bottom bar + expandable sheet — same focus-mode hiding */}
+      {!focusActive && (
       <div className="md:hidden fixed bottom-4 left-4 right-4 z-50">
         <div className="dock rounded-2xl flex items-center justify-between px-4 py-3">
           <span className="text-xs uppercase tracking-widest text-white/70">
@@ -391,6 +400,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
           </div>
         )}
       </div>
+      )}
     </>
   );
 }

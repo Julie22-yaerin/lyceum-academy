@@ -214,19 +214,6 @@ class Settings(BaseSettings):
     veo_api_key: str = ""               # VEO_API_KEY
     veo_model: str = "veo-3.1-fast-generate-preview"
 
-    # ── SMTP (email OTP for signup/login) ──────────────────────────
-    # Plain SMTP via stdlib smtplib on purpose — works with any provider
-    # that hands out SMTP credentials (Gmail app password, SendGrid/Resend/
-    # SES SMTP relay, a real mail server) without vendor lock to one SDK.
-    # Leave empty and app.services.email logs the code instead of sending —
-    # visible in server logs for local dev, but NOT a substitute for real
-    # delivery in production.
-    smtp_host: str = ""                 # SMTP_HOST
-    smtp_port: int = 587
-    smtp_user: str = ""                 # SMTP_USER
-    smtp_password: str = ""             # SMTP_PASSWORD
-    smtp_from: str = "The Lyceum <no-reply@thelyceum.site>"
-
     # ── Retention offers (shown when a subscriber tries to cancel) ────
     # Stripe coupon applying the 65% save-offer. Created once in the Stripe
     # dashboard (Products -> Coupons); leave empty and the offer is recorded

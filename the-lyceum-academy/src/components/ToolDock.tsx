@@ -36,28 +36,35 @@ import ScreenShareTool from './tools/ScreenShareTool';
 import IllustrationCaptureFlow from './tools/IllustrationCaptureFlow';
 import MaterialUploadPanel from './tools/MaterialUploadPanel';
 import GalleryPanel from './tools/GalleryPanel';
+import ErrorSpottingTool from './tools/ErrorSpottingTool';
 import ExerciseCardsTool from './tools/ExerciseCardsTool';
 
 type ToolCategory = 'theory' | 'practice';
 const CATEGORY_LABEL: Record<ToolCategory, string> = { theory: 'Lý thuyết', practice: 'Thực hành' };
 
-interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; category: ToolCategory; subjects?: string }
+interface ToolMeta { id: ToolId; icon: string; label: string; tier: 1 | 2; category: ToolCategory; subjects?: string; order?: number }
 
+// Suggested topic order (not enforced — every tool stays reachable
+// regardless): 1 Podcast+Whiteboard together, 2 Feynman, 3 Error Spotting,
+// 4 Exercise Cards (itself assisted by Reverse Build + Lotus Map). Shown as
+// a number badge in the tooltip so the sequence is visible without being a
+// gate — this app suggests, it doesn't lock.
 const TOOLS: ToolMeta[] = [
   // Lý thuyết — building or organizing understanding of a concept.
-  { id: 'feynman', icon: 'psychology', label: 'Feynman Technique', tier: 1, category: 'theory' },
+  { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1, category: 'theory', order: 1 },
+  { id: 'feynman', icon: 'psychology', label: 'Feynman Technique', tier: 1, category: 'theory', order: 2 },
   { id: 'illustrations', icon: 'draw', label: 'Xiaohei Illustrations', tier: 1, category: 'theory' },
   { id: 'lotus-map', icon: 'spa', label: 'Lotus Map', tier: 1, category: 'theory' },
   { id: 'sheet-of-paper', icon: 'edit_note', label: 'Large Sheet of Paper', tier: 1, category: 'theory' },
   { id: 'material-upload', icon: 'upload_file', label: 'Upload tài liệu', tier: 1, category: 'theory' },
   { id: 'gallery', icon: 'photo_library', label: 'Gallery', tier: 1, category: 'theory' },
-  { id: 'podcast', icon: 'podcasts', label: 'Floating Podcast', tier: 1, category: 'theory' },
   { id: 'screen-share', icon: 'screen_share', label: 'Share Screen with AI', tier: 1, category: 'theory' },
   // Thực hành — drilling it: past papers, quizzes, recall, cognitive-stress practice.
+  { id: 'error-spotting', icon: 'find_in_page', label: 'Soi lỗi', tier: 1, category: 'practice', order: 3 },
+  { id: 'exercise-cards', icon: 'style', label: 'Exercise Cards', tier: 1, category: 'practice', order: 4 },
   { id: 'reverse-build', icon: 'undo', label: 'Reverse Build', tier: 1, category: 'practice' },
   { id: 'games', icon: 'sports_esports', label: 'Games', tier: 1, category: 'practice' },
   { id: 'spaced-repetition', icon: 'refresh', label: 'Spaced Repetition', tier: 1, category: 'practice' },
-  { id: 'exercise-cards', icon: 'style', label: 'Exercise Cards', tier: 1, category: 'practice' },
   { id: 'node-map', icon: 'deployed_code', label: 'Node Mapping 3D', tier: 2, category: 'practice', subjects: 'Vật lý lượng tử · Toán đa biến' },
   { id: 'tactile-friction', icon: 'drag_pan', label: 'Tactile Logic Friction', tier: 2, category: 'practice', subjects: 'Cơ học · Cân bằng hoá học' },
   { id: 'shatter', icon: 'broken_image', label: 'Axiom Destructor', tier: 2, category: 'practice', subjects: 'Nhiệt động lực học · Điện từ' },
@@ -73,7 +80,7 @@ const OVERLOAD_ACK_KEY = 'lyceum_tier2_ack_v1';
 type PodcastCompanion = 'whiteboard' | 'lotus-map';
 
 export default function ToolDock() {
-  const { activeTool, payload, openTool, closeTool, podcastOpen, togglePodcast } = useToolDock();
+  const { activeTool, payload, openTool, closeTool, podcastOpen, togglePodcast, setFocusActive } = useToolDock();
   const [hovered, setHovered] = useState<ToolId | null>(null);
   const [allowed, setAllowed] = useState<Set<ToolId> | null>(null);
   const [warnFor, setWarnFor] = useState<ToolId | null>(null);
@@ -91,13 +98,20 @@ export default function ToolDock() {
   const [screenShareOpen, setScreenShareOpen] = useState(false);
   const [illustrationFlow, setIllustrationFlow] = useState<'image' | 'video' | null>(null);
 
+  // Focus mode: any tool that's taken over the screen hides the surrounding
+  // chrome (this rail, FloatingDock's bars). Podcast is excluded on purpose
+  // — it floats over other work rather than asking for full attention.
+  useEffect(() => {
+    setFocusActive(!!activeTool || screenShareOpen || !!illustrationFlow);
+  }, [activeTool, screenShareOpen, illustrationFlow, setFocusActive]);
+
   useEffect(() => {
     getMyTools()
       .then(r => setAllowed(new Set(r.tools as ToolId[])))
       // If curation can't be fetched, fall back to tier-1 only.
       .catch(() => setAllowed(new Set([
         'feynman', 'reverse-build', 'games', 'spaced-repetition', 'illustrations',
-        'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards', 'material-upload', 'gallery',
+        'lotus-map', 'sheet-of-paper', 'podcast', 'screen-share', 'exercise-cards', 'material-upload', 'gallery', 'error-spotting',
       ])));
   }, []);
 
@@ -155,6 +169,7 @@ export default function ToolDock() {
       case 'sheet-of-paper': return <SheetOfPaperTool />;
       case 'material-upload': return <MaterialUploadPanel />;
       case 'gallery': return <GalleryPanel />;
+      case 'error-spotting': return <ErrorSpottingTool />;
       case 'exercise-cards': return <ExerciseCardsTool />;
       case 'games': return <div className="p-1"><GameBuilder seedPrompt={(payload?.seedPrompt as string) || ''} /></div>;
       case 'node-map': return <NodeMapTool />;
@@ -221,11 +236,16 @@ export default function ToolDock() {
         }`}
       >
         <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
+        {t.order && (
+          <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-purple-400 text-black text-[9px] font-bold flex items-center justify-center">
+            {t.order}
+          </span>
+        )}
         {hovered === t.id && (
           <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap glass-strong rounded-lg px-2.5 py-1 text-[11px] text-white/85">
             {t.label}{t.tier === 2 && <span className="text-red-300"> · intense</span>}
             <span className="block text-[10px] text-white/40">
-              {CATEGORY_LABEL[t.category]}{t.subjects && ` · ${t.subjects}`}
+              {t.order ? `Bước ${t.order} gợi ý · ` : ''}{CATEGORY_LABEL[t.category]}{t.subjects && ` · ${t.subjects}`}
             </span>
           </span>
         )}
@@ -244,8 +264,15 @@ export default function ToolDock() {
     );
   }
 
+  // While a tool owns the screen (see the focusActive effect above), the
+  // rail itself hides too — activeTool is still set, so the icon that
+  // opened it just isn't visible to re-click, which is fine: each tool's
+  // own close button is the way back.
+  const anyToolActive = !!activeTool || screenShareOpen || !!illustrationFlow;
+
   return (
     <>
+      {!anyToolActive && (
       <motion.div
         drag="y"
         dragConstraints={{ top: -200, bottom: 260 }}
@@ -268,6 +295,7 @@ export default function ToolDock() {
         )}
         {practiceIntense.map(toolButton)}
       </motion.div>
+      )}
 
       {activeTool && (
         <div className="fixed inset-0 z-[190] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"

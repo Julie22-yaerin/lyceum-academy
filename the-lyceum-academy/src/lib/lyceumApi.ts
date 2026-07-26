@@ -426,6 +426,39 @@ export function generateExerciseCards(sourceText: string, maxCards = 6): Promise
   return postJson('/ai/exercise-cards/generate', { source_text: sourceText, max_cards: maxCards });
 }
 
+// ── Error Spotting ("soi lỗi") — step 3 of the suggested topic order ────────
+// See backend/app/services/error_spotting.py: the correct step/answer never
+// reach the client until after grading.
+
+export interface ErrorSpottingExample {
+  id: string;
+  problem: string;
+  steps: string[];
+}
+
+export function generateErrorSpotting(subject: string, topic: string): Promise<{ session_id: string; examples: ErrorSpottingExample[] }> {
+  return postJson('/ai/error-spotting/generate', { subject, topic });
+}
+
+export interface ErrorSpottingGradeResult {
+  step_correct: boolean;
+  correction_correct: boolean;
+  answer_correct: boolean;
+  feedback: string;
+  correct_step_index: number;
+  correct_step: string;
+  correct_final_answer: string;
+}
+
+export function gradeErrorSpotting(
+  sessionId: string, exampleId: string, identifiedStepIndex: number, userCorrection: string, userFinalAnswer: string,
+): Promise<ErrorSpottingGradeResult> {
+  return postJson('/ai/error-spotting/grade', {
+    session_id: sessionId, example_id: exampleId, identified_step_index: identifiedStepIndex,
+    user_correction: userCorrection, user_final_answer: userFinalAnswer,
+  });
+}
+
 export function revealCardSolution(problem: string, concepts: string[] = [], subject = ''): Promise<{ solution: string; required_tools: string[] }> {
   return postJson('/ai/exercise-cards/reverse-build/reveal', { problem, concepts, subject });
 }

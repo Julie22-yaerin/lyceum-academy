@@ -24,7 +24,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react';
 export type Tier1ToolId =
   | 'feynman' | 'reverse-build' | 'games' | 'spaced-repetition' | 'illustrations'
   | 'lotus-map' | 'sheet-of-paper' | 'podcast' | 'screen-share' | 'exercise-cards'
-  | 'material-upload' | 'gallery';
+  | 'material-upload' | 'gallery' | 'error-spotting';
 export type Tier2ToolId =
   | 'node-map' | 'tactile-friction' | 'shatter' | 'auditory-gating'
   | 'membrane-flow' | 'steric-snap' | 'topo-lock' | 'time-lapse';
@@ -54,6 +54,15 @@ interface ToolDockValue {
   podcastSeedText: string;
   togglePodcast: (seedText?: string) => void;
   closePodcast: () => void;
+  /** True while a tool has fully taken over the screen (Share Screen,
+   * Illustration's capture flow, a fullscreen Tool Dock panel) — the
+   * surrounding chrome (ToolDock's own icon rail, FloatingDock's top/bottom
+   * bars) hides while this is true, "để tập trung": the point of opening a
+   * tool is to focus on it, not to keep every other button in view too.
+   * Podcast is deliberately excluded — it's meant to float over other work,
+   * not signal "focus on this instead." */
+  focusActive: boolean;
+  setFocusActive: (v: boolean) => void;
 }
 
 const ToolDockContext = createContext<ToolDockValue>({
@@ -65,6 +74,8 @@ const ToolDockContext = createContext<ToolDockValue>({
   podcastSeedText: '',
   togglePodcast: () => {},
   closePodcast: () => {},
+  focusActive: false,
+  setFocusActive: () => {},
 });
 
 export function ToolDockProvider({ children }: { children: ReactNode }) {
@@ -72,6 +83,7 @@ export function ToolDockProvider({ children }: { children: ReactNode }) {
   const [payload, setPayload] = useState<Record<string, unknown> | null>(null);
   const [podcastOpen, setPodcastOpen] = useState(false);
   const [podcastSeedText, setPodcastSeedText] = useState('');
+  const [focusActive, setFocusActive] = useState(false);
   return (
     <ToolDockContext.Provider value={{
       activeTool,
@@ -85,6 +97,8 @@ export function ToolDockProvider({ children }: { children: ReactNode }) {
         setPodcastOpen(v => !v);
       },
       closePodcast: () => setPodcastOpen(false),
+      focusActive,
+      setFocusActive,
     }}>
       {children}
     </ToolDockContext.Provider>

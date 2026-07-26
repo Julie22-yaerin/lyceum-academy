@@ -195,19 +195,6 @@ function AppInner() {
     return <AuthPage onNavigate={setView} currentView={view} />;
   }
 
-  // Email OTP gate — required at every login, not just a one-time signup
-  // step. sessionStorage (not localStorage) on purpose: a persisted
-  // Firebase session surviving a page reload doesn't re-challenge within
-  // the same browser session, but a fresh browser session does — matching
-  // "every login" without re-prompting on every refresh.
-  const otpVerified = (() => {
-    if (devMode || !user?.email) return true;
-    try { return sessionStorage.getItem(`lyceum_otp_verified_${user.email.toLowerCase()}`) === '1'; }
-    catch { return true; } // storage unavailable — fail open rather than lock everyone out
-  })();
-  if (!otpVerified) {
-    return <AuthPage onNavigate={setView} currentView={view} />;
-  }
 
   // Paywall sits ahead of everything in the workspace: full page, no overlay
   // to dismiss. Signing out is offered inside it.

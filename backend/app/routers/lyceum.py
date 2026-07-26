@@ -710,6 +710,58 @@ async def generate_note(request: Request, req: GenerateNoteRequest, auth: dict =
 # here; this endpoint only assembles the package.
 
 
+# ── Error Spotting ("soi lỗi") ───────────────────────────────────────────────
+# Step 3 of the suggested topic order (Podcast+Whiteboard -> Feynman -> Error
+# Spotting -> Exercise Cards): a deliberately flawed worked example the
+# student has to catch. See app.services.error_spotting for the generation
+# and grading prompts, and why the correct answer never reaches the client
+# until after grading.
+
+class ErrorSpottingGenerateRequest(BaseModel):
+    subject: str
+    topic: str = ""
+
+
+@router.post("/ai/error-spotting/generate")
+@limiter.limit("6/minute")
+async def error_spotting_generate(request: Request, req: ErrorSpottingGenerateRequest, auth: dict = Depends(require_auth)):
+    from app.services import error_spotting as es_svc
+
+    uid = _uid(auth)
+    try:
+        result = await es_svc.generate_examples(req.subject, req.topic)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"generate_failed: {e}")
+    quanta_svc.spend_tokens(uid, tokens=500, pool="standard", context="/ai/error-spotting/generate")
+    return result
+
+
+class ErrorSpottingGradeRequest(BaseModel):
+    session_id: str
+    example_id: str
+    identified_step_index: int
+    user_correction: str = ""
+    user_final_answer: str = ""
+
+
+@router.post("/ai/error-spotting/grade")
+@limiter.limit("20/minute")
+async def error_spotting_grade(request: Request, req: ErrorSpottingGradeRequest, auth: dict = Depends(require_auth)):
+    from app.services import error_spotting as es_svc
+
+    uid = _uid(auth)
+    try:
+        result = await es_svc.grade_submission(
+            req.session_id, req.example_id, req.identified_step_index, req.user_correction, req.user_final_answer,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"grade_failed: {e}")
+    quanta_svc.spend_tokens(uid, tokens=150, pool="standard", context="/ai/error-spotting/grade")
+    return result
+
+
 class GenerateLessonRequest(BaseModel):
     subject: str
     topic: str = ""
