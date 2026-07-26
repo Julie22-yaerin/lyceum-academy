@@ -73,8 +73,10 @@ export type ForumRole = 'founder' | 'visitor';
 export interface ForumApplyPayload {
   name: string;
   email: string;
-  linkedin_url: string;
-  role: ForumRole;
+  /** No longer collected in the UI (see ForumPage.tsx) — kept optional so
+   * the backend's existing column doesn't need a schema change. */
+  linkedin_url?: string;
+  role?: ForumRole;
   business_email?: string;
   business_name?: string;
   industry?: string;

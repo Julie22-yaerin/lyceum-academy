@@ -230,10 +230,11 @@ function CornerMenu({ onNavigate }: NavigationProps) {
     <div className="fixed top-6 right-6 z-50 flex items-center gap-2">
       <div
         data-tour="corner-brand"
-        className="glass rounded-full px-4 py-2 text-xs font-medium tracking-wider uppercase text-white/80 cursor-pointer hover:bg-white/10 transition-colors"
+        title={t('nav.lyceum')}
+        className="glass rounded-full w-9 h-9 flex items-center justify-center text-white/80 cursor-pointer hover:bg-white/10 hover:text-white transition-colors"
         onClick={() => onNavigate('problem-sets')}
       >
-        {t('nav.lyceum')}
+        <span className="material-symbols-outlined text-[18px]">school</span>
       </div>
 
       {streak && (
@@ -241,7 +242,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           <button
             data-tour="corner-streak"
             onClick={() => setShowStreak(v => !v)}
-            className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
+            className="h-7 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
             title={t('dock.dayStreak', { count: streak.streakCount })}
           >
             <span className="text-[16px] leading-none">{streak.goalAchieved ? '♚' : '♟'}</span>
@@ -255,7 +256,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
         <div className="relative glass rounded-full flex items-center gap-1 px-1.5 py-1.5">
           <button
             onClick={() => setShowQuanta(v => !v)}
-            className="h-8 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
+            className="h-7 flex items-center gap-1 px-2 rounded-full opacity-70 hover:opacity-100 hover:bg-white/10 transition-all"
             title={`Level ${quanta.level} — ${quanta.total_points} Quanta`}
           >
             <span className="text-[16px] leading-none">⚡</span>
@@ -271,7 +272,7 @@ function CornerMenu({ onNavigate }: NavigationProps) {
           workspace on purpose (see ForumPage.tsx / services/forum.py). */}
       <a
         href="/forum"
-        className="glass rounded-full w-9 h-9 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+        className="glass rounded-full w-8 h-8 flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
         title="Forum"
       >
         <span className="material-symbols-outlined text-[18px]">groups</span>
@@ -325,14 +326,46 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
   const [mobileOpen, setMobileOpen] = useState(false);
   const { focusActive } = useToolDock();
 
+  // Smaller than ToolDock's icons on purpose (see ToolDock.tsx's w-10 h-10 —
+  // this bar is the app-level nav, the tool rail is the workspace's main
+  // instrument, so it stays visually a step bigger) and same drag-handle
+  // collapse pattern, persisted separately from the tool rail.
+  const [navHidden, setNavHidden] = useState(() => {
+    try { return localStorage.getItem('lyceum_floatingdock_hidden') === '1'; } catch { return false; }
+  });
+  function toggleNavHidden() {
+    setNavHidden(v => {
+      try { localStorage.setItem('lyceum_floatingdock_hidden', v ? '0' : '1'); } catch { /* ignore */ }
+      return !v;
+    });
+  }
+
   return (
     <>
       <CornerMenu currentView={currentView} onNavigate={onNavigate} />
 
+      {!focusActive && navHidden && (
+        <button
+          onClick={toggleNavHidden}
+          className="hidden md:flex fixed bottom-0 left-1/2 -translate-x-1/2 z-50 items-center justify-center w-14 h-4 rounded-t-xl bg-white/5 hover:bg-white/10 text-white/30 hover:text-white/60 transition-colors"
+          title="Hiện thanh điều hướng"
+        >
+          <span className="material-symbols-outlined text-[14px]">expand_less</span>
+        </button>
+      )}
+
       {/* Desktop floating dock — bottom center, visionOS style — hidden
           while a tool has taken over the screen, same as CornerMenu. */}
-      {!focusActive && (
-      <nav className="hidden md:flex fixed bottom-6 left-1/2 -translate-x-1/2 z-50 dock rounded-3xl px-3 py-3 items-end gap-1">
+      {!focusActive && !navHidden && (
+      <div className="hidden md:flex flex-col items-center fixed bottom-6 left-1/2 -translate-x-1/2 z-50 gap-0.5">
+        <div
+          onClick={toggleNavHidden}
+          className="cursor-pointer text-white/20 hover:text-white/50 transition-colors"
+          title="Bấm để ẩn thanh điều hướng"
+        >
+          <span className="material-symbols-outlined text-[14px]">drag_indicator</span>
+        </div>
+      <nav className="flex dock rounded-3xl px-3 py-2.5 items-end gap-1">
         {DOCK_ITEMS.map(({ view, labelKey, icon }) => {
           const active = currentView === view;
           return (
@@ -340,11 +373,11 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
               key={view}
               data-tour={`dock-${view}`}
               onClick={() => onNavigate(view)}
-              className="dock-icon group relative flex flex-col items-center justify-center w-12 h-12 rounded-2xl"
+              className="dock-icon group relative flex flex-col items-center justify-center w-9 h-9 rounded-2xl"
               title={t(labelKey)}
             >
               <span
-                className="material-symbols-outlined text-[22px] transition-colors"
+                className="material-symbols-outlined text-[18px] transition-colors"
                 style={{ color: active ? '#d8ccff' : 'rgba(255,255,255,0.6)' }}
               >
                 {icon}
@@ -368,6 +401,7 @@ export default function FloatingDock({ currentView, onNavigate }: NavigationProp
           );
         })}
       </nav>
+      </div>
       )}
 
       {/* Mobile: compact bottom bar + expandable sheet — same focus-mode hiding */}

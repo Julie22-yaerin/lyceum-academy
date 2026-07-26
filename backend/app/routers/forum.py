@@ -35,7 +35,7 @@ def forum_groups():
 class ForumApplyRequest(BaseModel):
     name: str
     email: str
-    linkedin_url: str
+    linkedin_url: str = ""
     role: str = "founder"
     business_email: str = ""
     business_name: str = ""

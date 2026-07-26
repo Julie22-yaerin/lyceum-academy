@@ -442,7 +442,7 @@ async def _classify_groups(name: str, business_name: str, industry: str, stage: 
 async def apply(
     name: str,
     email: str,
-    linkedin_url: str,
+    linkedin_url: str = "",
     role: str = "founder",
     business_email: str = "",
     business_name: str = "",
@@ -457,11 +457,15 @@ async def apply(
     linkedin_url = (linkedin_url or "").strip()
     role = role if role in ("founder", "visitor") else "founder"
 
-    if not name or not email or not linkedin_url:
-        return {"ok": False, "error": "name_email_linkedin_required"}
+    # LinkedIn used to be required (a founder-networking artifact); the
+    # frontend no longer asks for it at all — this is a study community for
+    # paying students now. Still validate it IF one was supplied, so the
+    # column (and anything reading it) doesn't quietly fill with garbage.
+    if not name or not email:
+        return {"ok": False, "error": "name_email_required"}
     if not _EMAIL_RE.match(email):
         return {"ok": False, "error": "invalid_email"}
-    if not _LINKEDIN_RE.match(linkedin_url):
+    if linkedin_url and not _LINKEDIN_RE.match(linkedin_url):
         return {"ok": False, "error": "invalid_linkedin_url"}
     if not has_paid_plan(email):
         return {"ok": False, "error": "paid_plan_required"}

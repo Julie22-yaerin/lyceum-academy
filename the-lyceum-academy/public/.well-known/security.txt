@@ -1,0 +1,4 @@
+Contact: mailto:support@thelyceumacademy.com
+Preferred-Languages: en, vi
+Canonical: https://thelyceum.site/.well-known/security.txt
+Expires: 2027-07-26T00:00:00.000Z

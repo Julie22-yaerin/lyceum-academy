@@ -97,6 +97,18 @@ export default function ToolDock() {
   const [companionDisplay, setCompanionDisplay] = useState<'collapsed' | 'popup' | 'fullscreen'>('popup');
   const [screenShareOpen, setScreenShareOpen] = useState(false);
   const [illustrationFlow, setIllustrationFlow] = useState<'image' | 'video' | null>(null);
+  // "Kéo đẩy" — a drag-handle that tucks the whole rail away to a thin peek
+  // tab, for when even a slim icon strip feels like clutter. Persisted so a
+  // student who hides it doesn't have to re-hide it every session.
+  const [railHidden, setRailHidden] = useState(() => {
+    try { return localStorage.getItem('lyceum_tooldock_hidden') === '1'; } catch { return false; }
+  });
+  function toggleRailHidden() {
+    setRailHidden(v => {
+      try { localStorage.setItem('lyceum_tooldock_hidden', v ? '0' : '1'); } catch { /* ignore */ }
+      return !v;
+    });
+  }
 
   // Focus mode: any tool that's taken over the screen hides the surrounding
   // chrome (this rail, FloatingDock's bars). Podcast is excluded on purpose
@@ -195,11 +207,11 @@ export default function ToolDock() {
         <div key={t.id} className="relative" onMouseEnter={() => setHovered(t.id)} onMouseLeave={() => setHovered(null)}>
           <button
             onClick={() => requestOpen(t.id)}
-            className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
+            className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${
               active ? 'bg-purple-400/20 text-purple-200' : 'text-white/60 hover:bg-white/10 hover:text-white/90'
             }`}
           >
-            <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
+            <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
           </button>
           {hovered === t.id && (
             <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 glass-strong rounded-xl p-1.5 flex flex-col gap-1 w-40 z-10">
@@ -227,7 +239,7 @@ export default function ToolDock() {
         onClick={() => t.id === 'podcast' ? podcastClick() : requestOpen(t.id)}
         onMouseEnter={() => setHovered(t.id)}
         onMouseLeave={() => setHovered(null)}
-        className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
+        className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-colors ${
           active
             ? 'bg-purple-400/20 text-purple-200'
             : t.tier === 2
@@ -235,7 +247,7 @@ export default function ToolDock() {
               : 'text-white/60 hover:bg-white/10 hover:text-white/90'
         }`}
       >
-        <span className="material-symbols-outlined text-[20px]">{t.icon}</span>
+        <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
         {t.order && (
           <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-purple-400 text-black text-[9px] font-bold flex items-center justify-center">
             {t.order}
@@ -272,15 +284,32 @@ export default function ToolDock() {
 
   return (
     <>
-      {!anyToolActive && (
+      {!anyToolActive && railHidden && (
+        <button
+          onClick={toggleRailHidden}
+          className="fixed left-0 top-1/2 -translate-y-1/2 z-40 flex items-center justify-center w-4 h-14 rounded-r-xl bg-white/5 hover:bg-white/10 text-white/30 hover:text-white/60 transition-colors"
+          title="Hiện thanh công cụ"
+        >
+          <span className="material-symbols-outlined text-[14px]">chevron_right</span>
+        </button>
+      )}
+
+      {!anyToolActive && !railHidden && (
       <motion.div
         drag="y"
         dragConstraints={{ top: -200, bottom: 260 }}
         dragElastic={0.1}
         dragMomentum={false}
-        className="fixed left-4 top-1/2 -translate-y-1/2 z-40 dock rounded-2xl p-2 flex flex-col gap-1 cursor-grab active:cursor-grabbing"
-        title="Drag to reposition"
+        className="fixed left-4 top-1/2 -translate-y-1/2 z-40 dock rounded-2xl p-2 flex flex-col gap-1"
       >
+        <div
+          onClick={toggleRailHidden}
+          className="flex items-center justify-center h-4 -mt-1 mb-0.5 cursor-grab active:cursor-grabbing text-white/20 hover:text-white/50 transition-colors"
+          title="Kéo/bấm để ẩn thanh công cụ"
+        >
+          <span className="material-symbols-outlined text-[14px]">drag_indicator</span>
+        </div>
+
         {theoryTools.length > 0 && groupLabel('Lý thuyết')}
         {theoryTools.map(toolButton)}
 
