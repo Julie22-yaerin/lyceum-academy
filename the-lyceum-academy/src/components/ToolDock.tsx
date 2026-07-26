@@ -65,12 +65,20 @@ const TOOLS: ToolMeta[] = [
 
 const OVERLOAD_ACK_KEY = 'lyceum_tier2_ack_v1';
 
+type PodcastCompanion = 'whiteboard' | 'lotus-map';
+
 export default function ToolDock() {
   const { activeTool, payload, openTool, closeTool, podcastOpen, togglePodcast } = useToolDock();
   const [hovered, setHovered] = useState<ToolId | null>(null);
   const [allowed, setAllowed] = useState<Set<ToolId> | null>(null);
   const [warnFor, setWarnFor] = useState<ToolId | null>(null);
   const [ackDontShow, setAckDontShow] = useState(false);
+  // Opening the podcast asks which full-page companion to pair it with —
+  // the floating player stays on top (z-[250]) while the companion owns the
+  // rest of the screen, instead of being crammed into the Tool Dock's
+  // max-w-lg modal.
+  const [podcastChooserOpen, setPodcastChooserOpen] = useState(false);
+  const [podcastCompanion, setPodcastCompanion] = useState<PodcastCompanion | null>(null);
 
   useEffect(() => {
     getMyTools()
@@ -103,6 +111,17 @@ export default function ToolDock() {
     if (id) openTool(id);
   }
 
+  function podcastClick() {
+    if (podcastOpen) { togglePodcast(); setPodcastCompanion(null); return; }
+    setPodcastChooserOpen(true);
+  }
+
+  function pickPodcastCompanion(companion: PodcastCompanion) {
+    setPodcastCompanion(companion);
+    setPodcastChooserOpen(false);
+    togglePodcast();
+  }
+
   function renderActivePanel() {
     switch (activeTool) {
       case 'feynman': return <FeynmanTool />;
@@ -131,7 +150,7 @@ export default function ToolDock() {
     return (
       <button
         key={t.id}
-        onClick={() => t.id === 'podcast' ? togglePodcast() : requestOpen(t.id)}
+        onClick={() => t.id === 'podcast' ? podcastClick() : requestOpen(t.id)}
         onMouseEnter={() => setHovered(t.id)}
         onMouseLeave={() => setHovered(null)}
         className={`relative w-11 h-11 flex items-center justify-center rounded-xl transition-colors ${
@@ -214,6 +233,61 @@ export default function ToolDock() {
               </button>
             </div>
             {renderActivePanel()}
+          </div>
+        </div>
+      )}
+
+      {/* Podcast companion picker — shown once, right when the podcast opens */}
+      {podcastChooserOpen && (
+        <div className="fixed inset-0 z-[200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setPodcastChooserOpen(false)}>
+          <div className="glass-card rounded-3xl max-w-md w-full p-7 text-center flex flex-col items-center gap-5"
+            onClick={e => e.stopPropagation()}>
+            <span className="material-symbols-outlined text-[32px] text-purple-200">podcasts</span>
+            <div>
+              <h2 className="font-serif text-xl text-white mb-1.5">Nghe kèm việc gì?</h2>
+              <p className="text-sm text-white/55 leading-relaxed">
+                Podcast sẽ nổi trên màn hình trong lúc bạn làm việc ở đây — chọn một cái.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 w-full">
+              <button onClick={() => pickPodcastCompanion('whiteboard')}
+                className="flex flex-col items-center gap-2 rounded-2xl p-5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/25 transition-colors">
+                <span className="material-symbols-outlined text-[24px] text-white/80">edit_note</span>
+                <span className="text-xs text-white/85">Whiteboard</span>
+                <span className="text-[10px] text-white/40">Toàn trang</span>
+              </button>
+              <button onClick={() => pickPodcastCompanion('lotus-map')}
+                className="flex flex-col items-center gap-2 rounded-2xl p-5 bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/25 transition-colors">
+                <span className="material-symbols-outlined text-[24px] text-white/80">spa</span>
+                <span className="text-xs text-white/85">Lotus Map</span>
+                <span className="text-[10px] text-white/40">Toàn trang</span>
+              </button>
+            </div>
+            <button onClick={() => setPodcastChooserOpen(false)} className="text-[11px] text-white/40 hover:text-white/70">
+              Huỷ
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Podcast companion — full page, not the Tool Dock's cramped modal.
+          Sits under the floating podcast (z-[250] > this z-[180]). */}
+      {podcastOpen && podcastCompanion && (
+        <div className="fixed inset-0 z-[180] bg-[#0a0c14] overflow-y-auto">
+          <div className="flex items-center justify-between px-6 py-4 sticky top-0 bg-[#0a0c14]/95 backdrop-blur-sm border-b border-white/10 z-10">
+            <p className="text-sm font-serif text-white flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px] text-white/60">
+                {podcastCompanion === 'whiteboard' ? 'edit_note' : 'spa'}
+              </span>
+              {podcastCompanion === 'whiteboard' ? 'Whiteboard' : 'Lotus Map'}
+            </p>
+            <button onClick={() => setPodcastCompanion(null)} className="text-white/40 hover:text-white/80 flex items-center gap-1 text-[11px] uppercase tracking-[1.5px]">
+              Đóng <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+          <div className="max-w-5xl mx-auto p-6">
+            {podcastCompanion === 'whiteboard' ? <SheetOfPaperTool /> : <LotusMapTool seedTopic={(payload?.seedTopic as string) || ''} />}
           </div>
         </div>
       )}

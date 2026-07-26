@@ -16,9 +16,11 @@ import { startStreakGoal } from '../lib/streak';
 import { saveSchedule, syncScheduleToServer, type ScheduleBlock } from '../lib/schedule';
 import { fetchPublishedWorkspaces, type CatalogWorkspace } from '../lib/coach';
 import { joinWorkspace } from '../lib/catalogMembership';
-import { selectPlan } from '../lib/lyceumApi';
+import { selectPlan, addToMyBrain, aiResearchSubject } from '../lib/lyceumApi';
 import { useWorkspace } from '../context/WorkspaceContext';
 import { useTranslation } from '../i18n/I18nContext';
+import { detectSubject } from '../lib/persist';
+import { setMaterialMode, type MaterialMode } from '../lib/subjectMaterialMode';
 
 // ── Chat-driven interview config ────────────────────────────────────────────
 // The advisor gathers the same 8 signals the old multiple-choice form did
@@ -486,6 +488,7 @@ function SubjectSelection({
   const [workspaces, setWorkspaces] = useState<CatalogWorkspace[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
+  const [customName, setCustomName] = useState('');
 
   useEffect(() => {
     fetchPublishedWorkspaces()
@@ -493,6 +496,25 @@ function SubjectSelection({
       .catch(e => setLoadError(e.message || 'Could not load workspaces.'))
       .finally(() => setLoading(false));
   }, []);
+
+  function addCustomSubject() {
+    const name = customName.trim();
+    if (!name) return;
+    // Not backed by any admin-curated workspace — id is prefixed so
+    // handleSubjectsContinue knows to skip joinWorkspace for it (there is
+    // no real workspace_id to record). It still flows through the exact
+    // same onToggle -> seedTabs path as a curated pick, so it becomes a
+    // real workspace tab like any other subject node.
+    onToggle({
+      id: `custom-${Date.now()}`,
+      title: name,
+      subject_key: detectSubject(name),
+      field: '',
+      description: null,
+      is_published: true,
+    });
+    setCustomName('');
+  }
 
   return (
     <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -533,6 +555,181 @@ function SubjectSelection({
             </button>
           );
         })}
+      </div>
+
+      {/* Custom subject nodes — for anything not in the curated catalog.
+          Each one becomes its own workspace tab, exactly like a curated
+          pick, via the same onToggle -> seedTabs path. */}
+      <div style={{ display: 'flex', gap: 6, justifyContent: 'center', padding: '4px 0 8px' }}>
+        <input
+          value={customName}
+          onChange={e => setCustomName(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addCustomSubject(); }}
+          placeholder="Tạo môn của riêng bạn…"
+          style={{
+            padding: '9px 14px', borderRadius: 10, minWidth: 200,
+            border: '1.5px solid rgba(0,0,0,0.12)', background: 'rgba(255,255,255,0.6)',
+            fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.8)', outline: 'none',
+          }}
+        />
+        <button
+          onClick={addCustomSubject}
+          disabled={!customName.trim()}
+          style={{
+            padding: '9px 16px', borderRadius: 10, border: 'none', cursor: customName.trim() ? 'pointer' : 'not-allowed',
+            background: customName.trim() ? 'rgba(197,160,89,0.85)' : 'rgba(0,0,0,0.08)',
+            fontFamily: 'sans-serif', fontSize: 12, fontWeight: 700,
+            color: customName.trim() ? '#1a1a1a' : 'rgba(0,0,0,0.3)',
+          }}
+        >
+          + Thêm
+        </button>
+      </div>
+      {selected.some(s => s.id.startsWith('custom-')) && (
+        <p style={{ textAlign: 'center', fontFamily: 'sans-serif', fontSize: 11, color: 'rgba(0,0,0,0.4)', margin: 0 }}>
+          Môn tự tạo dùng chung tab với môn gần nhất — không có tài liệu curated sẵn, bạn tự đưa tài liệu vào ở bước tiếp theo.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Material Source Selection (one mode per subject node) ──────────────────
+// Upload / Second Brain / AI Research — see src/lib/subjectMaterialMode.ts
+// for what each mode means and which endpoint backs it.
+
+const MATERIAL_MODES: { id: MaterialMode; icon: string; label: string; hint: string }[] = [
+  { id: 'upload', icon: '📎', label: 'Upload trước mỗi buổi', hint: 'Miễn phí · cho tài liệu cấp định kỳ' },
+  { id: 'second-brain', icon: '🧠', label: 'Second Brain', hint: 'Bạn có sẵn hết tài liệu · tốn Quanta' },
+  { id: 'ai-research', icon: '🔎', label: 'AI Research', hint: 'AI tự tổng hợp theo chủ đề · tốn nhiều Quanta' },
+];
+
+function MaterialModeCard({ ws, mode, onSetMode }: {
+  ws: CatalogWorkspace; mode: MaterialMode | undefined; onSetMode: (subjectKey: string, mode: MaterialMode) => void;
+}) {
+  const meta = SUBJECT_META[ws.subject_key];
+  const [brainContent, setBrainContent] = useState('');
+  const [brainBusy, setBrainBusy] = useState(false);
+  const [brainDone, setBrainDone] = useState(false);
+  const [researchTopic, setResearchTopic] = useState('');
+  const [researchBusy, setResearchBusy] = useState(false);
+  const [researchDone, setResearchDone] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submitSecondBrain() {
+    if (!brainContent.trim() || brainBusy) return;
+    setBrainBusy(true); setError('');
+    try {
+      await addToMyBrain(`${ws.title} — tài liệu ban đầu`, brainContent.trim(), ws.subject_key);
+      setBrainDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không lưu được — thử lại sau.');
+    } finally {
+      setBrainBusy(false);
+    }
+  }
+
+  async function submitResearch() {
+    if (!researchTopic.trim() || researchBusy) return;
+    setResearchBusy(true); setError('');
+    try {
+      await aiResearchSubject(ws.subject_key, researchTopic.trim());
+      setResearchDone(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Không research được — thử lại sau.');
+    } finally {
+      setResearchBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ borderRadius: 14, border: '1.5px solid rgba(0,0,0,0.08)', background: 'rgba(255,255,255,0.5)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <p style={{ margin: 0, fontFamily: 'sans-serif', fontSize: 13, color: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span>{meta?.icon || '📘'}</span> {ws.title}
+      </p>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {MATERIAL_MODES.map(m => (
+          <button
+            key={m.id}
+            onClick={() => onSetMode(ws.subject_key, m.id)}
+            title={m.hint}
+            style={{
+              flex: '1 1 100px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+              padding: '8px 6px', borderRadius: 10, cursor: 'pointer',
+              background: mode === m.id ? 'rgba(197,160,89,0.16)' : 'rgba(255,255,255,0.6)',
+              border: mode === m.id ? '1.5px solid rgba(197,160,89,0.55)' : '1.5px solid rgba(0,0,0,0.08)',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>{m.icon}</span>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10.5, color: mode === m.id ? '#6b5215' : 'rgba(0,0,0,0.65)', textAlign: 'center' }}>{m.label}</span>
+          </button>
+        ))}
+      </div>
+
+      {mode === 'second-brain' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {brainDone ? (
+            <p style={{ margin: 0, fontFamily: 'sans-serif', fontSize: 11.5, color: '#16a34a' }}>✓ Đã lưu vào Second Brain</p>
+          ) : (
+            <>
+              <textarea
+                value={brainContent} onChange={e => setBrainContent(e.target.value)}
+                placeholder="Dán tài liệu bạn đã có cho môn này…"
+                rows={3}
+                style={{ resize: 'vertical', padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', fontFamily: 'sans-serif', fontSize: 12, outline: 'none' }}
+              />
+              <button onClick={submitSecondBrain} disabled={!brainContent.trim() || brainBusy}
+                style={{ alignSelf: 'flex-start', padding: '7px 14px', borderRadius: 8, border: 'none', cursor: brainContent.trim() ? 'pointer' : 'not-allowed', background: brainContent.trim() ? '#C5A059' : 'rgba(0,0,0,0.08)', fontFamily: 'sans-serif', fontSize: 11, fontWeight: 700, color: brainContent.trim() ? '#1a1a1a' : 'rgba(0,0,0,0.3)' }}>
+                {brainBusy ? 'Đang xử lý…' : 'Lưu vào Second Brain'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {mode === 'ai-research' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {researchDone ? (
+            <p style={{ margin: 0, fontFamily: 'sans-serif', fontSize: 11.5, color: '#16a34a' }}>✓ AI đã research và lưu xong</p>
+          ) : (
+            <>
+              <input
+                value={researchTopic} onChange={e => setResearchTopic(e.target.value)}
+                placeholder="Chủ đề cụ thể để AI research (vd: Đạo hàm hàm hợp)…"
+                style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid rgba(0,0,0,0.12)', fontFamily: 'sans-serif', fontSize: 12, outline: 'none' }}
+              />
+              <button onClick={submitResearch} disabled={!researchTopic.trim() || researchBusy}
+                style={{ alignSelf: 'flex-start', padding: '7px 14px', borderRadius: 8, border: 'none', cursor: researchTopic.trim() ? 'pointer' : 'not-allowed', background: researchTopic.trim() ? '#C5A059' : 'rgba(0,0,0,0.08)', fontFamily: 'sans-serif', fontSize: 11, fontWeight: 700, color: researchTopic.trim() ? '#1a1a1a' : 'rgba(0,0,0,0.3)' }}>
+                {researchBusy ? 'AI đang research…' : 'Research ngay'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {error && <p style={{ margin: 0, fontFamily: 'sans-serif', fontSize: 11, color: '#dc2626' }}>{error}</p>}
+    </div>
+  );
+}
+
+function MaterialModeSelection({ workspaces, modes, onSetMode }: {
+  workspaces: CatalogWorkspace[];
+  modes: Record<string, MaterialMode>;
+  onSetMode: (subjectKey: string, mode: MaterialMode) => void;
+}) {
+  return (
+    <div className="ob-enter" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ textAlign: 'center', marginBottom: 4 }}>
+        <span style={{ fontSize: 40, display: 'block', marginBottom: 8 }}>🗂️</span>
+        <p style={{ fontSize: 18, margin: '0 0 6px', color: 'rgba(0,0,0,0.85)' }}>Tài liệu cho mỗi môn</p>
+        <p style={{ fontFamily: 'sans-serif', fontSize: 12.5, color: 'rgba(0,0,0,0.5)', margin: 0, lineHeight: 1.6 }}>
+          Chọn một cách cho từng môn — có thể đổi sau trong workspace.
+        </p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {workspaces.map(ws => (
+          <MaterialModeCard key={ws.id} ws={ws} mode={modes[ws.subject_key]} onSetMode={onSetMode} />
+        ))}
       </div>
     </div>
   );
@@ -652,9 +849,14 @@ function WeeklySchedulePicker({
 
 export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
-  const [phase, setPhase] = useState<'chat' | 'subjects' | 'schedule' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
+  const [phase, setPhase] = useState<'chat' | 'subjects' | 'material' | 'schedule' | 'sliders' | 'personas' | 'goal' | 'pricing'>('chat');
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<CatalogWorkspace[]>([]);
   const selectedSubjects = useMemo(() => Array.from(new Set(selectedWorkspaces.map(w => w.subject_key))), [selectedWorkspaces]);
+  const [materialModes, setMaterialModes] = useState<Record<string, MaterialMode>>({});
+  function setSubjectMaterialMode(subjectKey: string, mode: MaterialMode) {
+    setMaterialModes(prev => ({ ...prev, [subjectKey]: mode }));
+    setMaterialMode(subjectKey, mode);
+  }
   const [scheduleBlocks, setScheduleBlocks] = useState<ScheduleBlock[]>([]);
   const { seedTabs } = useWorkspace();
   const [turns, setTurns] = useState<ChatMsg[]>([
@@ -717,8 +919,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
   function handleSubjectsContinue() {
     if (selectedWorkspaces.length === 0) return;
     seedTabs(selectedSubjects);
-    selectedWorkspaces.forEach(ws => joinWorkspace(ws.subject_key, ws.id));
+    // Custom subject nodes have no real catalog workspace behind them —
+    // there is nothing to record a membership id for.
+    selectedWorkspaces.filter(ws => !ws.id.startsWith('custom-')).forEach(ws => joinWorkspace(ws.subject_key, ws.id));
     if (pendingAnswers) saveOnboardingAnswers({ ...pendingAnswers, subjects: selectedSubjects });
+    setPhase('material');
+  }
+
+  function handleMaterialContinue() {
     setPhase('schedule');
   }
 
@@ -808,12 +1016,14 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
     phase === 'personas' ? 0.72 :
     phase === 'sliders'  ? 0.52 :
     phase === 'schedule' ? 0.48 :
+    phase === 'material' ? 0.46 :
     phase === 'subjects' ? 0.44 :
     Math.min(userTurnCount / 6, 0.38);
 
   const phaseLabel =
     phase === 'chat'     ? t('onboard.talkToAdvisor') :
     phase === 'subjects' ? t('onboard.yourSubjects') :
+    phase === 'material' ? 'Tài liệu cho mỗi môn' :
     phase === 'schedule' ? 'Your Weekly Schedule' :
     phase === 'sliders'  ? t('onboard.brainsFav') :
     phase === 'personas' ? t('onboard.choosePartners') :
@@ -875,6 +1085,11 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
           {/* ── Subject Selection screen ── */}
           {!paid && phase === 'subjects' && (
             <SubjectSelection selected={selectedWorkspaces} onToggle={toggleSubject} t={t} />
+          )}
+
+          {/* ── Material Source screen ── */}
+          {!paid && phase === 'material' && (
+            <MaterialModeSelection workspaces={selectedWorkspaces} modes={materialModes} onSetMode={setSubjectMaterialMode} />
           )}
 
           {/* ── Weekly Schedule screen ── */}
@@ -1084,6 +1299,25 @@ export default function OnboardingModal({ onClose }: { onClose: () => void }) {
                 fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
                 color: selectedSubjects.length > 0 ? '#1a1a1a' : 'rgba(0,0,0,0.25)',
                 fontWeight: 700, transition: 'all 0.15s',
+              }}>
+              Continue
+            </button>
+          </div>
+        )}
+
+        {/* Material footer — Continue button (a mode is picked per subject, defaults to upload) */}
+        {!paid && phase === 'material' && (
+          <div style={{ flexShrink: 0, padding: '14px 28px 22px', borderTop: '1px solid rgba(0,0,0,0.06)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: 'sans-serif', fontSize: 10, color: 'rgba(0,0,0,0.35)' }}>
+              Không chọn = mặc định Upload trước mỗi buổi
+            </span>
+            <button
+              onClick={handleMaterialContinue}
+              style={{
+                padding: '13px 26px', background: '#C5A059',
+                border: 'none', borderRadius: 8, cursor: 'pointer',
+                fontFamily: 'sans-serif', fontSize: 11, letterSpacing: 2, textTransform: 'uppercase',
+                color: '#1a1a1a', fontWeight: 700, transition: 'all 0.15s',
               }}>
               Continue
             </button>

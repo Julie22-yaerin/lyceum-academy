@@ -418,3 +418,29 @@ export async function synthesizeSpeech(text: string, lang = 'en'): Promise<strin
   if (!res.ok) throw new Error((await res.json().catch(() => ({})))?.detail || `TTS failed (${res.status})`);
   return URL.createObjectURL(await res.blob());
 }
+
+// ── Podcast script generation (Elite Audio Producer) ────────────────────────
+// The narration step above (synthesizeSpeech) is unchanged — this is the
+// step that writes what gets narrated, from the student's own material
+// instead of whatever gets pasted in.
+
+export type PodcastFormat = '1' | '2' | '3';
+
+export function getPodcastMaterialStatus(subject: string): Promise<{ note_count: number; char_count: number; has_material: boolean }> {
+  return getJson(`/ai/podcast/material?subject=${encodeURIComponent(subject)}`);
+}
+
+export function generatePodcastScript(
+  subject: string, format: PodcastFormat, topic = '',
+): Promise<{ script: string; format: PodcastFormat; source_note_count: number }> {
+  return postJson('/ai/podcast/script', { subject, format, topic });
+}
+
+// ── AI Research (self-serve Second Brain build-out) ─────────────────────────
+// Distinct from addToMyBrain (a quick manual note add, ~120 tokens) — this is
+// a full synthesis pass over a topic, costed accordingly, then saved into
+// the same per-subject Second Brain.
+
+export function aiResearchSubject(subject: string, topic: string): Promise<{ ok: boolean; id: string; title: string; content: string }> {
+  return postJson('/me/brain/research', { subject, topic });
+}

@@ -301,6 +301,8 @@ from app.routers  import ai_roles    as ai_roles_router
 from app.routers  import lyceum      as lyceum_router
 from app.routers  import game        as game_router
 from app.routers  import trip        as trip_router
+from app.routers  import forum       as forum_router
+from app.routers  import podcast     as podcast_router
 
 
 @asynccontextmanager
@@ -333,6 +335,9 @@ async def lifespan(_app: FastAPI):
     game_svc.init_db()
     from app.services import retention as retention_svc
     retention_svc.init_db()
+    from app.services import forum as forum_svc
+    forum_svc.init_db()
+    forum_svc.seed_default_groups()
 
     from app.seed_content import seed_atomic_orbitals_note
     try:
@@ -488,8 +493,11 @@ async def lifespan(_app: FastAPI):
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from app.services import scheduler_jobs
 
+    from app.services import forum as forum_svc
+
     _batch_scheduler = AsyncIOScheduler()
     _batch_scheduler.add_job(scheduler_jobs.poll_and_generate, "interval", minutes=5, id="batch_pregeneration")
+    _batch_scheduler.add_job(forum_svc.recompute_connections, "interval", hours=24, id="forum_connections")
     _batch_scheduler.start()
     logger.info("Batch pre-generation scheduler started (5min interval) ✓")
 
@@ -544,6 +552,8 @@ app.include_router(ai_roles_router.router)
 app.include_router(lyceum_router.router)
 app.include_router(game_router.router)
 app.include_router(trip_router.router)
+app.include_router(forum_router.router)
+app.include_router(podcast_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port
