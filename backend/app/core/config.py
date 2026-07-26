@@ -203,6 +203,17 @@ class Settings(BaseSettings):
     # video file. This token is used for that generation.
     cloudflare_reels_token: str = ""    # CLOUDFLARE_REELS_TOKEN
 
+    # ── Veo (Gemini API — text-to-video) ──────────────────────────
+    # Deliberately a separate key from google_api_key above (used for text
+    # grading roles): different cost profile, should be revocable on its own.
+    # As of 2026-07-25 this key has no billing account attached (Veo returns
+    # 429 RESOURCE_EXHAUSTED, free-tier limit 0) — it is a paid-tier-only
+    # capability. See app.services.veo for the generation client and
+    # tools/reels/veo_backgrounds.py for the one-shot per-subject script that
+    # is ready to run once billing is added.
+    veo_api_key: str = ""               # VEO_API_KEY
+    veo_model: str = "veo-3.1-fast-generate-preview"
+
     # ── Retention offers (shown when a subscriber tries to cancel) ────
     # Stripe coupon applying the 65% save-offer. Created once in the Stripe
     # dashboard (Products -> Coupons); leave empty and the offer is recorded

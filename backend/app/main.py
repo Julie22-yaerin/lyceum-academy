@@ -300,6 +300,7 @@ from app.routers  import content_catalog as content_catalog_router
 from app.routers  import ai_roles    as ai_roles_router
 from app.routers  import lyceum      as lyceum_router
 from app.routers  import game        as game_router
+from app.routers  import trip        as trip_router
 
 
 @asynccontextmanager
@@ -542,6 +543,7 @@ app.include_router(content_catalog_router.router)
 app.include_router(ai_roles_router.router)
 app.include_router(lyceum_router.router)
 app.include_router(game_router.router)
+app.include_router(trip_router.router)
 
 _cors_origins = settings.cors_origins_list
 # In development allow file:// (origin = "null") and any localhost port

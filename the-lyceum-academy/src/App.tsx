@@ -36,10 +36,17 @@ import CookieConsent from './components/CookieConsent';
 import FloatingPodcast from './components/FloatingPodcast';
 import LegalPage from './views/LegalPage';
 import GamePage from './views/GamePage';
+import TripView from './views/TripView';
+import type { TripSubject } from './lib/tripApi';
 
 
 function AppInner() {
-  const [view, setView] = useState<View>('landing');
+  // TRIP's closing CTA links to /?auth=1 (a plain page nav from a standalone
+  // route, not client-side navigation) — land straight on auth instead of
+  // bouncing through the landing page again.
+  const [view, setView] = useState<View>(
+    () => (new URLSearchParams(window.location.search).get('auth') ? 'auth' : 'landing'),
+  );
   const { user, loading, devMode, emailVerified } = useAuth();
   const { activeTab } = useWorkspace();
   const [showTerms, setShowTerms] = useState(false);
@@ -258,6 +265,13 @@ export default function App() {
   // Marketing quiz — fully public, no auth, no workspace context needed.
   if (path === '/game' || path.startsWith('/game/')) {
     return <I18nProvider><ThemeProvider><GamePage /></ThemeProvider></I18nProvider>;
+  }
+  // TRIP — the free no-login demo, one route per subject.
+  const TRIP_PATHS: Record<string, TripSubject> = {
+    '/math': 'math', '/chemistry': 'chemistry', '/biology': 'biology', '/physics': 'physics',
+  };
+  if (TRIP_PATHS[path]) {
+    return <I18nProvider><ThemeProvider><TripView subject={TRIP_PATHS[path]} /></ThemeProvider></I18nProvider>;
   }
   // Legal documents — public, standalone (linked from the waitlist consent
   // checkbox, the cookie banner, and the footer).

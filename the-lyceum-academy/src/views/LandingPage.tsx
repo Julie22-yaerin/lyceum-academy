@@ -8,14 +8,17 @@ import {
   Brain,
   CalendarDays,
   Compass,
+  Dna,
   FlaskConical,
   Gauge,
   Library,
   MessagesSquare,
   Moon,
   ScanSearch,
+  Sigma,
   Sun,
   Timer,
+  Waves,
   type LucideIcon,
 } from 'lucide-react';
 import { NavigationProps } from '../types';
@@ -223,6 +226,15 @@ const stagger = {
   show: { transition: { staggerChildren: 0.12 } },
 };
 
+// TRIP — the free, no-login taste of the workspace: one preset concept per
+// subject, at /math, /chemistry, /biology, /physics.
+const TRIP_SUBJECTS: { path: string; icon: LucideIcon; label: string; concept: string; accent: string }[] = [
+  { path: '/math', icon: Sigma, label: 'Toán', concept: 'Hàm hợp', accent: 'text-violet-300' },
+  { path: '/chemistry', icon: FlaskConical, label: 'Hoá', concept: 'Orbital nguyên tử', accent: 'text-cyan-300' },
+  { path: '/biology', icon: Dna, label: 'Sinh', concept: 'Điện thế hoạt động', accent: 'text-emerald-300' },
+  { path: '/physics', icon: Waves, label: 'Lý', concept: 'Dao động điều hoà', accent: 'text-amber-300' },
+];
+
 
 
 export default function LandingPage({ onNavigate }: NavigationProps) {
@@ -409,6 +421,53 @@ export default function LandingPage({ onNavigate }: NavigationProps) {
               <h3 className="text-lg font-bold text-white">{step.title}</h3>
               <p className="text-sm text-slate-400 leading-relaxed">{step.body}</p>
             </motion.div>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* TRIP — free no-login demo, one preset concept per subject */}
+      <section id="trip" className="max-w-7xl mx-auto px-6 py-20">
+        <motion.div
+          initial={{ opacity: 0, x: -60 }}
+          whileInView={{ opacity: 1, x: 0 }}
+          viewport={{ once: true, margin: '-80px' }}
+          transition={{ duration: 0.6 }}
+          className="mb-14 text-center"
+        >
+          <p className="text-[11px] uppercase tracking-[0.25em] text-purple-300/70 mb-3">Không cần đăng nhập</p>
+          <h2 className="font-garamond text-3xl md:text-4xl text-metallic mb-3">
+            <TextReveal per="word" preset="fade" delay={0.1}>
+              {"TRIP — thử trước khi tin."}
+            </TextReveal>
+          </h2>
+          <p className="text-slate-400 max-w-xl mx-auto">
+            Một khái niệm mẫu cho mỗi môn — tài liệu, podcast, reel, giảng lại cho AI, Lotus Map. Miễn phí, không cần tài khoản.
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, margin: '-80px' }}
+          variants={stagger}
+          className="grid grid-cols-2 md:grid-cols-4 gap-5"
+        >
+          {TRIP_SUBJECTS.map(s => (
+            <motion.a
+              key={s.path}
+              href={s.path}
+              variants={fadeUp}
+              transition={{ duration: 0.5 }}
+              whileHover={{ y: -6 }}
+              className="relative p-6 rounded-3xl glass flex flex-col gap-3 text-left"
+            >
+              <s.icon className={`w-7 h-7 ${s.accent}`} strokeWidth={1.5} />
+              <span className="text-base font-bold text-white">{s.label}</span>
+              <span className="text-xs text-slate-400 leading-relaxed">{s.concept}</span>
+              <span className="mt-1 text-[10px] uppercase tracking-[2px] text-white/40 flex items-center gap-1">
+                Vào TRIP <ArrowUpRight className="w-3 h-3" />
+              </span>
+            </motion.a>
           ))}
         </motion.div>
       </section>

@@ -59,8 +59,52 @@ roughly five times larger than the H.264 equivalent.
 
 These are rendered, not model-generated. Seedance is not reachable from this
 environment: it is not on Cloudflare Workers AI (which has no text-to-video
-model at all), and no `generate_video` tool is exposed here. If a Seedance
-endpoint and key become available — BytePlus/Volcengine Ark, fal.ai or
-Replicate all host it — a generated reel can replace any of these files
-without touching the player: the catalogue in
-`src/lib/breakReels.ts` only points at paths.
+model at all), and no `generate_video` tool is exposed here.
+
+### Veo — wired, but blocked on billing
+
+A Google AI Studio key (`VEO_API_KEY` in `backend/.env`) reaches Veo directly:
+
+```
+curl -X POST "https://generativelanguage.googleapis.com/v1beta/models/veo-3.1-fast-generate-preview:predictLongRunning?key=$VEO_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"instances":[{"prompt":"..."}],"parameters":{"aspectRatio":"9:16","durationSeconds":8,"sampleCount":1}}'
+```
+
+Confirmed empirically against the live API:
+- `durationSeconds` must be 4-8 inclusive — Veo cannot produce a single
+  12-15s clip. A reel that length needs two generations concatenated, or one
+  clip ping-ponged (played forward then reversed) to double its length.
+- `aspectRatio: "9:16"` is accepted.
+- **this key has no billing account attached** — every call returns
+  `429 RESOURCE_EXHAUSTED` with `limit: 0` for the free tier. This is a hard
+  wall, not a transient rate limit: Veo is paid-tier-only, and nothing
+  generates until billing is enabled on the Google Cloud project behind the
+  key. Confirmed the key itself is otherwise valid (`GET /v1beta/models`
+  lists it fine; even plain `gemini-2.0-flash:generateContent` hits the same
+  429, so this isn't Veo-specific — the project has no billing at all yet).
+
+`app/services/veo.py` (backend) and `tools/reels/veo_backgrounds.py`
+(standalone script, no FastAPI dependency) both implement the
+submit → poll → download flow and are ready to run as soon as billing is
+turned on:
+
+```sh
+python3 tools/reels/veo_backgrounds.py            # all four subjects
+python3 tools/reels/veo_backgrounds.py math        # just one
+```
+
+Each subject gets one cinematic, caption-free prompt (`PROMPTS` in that
+script) — explicitly asked to render no on-screen text, because video models
+render embedded text and equations unreliably (worse for Vietnamese
+diacritics). That's also why the plan is to use Veo output as a *background*
+layer and keep drawing the accurate captions/diagrams in `scene.html` on top,
+not to hand the model the whole reel. Output lands in `tools/reels/veo/`;
+compositing that under the existing overlay is the next step once real
+footage exists to test against — not built blind against a wall that returns
+429 for everything.
+
+If a Seedance endpoint and key become available instead — BytePlus/Volcengine
+Ark, fal.ai and Replicate all host it — the same pattern applies: a generated
+reel can replace any file in `public/reels/` without touching the player,
+since the catalogue in `src/lib/breakReels.ts` only points at paths.
