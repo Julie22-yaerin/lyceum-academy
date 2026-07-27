@@ -2,14 +2,16 @@
 
 **v1.0.0** · Python 3.10+ · Bring Your Own Key
 
-Two prompt-engineered STEM engines behind a strict JSON contract. You supply
+Four prompt-engineered STEM engines behind a strict JSON contract. You supply
 your own LLM key; we supply the pedagogy, the guardrails and the reliability
 layer.
 
 | Engine | Endpoint | What it does |
 |---|---|---|
+| **Reverse Build Auditor** | `POST /v1/reverse-build/evaluate` | Audits a learner's own explanation: is the reasoning logically sound, and did they apply the lesson's concept? Returns the next state to route them to. |
+| **Podcast Producer** | `POST /v1/podcast` | Turns study material into a TTS-ready script with note cues. Three formats. No LaTeX in spoken text. |
 | **Feynman** | `POST /v1/feynman` | Breaks a concept down into plain language, analogies **with their limits**, and the prerequisite gaps a learner is missing. |
-| **Reverse Building** | `POST /v1/deconstruct` | Takes a theorem or system apart to first principles, then rebuilds the derivation ladder — each step tagged with the method it *must* use. |
+| **Deconstruction** | `POST /v1/deconstruct` | Takes a theorem or system apart to first principles, then rebuilds the derivation ladder — each step tagged with the method it *must* use. |
 | Guardrails | `POST /v1/validate` | Free. Runs input validation with no LLM call, so you can pre-check in your own UI. |
 
 ---
@@ -47,6 +49,18 @@ separates this from "explain X simply":
   lower-level method (counting rectangles instead of integrating, testing
   n=1,2,3 instead of induction) has not done the step. You can enforce that,
   because we tell you what the step was for.
+
+  The rule is about **level, not conformity**: a method of equal or greater
+  sophistication passes and is recorded as an alternative. An evaluator that
+  fails elegant solutions teaches learners to stop thinking.
+- **The answer is not the verdict.** The auditor reports `answer_correct` and
+  `reasoning_sound` as separate fields and drives the verdict from the
+  *reasoning*. A right answer reached by a broken route cannot pass — that is
+  the difference between auditing and marking.
+- **Spoken text is never LaTeX.** A TTS engine reads `\frac` aloud as
+  "backslash f r a c". The podcast schema guarantees `spoken_text` is free of
+  LaTeX, markdown and stage directions, with maths verbalised; display forms
+  travel separately in `on_screen_latex`. Asserted in the test suite.
 
 ---
 
@@ -184,6 +198,34 @@ const { data, meta } = await res.json();
 
 Identical, except `concept` → **`target`** (the theorem/law/system).
 
+### `POST /v1/reverse-build/evaluate`
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `explanation` | string | — | **Required.** The learner's own words, judged as-is. |
+| `problem` | string | — | **Required.** The original problem statement. |
+| `concept` | string | — | **Required.** The lesson concept under test, e.g. `"chain rule"`. |
+| `required_tools` | string[] | `[]` | Method(s) the lesson demands. **Strongly recommended** — without it the tool-fidelity gate cannot fire. |
+| `reference_answer` | string | `""` | Optional known-correct answer. |
+| `subject` | enum | `other` | As above. |
+| `integrator_notes` | string? | `null` | Data, never instructions. |
+
+`explanation` runs a **different guardrail profile** from every other endpoint:
+shape and injection are enforced, the STEM-relevance filter is not. A learner's
+hesitant, jargon-free answer ("it gets bigger then comes back down") scores zero
+on a topic filter and is precisely what this endpoint exists to read. The STEM
+context comes from `problem`, which you supply and which *is* fully checked.
+
+### `POST /v1/podcast`
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `material` | string | — | **Required.** Study material to adapt. 8–4000 chars. |
+| `format` | enum | `explorers` | `storyteller` (1 voice) · `explorers` (expert + student) · `gladiators` (resolving debate) |
+| `minutes` | int | `5` | Target runtime. Clamped to 1–20 rather than rejected — an absurd value is a units mistake, not a reason to 4xx. |
+| `topic` | string | `""` | Optional focus within the material. |
+| `subject` / `difficulty` | enum | | As above. |
+
 ---
 
 ## 6. Response shape
@@ -298,6 +340,114 @@ Every successful response is `{ "data": ..., "meta": ... }`.
 | `derivation` | 2–12 | Ordered ladder. `required_tool` is the tool-fidelity gate |
 | `collapses_if` | 1–5 | The load-bearing-wall test. Excellent exam-question material |
 | `prerequisites` | 0..n | Gate content, or build a syllabus order |
+
+### `/v1/reverse-build/evaluate` → `data`
+
+```json
+{
+  "schema_version": "1.0",
+  "engine": "reverse_build_eval",
+  "subject": "math",
+  "concept_under_test": "chain rule",
+
+  "answer_correct":  true,
+  "reasoning_sound": false,
+
+  "tool_fidelity": {
+    "required_tools": ["chain rule"],
+    "used_tools": ["numeric estimation"],
+    "ok": false,
+    "mismatch_note": "Estimated numerically instead of differentiating."
+  },
+
+  "concept_applied_correctly": "fail",
+  "logical_flow": "partial",
+  "completeness": "partial",
+
+  "flaws": [
+    {
+      "kind": "wrong_concept",
+      "where": "took a ratio of values near x",
+      "why": "That approximates the derivative rather than applying the chain rule.",
+      "is_fatal": true
+    }
+  ],
+
+  "verdict": "fail",
+  "next_state": "HINTING",
+  "feedback": "Đáp số đúng, nhưng cách làm chưa dùng quy tắc chuỗi.",
+  "hint": "Hãy gọi lớp trong là u rồi thử lại."
+}
+```
+
+**Field guide**
+
+| Field | Use it for |
+|---|---|
+| `answer_correct` / `reasoning_sound` | Separate on purpose. **Verdict follows the reasoning** — a right answer by a broken route does not pass |
+| `tool_fidelity.ok` | `false` only for a *lower-level* dodge. An equal-or-better alternative method passes, with the alternative noted |
+| `flaws[]` | Typed and located: `non_sequitur`, `circular`, `unjustified_leap`, `wrong_concept`, `scope_error`, `sign_or_algebra_slip`, `unit_error`. Empty when sound |
+| `is_fatal` | Whether the conclusion survives the flaw — drives whether you block or just annotate |
+| `next_state` | **Route on this.** `HINTING` / `REVERSE_BUILD_RETRY` / `TRANSFER_TEST` |
+| `feedback` | Written to the learner, in the language they wrote in |
+| `hint` | One nudge, never the answer. Empty on `TRANSFER_TEST` |
+
+State machine, fixed and enforced in the prompt:
+
+```
+tool_fidelity.ok = false        -> HINTING              (hard gate, overrides all)
+any criterion    = fail         -> HINTING
+all criteria     = pass         -> TRANSFER_TEST
+otherwise (a partial present)   -> REVERSE_BUILD_RETRY
+```
+
+### `/v1/podcast` → `data`
+
+```json
+{
+  "schema_version": "1.0",
+  "engine": "podcast",
+  "title": "Why the chain rule multiplies",
+  "subject": "math",
+  "difficulty": "a_level",
+  "format": "explorers",
+  "speakers": ["Expert", "Student"],
+
+  "hook": "Most people add the two derivatives. That is the mistake.",
+
+  "segments": [
+    {
+      "speaker": "Student",
+      "spoken_text": "So why do we multiply and not add?",
+      "on_screen_latex": "",
+      "is_note_cue": false
+    },
+    {
+      "speaker": "Expert",
+      "spoken_text": "Write this one down. d y by d x equals d y by d u, times d u by d x.",
+      "on_screen_latex": "\\frac{dy}{dx}=\\frac{dy}{du}\\cdot\\frac{du}{dx}",
+      "is_note_cue": true
+    }
+  ],
+
+  "takeaways": ["Differentiate the outer layer, keep the inner, multiply by its derivative."],
+  "note_prompts": ["The chain rule in dy/du · du/dx form"],
+  "key_terms": { "composite function": "a function fed the output of another" },
+  "estimated_seconds": 180
+}
+```
+
+**Field guide**
+
+| Field | Use it for |
+|---|---|
+| `spoken_text` | Send **straight to TTS**. Guaranteed free of LaTeX, markdown and stage directions; maths verbalised |
+| `on_screen_latex` | Show while that line plays. Bare LaTeX, no delimiters |
+| `is_note_cue` | The listen-and-write trigger: pause, flash a prompt, or highlight |
+| `note_prompts` | The checklist of what the learner's notes should contain by the end |
+| `hook` | First ~15s. Use it as your preview/teaser text too |
+| `estimated_seconds` | Derived from word count, not guessed — safe for a progress bar |
+| `speakers` | 1 name for `storyteller`, 2 for the others. Map to distinct TTS voices |
 
 ### Versioning
 
@@ -421,13 +571,19 @@ that spends your tokens is a bug), and `/v1/validate` is free.
 
 ```bash
 pip install -e ".[api,dev]"
-pytest -q            # 29 tests, no network, no API key needed
+pytest -q            # 35 tests, no network, no API key needed
 uvicorn lyceum_harness.main:app --reload
 ```
 
 The test suite mocks the provider with `respx`, so CI needs no credentials. It
-covers the guardrails, both schema transformers, JSON extraction from dirty
-responses, 429-then-success retry, rate-limit exhaustion, and the repair pass.
+covers the guardrails (both profiles), both schema transformers, JSON extraction
+from dirty responses, 429-then-success retry, rate-limit exhaustion, the repair
+pass, the auditor's right-answer/wrong-reasoning and
+alternative-method-accepted cases, and the podcast script's TTS-safety
+guarantee.
+
+A sales/marketing page for the harness lives at `site/index.html` — static,
+self-contained, no build step.
 
 ### Module layout
 
@@ -455,6 +611,9 @@ own schemas.
   and demand mechanism over name-dropping, but an LLM can still be confidently
   wrong. For high-stakes assessment content, keep a human in the loop.
 - **Guardrails are heuristic**, not a security boundary (see §8).
+- **The auditor is not an examiner.** It is built so a right answer with broken
+  reasoning cannot pass, but it is still an LLM and can be wrong. For
+  high-stakes assessment, keep a human in the loop.
 - **Only Gemini and OpenAI** are wired. Anthropic/Azure/Bedrock are a
   `_build_request` branch away — ask us.
 - **`strict: false`** is used on OpenAI's `json_schema` on purpose: our schema

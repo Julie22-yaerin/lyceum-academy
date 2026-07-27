@@ -20,7 +20,12 @@ Every failure is a `HarnessError` subclass with a stable `.code`.
 """
 
 from .config import DEFAULT_CONFIG, HarnessConfig, Provider, RetryPolicy, Timeouts
-from .engines import FeynmanEngine, ReverseBuildingEngine
+from .engines import (
+    FeynmanEngine,
+    PodcastEngine,
+    ReverseBuildEvaluatorEngine,
+    ReverseBuildingEngine,
+)
 from .errors import (
     ContentBlocked,
     GuardrailRejection,
@@ -33,7 +38,7 @@ from .errors import (
     UpstreamTimeout,
     UpstreamUnavailable,
 )
-from .guardrails import validate_input
+from .guardrails import validate_input, validate_student_work
 from .schemas import (
     Analogy,
     BuildingBlock,
@@ -43,8 +48,16 @@ from .schemas import (
     FeynmanExplanation,
     GoverningRule,
     KnowledgeGap,
+    LogicalFlaw,
     Meta,
+    NextState,
+    PodcastFormat,
+    PodcastScript,
+    PodcastSegment,
+    ReverseBuildEvaluation,
     Subject,
+    ToolFidelity,
+    Verdict,
     VisualHint,
 )
 
@@ -53,15 +66,18 @@ __version__ = "1.0.0"
 __all__ = [
     "__version__",
     # engines
-    "FeynmanEngine", "ReverseBuildingEngine",
+    "FeynmanEngine", "ReverseBuildingEngine", "ReverseBuildEvaluatorEngine",
+    "PodcastEngine",
     # config
     "Provider", "HarnessConfig", "RetryPolicy", "Timeouts", "DEFAULT_CONFIG",
     # guardrails
-    "validate_input",
+    "validate_input", "validate_student_work",
     # schemas
     "FeynmanExplanation", "Deconstruction", "Subject", "Difficulty", "Meta",
     "Analogy", "KnowledgeGap", "BuildingBlock", "GoverningRule",
     "DerivationStep", "VisualHint",
+    "ReverseBuildEvaluation", "ToolFidelity", "LogicalFlaw", "Verdict", "NextState",
+    "PodcastScript", "PodcastSegment", "PodcastFormat",
     # errors
     "HarnessError", "GuardrailRejection", "MissingCredentials",
     "InvalidCredentials", "UnsupportedProvider", "UpstreamRateLimited",

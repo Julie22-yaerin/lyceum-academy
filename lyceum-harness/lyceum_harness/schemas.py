@@ -181,6 +181,199 @@ class Deconstruction(BaseModel):
     visual_hints: list[VisualHint] = Field(default_factory=list)
 
 
+# ── Reverse Building: answer evaluation ──────────────────────────────────────
+# The deconstruction engine above takes a theorem apart. This one goes the
+# other way: a learner has produced an answer, and we audit it.
+
+class Verdict(str, Enum):
+    PASS = "pass"
+    PARTIAL = "partial"
+    FAIL = "fail"
+
+
+class NextState(str, Enum):
+    """
+    What the client's app should do next. This is the field a tutoring product
+    actually branches on, so the mapping is fixed and stated in the prompt:
+
+      tool_fidelity.ok = false      -> HINTING          (hard gate, overrides all)
+      any criterion  = fail         -> HINTING
+      all criteria   = pass         -> TRANSFER_TEST
+      otherwise (a partial present) -> REVERSE_BUILD_RETRY
+    """
+
+    HINTING = "HINTING"
+    REVERSE_BUILD_RETRY = "REVERSE_BUILD_RETRY"
+    TRANSFER_TEST = "TRANSFER_TEST"
+
+
+class ToolFidelity(BaseModel):
+    """
+    Did the learner use the method the lesson is teaching?
+
+    The house rule: reaching the right number by substituting a LOWER-LEVEL
+    method is not a pass — counting rectangles instead of integrating, testing
+    n=1,2,3 instead of proving by induction, enumerating cases instead of
+    applying Bayes. The learner is there to practise the method.
+
+    The rule is about level, not conformity: a different method of EQUAL OR
+    GREATER sophistication is a pass, and `mismatch_note` should say so. An
+    evaluator that fails elegant alternative solutions teaches learners to
+    stop thinking.
+    """
+
+    required_tools: list[str] = Field(..., description="What the lesson demanded.")
+    used_tools: list[str] = Field(..., description="What the learner actually used.")
+    ok: bool = Field(..., description="False only for a lower-level substitution.")
+    mismatch_note: str = Field(
+        "", description="If ok=false, which dodge was taken. If an alternative "
+                        "method of equal rigour was used, say that here and keep ok=true.",
+    )
+
+
+class LogicalFlaw(BaseModel):
+    """One specific break in the reasoning, located precisely."""
+
+    kind: Literal[
+        "non_sequitur",          # step does not follow from the previous one
+        "circular",              # assumes what it is trying to show
+        "unjustified_leap",      # true, but a step is missing
+        "wrong_concept",         # applied a rule that does not govern this case
+        "sign_or_algebra_slip",  # mechanical, not conceptual
+        "unit_error",
+        "scope_error",           # used a rule outside its domain of validity
+    ]
+    where: str = Field(..., description="Quote or paraphrase the exact offending step.")
+    why: str = Field(..., description="Why it is wrong, in one or two sentences.")
+    is_fatal: bool = Field(
+        ..., description="True if the conclusion does not survive this flaw.",
+    )
+
+
+class ReverseBuildEvaluation(BaseModel):
+    """
+    The audit of a learner's explanation.
+
+    Designed so a right answer reached by wrong reasoning CANNOT score a pass:
+    `answer_correct` and `reasoning_sound` are separate fields, and `verdict`
+    is driven by the reasoning. A product that rewards the number teaches
+    learners to guess.
+    """
+
+    schema_version: Literal["1.0"] = "1.0"
+    engine: Literal["reverse_build_eval"] = "reverse_build_eval"
+
+    subject: Subject
+    concept_under_test: str = Field(
+        ..., description="The lesson concept this answer was supposed to exercise.",
+    )
+
+    # Deliberately separate. Both are reported; only reasoning drives verdict.
+    answer_correct: bool = Field(..., description="Is the final answer right?")
+    reasoning_sound: bool = Field(
+        ..., description="Is the reasoning valid end to end, independent of the answer?",
+    )
+
+    tool_fidelity: ToolFidelity
+    concept_applied_correctly: Verdict = Field(
+        ..., description="Did they apply the lesson's concept, correctly, where it belongs?",
+    )
+    logical_flow: Verdict = Field(..., description="Does each step follow from the last?")
+    completeness: Verdict = Field(..., description="Are the load-bearing steps all present?")
+
+    flaws: list[LogicalFlaw] = Field(
+        default_factory=list, max_length=8,
+        description="Empty when the reasoning is sound. Ordered most serious first.",
+    )
+
+    verdict: Verdict
+    next_state: NextState
+
+    feedback: str = Field(
+        ...,
+        description="Addressed to the learner, in the language they wrote in. Names the "
+                    "gap without giving the answer away. Never says 'wrong' about a "
+                    "tool mismatch — says which method to practise.",
+    )
+    hint: str = Field(
+        "", description="One nudge toward the next step. Never the answer. "
+                        "Populated when next_state is HINTING or REVERSE_BUILD_RETRY.",
+    )
+
+
+# ── Podcast engine ───────────────────────────────────────────────────────────
+
+class PodcastFormat(str, Enum):
+    """
+    Matches the three formats the Lyceum app already ships, so a client can
+    switch between the app and the API without re-teaching their users.
+    """
+
+    STORYTELLER = "storyteller"   # 1 voice, monologue
+    EXPLORERS = "explorers"       # 2 voices, expert + student
+    GLADIATORS = "gladiators"     # 2 voices, structured disagreement
+
+
+class PodcastSegment(BaseModel):
+    """
+    One speaker turn, ready to hand straight to a TTS engine.
+
+    `spoken_text` is the hard constraint of this whole schema: it must contain
+    NO LaTeX, no markdown, no stage directions and no symbols a voice cannot
+    say. A TTS engine reads "\\frac{dy}{dx}" literally as backslash-f-r-a-c,
+    which ruins the audio — so maths is spelled out in words here, and the
+    display form travels separately in `on_screen_latex`.
+    """
+
+    speaker: str = Field(..., description="Speaker label, e.g. 'Host', 'Expert', 'Student'.")
+    spoken_text: str = Field(
+        ...,
+        description="Exactly what the voice says. Plain prose, no LaTeX, no markdown, "
+                    "no bracketed directions. Maths verbalised: 'd y by d x equals two x'.",
+    )
+    on_screen_latex: str = Field(
+        "", description="Optional bare LaTeX to display while this line plays.",
+    )
+    is_note_cue: bool = Field(
+        False,
+        description="True if the learner should be writing during this segment. Drives "
+                    "the listen-and-write flow: clients pause or flash a prompt here.",
+    )
+
+
+class PodcastScript(BaseModel):
+    schema_version: Literal["1.0"] = "1.0"
+    engine: Literal["podcast"] = "podcast"
+
+    title: str
+    subject: Subject
+    difficulty: Difficulty
+    format: PodcastFormat
+    speakers: list[str] = Field(
+        ..., min_length=1, max_length=2,
+        description="One name for storyteller, two for explorers/gladiators.",
+    )
+
+    hook: str = Field(
+        ..., description="The first 15 seconds. Earns the next minute or loses the listener.",
+    )
+    segments: list[PodcastSegment] = Field(..., min_length=3, max_length=60)
+    takeaways: list[str] = Field(
+        ..., min_length=1, max_length=5, description="What to remember, if nothing else.",
+    )
+    note_prompts: list[str] = Field(
+        default_factory=list, max_length=8,
+        description="What the learner should have written by the end — the "
+                    "listen-and-write checklist.",
+    )
+    key_terms: dict[str, str] = Field(
+        default_factory=dict, description="term -> plain meaning, spoken at least once.",
+    )
+    estimated_seconds: int = Field(
+        ..., ge=30, le=1800, description="Rough runtime at normal speaking pace.",
+    )
+
+
 # ── Envelope ─────────────────────────────────────────────────────────────────
 
 class Usage(BaseModel):
@@ -206,4 +399,14 @@ class FeynmanResponse(BaseModel):
 
 class DeconstructionResponse(BaseModel):
     data: Deconstruction
+    meta: Meta
+
+
+class ReverseBuildEvaluationResponse(BaseModel):
+    data: ReverseBuildEvaluation
+    meta: Meta
+
+
+class PodcastResponse(BaseModel):
+    data: PodcastScript
     meta: Meta

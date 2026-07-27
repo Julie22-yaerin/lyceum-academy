@@ -34,13 +34,21 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .config import DEFAULT_CONFIG, Provider
-from .engines import FeynmanEngine, ReverseBuildingEngine
+from .engines import (
+    FeynmanEngine,
+    PodcastEngine,
+    ReverseBuildEvaluatorEngine,
+    ReverseBuildingEngine,
+)
 from .errors import HarnessError, MissingCredentials
 from .guardrails import validate_input
 from .schemas import (
     DeconstructionResponse,
     Difficulty,
     FeynmanResponse,
+    PodcastFormat,
+    PodcastResponse,
+    ReverseBuildEvaluationResponse,
     Subject,
 )
 
@@ -74,8 +82,9 @@ app = FastAPI(
     title="The Lyceum — STEM Deconstruction Harness",
     version="1.0.0",
     description=(
-        "Two prompt-engineered STEM engines behind a strict JSON contract. "
-        "Bring your own LLM key."
+        "Prompt-engineered STEM engines behind a strict JSON contract: Feynman "
+        "breakdown, reverse-build answer auditing, first-principles "
+        "deconstruction, and TTS-ready podcast scripting. Bring your own LLM key."
     ),
     lifespan=lifespan,
 )
@@ -113,6 +122,38 @@ class DeconstructRequest(BaseModel):
     target: str = Field(..., description="The theorem, law or system to deconstruct.")
     subject: Subject = Subject.OTHER
     difficulty: Difficulty = Difficulty.A_LEVEL
+    integrator_notes: str | None = None
+    strict_stem: bool = False
+
+
+class EvaluateRequest(BaseModel):
+    """
+    The learner's explanation plus the context needed to judge it.
+
+    `required_tools` is what makes the tool-fidelity gate work: without it the
+    auditor can only check that the reasoning holds, not that the learner
+    exercised the method the lesson was about.
+    """
+
+    explanation: str = Field(..., description="The learner's own words. Judged as-is.")
+    problem: str = Field(..., description="The original problem statement.")
+    concept: str = Field(..., description="The lesson concept under test, e.g. 'chain rule'.")
+    required_tools: list[str] = Field(
+        default_factory=list,
+        description="Method(s) the lesson demands, e.g. ['chain rule']. Strongly recommended.",
+    )
+    reference_answer: str = Field("", description="Optional known-correct answer.")
+    subject: Subject = Subject.OTHER
+    integrator_notes: str | None = None
+
+
+class PodcastRequest(BaseModel):
+    material: str = Field(..., description="Study material to adapt into audio.")
+    format: PodcastFormat = PodcastFormat.EXPLORERS
+    subject: Subject = Subject.OTHER
+    difficulty: Difficulty = Difficulty.A_LEVEL
+    minutes: int = Field(5, ge=1, le=20, description="Target runtime. Clamped to 1-20.")
+    topic: str = Field("", description="Optional focus within the material.")
     integrator_notes: str | None = None
     strict_stem: bool = False
 
@@ -279,3 +320,75 @@ async def deconstruct(
         request_id=request.state.request_id,
     )
     return DeconstructionResponse(data=data, meta=meta)
+
+
+@app.post("/v1/reverse-build/evaluate", response_model=ReverseBuildEvaluationResponse,
+          tags=["engines"])
+async def reverse_build_evaluate(
+    body: EvaluateRequest,
+    request: Request,
+    x_llm_api_key: str | None = Header(None, alias="X-LLM-API-Key"),
+    x_llm_provider: str | None = Header(None, alias="X-LLM-Provider"),
+    x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
+):
+    """
+    Audit a learner's explanation: is the reasoning logically sound, and did
+    they apply the lesson's concept correctly?
+
+    Returns `next_state` (HINTING / REVERSE_BUILD_RETRY / TRANSFER_TEST) so your
+    app can route the learner without implementing a grading policy of its own.
+
+    Note that `answer_correct` and `reasoning_sound` are reported separately and
+    the verdict follows the reasoning — a right answer reached by a broken route
+    does not pass.
+    """
+    key, provider, model = _credentials(x_llm_api_key, x_llm_provider, x_llm_model)
+    engine = ReverseBuildEvaluatorEngine(
+        api_key=key, provider=provider, model=model,
+        config=DEFAULT_CONFIG, http_client=_pool(request),
+    )
+    data, meta = await engine.run(
+        body.explanation,
+        problem=body.problem,
+        concept=body.concept,
+        required_tools=body.required_tools,
+        reference_answer=body.reference_answer,
+        subject=body.subject,
+        integrator_notes=body.integrator_notes,
+        request_id=request.state.request_id,
+    )
+    return ReverseBuildEvaluationResponse(data=data, meta=meta)
+
+
+@app.post("/v1/podcast", response_model=PodcastResponse, tags=["engines"])
+async def podcast(
+    body: PodcastRequest,
+    request: Request,
+    x_llm_api_key: str | None = Header(None, alias="X-LLM-API-Key"),
+    x_llm_provider: str | None = Header(None, alias="X-LLM-Provider"),
+    x_llm_model: str | None = Header(None, alias="X-LLM-Model"),
+):
+    """
+    Turn study material into a TTS-ready podcast script with note cues.
+
+    Every `spoken_text` is safe to send straight to a speech engine: no LaTeX,
+    no markdown, no stage directions, maths verbalised. Display forms travel in
+    `on_screen_latex`, and `is_note_cue` marks the lines worth writing down.
+    """
+    key, provider, model = _credentials(x_llm_api_key, x_llm_provider, x_llm_model)
+    engine = PodcastEngine(
+        api_key=key, provider=provider, model=model,
+        config=DEFAULT_CONFIG, http_client=_pool(request),
+    )
+    data, meta = await engine.run(
+        body.material,
+        format=body.format,
+        subject=body.subject,
+        difficulty=body.difficulty,
+        minutes=body.minutes,
+        topic=body.topic,
+        integrator_notes=body.integrator_notes,
+        strict_stem=body.strict_stem,
+        request_id=request.state.request_id,
+    )
+    return PodcastResponse(data=data, meta=meta)
