@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.venv/
+venv/
+# The harness reads no key from the environment, but an operator's local .env may
+# hold provider keys for manual testing.
+.env
+.env.local
