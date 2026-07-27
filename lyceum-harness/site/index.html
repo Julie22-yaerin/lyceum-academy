@@ -82,6 +82,7 @@
   .nav-links a{color:var(--ink-2);text-decoration:none;transition:color .18s}
   .nav-links a:hover,.nav-links a:focus-visible{color:#fff}
   @media(max-width:820px){.nav-links{display:none}}
+  @media(max-width:560px){.nav-beta{display:none}}
 
   .btn{
     display:inline-flex;align-items:center;gap:8px;border-radius:12px;
@@ -191,12 +192,16 @@
     <a class="brand" href="#top"><span class="brand-dot"></span>The Lyceum <span style="color:var(--ink-3)">Harness</span></a>
     <nav class="nav-links">
       <a href="#engines">Engines</a>
+      <a href="#showroom">Showroom</a>
       <a href="#why">Why buy</a>
       <a href="#integrate">Integrate</a>
       <a href="#pricing">Pricing</a>
       <a href="#faq">FAQ</a>
     </nav>
-    <a class="btn btn-primary" href="#contact">Request access</a>
+    <div style="display:flex;gap:10px">
+      <a class="btn btn-ghost nav-beta" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+      <a class="btn btn-primary" href="#contact">Request access</a>
+    </div>
   </div>
 </header>
 
@@ -211,19 +216,20 @@
     never becomes your outage. Bring your own LLM key — we never hold it.
   </p>
   <div class="hero-cta">
-    <a class="btn btn-primary" href="#pricing">See pricing</a>
-    <a class="btn btn-ghost" href="#engines">What's in it</a>
+    <a class="btn btn-primary" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+    <a class="btn btn-ghost" href="#showroom">See the skill showroom</a>
+    <a class="btn btn-ghost" href="#pricing">See pricing</a>
   </div>
   <p class="hero-note">
-    Python 3.10+ · FastAPI reference server included · Gemini &amp; OpenAI ·
+    Python 3.10+ · FastAPI reference server included · Gemini, OpenAI &amp; Anthropic ·
     API licence or full source licence
   </p>
 
   <div class="stats">
-    <div class="stat"><b>4</b><span>LEARNING ENGINES</span></div>
+    <div class="stat"><b>6</b><span>SKILL PLUG-INS</span></div>
     <div class="stat"><b>1</b><span>JSON CONTRACT</span></div>
     <div class="stat"><b>0</b><span>KEYS WE STORE</span></div>
-    <div class="stat"><b>35</b><span>TESTS, NO NETWORK</span></div>
+    <div class="stat"><b>81</b><span>TESTS, NO NETWORK</span></div>
   </div>
 </div>
 
@@ -311,6 +317,82 @@
       guardrails with no LLM call. Free, instant, no key required, so you can
       pre-check in your own UI before anything becomes billable.
     </p>
+  </div>
+</section>
+
+<div class="wrap"><div class="rule"></div></div>
+
+<!-- ── Showroom ─────────────────────────────────────────────────────────── -->
+<section id="showroom">
+  <div class="wrap">
+    <p class="eyebrow">The skill showroom</p>
+    <h2 style="margin:12px 0 14px"><span class="metallic">Every engine above is a skill. License them loose, or license the router.</span></h2>
+    <p class="lead" style="margin-bottom:34px">
+      Feynman, Reverse Building, the auditor, the podcast producer — these aren't
+      four separate products stitched together. They're skill plug-ins behind one
+      intent classifier, <b>The Lyceum STEM Learning Orchestrator</b>: send it a
+      learner's question, and it routes to the right skill (or chain of skills)
+      itself. Two of the six make zero LLM calls, by design.
+    </p>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Skill</th><th>Cost</th><th>Handles</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Personalize Context</b></td>
+            <td><code>0 calls</code> · local</td>
+            <td>every request</td>
+            <td>Level &amp; subject → directives every other skill obeys. A lookup, not a reasoning task.</td>
+          </tr>
+          <tr>
+            <td><b>Pedagogical Humanizer</b></td>
+            <td><code>0 calls</code> by default</td>
+            <td>every request</td>
+            <td>Tone folded into the producing prompts for free; a <code>rewrite</code> mode costs one call if you want a separate humanized pass.</td>
+          </tr>
+          <tr>
+            <td><b>Feynman Breakdown</b></td>
+            <td><code>1 call</code></td>
+            <td>explain_concept</td>
+            <td>Rebuilds one concept in plain language. Every analogy must declare where it breaks down.</td>
+          </tr>
+          <tr>
+            <td><b>Reverse Building</b></td>
+            <td><code>1 call</code></td>
+            <td>deconstruct_system</td>
+            <td>Derives a result from first principles, axioms flagged, so learners see it was assembled, not handed down.</td>
+          </tr>
+          <tr>
+            <td><b>Reverse Build Auditor</b></td>
+            <td><code>1 call</code></td>
+            <td>grading / feedback</td>
+            <td>Checks whether a learner's own answer is logically sound and actually applies the lesson's concept — not just whether it's correct.</td>
+          </tr>
+          <tr>
+            <td><b>Podcast Producer</b></td>
+            <td><code>1 call</code></td>
+            <td>study material in</td>
+            <td>TTS-safe script out — three formats, maths verbalised, nothing a speech engine would misread.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p class="dim" style="margin-top:20px">
+      The router itself ships as <code style="font-family:var(--mono);color:var(--cyan)">POST /v1/orchestrate</code>
+      (classify → plan → chain → respond) and
+      <code style="font-family:var(--mono);color:var(--cyan)">POST /v1/classify</code>
+      (preview the plan and its cost before committing) — both BYOK across
+      Gemini, OpenAI and Anthropic.
+    </p>
+
+    <div class="hero-cta" style="margin-top:28px">
+      <a class="btn btn-primary" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+      <a class="btn btn-ghost" href="#pricing">See pricing</a>
+    </div>
   </div>
 </section>
 
@@ -596,7 +678,7 @@ engine = <b>PodcastEngine</b>(api_key=user_key, provider=<span class="s">"gemini
 
     <details>
       <summary>Which LLM providers work?</summary>
-      <p>Gemini and OpenAI are wired and tested, with per-request model override so you can trade cost against quality without a new release. Anthropic, Azure OpenAI and Bedrock are a single branch in one function — ask, and it's a small piece of work rather than a redesign.</p>
+      <p>Gemini and OpenAI are wired and tested on the four engines, with per-request model override so you can trade cost against quality without a new release. The Orchestrator (the skill router — see the showroom above) adds Anthropic natively: each provider needs a different structured-output mechanism under the hood, and that plumbing is already done. Azure OpenAI and Bedrock are a single branch in one function — ask, and it's a small piece of work rather than a redesign.</p>
     </details>
 
     <details>
@@ -657,7 +739,7 @@ engine = <b>PodcastEngine</b>(api_key=user_key, provider=<span class="s">"gemini
 <footer>
   <div class="wrap foot">
     <span class="dim">© <span id="yr">2026</span> The Lyceum. Proprietary. All rights reserved.</span>
-    <span class="dim">Harness v1.0.0 · schema_version 1.0</span>
+    <span class="dim">Harness v1.0.0 · Orchestrator v1.0.0 · schema_version 1.0</span>
   </div>
 </footer>
 

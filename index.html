@@ -1,489 +1,750 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flow Wave</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Lyceum Harness — Learning engines for EdTech SaaS</title>
+<meta name="description" content="Production-ready STEM learning engines behind a strict JSON contract: Feynman breakdown, reverse-build answer auditing, first-principles deconstruction, TTS-ready podcast scripting. Bring your own LLM key. License the API or the source.">
+
+<!-- Open Graph -->
+<meta property="og:title" content="The Lyceum Harness — Learning engines for EdTech SaaS">
+<meta property="og:description" content="Stop rebuilding the prompt layer. Four STEM learning engines, strict JSON out, BYOK. License the API or the source code.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; width: 100%; background: #000; overflow-x: hidden; }
-  #scene { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; }
-  #scroll-host { height: 620vh; width: 100%; }
-  #scroll-hint {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    color: rgba(52, 232, 154, 0.35); font: 700 11px/1 system-ui, sans-serif;
-    text-transform: uppercase; letter-spacing: 0.15em; pointer-events: none;
-    opacity: 0.6; transition: opacity 0.5s ease;
+  /* ── Tokens ──────────────────────────────────────────────────────────── */
+  :root{
+    --bg:#050508; --bg-2:#0a0a12; --line:rgba(255,255,255,.09);
+    --ink:#e8e9f0; --ink-2:#9aa0b4; --ink-3:#6b7089;
+    --violet:#a78bfa; --cyan:#22d3ee; --emerald:#34d399; --amber:#fbbf24;
+    --r:18px; --maxw:1140px;
+    --serif:'Instrument Serif',Georgia,serif;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --mono:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
   }
-  @media (prefers-reduced-motion: reduce) {
-    #scroll-hint { display: none; }
+  *,*::before,*::after{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased;
+    overflow-x:hidden;
+  }
+  /* Ambient wash. Fixed + pointer-events:none so it never eats a click. */
+  body::before{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:
+      radial-gradient(60rem 40rem at 15% -5%,rgba(167,139,250,.16),transparent 60%),
+      radial-gradient(50rem 34rem at 92% 8%,rgba(34,211,238,.10),transparent 60%),
+      radial-gradient(46rem 30rem at 50% 105%,rgba(52,211,153,.07),transparent 60%);
+  }
+  .wrap{position:relative;z-index:1;max-width:var(--maxw);margin:0 auto;padding:0 clamp(20px,4vw,32px)}
+  a{color:inherit}
+  h1,h2,h3{margin:0;line-height:1.15;font-weight:400}
+  h1{font-family:var(--serif);font-size:clamp(2.6rem,6.4vw,4.6rem);letter-spacing:-.01em}
+  h2{font-family:var(--serif);font-size:clamp(1.9rem,4vw,2.9rem)}
+  h3{font-size:1.06rem;font-weight:600;letter-spacing:-.01em}
+  p{margin:0}
+  .metallic{
+    background:linear-gradient(180deg,#fff 0%,#e2e5f0 35%,#a8adc4 55%,#fff 75%,#cdd1e0 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    color:transparent;
+  }
+  .eyebrow{
+    font-size:.7rem;font-weight:600;letter-spacing:.22em;text-transform:uppercase;
+    color:var(--ink-3);
+  }
+  .lead{color:var(--ink-2);font-size:clamp(1.02rem,1.6vw,1.16rem);max-width:60ch}
+  .muted{color:var(--ink-2)}
+  .dim{color:var(--ink-3);font-size:.86rem}
+
+  .glass{
+    background:rgba(255,255,255,.035);border:1px solid var(--line);
+    border-radius:var(--r);backdrop-filter:blur(12px);
+  }
+  section{padding:clamp(64px,9vh,110px) 0;position:relative;z-index:1}
+  /* Anchor links must not park their heading behind the sticky header. */
+  [id]{scroll-margin-top:88px}
+  .rule{height:1px;background:linear-gradient(90deg,transparent,var(--line),transparent)}
+
+  /* ── Nav ─────────────────────────────────────────────────────────────── */
+  header{position:sticky;top:0;z-index:50;backdrop-filter:blur(16px);
+    background:rgba(5,5,8,.72);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 0}
+  .brand{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-size:1.16rem;
+    letter-spacing:.02em;text-decoration:none;white-space:nowrap}
+  .brand-dot{width:9px;height:9px;border-radius:50%;
+    background:linear-gradient(135deg,var(--violet),var(--cyan));flex:none}
+  .nav-links{display:flex;gap:26px;font-size:.9rem}
+  .nav-links a{color:var(--ink-2);text-decoration:none;transition:color .18s}
+  .nav-links a:hover,.nav-links a:focus-visible{color:#fff}
+  @media(max-width:820px){.nav-links{display:none}}
+  @media(max-width:560px){.nav-beta{display:none}}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;border-radius:12px;
+    padding:11px 20px;font-size:.82rem;font-weight:600;letter-spacing:.04em;
+    text-transform:uppercase;text-decoration:none;cursor:pointer;
+    border:1px solid transparent;transition:transform .16s,background .18s,border-color .18s;
+    white-space:nowrap;
+  }
+  .btn:hover{transform:translateY(-1px)}
+  .btn-primary{background:#fff;color:#07070c}
+  .btn-primary:hover{background:#e9e9f2}
+  .btn-ghost{background:rgba(255,255,255,.06);color:var(--ink);border-color:var(--line)}
+  .btn-ghost:hover{background:rgba(255,255,255,.11)}
+  :focus-visible{outline:2px solid var(--violet);outline-offset:3px;border-radius:6px}
+
+  /* ── Hero ────────────────────────────────────────────────────────────── */
+  .hero{padding:clamp(60px,11vh,120px) 0 clamp(48px,7vh,80px)}
+  .hero h1{margin:18px 0 22px;max-width:20ch}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:12px;margin-top:32px}
+  .hero-note{margin-top:18px;font-size:.84rem;color:var(--ink-3)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    margin-top:56px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);
+    overflow:hidden}
+  .stat{background:var(--bg);padding:20px 22px}
+  .stat b{display:block;font-family:var(--serif);font-size:1.85rem;font-weight:400}
+  .stat span{font-size:.78rem;color:var(--ink-3);letter-spacing:.04em}
+
+  /* ── Grids ───────────────────────────────────────────────────────────── */
+  .grid{display:grid;gap:18px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(268px,1fr))}
+  .card{padding:26px}
+  .card h3{margin-bottom:9px}
+  .card p{color:var(--ink-2);font-size:.93rem}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.68rem;padding:3px 9px;
+    border-radius:6px;border:1px solid var(--line);color:var(--ink-3);margin-bottom:14px}
+  .t-violet{color:var(--violet);border-color:rgba(167,139,250,.34);background:rgba(167,139,250,.09)}
+  .t-cyan{color:var(--cyan);border-color:rgba(34,211,238,.34);background:rgba(34,211,238,.09)}
+  .t-emerald{color:var(--emerald);border-color:rgba(52,211,153,.34);background:rgba(52,211,153,.09)}
+  .t-amber{color:var(--amber);border-color:rgba(251,191,36,.34);background:rgba(251,191,36,.09)}
+
+  ul.ticks{list-style:none;margin:16px 0 0;padding:0;display:grid;gap:9px}
+  ul.ticks li{position:relative;padding-left:22px;font-size:.9rem;color:var(--ink-2)}
+  ul.ticks li::before{content:'';position:absolute;left:0;top:.55em;width:9px;height:9px;
+    border-radius:2px;background:linear-gradient(135deg,var(--violet),var(--cyan))}
+
+  /* ── Code ────────────────────────────────────────────────────────────── */
+  .code{
+    font-family:var(--mono);font-size:.78rem;line-height:1.75;
+    background:#07070d;border:1px solid var(--line);border-radius:14px;
+    padding:18px 20px;overflow-x:auto;color:#c8cbdb;margin:0;
+    -webkit-overflow-scrolling:touch;
+  }
+  .code .c{color:#5d6377}          /* comment  */
+  .code .k{color:var(--violet)}    /* keyword  */
+  .code .s{color:var(--emerald)}   /* string   */
+  .code .n{color:var(--amber)}     /* number/bool */
+  .code .p{color:var(--cyan)}      /* property */
+  .code b{color:#fff;font-weight:500}
+  .code-label{font-family:var(--mono);font-size:.68rem;color:var(--ink-3);
+    margin-bottom:8px;letter-spacing:.06em}
+
+  /* ── Pricing ─────────────────────────────────────────────────────────── */
+  .tiers{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+    align-items:stretch}
+  .tier{display:flex;flex-direction:column;padding:28px}
+  .tier.featured{border-color:rgba(167,139,250,.4);
+    box-shadow:0 0 0 1px rgba(167,139,250,.16),0 22px 60px -30px rgba(167,139,250,.5)}
+  .tier .price{font-family:var(--serif);font-size:2.1rem;margin:14px 0 4px}
+  .tier .price small{font-family:var(--sans);font-size:.8rem;color:var(--ink-3)}
+  .tier .btn{margin-top:auto;width:100%;justify-content:center}
+  .badge{position:absolute;top:-11px;left:28px;font-size:.62rem;font-weight:700;
+    letter-spacing:.14em;text-transform:uppercase;padding:4px 11px;border-radius:20px;
+    background:linear-gradient(135deg,var(--violet),var(--cyan));color:#07070c}
+
+  /* ── Table ───────────────────────────────────────────────────────────── */
+  .table-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r)}
+  table{border-collapse:collapse;width:100%;min-width:560px;font-size:.88rem}
+  th,td{text-align:left;padding:13px 18px;border-bottom:1px solid var(--line)}
+  th{font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+    font-weight:600;background:rgba(255,255,255,.02)}
+  tbody tr:last-child td{border-bottom:none}
+  td code{font-family:var(--mono);font-size:.8rem;color:var(--cyan)}
+
+  /* ── FAQ ─────────────────────────────────────────────────────────────── */
+  details{border-bottom:1px solid var(--line);padding:18px 0}
+  details summary{cursor:pointer;font-weight:600;font-size:1rem;list-style:none;
+    display:flex;justify-content:space-between;gap:16px;align-items:baseline}
+  details summary::-webkit-details-marker{display:none}
+  details summary::after{content:'+';color:var(--ink-3);font-size:1.3rem;line-height:1;flex:none}
+  details[open] summary::after{content:'–'}
+  details p{margin-top:12px;color:var(--ink-2);font-size:.93rem;max-width:74ch}
+
+  footer{border-top:1px solid var(--line);padding:40px 0;position:relative;z-index:1}
+  .foot{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-between;align-items:center}
+
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important}
+    html{scroll-behavior:auto}
   }
 </style>
 </head>
 <body>
-<canvas id="scene"></canvas>
-<div id="scroll-host"></div>
-<div id="scroll-hint">scroll ↓</div>
 
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://unpkg.com/three@0.143.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.143.0/examples/jsm/"
-  }
-}
-</script>
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top"><span class="brand-dot"></span>The Lyceum <span style="color:var(--ink-3)">Harness</span></a>
+    <nav class="nav-links">
+      <a href="#engines">Engines</a>
+      <a href="#showroom">Showroom</a>
+      <a href="#why">Why buy</a>
+      <a href="#integrate">Integrate</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <div style="display:flex;gap:10px">
+      <a class="btn btn-ghost nav-beta" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+      <a class="btn btn-primary" href="#contact">Request access</a>
+    </div>
+  </div>
+</header>
 
-<script type="module">
-import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
-import { GammaCorrectionShader } from 'three/addons/shaders/GammaCorrectionShader.js';
-import { CopyShader } from 'three/addons/shaders/CopyShader.js';
+<!-- ── Hero ─────────────────────────────────────────────────────────────── -->
+<div id="top" class="wrap hero">
+  <p class="eyebrow">Learning infrastructure for EdTech SaaS &amp; study tools</p>
+  <h1><span class="metallic">Your users want a tutor. Not a chatbot.</span></h1>
+  <p class="lead">
+    Four STEM learning engines, packaged as a production harness: guardrails that
+    reject junk before it costs you a token, output that validates against a
+    strict JSON schema every time, and a resilience layer so a provider hiccup
+    never becomes your outage. Bring your own LLM key — we never hold it.
+  </p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+    <a class="btn btn-ghost" href="#showroom">See the skill showroom</a>
+    <a class="btn btn-ghost" href="#pricing">See pricing</a>
+  </div>
+  <p class="hero-note">
+    Python 3.10+ · FastAPI reference server included · Gemini, OpenAI &amp; Anthropic ·
+    API licence or full source licence
+  </p>
 
-/* ==================== CONSTANTS ==================== */
-const LAYERS = { NONE: 0, TORUS_SCENE: 1, BLOOM_SCENE: 2, ENTIRE_SCENE: 3 };
+  <div class="stats">
+    <div class="stat"><b>6</b><span>SKILL PLUG-INS</span></div>
+    <div class="stat"><b>1</b><span>JSON CONTRACT</span></div>
+    <div class="stat"><b>0</b><span>KEYS WE STORE</span></div>
+    <div class="stat"><b>81</b><span>TESTS, NO NETWORK</span></div>
+  </div>
+</div>
 
-const bgColor       = '#02160c';
-const flameColor    = '#0aff7f';
-const flameColor2   = '#aef0c0';
-const flameAmt      = 0.2;
-const atmoColor     = '#7affbf';
-const atmoCount     = 300;
-const atmoSize      = 24;
-const atmoSpeed     = 1.0;
-const colorLow      = '#02160c';
-const colorHigh     = '#34e89a';
-const opacity       = 0.26;
-const pointSize     = 5.5;
-const brightness    = 0.45;
-const waveHeight    = 3;
-const flow          = 1;
-const tilt          = 0;
-const scale         = 0.275;
-const scrollRise    = 1.0;
-const camStartY     = 7,  camStartZ = 16;
-const camEndY       = 0.8, camEndZ  = -2;
-const lookStartZ    = 2,  lookEndZ  = -16;
-const parallax      = 1.2;
-const pointerRadius = 7.0;
-const pointerStrength = 0.9;
+<div class="wrap"><div class="rule"></div></div>
 
-const Lerp = (a, b, t) => a + (b - a) * t;
-const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-function hexToVec3(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return new THREE.Vector3(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
-}
+<!-- ── Engines ──────────────────────────────────────────────────────────── -->
+<section id="engines">
+  <div class="wrap">
+    <p class="eyebrow">The engines</p>
+    <h2 style="margin:12px 0 14px"><span class="metallic">Four endpoints. Each one a feature you'd otherwise spend a quarter building.</span></h2>
+    <p class="lead" style="margin-bottom:38px">
+      Every response is validated against a Pydantic schema before it leaves the
+      harness. You render fields — you never parse Markdown, never regex a
+      bullet list, never handle "the model added a preamble today".
+    </p>
 
-/* ==================== SIMPLEX NOISE GLSL ==================== */
-const SNOISE = `
-vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
-vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
-float snoise(vec3 v){
-  const vec2 C = vec2(1.0/6.0, 1.0/3.0); const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
-  vec3 i = floor(v + dot(v, C.yyy)); vec3 x0 = v - i + dot(i, C.xxx);
-  vec3 g = step(x0.yzx, x0.xyz); vec3 l = 1.0 - g;
-  vec3 i1 = min(g.xyz, l.zxy); vec3 i2 = max(g.xyz, l.zxy);
-  vec3 x1 = x0 - i1 + 1.0 * C.xxx; vec3 x2 = x0 - i2 + 2.0 * C.xxx; vec3 x3 = x0 - 1.0 + 3.0 * C.xxx;
-  i = mod(i, 289.0);
-  vec4 p = permute(permute(permute(i.z + vec4(0.0, i1.z, i2.z, 1.0)) + i.y + vec4(0.0, i1.y, i2.y, 1.0)) + i.x + vec4(0.0, i1.x, i2.x, 1.0));
-  float n_ = 1.0/7.0; vec3 ns = n_ * D.wyz - D.xzx;
-  vec4 j = p - 49.0 * floor(p * ns.z *ns.z);
-  vec4 x_ = floor(j * ns.z); vec4 y_ = floor(j - 7.0 * x_);
-  vec4 x = x_ *ns.x + ns.yyyy; vec4 y = y_ *ns.x + ns.yyyy; vec4 h = 1.0 - abs(x) - abs(y);
-  vec4 b0 = vec4(x.xy, y.xy); vec4 b1 = vec4(x.zw, y.zw);
-  vec4 s0 = floor(b0)*2.0 + 1.0; vec4 s1 = floor(b1)*2.0 + 1.0; vec4 sh = -step(h, vec4(0.0));
-  vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy; vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww;
-  vec3 p0 = vec3(a0.xy,h.x); vec3 p1 = vec3(a0.zw,h.y); vec3 p2 = vec3(a1.xy,h.z); vec3 p3 = vec3(a1.zw,h.w);
-  vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
-  p0 *= norm.x; p1 *= norm.y; p2 *= norm.z; p3 *= norm.w;
-  vec4 m = max(0.5 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0); m = m * m;
-  return 42.0 * dot(m*m, vec4(dot(p0,x0), dot(p1,x1), dot(p2,x2), dot(p3,x3)));
-}
-`;
+    <div class="grid g2">
+      <article class="glass card">
+        <span class="tag t-violet">POST /v1/reverse-build/evaluate</span>
+        <h3>Reverse Build Auditor</h3>
+        <p>
+          A learner explains their solution in their own words. The auditor checks
+          whether the <b>reasoning is logically sound</b> and whether they actually
+          <b>applied the concept the lesson was teaching</b> — then returns the next
+          state so your app can route them without writing a grading policy.
+        </p>
+        <ul class="ticks">
+          <li><b>A right answer by broken reasoning does not pass.</b> <code style="font-family:var(--mono);font-size:.8rem">answer_correct</code> and <code style="font-family:var(--mono);font-size:.8rem">reasoning_sound</code> are separate fields, and the verdict follows the reasoning.</li>
+          <li>Every flaw is located and typed: non-sequitur, circular, unjustified leap, wrong concept, scope error, algebra slip.</li>
+          <li>Tool-fidelity gate: catches the learner who counts rectangles instead of integrating — but <b>passes a more sophisticated alternative method</b>.</li>
+          <li>Returns <code style="font-family:var(--mono);font-size:.8rem">HINTING</code> / <code style="font-family:var(--mono);font-size:.8rem">REVERSE_BUILD_RETRY</code> / <code style="font-family:var(--mono);font-size:.8rem">TRANSFER_TEST</code>.</li>
+        </ul>
+      </article>
 
-/* ==================== POINTS SHADERS ==================== */
-const pointsVert = `
-uniform float uTime; uniform float uStream; uniform float uSize; uniform float uWaveHeight; uniform float uFlow; uniform float uScale;
-uniform vec3 uColLow; uniform vec3 uColHigh;
-uniform vec3 uCursor; uniform float uRepelRadius; uniform float uRepelStrength; uniform float uActivity;
-varying float vFade; varying vec3 vColor;
-${SNOISE}
-void main() {
-  vec3 wp = vec3(position.x * 13.0, 0.0, position.z * 25.0);
-  wp.x += position.y * 6.0;
-  float zc = wp.z + uStream;
-  float wn = snoise(vec3(wp.x * 0.08, zc * 0.08, uTime * 0.15 * uFlow)) * 2.0;
-  wn += snoise(vec3(wp.x * 0.16, zc * 0.16, uTime * 0.3 * uFlow)) * 0.8;
-  wp.y += wn * uWaveHeight;
+      <article class="glass card">
+        <span class="tag t-amber">POST /v1/podcast</span>
+        <h3>Podcast Producer</h3>
+        <p>
+          Study material in, a script a speech engine can read <b>unedited</b> out.
+          Three formats matching how people actually listen: one-voice
+          Storyteller, two-voice Explorers (expert + student), and Gladiators
+          (structured, resolving disagreement).
+        </p>
+        <ul class="ticks">
+          <li><b>TTS-safe by construction.</b> No LaTeX, no markdown, no stage directions in spoken text — maths is verbalised ("d y by d x"), because a voice reads <code style="font-family:var(--mono);font-size:.8rem">\frac</code> aloud as letters.</li>
+          <li>Display LaTeX travels separately in <code style="font-family:var(--mono);font-size:.8rem">on_screen_latex</code>, so you can show and speak the same equation.</li>
+          <li><b>Listen-and-write:</b> <code style="font-family:var(--mono);font-size:.8rem">is_note_cue</code> flags the lines worth writing down, plus a note checklist.</li>
+          <li>Hits a target duration from a real word count, not a guess.</li>
+        </ul>
+      </article>
 
-  vec3 finalPos = wp * uScale;
-  vec4 modelPosition = modelMatrix * vec4(finalPos, 1.0);
-  vec3 toP = modelPosition.xyz - uCursor;
-  float cd = length(toP);
-  float fall = smoothstep(uRepelRadius, 0.0, cd);
-  modelPosition.xyz += normalize(toP + vec3(0.0001)) * fall * uRepelStrength * uActivity;
-  vec4 mvPosition = viewMatrix * modelPosition;
+      <article class="glass card">
+        <span class="tag t-cyan">POST /v1/feynman</span>
+        <h3>Feynman Breakdown</h3>
+        <p>
+          One concept, rebuilt for a learner who lacks the vocabulary — simplify
+          the language, never the physics. The commercial payload is
+          <code style="font-family:var(--mono);font-size:.8rem">knowledge_gaps</code>: what to teach
+          <em>first</em>, each with a diagnostic question whose wrong answer proves
+          the gap is real.
+        </p>
+        <ul class="ticks">
+          <li><b>Every analogy must declare where it breaks.</b> Required field — an analogy without its limits installs a misconception.</li>
+          <li>Jargon dictionary for tooltips, plus the single most common wrong mental model, stated then corrected.</li>
+        </ul>
+      </article>
 
-  float colMix = smoothstep(-3.0, 3.0, position.y + position.x * 0.5);
-  vColor = mix(uColLow, uColHigh, clamp(colMix, 0.0, 1.0));
-  vFade = 1.0;
+      <article class="glass card">
+        <span class="tag t-emerald">POST /v1/deconstruct</span>
+        <h3>First-Principles Deconstruction</h3>
+        <p>
+          Take a theorem or system apart to its primitives, then show the ladder
+          back up. Learners see the result was assembled, not handed down.
+        </p>
+        <ul class="ticks">
+          <li>Building blocks flagged axiomatic vs derived — a derivation that hides its axioms is a magic trick.</li>
+          <li>Every rule carries its domain of validity; every step names the method it requires.</li>
+          <li><code style="font-family:var(--mono);font-size:.8rem">collapses_if</code>: remove which assumption and the structure fails. Excellent exam-question material.</li>
+        </ul>
+      </article>
+    </div>
 
-  gl_PointSize = uSize * (10.0 / -mvPosition.z);
-  gl_PointSize = max(gl_PointSize, 1.5);
-  gl_Position = projectionMatrix * mvPosition;
-}
-`;
+    <p class="dim" style="margin-top:20px">
+      Plus <code style="font-family:var(--mono);color:var(--cyan)">POST /v1/validate</code> — run the
+      guardrails with no LLM call. Free, instant, no key required, so you can
+      pre-check in your own UI before anything becomes billable.
+    </p>
+  </div>
+</section>
 
-const pointsFrag = `
-uniform float uOpacity; uniform float uBrightness; uniform float uAppear;
-varying float vFade; varying vec3 vColor;
-void main() {
-  vec2 xy = gl_PointCoord - 0.5;
-  float ll = length(xy);
-  if (ll > 0.5) discard;
-  float a = smoothstep(0.5, 0.1, ll);
-  gl_FragColor = vec4(vColor * uBrightness, vFade * a * uOpacity * uAppear);
-}
-`;
+<div class="wrap"><div class="rule"></div></div>
 
-/* ==================== FINALPASS SHADERS ==================== */
-const finalVert = `
-varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position, 1.0); }
-`;
+<!-- ── Showroom ─────────────────────────────────────────────────────────── -->
+<section id="showroom">
+  <div class="wrap">
+    <p class="eyebrow">The skill showroom</p>
+    <h2 style="margin:12px 0 14px"><span class="metallic">Every engine above is a skill. License them loose, or license the router.</span></h2>
+    <p class="lead" style="margin-bottom:34px">
+      Feynman, Reverse Building, the auditor, the podcast producer — these aren't
+      four separate products stitched together. They're skill plug-ins behind one
+      intent classifier, <b>The Lyceum STEM Learning Orchestrator</b>: send it a
+      learner's question, and it routes to the right skill (or chain of skills)
+      itself. Two of the six make zero LLM calls, by design.
+    </p>
 
-const finalFrag = `
-uniform float iTime; uniform sampler2D tDiffuse; uniform sampler2D bloomTexture; uniform sampler2D torusTexture; uniform sampler2D haloTexture;
-uniform vec3 uBg; uniform vec3 uFlameA; uniform vec3 uFlameB; uniform float uFlameAmt;
-varying vec2 vUv;
-vec3 warp3d(vec3 pos, float t){ float curv=.8,a=1.9,b=0.7; pos*=2.;
-  pos.x+=curv*sin(t+a*pos.y)+t*b; pos.y+=curv*cos(t+a*pos.x);
-  pos.y+=curv*sin(t+a*pos.z)+t*b; pos.z+=curv*cos(t+a*pos.y);
-  pos.z+=curv*sin(t+a*pos.x)+t*b; pos.x+=curv*cos(t+a*pos.z);
-  return 0.5+0.5*cos(pos.xyz+vec3(1,2,4)); }
-void main(){
-  vec2 uv = 2.*vUv - 1.;
-  vec3 w = pow(warp3d(vec3(uv.x, sin(uv.y), uv.y), iTime*1.5), vec3(1.5));
-  vec3 flame = 1.5*uFlameA*w.x; flame*=w.y; flame += uFlameB*w.z;
-  flame *= smoothstep(0.25, 1., abs(uv.y));
-  float md = smoothstep(-0.7, 1., -uv.y*uv.x); flame *= md*md;
-  vec3 bg = uBg * (1.0 - 0.4 * length(uv));
-  vec3 halo = texture2D(haloTexture, vUv).xyz;
-  gl_FragColor = vec4(bg + flame*uFlameAmt + texture2D(bloomTexture, vUv).xyz + texture2D(torusTexture, vUv).xyz + texture2D(tDiffuse, vUv).xyz + halo, 1.);
-}
-`;
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr><th>Skill</th><th>Cost</th><th>Handles</th><th>What it does</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><b>Personalize Context</b></td>
+            <td><code>0 calls</code> · local</td>
+            <td>every request</td>
+            <td>Level &amp; subject → directives every other skill obeys. A lookup, not a reasoning task.</td>
+          </tr>
+          <tr>
+            <td><b>Pedagogical Humanizer</b></td>
+            <td><code>0 calls</code> by default</td>
+            <td>every request</td>
+            <td>Tone folded into the producing prompts for free; a <code>rewrite</code> mode costs one call if you want a separate humanized pass.</td>
+          </tr>
+          <tr>
+            <td><b>Feynman Breakdown</b></td>
+            <td><code>1 call</code></td>
+            <td>explain_concept</td>
+            <td>Rebuilds one concept in plain language. Every analogy must declare where it breaks down.</td>
+          </tr>
+          <tr>
+            <td><b>Reverse Building</b></td>
+            <td><code>1 call</code></td>
+            <td>deconstruct_system</td>
+            <td>Derives a result from first principles, axioms flagged, so learners see it was assembled, not handed down.</td>
+          </tr>
+          <tr>
+            <td><b>Reverse Build Auditor</b></td>
+            <td><code>1 call</code></td>
+            <td>grading / feedback</td>
+            <td>Checks whether a learner's own answer is logically sound and actually applies the lesson's concept — not just whether it's correct.</td>
+          </tr>
+          <tr>
+            <td><b>Podcast Producer</b></td>
+            <td><code>1 call</code></td>
+            <td>study material in</td>
+            <td>TTS-safe script out — three formats, maths verbalised, nothing a speech engine would misread.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-/* ==================== ATMOSPHERE SHADERS ==================== */
-const atmoVert = `
-attribute float size; attribute float seed; uniform float uTime; uniform vec2 uRes;
-varying float vA;
-vec3 warp(vec3 p, float t){ float c=0.9,a=1.9,b=0.02,s=0.05; p*=2.;
-  p.x+=c*sin(s*t+a*p.y)+t*b; p.y+=c*cos(s*t+a*p.x); p.y+=c*sin(s*t+a*p.z)+t*b;
-  p.z+=c*cos(s*t+a*p.y); p.z+=c*sin(s*t+a*p.x)+t*b; p.x+=c*cos(s*t+a*p.z);
-  return cos(p+vec3(1,2,4)); }
-void main(){
-  vec3 v = position*4.0 + warp(position, uTime)*1.2;
-  vec4 mv = modelViewMatrix * vec4(v, 1.0);
-  float r = length(v); float farF = 1.0 - smoothstep(5.0, 6.5, r); float nearF = smoothstep(0.0, 0.5, -mv.z);
-  vA = farF * nearF;
-  gl_PointSize = size * uRes.y / 900.0 / -mv.z; gl_PointSize = max(gl_PointSize, 1.0);
-  gl_Position = projectionMatrix * mv;
-}
-`;
+    <p class="dim" style="margin-top:20px">
+      The router itself ships as <code style="font-family:var(--mono);color:var(--cyan)">POST /v1/orchestrate</code>
+      (classify → plan → chain → respond) and
+      <code style="font-family:var(--mono);color:var(--cyan)">POST /v1/classify</code>
+      (preview the plan and its cost before committing) — both BYOK across
+      Gemini, OpenAI and Anthropic.
+    </p>
 
-const atmoFrag = `
-uniform vec3 uColor; varying float vA;
-void main(){ vec2 p = gl_PointCoord - 0.5; float l = length(p); if (l > 0.5) discard;
-  float tex = smoothstep(0.5, 0.0, l); gl_FragColor = vec4(uColor * tex, tex * vA * 0.6); }
-`;
+    <div class="hero-cta" style="margin-top:28px">
+      <a class="btn btn-primary" href="mailto:partnerships@thelyceum.site?subject=Beta%20sample%20request">Get beta sample</a>
+      <a class="btn btn-ghost" href="#pricing">See pricing</a>
+    </div>
+  </div>
+</section>
 
-/* ==================== SCENE SETUP ==================== */
-const canvas = document.getElementById('scene');
-const renderer = new THREE.WebGL1Renderer({ canvas, antialias: true });
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.VSMShadowMap;
+<div class="wrap"><div class="rule"></div></div>
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
-scene.fog = new THREE.Fog(0x000000, 0, 15);
+<!-- ── Why buy ──────────────────────────────────────────────────────────── -->
+<section id="why">
+  <div class="wrap">
+    <p class="eyebrow">Why licence instead of building</p>
+    <h2 style="margin:12px 0 38px"><span class="metallic">The prompt is the easy part.</span></h2>
 
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 400);
-camera.position.set(0, camStartY, camStartZ);
-camera.layers.enable(LAYERS.TORUS_SCENE);
-camera.layers.enable(LAYERS.BLOOM_SCENE);
-camera.layers.enable(LAYERS.ENTIRE_SCENE);
-scene.add(camera);
+    <div class="grid g3">
+      <div class="glass card">
+        <h3>Guardrails that protect margin</h3>
+        <p>
+          Three local gates, cheapest first, before a single token is billed:
+          shape, prompt injection, STEM relevance. Unicode-normalised, so
+          fullwidth confusables can't slip past. Deterministic and
+          dependency-free — a guardrail that needs a network call to decide
+          whether to make a network call isn't a guardrail.
+        </p>
+      </div>
+      <div class="glass card">
+        <h3>Two guardrail profiles</h3>
+        <p>
+          A learner's hesitant, jargon-free answer must <em>not</em> be filtered as
+          off-topic — it's exactly what the auditor exists to read. So student
+          work gets a separate profile: injection still blocked, topic filter
+          off. The detail that decides whether struggling learners can use your
+          product at all.
+        </p>
+      </div>
+      <div class="glass card">
+        <h3>Strict JSON, natively enforced</h3>
+        <p>
+          Structured output uses each provider's own mechanism — Gemini
+          <code style="font-family:var(--mono);font-size:.78rem">responseSchema</code>, OpenAI
+          <code style="font-family:var(--mono);font-size:.78rem">json_schema</code> — not a polite
+          request in the prompt. We ship the schema transformers that reconcile
+          their contradictory requirements, which is a day you don't lose to a
+          400 that looks like a prompt bug.
+        </p>
+      </div>
+      <div class="glass card">
+        <h3>Failures are typed and bounded</h3>
+        <p>
+          Separate connect/read timeouts, exponential backoff with full jitter,
+          <code style="font-family:var(--mono);font-size:.78rem">Retry-After</code> honoured but
+          capped. 400/401/403 never retried — your key is wrong and hammering the
+          provider just burns quota. Every error is JSON with a stable code.
+        </p>
+      </div>
+      <div class="glass card">
+        <h3>A repair pass instead of a 502</h3>
+        <p>
+          If a response violates the schema, the harness sends it back with the
+          validation errors and asks for a corrected document — preserving
+          content, fixing structure. One extra call turns most would-be failures
+          into a success. <code style="font-family:var(--mono);font-size:.78rem">meta.attempts</code>
+          tells you when it fired.
+        </p>
+      </div>
+      <div class="glass card">
+        <h3>BYOK — we never hold your key</h3>
+        <p>
+          Nothing reads a key from the environment. Your key arrives per request,
+          is used once, and is dropped: never persisted, never logged unredacted,
+          never echoed. Self-host and it never leaves your infrastructure. Your
+          provider bill, your quota, your control.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
 
-/* ==================== POINTS (WAVE FIELD) ==================== */
-const group = new THREE.Group();
-group.rotation.x = -tilt;
-group.rotation.y = 0;
-scene.add(group);
+<div class="wrap"><div class="rule"></div></div>
 
-const pointsGeo = new THREE.SphereGeometry(4.2, 200, 600);
-pointsGeo.frustumCulled = false;
+<!-- ── Integrate ────────────────────────────────────────────────────────── -->
+<section id="integrate">
+  <div class="wrap">
+    <p class="eyebrow">Integration</p>
+    <h2 style="margin:12px 0 14px"><span class="metallic">One header. One call. One shape.</span></h2>
+    <p class="lead" style="margin-bottom:34px">
+      Call it over HTTP, or import the engines directly if your backend is
+      Python and you'd rather skip the network hop.
+    </p>
 
-const pointsUniforms = {
-  uTime: { value: 0 },
-  uStream: { value: 0 },
-  uAppear: { value: 0 },
-  uColLow: { value: hexToVec3(colorLow) },
-  uColHigh: { value: hexToVec3(colorHigh) },
-  uOpacity: { value: opacity },
-  uSize: { value: pointSize },
-  uBrightness: { value: brightness },
-  uWaveHeight: { value: waveHeight },
-  uFlow: { value: flow },
-  uScale: { value: scale },
-  uCursor: { value: new THREE.Vector3() },
-  uRepelRadius: { value: pointerRadius },
-  uRepelStrength: { value: pointerStrength },
-  uActivity: { value: 0 }
-};
+    <div class="grid g2">
+      <div>
+        <p class="code-label">REQUEST — audit a learner's reasoning</p>
+<pre class="code"><span class="c"># Your user's key, not ours.</span>
+curl <b>https://api.yourproduct.com/v1/reverse-build/evaluate</b> \
+  -H <span class="s">"X-LLM-API-Key: $KEY"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{
+    "explanation": "I plugged in numbers near x
+                    and took the ratio.",
+    "problem":     "Differentiate y = sin(x^2).",
+    "concept":     "chain rule",
+    "required_tools": ["chain rule"],
+    "subject":     "math"
+  }'</span></pre>
+      </div>
+      <div>
+        <p class="code-label">RESPONSE — the verdict your UI branches on</p>
+<pre class="code">{
+  <span class="p">"data"</span>: {
+    <span class="p">"answer_correct"</span>:  <span class="n">true</span>,   <span class="c">// the number was right</span>
+    <span class="p">"reasoning_sound"</span>: <span class="n">false</span>,  <span class="c">// the route was not</span>
+    <span class="p">"tool_fidelity"</span>: {
+      <span class="p">"used_tools"</span>: [<span class="s">"numeric estimation"</span>],
+      <span class="p">"ok"</span>: <span class="n">false</span>,
+      <span class="p">"mismatch_note"</span>: <span class="s">"Estimated instead of
+                        differentiating."</span>
+    },
+    <span class="p">"flaws"</span>: [{
+      <span class="p">"kind"</span>:     <span class="s">"wrong_concept"</span>,
+      <span class="p">"where"</span>:    <span class="s">"took a ratio of nearby values"</span>,
+      <span class="p">"is_fatal"</span>: <span class="n">true</span>
+    }],
+    <span class="p">"verdict"</span>:    <span class="s">"fail"</span>,
+    <span class="p">"next_state"</span>: <span class="s">"HINTING"</span>,
+    <span class="p">"hint"</span>:       <span class="s">"Call the inner layer u, try again."</span>
+  },
+  <span class="p">"meta"</span>: { <span class="p">"latency_ms"</span>: <span class="n">3980</span>, <span class="p">"attempts"</span>: <span class="n">1</span> }
+}</pre>
+      </div>
+    </div>
 
-const pointsMat = new THREE.ShaderMaterial({
-  uniforms: pointsUniforms,
-  vertexShader: pointsVert,
-  fragmentShader: pointsFrag,
-  transparent: true,
-  depthWrite: false,
-  blending: THREE.AdditiveBlending
-});
+    <div class="grid g2" style="margin-top:18px">
+      <div>
+        <p class="code-label">PYTHON — as a library, no HTTP hop</p>
+<pre class="code"><span class="k">from</span> lyceum_harness <span class="k">import</span> PodcastEngine, PodcastFormat
+<span class="k">from</span> lyceum_harness <span class="k">import</span> GuardrailRejection, HarnessError
 
-const points = new THREE.Points(pointsGeo, pointsMat);
-points.frustumCulled = false;
-points.layers.enable(LAYERS.ENTIRE_SCENE);
-group.add(points);
+engine = <b>PodcastEngine</b>(api_key=user_key, provider=<span class="s">"gemini"</span>)
+<span class="k">try</span>:
+    script, meta = <span class="k">await</span> engine.run(
+        material, format=PodcastFormat.EXPLORERS, minutes=<span class="n">5</span>,
+    )
+<span class="k">except</span> GuardrailRejection <span class="k">as</span> e:
+    <span class="c"># Refused locally. Cost you nothing.</span>
+    <span class="k">return</span> reject(e.reason)
+<span class="k">except</span> HarnessError <span class="k">as</span> e:
+    <span class="k">return</span> retry_later(e.code)   <span class="c"># every failure is typed</span>
 
-/* ==================== ATMOSPHERE MOTES ==================== */
-const N = Math.round(atmoCount);
-const atmoGeo = new THREE.BufferGeometry();
-const atmoPositions = new Float32Array(N * 3);
-const atmoSizes = new Float32Array(N);
-const atmoSeeds = new Float32Array(N);
-for (let i = 0; i < N; i++) {
-  atmoPositions[i * 3] = 2 * Math.random() - 1;
-  atmoPositions[i * 3 + 1] = 2 * Math.random() - 1;
-  atmoPositions[i * 3 + 2] = 2 * Math.random() - 1;
-  atmoSizes[i] = atmoSize * (0.4 + Math.random());
-  atmoSeeds[i] = Math.random();
-}
-atmoGeo.setAttribute('position', new THREE.BufferAttribute(atmoPositions, 3));
-atmoGeo.setAttribute('size', new THREE.BufferAttribute(atmoSizes, 1));
-atmoGeo.setAttribute('seed', new THREE.BufferAttribute(atmoSeeds, 1));
+<span class="k">for</span> seg <span class="k">in</span> script.segments:
+    tts(seg.spoken_text)          <span class="c"># safe to speak verbatim</span>
+    <span class="k">if</span> seg.is_note_cue:
+        flash_write_prompt(seg.on_screen_latex)</pre>
+      </div>
+      <div>
+        <p class="code-label">ERROR CODES — write one handler, be done</p>
+        <div class="table-scroll" style="border-radius:14px">
+          <table style="min-width:0">
+            <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>input_rejected</code></td><td>Guardrails refused. No LLM call, no cost</td></tr>
+              <tr><td><code>missing_api_key</code></td><td>No key supplied</td></tr>
+              <tr><td><code>invalid_api_key</code></td><td>Provider rejected it. Not retryable</td></tr>
+              <tr><td><code>rate_limited</code></td><td>Throttled. <code>Retry-After</code> set</td></tr>
+              <tr><td><code>malformed_model_output</code></td><td>Model broke schema twice. Retryable</td></tr>
+              <tr><td><code>upstream_timeout</code></td><td>Provider too slow. Retryable</td></tr>
+              <tr><td><code>content_blocked_upstream</code></td><td>Provider safety layer refused</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-const atmoUniforms = {
-  uTime: { value: 0 },
-  uColor: { value: hexToVec3(atmoColor) },
-  uRes: { value: new THREE.Vector2(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio) }
-};
+<div class="wrap"><div class="rule"></div></div>
 
-const atmoMat = new THREE.ShaderMaterial({
-  uniforms: atmoUniforms,
-  vertexShader: atmoVert,
-  fragmentShader: atmoFrag,
-  transparent: true,
-  blending: THREE.AdditiveBlending,
-  depthWrite: false,
-  depthTest: false
-});
+<!-- ── Pricing ──────────────────────────────────────────────────────────── -->
+<section id="pricing">
+  <div class="wrap">
+    <p class="eyebrow">Licensing</p>
+    <h2 style="margin:12px 0 14px"><span class="metallic">Licence the API, or own the source.</span></h2>
+    <p class="lead" style="margin-bottom:38px">
+      You pay for the engines and the reliability layer. LLM inference is billed
+      by your own provider on your own key — we never resell tokens, so there's
+      no margin stacked on top of your inference cost.
+    </p>
 
-const atmoPoints = new THREE.Points(atmoGeo, atmoMat);
-atmoPoints.frustumCulled = false;
-atmoPoints.layers.enable(LAYERS.ENTIRE_SCENE);
-scene.add(atmoPoints);
+    <div class="tiers">
+      <div class="glass tier">
+        <h3>Starter</h3>
+        <p class="muted" style="font-size:.9rem">One engine, hosted by you.</p>
+        <p class="price">Contact<small> / month</small></p>
+        <ul class="ticks">
+          <li>Any <b>one</b> engine of the four</li>
+          <li>Self-hosted Docker image</li>
+          <li>Full API documentation</li>
+          <li>Email support, 3 business days</li>
+          <li>Schema version pinning</li>
+        </ul>
+        <a class="btn btn-ghost" href="#contact">Talk to us</a>
+      </div>
 
-/* ==================== POST PROCESSING ==================== */
-const renderPass = new RenderPass(scene, camera);
+      <div class="glass tier featured" style="position:relative">
+        <span class="badge">Most integrations</span>
+        <h3>Studio</h3>
+        <p class="muted" style="font-size:.9rem">All four engines, production terms.</p>
+        <p class="price">Contact<small> / month</small></p>
+        <ul class="ticks">
+          <li><b>All four engines</b> + <code style="font-family:var(--mono);font-size:.8rem">/v1/validate</code></li>
+          <li>Self-hosted or we host it</li>
+          <li>Prompt tuning for your curriculum &amp; locale</li>
+          <li>Custom schema fields for your UI</li>
+          <li>Slack channel, 1 business day</li>
+          <li>Uptime commitment on hosted plans</li>
+        </ul>
+        <a class="btn btn-primary" href="#contact">Request access</a>
+      </div>
 
-/* torusComposer */
-const torusComposer = new EffectComposer(renderer);
-torusComposer.renderToScreen = false;
-torusComposer.addPass(renderPass);
-const gammaPass = new ShaderPass(GammaCorrectionShader);
-torusComposer.addPass(gammaPass);
-const torusBloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.22, 0.2, 0);
-torusComposer.addPass(torusBloom);
-const copyPass = new ShaderPass(CopyShader);
-torusComposer.addPass(copyPass);
+      <div class="glass tier">
+        <h3>Source Licence</h3>
+        <p class="muted" style="font-size:.9rem">The code, the prompts, the tests.</p>
+        <p class="price">Contact<small> / one-time + support</small></p>
+        <ul class="ticks">
+          <li>Full source: engines, <b>prompts</b>, schemas, guardrails, test suite</li>
+          <li>Modify and extend freely in your product</li>
+          <li>Add your own providers or engines</li>
+          <li>Onboarding sessions with the author</li>
+          <li>Optional retainer for updates</li>
+          <li>No runtime dependency on us</li>
+        </ul>
+        <a class="btn btn-ghost" href="#contact">Discuss terms</a>
+      </div>
+    </div>
 
-/* bloomComposer */
-const bloomComposer = new EffectComposer(renderer);
-bloomComposer.renderToScreen = false;
-bloomComposer.addPass(renderPass);
-const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.55, 0);
-bloomComposer.addPass(bloomPass);
-const gammaPass2 = new ShaderPass(GammaCorrectionShader);
-bloomComposer.addPass(gammaPass2);
+    <p class="dim" style="margin-top:22px">
+      Pricing is quoted per integration — it depends on which engines you need,
+      seat volume, whether you self-host, and how much curriculum-specific prompt
+      tuning is involved. Tell us your use case and you'll get a real number, not
+      a configurator.
+    </p>
+  </div>
+</section>
 
-/* finalComposer */
-const finalComposer = new EffectComposer(renderer);
-finalComposer.addPass(renderPass);
+<div class="wrap"><div class="rule"></div></div>
 
-const finalUniforms = {
-  iTime: { value: 0 },
-  tDiffuse: { value: null },
-  torusTexture: { value: null },
-  bloomTexture: { value: null },
-  haloTexture: { value: null },
-  uBg: { value: hexToVec3(bgColor) },
-  uFlameA: { value: hexToVec3(flameColor) },
-  uFlameB: { value: hexToVec3(flameColor2) },
-  uFlameAmt: { value: flameAmt }
-};
+<!-- ── Who it's for ─────────────────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <p class="eyebrow">Who this is for</p>
+    <h2 style="margin:12px 0 34px"><span class="metallic">Built for teams shipping learning products.</span></h2>
+    <div class="grid g3">
+      <div class="glass card">
+        <h3>EdTech SaaS</h3>
+        <p>You have users and a roadmap, and "AI tutor" keeps sliding a quarter. Ship the feature this sprint against a stable JSON contract instead of maintaining a prompt layer.</p>
+      </div>
+      <div class="glass card">
+        <h3>Tutoring centres &amp; schools</h3>
+        <p>Use the Feynman engine's knowledge gaps to decide what a tutor teaches first, and the auditor to mark reasoning at scale — including the students who got the right answer the wrong way.</p>
+      </div>
+      <div class="glass card">
+        <h3>Study-tool builders</h3>
+        <p>Note apps, flashcard apps, exam-prep tools. Turn material your users already have into podcasts they can study from, and answers into audited feedback.</p>
+      </div>
+    </div>
+  </div>
+</section>
 
-const finalPass = new ShaderPass({
-  uniforms: finalUniforms,
-  vertexShader: finalVert,
-  fragmentShader: finalFrag
-});
-finalComposer.addPass(finalPass);
+<div class="wrap"><div class="rule"></div></div>
 
-finalPass.uniforms.torusTexture.value = torusComposer.renderTarget1.texture;
-finalPass.uniforms.bloomTexture.value = bloomComposer.renderTarget1.texture;
-finalPass.uniforms.haloTexture.value = torusComposer.renderTarget1.texture;
-finalPass.uniforms.tDiffuse.value = bloomComposer.renderTarget1.texture;
+<!-- ── FAQ ──────────────────────────────────────────────────────────────── -->
+<section id="faq">
+  <div class="wrap" style="max-width:900px">
+    <p class="eyebrow">Straight answers</p>
+    <h2 style="margin:12px 0 22px"><span class="metallic">FAQ</span></h2>
 
-/* ==================== INTERACTION STATE ==================== */
-let scrollTarget = 0, scrollSmooth = 0, scrollCurrent = 0;
-let mouseTarget = { x: 0, y: 0 }, mouse = { x: 0, y: 0 };
+    <details open>
+      <summary>Do you see our API key or our learners' data?</summary>
+      <p>No. The harness reads no key from the environment — yours arrives with the request, is used for that request, and is dropped. It's never persisted, never logged unredacted, never returned. If you self-host, neither the key nor the learner text touches our infrastructure at all. Logs record request id, provider, model, latency and outcome — not keys, not full learner input.</p>
+    </details>
 
-const POINTER = {
-  world: new THREE.Vector3(),
-  activity: 0,
-  active: false,
-  lastMove: performance.now()
-};
+    <details>
+      <summary>Are the guardrails a security boundary?</summary>
+      <p>No, and we won't pretend otherwise. They're a cost-control and hygiene layer: heuristic pattern matching plus a relevance score. The real defence is that the prompts instruct the model to treat user text as data, and that defence-in-depth is what holds. If you're piping learner text into other systems, apply your own controls too.</p>
+    </details>
 
-const _ndc = new THREE.Vector3();
-const _dir = new THREE.Vector3();
-const _tgt = new THREE.Vector3();
+    <details>
+      <summary>Which LLM providers work?</summary>
+      <p>Gemini and OpenAI are wired and tested on the four engines, with per-request model override so you can trade cost against quality without a new release. The Orchestrator (the skill router — see the showroom above) adds Anthropic natively: each provider needs a different structured-output mechanism under the hood, and that plumbing is already done. Azure OpenAI and Bedrock are a single branch in one function — ask, and it's a small piece of work rather than a redesign.</p>
+    </details>
 
-function updatePointerWorld() {
-  _tgt.set(0, 0, 0);
-  if (POINTER.active) {
-    _ndc.set(mouse.x, mouse.y, 0.5).unproject(camera);
-    _dir.copy(_ndc).sub(camera.position).normalize();
-    const dn = _dir.z;
-    if (Math.abs(dn) > 1e-4) {
-      const tt = -camera.position.z / dn;
-      if (tt > 0 && Number.isFinite(tt)) _tgt.copy(camera.position).addScaledVector(_dir, tt);
-    }
-  }
-  POINTER.world.lerp(_tgt, 0.12);
-  const idle = (performance.now() - POINTER.lastMove) / 1000;
-  POINTER.activity += (((POINTER.active && idle < 3) ? 1 : 0) - POINTER.activity) * 0.06;
-}
+    <details>
+      <summary>What happens when the model returns something malformed?</summary>
+      <p>The harness sends the broken document back with its validation errors and asks for a corrected version, preserving content and fixing only structure. That rescues most cases. If the repair also fails you get a <code>malformed_model_output</code> 502 marked retryable — never a half-parsed object, and never a raw model dump.</p>
+    </details>
 
-/* ==================== SCENE RENDER OBJECT ==================== */
-const sceneObj = {
-  stream: 0,
-  appearStart: performance.now(),
-  t0: performance.now() / 1000,
+    <details>
+      <summary>Can the auditor be fooled by a confident wrong answer?</summary>
+      <p>It's designed against exactly that: <code>answer_correct</code> and <code>reasoning_sound</code> are separate fields and the verdict follows the reasoning, so a right answer via a broken route cannot pass. It's still an LLM and it can be wrong. For high-stakes assessment, keep a human in the loop — we'll say that in the contract too.</p>
+    </details>
 
-  render(scroll, m) {
-    const t = performance.now() / 1000;
-    const dt = Math.min(0.05, t - this.t0);
-    this.t0 = t;
+    <details>
+      <summary>Will it fail a student who solved it a smarter way?</summary>
+      <p>No, and this is deliberate. Tool fidelity is about <em>level</em>, not conformity: a method of equal or greater sophistication passes and is recorded as an alternative. Only a lower-level dodge around the lesson fails. An evaluator that punishes elegance teaches learners to stop thinking.</p>
+    </details>
 
-    pointsUniforms.uTime.value = t;
+    <details>
+      <summary>Is the podcast output really safe to send to TTS?</summary>
+      <p>That's the schema's central guarantee. Spoken text carries no LaTeX, no markdown and no stage directions, with maths verbalised, because a speech engine reads <code>\frac</code> aloud as letters. Display LaTeX travels in a separate field. It's asserted in the test suite, not just requested in the prompt.</p>
+    </details>
 
-    // Stream the hills toward us at a constant rate; grow the swell with scroll.
-    this.stream += dt * (flow * 2.0) * 4.0;
-    pointsUniforms.uStream.value = this.stream;
-    pointsUniforms.uWaveHeight.value = waveHeight * (1 + scroll * scrollRise);
+    <details>
+      <summary>Can we get our own schema fields, or Vietnamese output?</summary>
+      <p>Yes to both on Studio and Source. The engines already answer in the language the learner wrote in. Extra fields, changed enums and curriculum-specific prompt tuning (Cambridge IGCSE / A-Level, IB, AP, national curricula) are part of a Studio engagement.</p>
+    </details>
 
-    // Camera fly-path: smoothstep over the first 35% of scroll.
-    const ea = Math.min(scroll / 0.35, 1.0);
-    const e = ea * ea * (3 - 2 * ea);
-    const camY = Lerp(camStartY, camEndY, e);
-    const camZ = Lerp(camStartZ, camEndZ, e);
-    camera.position.set(m.x * parallax, camY + m.y * parallax * 0.3, camZ);
-    camera.lookAt(m.x * parallax * 0.5, Lerp(0.0, 0.6, e), Lerp(lookStartZ, lookEndZ, e));
-    group.rotation.x = -tilt;
-    group.rotation.y = 0;
+    <details>
+      <summary>Is there streaming?</summary>
+      <p>Not currently. These are structured single-shot documents and partial JSON isn't useful to a renderer. If you need SSE purely for perceived latency, say so — it's a reasonable addition.</p>
+    </details>
+  </div>
+</section>
 
-    updatePointerWorld();
+<div class="wrap"><div class="rule"></div></div>
 
-    pointsUniforms.uCursor.value.copy(POINTER.world);
-    pointsUniforms.uActivity.value = POINTER.activity;
+<!-- ── Contact ──────────────────────────────────────────────────────────── -->
+<section id="contact">
+  <div class="wrap" style="max-width:760px;text-align:center">
+    <p class="eyebrow">Next step</p>
+    <h2 style="margin:12px 0 18px"><span class="metallic">Tell us what you're building.</span></h2>
+    <p class="lead" style="margin:0 auto 30px">
+      Send the engines you're interested in, roughly how many learners, and
+      whether you want to self-host. You'll get a straight quote and a sandbox
+      key to test against your own curriculum.
+    </p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a class="btn btn-primary" href="mailto:partnerships@thelyceum.site?subject=Harness%20licence%20enquiry">Email us</a>
+      <a class="btn btn-ghost" href="https://thelyceum.site">See it in production</a>
+    </div>
+    <p class="dim" style="margin-top:26px">
+      The Lyceum runs these same engines in its own consumer product. You're
+      licensing something in daily use, not a demo.
+    </p>
+  </div>
+</section>
 
-    const elapsed = (performance.now() - this.appearStart) / 1000;
-    pointsUniforms.uAppear.value = Math.max(0, Math.min(1, (elapsed - 0.2) / 1.4));
+<footer>
+  <div class="wrap foot">
+    <span class="dim">© <span id="yr">2026</span> The Lyceum. Proprietary. All rights reserved.</span>
+    <span class="dim">Harness v1.0.0 · Orchestrator v1.0.0 · schema_version 1.0</span>
+  </div>
+</footer>
 
-    // Update atmosphere motes
-    atmoUniforms.uTime.value = t * atmoSpeed * 8.0;
-    atmoPoints.position.copy(camera.position);
-    finalUniforms.iTime.value = t;
-  }
-};
-
-/* ==================== EVENT LISTENERS ==================== */
-function onScroll() {
-  const max = document.documentElement.scrollHeight - window.innerHeight;
-  scrollTarget = max > 0 ? clamp(window.scrollY / max, 0, 1) : 0;
-}
-window.addEventListener('scroll', onScroll, { passive: true });
-
-function onMouseMove(e) {
-  mouseTarget.x = (e.clientX / window.innerWidth) * 2 - 1;
-  mouseTarget.y = -((e.clientY / window.innerHeight) * 2 - 1);
-  POINTER.active = true;
-  POINTER.lastMove = performance.now();
-}
-window.addEventListener('mousemove', onMouseMove, { passive: true });
-
-function onMouseOut() {
-  POINTER.active = false;
-}
-window.addEventListener('mouseout', onMouseOut, { passive: true });
-
-/* ==================== RESIZE ==================== */
-function resize() {
-  const w = window.innerWidth, h = window.innerHeight, dpr = window.devicePixelRatio;
-  renderer.setPixelRatio(dpr);
-  renderer.setSize(w, h, false);
-  camera.aspect = w / h;
-  camera.updateProjectionMatrix();
-
-  torusComposer.setPixelRatio(dpr);
-  torusComposer.setSize(w, h);
-  bloomComposer.setPixelRatio(dpr);
-  bloomComposer.setSize(w, h);
-  finalComposer.setPixelRatio(dpr);
-  finalComposer.setSize(w, h);
-
-  atmoUniforms.uRes.value.set(w * dpr, h * dpr);
-
-  onScroll();
-}
-window.addEventListener('resize', resize);
-resize();
-
-/* ==================== ANIMATION LOOP ==================== */
-function animate() {
-  requestAnimationFrame(animate);
-
-  scrollSmooth = Lerp(scrollSmooth, scrollTarget, 0.10);
-  scrollCurrent = Lerp(scrollCurrent, scrollSmooth, 0.06);
-  mouse.x = Lerp(mouse.x, mouseTarget.x, 0.06);
-  mouse.y = Lerp(mouse.y, mouseTarget.y, 0.06);
-
-  sceneObj.render(scrollCurrent, mouse);
-
-  camera.layers.set(LAYERS.TORUS_SCENE);
-  torusComposer.render();
-  camera.layers.set(LAYERS.BLOOM_SCENE);
-  bloomComposer.render();
-  camera.layers.set(LAYERS.ENTIRE_SCENE);
-  finalComposer.render();
-}
-animate();
+<script>
+  document.getElementById('yr').textContent = new Date().getFullYear();
 </script>
 </body>
 </html>

@@ -23,18 +23,22 @@ from app.services import activity_log     as activity_svc
 from app.services import mastery_profile  as profile_svc
 from app.services import feedback         as feedback_svc
 from app.services import ai               as ai_svc
+from app.services import harness_files    as harness_svc
 from app.services.content_safety import check_upload
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
 from app.models.entities import UserProfile, AuthProviderEnum, SubscriptionPlan, PlanFeatureToken
 
 router      = APIRouter(prefix="/admin", tags=["admin"])
-ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "pclick-admin-dev")
+ADMIN_TOKEN = os.getenv("ADMIN_SECRET", "").strip()
+# The old hardcoded default. It shipped in this repo's history, so it must
+# never be accepted even if an operator's env still has it lying around.
+_LEAKED_DEFAULT = "pclick-admin-dev"
 
 
 # ── Auth dependency ───────────────────────────────────────────────────────────
 # Accepts either:
-#   • the static ADMIN_SECRET dev token   (fast, no network call)
+#   • the static ADMIN_SECRET dev token   (fast, no network call, dev only)
 #   • a valid Firebase ID token whose email is in ADMIN_EMAILS allowlist
 
 async def _auth(x_admin_token: Optional[str] = Header(None)):
@@ -43,9 +47,13 @@ async def _auth(x_admin_token: Optional[str] = Header(None)):
     if not x_admin_token:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # Static dev token — always accept (no email check needed)
-    if x_admin_token == ADMIN_TOKEN:
-        return
+    is_production = _settings.app_env.lower().startswith("prod")
+
+    # Static dev token — never in production, never the leaked default.
+    if ADMIN_TOKEN and not is_production and ADMIN_TOKEN != _LEAKED_DEFAULT:
+        import secrets
+        if secrets.compare_digest(x_admin_token, ADMIN_TOKEN):
+            return
 
     # Firebase ID token path
     try:
@@ -53,12 +61,19 @@ async def _auth(x_admin_token: Optional[str] = Header(None)):
     except HTTPException:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    # If ADMIN_EMAILS is configured, enforce the allowlist
+    # An empty allowlist must DENY, not wave everyone through — ADMIN_EMAILS
+    # being unset is a misconfiguration, not an invitation.
     allowed = _settings.admin_email_set
-    if allowed:
-        email = (payload.get("email") or "").lower()
-        if email not in allowed:
-            raise HTTPException(status_code=403, detail="Forbidden: not an admin")
+    if not allowed:
+        import logging
+        logging.getLogger("app.admin").error(
+            "ADMIN_EMAILS is empty — refusing all admin access until it is configured."
+        )
+        raise HTTPException(status_code=403, detail="Forbidden: admin allowlist not configured")
+
+    email = (payload.get("email") or "").lower()
+    if email not in allowed:
+        raise HTTPException(status_code=403, detail="Forbidden: not an admin")
 
 
 # ── Applications ("Xét duyệt người dùng") — registration is closed; every
@@ -658,6 +673,44 @@ def ft_cancel_job(job_id: str, _: None = Depends(_auth)):
         raise HTTPException(503, str(exc))
     except Exception as exc:
         raise HTTPException(500, f"OpenAI API error: {exc}")
+
+
+# ── Harness / skills — file browser ────────────────────────────────────────────
+# lyceum-harness/ and lyceum-orchestrator/ (the B2B skill packages) opened and
+# edited straight from the admin console. Every path is re-validated against
+# the two allowed roots inside harness_svc — see that module for the guard.
+
+class HarnessFileWrite(BaseModel):
+    path:    str
+    content: str
+
+
+def _harness_error(exc: harness_svc.HarnessFileError):
+    raise HTTPException(status_code=exc.status, detail=exc.message)
+
+
+@router.get("/harness/tree")
+def harness_tree(_: None = Depends(_auth)):
+    """The lyceum-harness/ and lyceum-orchestrator/ source as one nested tree."""
+    return harness_svc.tree()
+
+
+@router.get("/harness/file")
+def harness_read(path: str, _: None = Depends(_auth)):
+    try:
+        content = harness_svc.read_file(path)
+    except harness_svc.HarnessFileError as exc:
+        _harness_error(exc)
+    return {"path": path, "content": content}
+
+
+@router.put("/harness/file")
+def harness_write(body: HarnessFileWrite, _: None = Depends(_auth)):
+    try:
+        size = harness_svc.write_file(body.path, body.content)
+    except harness_svc.HarnessFileError as exc:
+        _harness_error(exc)
+    return {"path": body.path, "size": size}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

@@ -165,6 +165,7 @@
       <button id="nav-ai-chat" onclick="viewAiChat()" class="sn-btn"><span>🗨️</span>AI Chat</button>
       <button id="nav-activity" onclick="viewActivity()" class="sn-btn"><span>📊</span>Activity Log</button>
       <button id="nav-second-brain" onclick="viewSecondBrain()" class="sn-btn"><span>🕸️</span>Second Brain chung</button>
+      <button id="nav-harness" onclick="viewHarness()" class="sn-btn"><span>🧩</span>Skills / Harness</button>
     </div>
   </aside>
 
@@ -185,6 +186,7 @@
     <div id="view-profile-detail" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-feedback" class="hidden p-6 max-w-4xl mx-auto fade-in"></div>
     <div id="view-second-brain" class="hidden p-6 max-w-6xl mx-auto fade-in"></div>
+    <div id="view-harness" class="hidden p-6 max-w-7xl mx-auto fade-in"></div>
   </main>
   </div><!-- /sidebar+main -->
 </div>
@@ -410,7 +412,7 @@ function setActiveNav(id) {
 function hideAllViews() {
   ['view-applications','view-meetings','view-brain','view-workspace','view-trash','view-access-codes','view-orders',
    'view-errors','view-ai-system','view-ai-chat','view-activity','view-profiles','view-profile-detail','view-feedback',
-   'view-second-brain'].forEach(hide);
+   'view-second-brain','view-harness'].forEach(hide);
 }
 
 function timeAgo(iso) {
@@ -2159,6 +2161,112 @@ async function loadFeedbackInsights() {
     `;
   } catch (e) {
     body.innerHTML = `<div style="color:#f85149">Failed to analyze: ${esc(e.message)}</div>`;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// VIEW: SKILLS / HARNESS — the lyceum-harness/ and lyceum-orchestrator/
+// B2B packages, opened and edited straight from the admin console. The
+// backend re-validates every path against the two allowed roots, so this
+// UI never has more reach than /admin/harness/* actually grants.
+// ════════════════════════════════════════════════════════════════
+let _harnessTree = null;
+let _harnessCurrentPath = null;
+let _harnessDirty = false;
+
+async function viewHarness() {
+  hideAllViews();
+  setActiveNav('nav-harness');
+  show('view-harness');
+  const el = document.getElementById('view-harness');
+  el.innerHTML = `
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h1 class="text-xl font-bold">Skills / Harness</h1>
+        <p class="text-sm mt-0.5" style="color:var(--muted)">lyceum-harness/ &amp; lyceum-orchestrator/ — the B2B skill packages, editable in place.</p>
+      </div>
+      <button onclick="viewHarness()" class="btn btn-ghost text-xs">↻ Refresh</button>
+    </div>
+    <div class="flex gap-4" style="height:calc(100vh - 170px)">
+      <div style="width:280px;flex:none;overflow-y:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface)" class="p-2">
+        <div id="harness-tree" class="text-sm">Loading…</div>
+      </div>
+      <div class="flex-1 flex flex-col min-w-0" style="border:1px solid var(--border);border-radius:12px;background:var(--surface)">
+        <div id="harness-editor-empty" class="flex-1 flex items-center justify-center text-sm" style="color:var(--muted)">Select a file to open it.</div>
+        <div id="harness-editor" class="hidden flex-1 flex flex-col min-h-0">
+          <div class="flex items-center justify-between px-4 py-2" style="border-bottom:1px solid var(--border)">
+            <code id="harness-editor-path" class="text-xs" style="color:var(--muted)"></code>
+            <div class="flex items-center gap-2">
+              <span id="harness-dirty" class="text-xs hidden" style="color:var(--amber)">unsaved</span>
+              <button onclick="saveHarnessFile()" class="btn btn-primary text-xs">Save</button>
+            </div>
+          </div>
+          <textarea id="harness-editor-content" spellcheck="false"
+            style="flex:1;border:none;border-radius:0;resize:none;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.6;white-space:pre"
+            oninput="_harnessDirty = true; document.getElementById('harness-dirty').classList.remove('hidden')"></textarea>
+        </div>
+      </div>
+    </div>`;
+  loadHarnessTree();
+}
+
+async function loadHarnessTree() {
+  const box = document.getElementById('harness-tree');
+  try {
+    const r = await api('/admin/harness/tree');
+    _harnessTree = await r.json();
+    box.innerHTML = _harnessTree.map(n => harnessNodeHtml(n, 0)).join('');
+  } catch (e) {
+    box.innerHTML = `<div style="color:#f85149">Failed to load: ${esc(e.message)}</div>`;
+  }
+}
+
+function harnessNodeHtml(node, depth) {
+  const pad = 8 + depth * 14;
+  if (node.is_dir) {
+    const children = (node.children || []).map(c => harnessNodeHtml(c, depth + 1)).join('');
+    return `<div>
+      <div style="padding-left:${pad}px" class="py-1 font-medium" style="color:var(--muted)">📁 ${esc(node.name)}</div>
+      ${children}
+    </div>`;
+  }
+  return `<button onclick="openHarnessFile('${esc(node.path)}')" id="harness-node-${esc(node.path)}"
+    class="w-full text-left py-1 rounded hover:bg-white/5 truncate" style="padding-left:${pad}px">📄 ${esc(node.name)}</button>`;
+}
+
+async function openHarnessFile(path) {
+  if (_harnessDirty && !confirm('Discard unsaved changes?')) return;
+  try {
+    const r = await api('/admin/harness/file?path=' + encodeURIComponent(path));
+    const data = await r.json();
+    _harnessCurrentPath = path;
+    _harnessDirty = false;
+    document.querySelectorAll('[id^="harness-node-"]').forEach(b => b.classList.remove('bg-white/10'));
+    const active = document.getElementById('harness-node-' + path);
+    if (active) active.classList.add('bg-white/10');
+    document.getElementById('harness-editor-path').textContent = path;
+    document.getElementById('harness-editor-content').value = data.content;
+    document.getElementById('harness-dirty').classList.add('hidden');
+    hide('harness-editor-empty');
+    show('harness-editor');
+  } catch (e) {
+    toast('Failed to open: ' + e.message, 'err');
+  }
+}
+
+async function saveHarnessFile() {
+  if (!_harnessCurrentPath) return;
+  const content = document.getElementById('harness-editor-content').value;
+  try {
+    await api('/admin/harness/file', {
+      method: 'PUT', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ path: _harnessCurrentPath, content }),
+    });
+    _harnessDirty = false;
+    document.getElementById('harness-dirty').classList.add('hidden');
+    toast('✓ Saved ' + _harnessCurrentPath);
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'err');
   }
 }
 </script>
