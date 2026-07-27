@@ -23,7 +23,6 @@ from app.services import activity_log     as activity_svc
 from app.services import mastery_profile  as profile_svc
 from app.services import feedback         as feedback_svc
 from app.services import ai               as ai_svc
-from app.services import harness_files    as harness_svc
 from app.services.content_safety import check_upload
 from app.services.firebase_auth import verify_firebase_id_token
 from app.db.session import get_db
@@ -673,44 +672,6 @@ def ft_cancel_job(job_id: str, _: None = Depends(_auth)):
         raise HTTPException(503, str(exc))
     except Exception as exc:
         raise HTTPException(500, f"OpenAI API error: {exc}")
-
-
-# ── Harness / skills — file browser ────────────────────────────────────────────
-# lyceum-harness/ and lyceum-orchestrator/ (the B2B skill packages) opened and
-# edited straight from the admin console. Every path is re-validated against
-# the two allowed roots inside harness_svc — see that module for the guard.
-
-class HarnessFileWrite(BaseModel):
-    path:    str
-    content: str
-
-
-def _harness_error(exc: harness_svc.HarnessFileError):
-    raise HTTPException(status_code=exc.status, detail=exc.message)
-
-
-@router.get("/harness/tree")
-def harness_tree(_: None = Depends(_auth)):
-    """The lyceum-harness/ and lyceum-orchestrator/ source as one nested tree."""
-    return harness_svc.tree()
-
-
-@router.get("/harness/file")
-def harness_read(path: str, _: None = Depends(_auth)):
-    try:
-        content = harness_svc.read_file(path)
-    except harness_svc.HarnessFileError as exc:
-        _harness_error(exc)
-    return {"path": path, "content": content}
-
-
-@router.put("/harness/file")
-def harness_write(body: HarnessFileWrite, _: None = Depends(_auth)):
-    try:
-        size = harness_svc.write_file(body.path, body.content)
-    except harness_svc.HarnessFileError as exc:
-        _harness_error(exc)
-    return {"path": body.path, "size": size}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
